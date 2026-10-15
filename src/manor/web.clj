@@ -1,0 +1,348 @@
+(ns manor.web
+  "A small control panel: run controls, roster, pending approvals, human
+  input, and a live event feed (server-sent events). `?as=<agent-id>` shows
+  the feed exactly as that agent sees it, which is useful for checking
+  private information doesn't leak."
+  (:require [clojure.pprint :as pp]
+            [clojure.string :as str]
+            [hiccup2.core :as h]
+            [jsonista.core :as json]
+            [manor.actions :as a]
+            [manor.engine :as e]
+            [manor.narrate :as narrate]
+            [manor.prompt :as prompt]
+            [manor.space :as space]
+            [manor.world :as w]
+            [org.httpkit.server :as hk])
+  (:import (java.net URLDecoder)))
+
+(defonce ^:private server (atom nil))
+(defonce ^:private current-run (atom nil))
+
+;; ---------------------------------------------------------------------------
+;; Helpers
+
+(defn- parse-params [s]
+  (if (str/blank? s)
+    {}
+    (into {} (for [pair (str/split s #"&")
+                   :let [[k v] (str/split pair #"=" 2)]]
+               [(keyword (URLDecoder/decode k "UTF-8")) (URLDecoder/decode (or v "") "UTF-8")]))))
+
+(defn- form-params [req]
+  (parse-params (some-> (:body req) slurp)))
+
+(defn- query-params [req] (parse-params (:query-string req)))
+
+(defn- html [& body] (str (h/html body)))
+
+(defn- page [title & body]
+  {:status 200
+   :headers {"Content-Type" "text/html; charset=utf-8"}
+   :body (str "<!doctype html>"
+              (h/html
+               [:html
+                [:head [:meta {:charset "utf-8"}] [:title title]
+                 [:style (h/raw "
+body{font:14px/1.4 system-ui,sans-serif;margin:0;background:#16181d;color:#ddd}
+a{color:#8cf} header{padding:8px 14px;background:#20232b;display:flex;gap:16px;align-items:center}
+main{display:grid;grid-template-columns:420px 1fr;gap:14px;padding:14px}
+section{background:#20232b;border-radius:6px;padding:10px;margin-bottom:12px}
+h2{font-size:13px;text-transform:uppercase;color:#999;margin:0 0 8px}
+table{border-collapse:collapse;width:100%} td,th{padding:3px 6px;text-align:left;border-bottom:1px solid #2c3039}
+button{background:#3a6df0;color:#fff;border:0;border-radius:4px;padding:4px 10px;cursor:pointer}
+button.alt{background:#444} input,select,textarea{background:#111;color:#ddd;border:1px solid #444;border-radius:4px;padding:3px}
+#feed{list-style:none;margin:0;padding:0;font-family:ui-monospace,monospace;font-size:12.5px;max-height:80vh;overflow:auto}
+#feed li{padding:2px 4px;border-bottom:1px solid #262a33} .vis{color:#888;font-size:11px}
+.private{background:#2a2536} .gm{background:#23302a} .system{color:#777}
+pre{white-space:pre-wrap;font-size:12px;background:#111;padding:8px;border-radius:4px;max-height:60vh;overflow:auto}
+form.inline{display:inline}")]]
+                [:body body]]))})
+
+(defn- vis-label [v]
+  (cond (= v :all) "all" (set? v) (str/join "," (sort v)) :else (name v)))
+
+(defn- vis-class [v]
+  (cond (= v :all) "" (set? v) "private" (= v :gm) "gm" :else "system"))
+
+(defn- event-li [event names]
+  [:li {:class (vis-class (:visible-to event))}
+   [:span.vis (format "#%d r%d [%s] " (:id event) (:round event) (vis-label (:visible-to event)))]
+   (narrate/describe event names)])
+
+(defn- viewer [req]
+  (let [as (:as (query-params req))]
+    (if (str/blank? as) :operator as)))
+
+(defn- feed-events [run viewer n]
+  (->> (e/events run)
+       (filter #(w/visible-to? % viewer))
+       (take-last n)
+       reverse))
+
+;; ---------------------------------------------------------------------------
+;; Map
+
+(defn- map-svg
+  "Locations on a circle, routes as lines (dashed when closed, labelled with
+  travel time when > 1), and who is where."
+  [world]
+  (let [locs (sort (keys (get-in world [:space :locations])))
+        n (count locs)
+        [w h r] [400 300 110]
+        pos (into {} (map-indexed (fn [i id]
+                                    (let [a (- (* 2 Math/PI (/ i n)) (/ Math/PI 2))]
+                                      [id [(+ (/ w 2) (* r (Math/cos a))) (+ (/ h 2) (* r (Math/sin a)))]]))
+                                  locs))
+        edges (distinct (for [[from tos] (get-in world [:space :routes])
+                              [to {:keys [travel open?]}] tos]
+                          [(sort [from to]) travel open?]))
+        travellers (filter :travel (w/active-agents world))]
+    [:svg {:width w :height h :style "background:#111;border-radius:4px"}
+     (for [[[a b] travel open?] edges
+           :let [[x1 y1] (pos a) [x2 y2] (pos b)]]
+       [:g
+        [:line {:x1 x1 :y1 y1 :x2 x2 :y2 y2 :stroke (if open? "#557" "#733")
+                :stroke-width 2 :stroke-dasharray (if open? "" "5,4")}]
+        (when (> travel 1)
+          [:text {:x (/ (+ x1 x2) 2) :y (- (/ (+ y1 y2) 2) 4) :fill "#889" :font-size 11 :text-anchor "middle"}
+           (str travel " rounds")])])
+     (for [id locs
+           :let [[x y] (pos id)
+                 people (map #(:name (w/agent world %)) (sort (space/present world id)))]]
+       [:g
+        [:circle {:cx x :cy y :r 7 :fill "#3a6df0"}]
+        [:text {:x x :y (- y 12) :fill "#ddd" :font-size 12 :text-anchor "middle"}
+         (:name (space/location world id))]
+        (map-indexed (fn [i p] [:text {:x x :y (+ y 22 (* i 13)) :fill "#9c9" :font-size 11 :text-anchor "middle"} p])
+                     people)])
+     (map-indexed (fn [i a]
+                    [:text {:x 8 :y (- h 8 (* i 13)) :fill "#fc8" :font-size 11}
+                     (str (:name a) " travelling to " (get-in a [:travel :to]) " (arrives r" (get-in a [:travel :arrives]) ")")])
+                  travellers)]))
+
+;; ---------------------------------------------------------------------------
+;; Fragments
+
+(defn- cmd-button [cmd label & [fields cls]]
+  [:form.inline {:method "post" :action (str "/cmd/" cmd) :onsubmit "return send(this)"}
+   (for [[k v] fields] [:input {:type "hidden" :name (name k) :value v}])
+   [:button {:class cls} label]])
+
+(defn- status-fragment [run]
+  (let [world (e/world run)
+        {:keys [state mode remaining acting awaiting pause-reasons error last-human-feedback]} (e/status run)
+        input @(:input run)
+        roles (sort (map name (keys (dissoc (:roles (:scenario run)) :gm))))]
+    (html
+     [:section
+      [:h2 "Run"]
+      [:div [:b (:id run)] " - round " [:b (:round world)] " - " (name state) " / " (name mode)
+       (when remaining (str " (" remaining " left)"))
+       (format " - cost $%.4f" (double (w/total-cost world)))]
+      (when (seq acting) [:div "acting: " (str/join ", " acting)])
+      (when (seq pause-reasons) [:div {:style "color:#fc8"} "paused: " (str/join "; " pause-reasons)])
+      (when error [:div {:style "color:#f88"} "error: " error])
+      [:div {:style "margin-top:6px"}
+       (cmd-button "step" "Step") " "
+       [:form.inline {:method "post" :action "/cmd/auto" :onsubmit "return send(this)"}
+        [:input {:name "n" :size 3 :placeholder "∞"}] " " [:button "Auto"]] " "
+       (cmd-button "pause" "Pause" nil "alt")]]
+
+     (when input
+       [:section {:style "outline:2px solid #fc8"}
+        [:h2 "Waiting for " (:agent input)]
+        (when-let [fb (:feedback input)] [:div "last result: " fb])
+        [:form {:method "post" :action "/cmd/act" :onsubmit "return send(this)"}
+         [:input {:type "hidden" :name "agent" :value (:agent input)}]
+         [:select {:name "action"} (for [t (:tools input)] [:option t])] " "
+         [:input {:name "args" :size 30 :placeholder "{\"grain\": 3}"}] " "
+         [:button "Act"]]
+        [:div [:a {:href (str "/agent/" (:agent input)) :target "_blank"} "see their view"]]])
+     (when (and (not input) last-human-feedback)
+       [:section [:div "last human action: " last-human-feedback]])
+
+     [:section
+      [:h2 "Roster"]
+      [:table
+       [:tr [:th "id"] [:th "role"] [:th "status"] [:th "where"] [:th "controller / model"] [:th "cost"]]
+       (for [ag (w/agents-in-order world)
+             :let [u (get-in world [:usage (:id ag)])]]
+         [:tr
+          [:td [:a {:href (str "/agent/" (:id ag))} (:id ag)]]
+          [:td (name (:role ag))]
+          [:td (name (:status ag))]
+          [:td (cond (:travel ag) (str "→ " (get-in ag [:travel :to]))
+                     (:location ag) (:location ag)
+                     :else "")]
+          [:td (name (:controller ag)) " " [:span.vis (or (:model ag) "")]]
+          [:td (if u (format "$%.4f" (double (:cost u))) "")]])]]
+
+     (when (space/enabled? world)
+       [:section [:h2 "Map"] (map-svg world)])
+
+     (let [pending (:pending-bridges world)]
+       (when (seq pending)
+         [:section
+          [:h2 "Awaiting approval"]
+          (for [[req-id {:keys [bridge requester bridge-args status]}] pending]
+            [:div {:style "margin-bottom:6px"}
+             [:b req-id] " " (narrate/kw-str bridge) " from " requester " - " (name status)
+             [:pre (with-out-str (pp/pprint bridge-args))]
+             (when (= status :pending)
+               [:span (cmd-button "approve" "Approve" {:req req-id}) " "
+                (cmd-button "deny" "Deny" {:req req-id} "alt")])])]))
+
+     [:section
+      [:h2 "Operator"]
+      [:form {:method "post" :action "/cmd/spawn" :onsubmit "return send(this)"}
+       [:select {:name "role"} (for [r roles] [:option r])] " "
+       [:input {:name "name" :size 8 :placeholder "name"}] " "
+       [:select {:name "controller"} [:option "llm"] [:option "human"]] " "
+       [:button "Spawn"]
+       [:div [:input {:name "persona" :size 40 :placeholder "persona (optional)"}]]
+       [:div [:input {:name "model" :size 40 :placeholder "model (optional)"}]]]
+      [:form {:method "post" :action "/cmd/announce" :onsubmit "return send(this)" :style "margin-top:6px"}
+       [:input {:name "text" :size 36 :placeholder "announcement to everyone"}] " " [:button "Announce"]]])))
+
+;; ---------------------------------------------------------------------------
+;; Pages
+
+(def ^:private client-js "
+let timer=null;
+function refresh(){clearTimeout(timer);timer=setTimeout(()=>fetch('/partial/status').then(r=>r.text()).then(t=>document.getElementById('status').innerHTML=t),150);}
+function send(f){fetch(f.action,{method:'POST',body:new URLSearchParams(new FormData(f))}).then(refresh);return false;}
+const es=new EventSource('/stream'+location.search);
+es.addEventListener('ev',m=>{const ul=document.getElementById('feed');ul.insertAdjacentHTML('afterbegin',m.data);refresh();});
+es.addEventListener('status',refresh);
+")
+
+(defn- index-page [run req]
+  (let [world (e/world run)
+        v (viewer req)
+        names (narrate/names world)]
+    (page (str "manor - " (:id run))
+          [:header [:b "manor"] [:span (name (:name (:scenario run)))]
+           [:a {:href "/world"} "world state"]
+           [:form.inline {:method "get"}
+            "feed as: "
+            [:select {:name "as" :onchange "this.form.submit()"}
+             [:option {:value ""} "operator (everything)"]
+             [:option {:value "gm" :selected (= v "gm")} "gm"]
+             (for [ag (w/agents-in-order world) :when (not= :gm (:role ag))]
+               [:option {:value (:id ag) :selected (= v (:id ag))} (:id ag)])]]]
+          [:main
+           [:div#status (h/raw (status-fragment run))]
+           [:section [:h2 "Events" (when (string? v) (str " visible to " v))]
+            [:ul#feed (for [ev (feed-events run (if (= v "gm") :gm v) 300)] (event-li ev names))]]]
+          [:script (h/raw client-js)])))
+
+(defn- agent-page [run id]
+  (let [world (e/world run)
+        ag (w/agent world id)
+        call (get @(:last-calls run) id)]
+    (if-not ag
+      {:status 404 :body "no such agent"}
+      (page (str "manor - " id)
+            [:header [:a {:href "/"} "back"] [:b (:name ag)] [:span (name (:role ag))]]
+            [:main {:style "grid-template-columns:1fr 1fr"}
+             [:div
+              [:section [:h2 "Their view of the world"]
+               [:pre (if (= :gm (:role ag))
+                       "The GM sees the full world state."
+                       (prompt/->json (prompt/agent-view (:scenario run) world id)))]]
+              [:section [:h2 "Notes"]
+               [:pre (str/join "\n" (map #(str "[r" (:round %) "] " (:text %)) (:notes ag)))]]
+              [:section [:h2 "Tools"]
+               [:pre (str/join "\n" (map #(str (name (:name %)) " (" (name (a/kind %)) ")")
+                                        (a/available (a/for-role (:actions run) (:role ag)) world id)))]]
+              [:section [:h2 "Usage"] [:pre (pr-str (get-in world [:usage id]))]]]
+             [:div
+              [:section [:h2 "Last model call" (when call (str " (round " (:round call) ", " (:model call) ")"))]
+               (if call
+                 [:div
+                  (for [m (:messages call)]
+                    [:div [:b (:role m)]
+                     [:pre (or (:content m) (json/write-value-as-string (:tool_calls m)))]])
+                  [:b "response" (when-let [fr (:finish-reason call)] (str " (" fr ")"))]
+                  [:pre (json/write-value-as-string (:response call))]]
+                 [:div "none yet"])]]]))))
+
+(defn- world-page [run]
+  (page "manor - world"
+        [:header [:a {:href "/"} "back"] [:b "world state"]]
+        [:main {:style "grid-template-columns:1fr"}
+         [:pre (with-out-str (pp/pprint (dissoc (e/world run) :usage)))]]))
+
+;; ---------------------------------------------------------------------------
+;; Commands and streaming
+
+(defn- command [run cmd p]
+  (case cmd
+    "step" (e/step! run)
+    "auto" (e/auto! run (some-> (:n p) str/trim not-empty parse-long))
+    "pause" (e/pause! run)
+    "approve" (e/approve! run (:req p))
+    "deny" (e/deny! run (:req p))
+    "announce" (when-not (str/blank? (:text p)) (e/announce! run (:text p)))
+    "spawn" (when-not (str/blank? (:name p))
+              (e/spawn! run (cond-> {:role (keyword (:role p)) :name (:name p)
+                                     :controller (keyword (or (:controller p) "llm"))}
+                              (not (str/blank? (:persona p))) (assoc :persona (:persona p))
+                              (not (str/blank? (:model p))) (assoc :model (:model p)))))
+    "act" (e/act! run (:agent p) (:action p) (if (str/blank? (:args p)) {} (:args p)))
+    nil)
+  {:status 204})
+
+(defn- sse-message [kind data]
+  (str "event: " kind "\ndata: " (str/replace data "\n" "\ndata: ") "\n\n"))
+
+(defn- stream [run req]
+  (let [v (viewer req)
+        v (if (= v "gm") :gm v)
+        k (gensym "sse")]
+    (hk/as-channel req
+                   {:on-open (fn [ch]
+                               (hk/send! ch {:status 200
+                                             :headers {"Content-Type" "text/event-stream"
+                                                       "Cache-Control" "no-cache"}} false)
+                               (e/listen! run k
+                                          (fn [{:keys [kind event]}]
+                                            (case kind
+                                              :event (when (w/visible-to? event v)
+                                                       (hk/send! ch (sse-message "ev" (html (event-li event (narrate/names (e/world run))))) false))
+                                              :status (hk/send! ch (sse-message "status" "x") false)))))
+                    :on-close (fn [_ _] (e/unlisten! run k))})))
+
+(defn- handler [req]
+  (let [run @current-run
+        uri (:uri req)]
+    (cond
+      (nil? run) {:status 503 :body "no run loaded"}
+      (= uri "/") (index-page run req)
+      (= uri "/partial/status") {:status 200 :headers {"Content-Type" "text/html; charset=utf-8"}
+                                 :body (status-fragment run)}
+      (= uri "/stream") (stream run req)
+      (= uri "/world") (world-page run)
+      (str/starts-with? uri "/agent/") (agent-page run (subs uri 7))
+      (and (= :post (:request-method req)) (str/starts-with? uri "/cmd/"))
+      (command run (subs uri 5) (form-params req))
+      :else {:status 404 :body "not found"})))
+
+(defn show!
+  "Point the panel at `run`."
+  [run]
+  (reset! current-run run))
+
+(defn start!
+  "Start the panel on `port` (default 8080), showing `run`."
+  ([run] (start! run 8080))
+  ([run port]
+   (show! run)
+   (when-let [stop @server] (stop))
+   (reset! server (hk/run-server #'handler {:port port :ip "127.0.0.1"}))
+   (println (str "Control panel: http://localhost:" port))
+   port))
+
+(defn stop! []
+  (when-let [stop @server] (stop) (reset! server nil)))

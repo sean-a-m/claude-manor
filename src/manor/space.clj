@@ -1,0 +1,204 @@
+(ns manor.space
+  "Locations as a graph.
+
+  World shape:
+    :space {:locations {\"square\" {:id \"square\" :name \"Village square\" :desc \"...\"}}
+            :routes    {\"square\" {\"market\" {:travel 1 :open? true}}}}   ; directed edges
+
+  Agents carry :location (nil while travelling) and, while travelling,
+  :travel {:from \"square\" :to \"lisbon\" :arrives 7}.
+
+  Moving along a route with :travel 1 is immediate (it is the agent's action
+  for the round). A route with :travel n > 1 puts the agent in transit: they
+  skip turns and arrive at the start of round (current + n).
+
+  Location matters for visibility: use `here` to make an event visible to
+  everyone where it happens. The GM has no location and sees everything."
+  (:require [manor.world :as w]))
+
+;; ---------------------------------------------------------------------------
+;; Queries
+
+(defn enabled? [world] (boolean (seq (get-in world [:space :locations]))))
+
+(defn location [world loc-id] (get-in world [:space :locations loc-id]))
+
+(defn location-of [world agent-id] (:location (w/agent world agent-id)))
+
+(defn in-transit? [world agent-id] (some? (:travel (w/agent world agent-id))))
+
+(defn present
+  "Ids of active agents at `loc-id`."
+  [world loc-id]
+  (if (nil? loc-id)
+    #{}
+    (set (keep #(when (= loc-id (:location %)) (:id %)) (w/active-agents world)))))
+
+(defn here
+  "Visibility for something `agent-id` does where they are: everyone present
+  plus the agent. Without locations, everyone."
+  [world agent-id]
+  (if-let [loc (location-of world agent-id)]
+    (conj (present world loc) agent-id)
+    :all))
+
+(defn together? [world a b]
+  (let [la (location-of world a)]
+    (and (some? la) (= la (location-of world b)))))
+
+(defn route [world from to] (get-in world [:space :routes from to]))
+
+(defn exits
+  "Open routes out of `loc-id`: [{:to id :travel n} ...]."
+  [world loc-id]
+  (for [[to r] (sort-by key (get-in world [:space :routes loc-id]))
+        :when (:open? r)]
+    {:to to :travel (:travel r)}))
+
+(defn path
+  "Quickest route (by total travel) from `from` to `to` over open routes, as
+  the list of locations after `from`. nil if unreachable."
+  [world from to]
+  (loop [frontier {from [0 []]} done {}]
+    (if (empty? frontier)
+      (some-> (get done to) second)
+      (let [[loc [cost p]] (apply min-key (comp first val) frontier)
+            done (assoc done loc [cost p])]
+        (if (= loc to)
+          p
+          (recur (reduce (fn [f {nxt :to t :travel}]
+                           (let [c (+ cost t)]
+                             (if (or (contains? done nxt) (<= (first (get f nxt [Long/MAX_VALUE])) c))
+                               f
+                               (assoc f nxt [c (conj p nxt)]))))
+                         (dissoc frontier loc)
+                         (exits world loc))
+                 done))))))
+
+(defn next-step [world from to] (first (path world from to)))
+
+(defn view
+  "The location section of an agent's observation."
+  [world agent-id]
+  (let [a (w/agent world agent-id)
+        loc-name #(:name (location world %))]
+    (if-let [{:keys [from to arrives]} (:travel a)]
+      {:travelling {:from from :to to :to-name (loc-name to) :arrives-round arrives}}
+      (let [loc (:location a)]
+        {:here (select-keys (location world loc) [:id :name :desc])
+         :exits (mapv (fn [{:keys [to travel]}] {:to to :name (loc-name to) :travel-rounds travel})
+                      (exits world loc))
+         :people-here (mapv #(select-keys (w/agent world %) [:id :name :role])
+                            (sort (disj (present world loc) agent-id)))}))))
+
+;; ---------------------------------------------------------------------------
+;; Events
+
+(defn init-events
+  "Events that build the graph from a scenario's
+  {:locations [{:id :name :desc}] :routes [[from to travel] or [from to travel :one-way]]}."
+  [{:keys [locations routes]}]
+  (concat
+   (for [l locations]
+     {:type :space/location-added :data {:location l} :visible-to :gm})
+   (for [[from to travel one-way] routes]
+     {:type :space/route-opened :visible-to :gm
+      :data {:from from :to to :travel (or travel 1) :one-way? (= one-way :one-way)}})))
+
+(defn arrivals
+  "Arrival events for travellers due by the current round."
+  [world]
+  (for [a (w/active-agents world)
+        :let [{:keys [from to arrives]} (:travel a)]
+        :when (and arrives (<= arrives (:round world)))]
+    {:type :agent/arrived :actor (:id a) :data {:from from :to to}
+     :visible-to (conj (present world to) (:id a))}))
+
+(defmethod w/apply-event :space/location-added [world {:keys [data]}]
+  (let [l (:location data)]
+    (assoc-in world [:space :locations (:id l)] l)))
+
+(defmethod w/apply-event :space/route-opened [world {{:keys [from to travel one-way?]} :data}]
+  (cond-> (assoc-in world [:space :routes from to] {:travel travel :open? true})
+    (not one-way?) (assoc-in [:space :routes to from] {:travel travel :open? true})))
+
+(defmethod w/apply-event :space/route-closed [world {{:keys [from to one-way?]} :data}]
+  (let [close (fn [wd a b] (if (route wd a b) (assoc-in wd [:space :routes a b :open?] false) wd))]
+    (cond-> (close world from to)
+      (not one-way?) (close to from))))
+
+(defmethod w/apply-event :agent/moved [world {:keys [actor data]}]
+  (assoc-in world [:agents actor :location] (:to data)))
+
+(defmethod w/apply-event :agent/placed [world {:keys [data]}]
+  (update-in world [:agents (:id data)] #(-> % (assoc :location (:to data)) (dissoc :travel))))
+
+(defmethod w/apply-event :agent/departed [world {:keys [actor data]}]
+  (update-in world [:agents actor] assoc :location nil :travel (select-keys data [:from :to :arrives])))
+
+(defmethod w/apply-event :agent/arrived [world {:keys [actor data]}]
+  (update-in world [:agents actor] #(-> % (assoc :location (:to data)) (dissoc :travel))))
+
+;; ---------------------------------------------------------------------------
+;; Actions
+
+(defn- endpoints-visibility [world from to]
+  (let [v (into (present world from) (present world to))]
+    (if (seq v) v :gm)))
+
+(defn actions []
+  [{:name :move
+    :doc "Go to another location along one of your exits (use its id). A trip longer than 1 round leaves you in transit, unable to act until you arrive."
+    :args [:map [:to :string]]
+    :available? (fn [world actor] (some? (location-of world actor)))
+    :valid? (fn [world actor {:keys [to]}]
+              (let [from (location-of world actor)
+                    r (route world from to)]
+                (cond (= to from) "you are already there"
+                      (nil? (location world to)) (str "there is no location " to)
+                      (nil? r) (str "there is no route from here to " to)
+                      (not (:open? r)) (str "the route to " to " is closed"))))
+    :effect (fn [world actor {:keys [to]}]
+              (let [from (location-of world actor)
+                    travel (:travel (route world from to))]
+                (if (<= travel 1)
+                  [{:type :agent/moved :data {:from from :to to}
+                    :visible-to (into (here world actor) (present world to))}]
+                  [{:type :agent/departed :data {:from from :to to :arrives (+ (:round world) travel)}
+                    :visible-to (here world actor)}])))}
+
+   {:name :add-location
+    :roles #{:gm}
+    :doc "Create a new location. Connect it with open-route."
+    :args [:map [:id [:re #"^[a-z0-9-]+$"]] [:name :string] [:desc {:optional true} :string]]
+    :available? (fn [world _] (enabled? world))
+    :valid? (fn [world _ {:keys [id]}] (when (location world id) (str id " already exists")))
+    :effect (fn [_ _ {:keys [id name desc]}]
+              [{:type :space/location-added :data {:location {:id id :name name :desc (or desc "")}}
+                :visible-to :gm}])}
+
+   {:name :open-route
+    :roles #{:gm}
+    :doc "Open (or create) a route between two locations, both ways unless one-way is true."
+    :args [:map [:from :string] [:to :string] [:travel {:optional true} [:int {:min 1 :max 20}]]
+           [:one-way {:optional true} :boolean]]
+    :available? (fn [world _] (enabled? world))
+    :valid? (fn [world _ {:keys [from to]}]
+              (cond (nil? (location world from)) (str "there is no location " from)
+                    (nil? (location world to)) (str "there is no location " to)
+                    (= from to) "a route needs two different locations"))
+    :effect (fn [world _ {:keys [from to travel one-way]}]
+              [{:type :space/route-opened :visible-to (endpoints-visibility world from to)
+                :data {:from from :to to :one-way? (boolean one-way)
+                       :travel (or travel (:travel (route world from to)) 1)}}])}
+
+   {:name :close-route
+    :roles #{:gm}
+    :doc "Close a route (e.g. a storm blocks the road), both ways unless one-way is true. Travellers already on it still arrive."
+    :args [:map [:from :string] [:to :string] [:one-way {:optional true} :boolean]]
+    :available? (fn [world _] (enabled? world))
+    :valid? (fn [world _ {:keys [from to]}]
+              (when-not (route world from to) (str "there is no route from " from " to " to)))
+    :effect (fn [world _ {:keys [from to one-way]}]
+              [{:type :space/route-closed :visible-to (endpoints-visibility world from to)
+                :data {:from from :to to :one-way? (boolean one-way)}}])}])

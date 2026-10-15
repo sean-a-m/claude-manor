@@ -1,0 +1,7 @@
+.cpcache/
+.nrepl-port
+.lsp/
+.clj-kondo/.cache/
+runs/
+test-runs/
+.clj-kondo/imports/

@@ -1,0 +1,97 @@
+(ns manor.prompt
+  "Builds every model request from scratch each turn. An agent's prompt is
+  made only from: its role brief and persona, its own notes, the scenario's
+  `observe` projection for that agent, and the events visible to it. The
+  full world never goes into an agent prompt."
+  (:require [clojure.string :as str]
+            [jsonista.core :as json]
+            [manor.narrate :as narrate]
+            [manor.space :as space]
+            [manor.world :as w]))
+
+(def ^:private mapper (json/object-mapper {:pretty true}))
+
+(defn ->json [x] (json/write-value-as-string x mapper))
+
+(defn visible-events
+  "The last `n` events `viewer` can see, oldest first. Usage bookkeeping is
+  never shown to agents or the GM."
+  [events viewer n]
+  (->> events
+       (filter #(and (w/visible-to? % viewer) (not= :llm/usage (:type %))))
+       (take-last n)))
+
+(defn- event-lines [events names]
+  (if (seq events)
+    (str/join "\n" (map #(str "[r" (:round %) "] " (narrate/describe % names)) events))
+    "(nothing yet)"))
+
+(def agent-preamble
+  "You are a participant in a turn-based simulation. Each round you get your current private view of the world and the recent events you witnessed.
+
+How to act:
+- You act only by calling tools. Each round you take exactly ONE turn-ending action (a tool marked \"Ends your turn\").
+- Free tools and query tools do not end your turn; use them first if they help, then take your action.
+- If an action is rejected you will be told why and may try again once.
+- If there is nothing useful to do, call `pass`.
+
+Your view is private. Others only learn what is public or what someone tells them. Stay in character and pursue your goals.")
+
+(defn agent-view
+  "Everything an agent is shown about the world: the scenario's `observe`
+  projection, plus identity and (when the world has locations) where they are."
+  [scenario world agent-id]
+  (let [a (w/agent world agent-id)
+        observe (:observe scenario (fn [_ _] {}))]
+    (cond-> (-> (merge {:round (:round world)} (observe world agent-id))
+                (update :you #(merge {:id agent-id :name (:name a) :role (name (:role a))} %)))
+      (space/enabled? world) (assoc :location (space/view world agent-id)))))
+
+(defn agent-messages
+  [scenario world events agent-id {:keys [event-window]}]
+  (let [a (w/agent world agent-id)
+        role (get-in scenario [:roles (:role a)])
+        view (agent-view scenario world agent-id)
+        notes (:notes a)]
+    [{:role "system"
+      :content (str agent-preamble
+                    "\n\n## Your role\n" (:brief role)
+                    "\n\n## Who you are\nYou are " (:name a) " (id: " agent-id ")."
+                    (when-not (str/blank? (:persona a)) (str " " (:persona a))))}
+     {:role "user"
+      :content (str "# Round " (:round world)
+                    "\n\n## Your view\n```json\n" (->json view) "\n```"
+                    "\n\n## Your notes\n"
+                    (if (seq notes)
+                      (str/join "\n" (map #(str "- [r" (:round %) "] " (:text %)) (take-last 15 notes)))
+                      "(none)")
+                    "\n\n## Recent events you witnessed\n"
+                    (event-lines (visible-events events agent-id (or event-window 30)) (narrate/names world))
+                    "\n\nTake your turn now.")}]))
+
+(def gm-preamble
+  "You are the game master of a turn-based simulation. The engine enforces the rules and runs the world; you step in only when called, and you should intervene lightly. You see everything, including private information. Never reveal one participant's private information to another.
+
+You act only by calling tools. You may take a few actions; call `done` when finished. If nothing is needed, call `done` immediately.")
+
+(defn gm-messages
+  [scenario world events reasons {:keys [event-window]}]
+  (let [gm-view (or (:gm-view scenario)
+                    (fn [world] (cond-> {:state (:state world)
+                                         :agents (mapv #(select-keys % [:id :name :role :status :persona :location :travel])
+                                                       (w/agents-in-order world))}
+                                  (space/enabled? world) (assoc :space (:space world)))))]
+    [{:role "system"
+      :content (str gm-preamble
+                    (when-let [b (get-in scenario [:roles :gm :brief])] (str "\n\n## This world\n" b)))}
+     {:role "user"
+      :content (str "# Round " (:round world) " - you were called because:\n"
+                    (str/join "\n" (map #(str "- " %) reasons))
+                    "\n\n## Requests addressed to you\n"
+                    (if-let [inbox (seq (get-in world [:gm :inbox]))]
+                      (str/join "\n" (map #(str "- [r" (:round %) "] " (:from %) ": " (:text %)) inbox))
+                      "(none)")
+                    "\n\n## World state\n```json\n" (->json (gm-view world)) "\n```"
+                    "\n\n## Recent events\n"
+                    (event-lines (visible-events events :gm (or event-window 40)) (narrate/names world))
+                    "\n\nDecide what, if anything, to do.")}]))

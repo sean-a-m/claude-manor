@@ -1,0 +1,370 @@
+# Scenario authoring guide
+
+This is the complete contract between a scenario and the engine as it stands today. Two working
+scenarios ship with the engine:
+
+- `src/manor/scenarios/treasure.clj`: small, about 100 lines. Start here and copy it.
+- `src/manor/scenarios/village.clj`: full-featured. Economy, bridges, an act bridge, systems, GM
+  triggers, locations, mock policy.
+
+`test/manor/scenarios/prize.clj` is a 22-line minimal scenario used by the tests (no locations,
+simultaneous turns).
+
+## Mental model
+
+- The engine owns **all state**. The world is one map, and it is changed **only by applying
+  events**. Your scenario provides:
+  - functions that *propose* events (action effects, system ticks, spawn hooks)
+  - reducers that say how each event changes the world (`manor.world/apply-event`)
+  - descriptions of events as text (`manor.narrate/describe`)
+  - a projection of what each agent can see (`:observe`)
+- Agents (LLMs, humans, or the mock policy) only ever *call actions*. The engine decodes the
+  arguments, checks `:valid?`, and applies the events returned by `:effect`.
+- Narrative never feeds back into state. If something matters, it must be in an event and a
+  reducer.
+- Privacy is per event (`:visible-to`). Agents see only events visible to them plus their
+  `:observe` view. The full world never enters an agent prompt.
+
+## File layout and loading
+
+- File: `src/manor/scenarios/<name>.clj`
+- Namespace: `manor.scenarios.<name>`
+- It must define a var named `scenario` holding the scenario map.
+- Start it with `(e/start-run :<name> opts)`, `(start! :<name> opts)` at the REPL, or
+  `clojure -M:run <name>`.
+- Loading uses `require`, so reloading after edits needs `(require 'manor.scenarios.<name> :reload)`.
+  A running run keeps the scenario map it started with, so reload the run too: `(load! id)`. Old
+  event logs replay through your *current* reducers. Changing a reducer can make old runs diverge.
+- Add the scenario keyword to `bundled` in `test/manor/scenarios_test.clj` so it is smoke-tested.
+
+## The scenario map
+
+```clojure
+(def scenario
+  {:name          :treasure                ; must match the file/namespace name
+   :doc           "..."                    ; optional, informational
+   :init          (fn [opts] {...})        ; required, see below
+   :roles         {...}                    ; required, see below
+   :actions       [...]                    ; scenario actions, see below
+   :bridges       {...}                    ; optional, real-world calls
+   :systems       [...]                    ; optional, per-round world processes
+   :observe       (fn [world agent-id] {...})   ; strongly recommended
+   :gm-view       (fn [world] {...})       ; optional, what the GM sees
+   :schedule      :round-robin             ; or :simultaneous, or (fn [world] [[ids] ...])
+   :gm-triggers   [(fn [world] reason-or-nil) ...]
+   :pause-when    (fn [world] reason-or-nil)
+   :limits        {:max-agents 8}          ; GM spawn limit (default 10)
+   :defaults      {:model "..." ...}       ; overrides engine default options for this scenario
+   :mock-policy   (fn [ctx] {:tool :dig :args {}})
+   :offline-stubs {:bridge/name (fn [args ctx] result)}})
+```
+
+The engine reads no other keys.
+
+### `:init`
+
+`(fn [opts] {:state map, :space map (optional), :agents [spec ...]})`, where `opts` are the run
+options (engine defaults, merged with your `:defaults`, merged with the caller's options). Custom
+option keys pass through, e.g. the village reads `:start-date`.
+
+- `:state`: your scenario's state. It lives at `(:state world)` and is entirely yours.
+- `:space`: optional locations graph:
+  ```clojure
+  {:locations [{:id "camp" :name "Camp" :desc "Tents and a fire."} ...]
+   :routes    [["camp" "forest" 1]               ; [from to travel-rounds], two-way
+               ["forest" "cave" 1 :one-way]]}     ; one-way edge
+  ```
+- `:agents`: starting agents, as spawn specs:
+  `{:name "Iris" :role :explorer :persona "..." :location "camp" :model "..." :controller :human}`.
+  Only `:name` and `:role` are required. The id is derived from the name (`"Iris"` → `"iris"`,
+  with a `-2` suffix on collisions). `:location` defaults to the role's `:start-location`.
+
+The engine always adds a GM seat (id `"gm"`, role `:gm`) before your agents. Who fills it comes
+from the `:gm` run option (`:llm`, `:human`, or `:off`).
+
+### `:roles`
+
+```clojure
+{:explorer {:brief "Role description and rules, shown in the agent's system prompt."
+            :spawnable? true                     ; GM may spawn this role
+            :start-location "camp"               ; default location for new agents
+            :on-spawn (fn [world id] [events])}  ; starting holdings etc.
+ :gm {:brief "What this world is and how lightly to intervene."}}
+```
+
+- `:brief` is the main way to explain the rules to models. Say what the role can do, where, and
+  what matters. Restate rules the engine enforces so models don't waste turns.
+- `:on-spawn` receives a world that already contains the agent. Return events, e.g. one that sets
+  starting holdings privately: `{:type :my/settled :actor id :data {...} :visible-to #{id}}`.
+- A role without `:spawnable? true` can only come from `:init` or an operator `spawn!`.
+
+### `:actions`
+
+Each action is a map. Each role's actions become that role's LLM tools.
+
+```clojure
+{:name    :dig                       ; tool name: plain keyword, [a-z0-9-], unique
+ :doc     "Dig for the treasure where you are."
+ :args    [:map [:depth [:int {:min 1 :max 3}]]]   ; malli schema, default [:map]
+ :roles   #{:explorer}               ; or :all (every non-GM role, the default)
+ :kind    :final                     ; :final (default) | :free | :query | :act
+ :available? (fn [world actor] bool) ; optional: leave the tool out of this turn
+ :valid?  (fn [world actor args] nil-or-reason-string)
+ :effect  (fn [world actor args] [events])}
+```
+
+**Kinds:**
+
+| Kind | Ends turn? | When it applies | Notes |
+|---|---|---|---|
+| `:final` | yes | immediately (sequential turns) or after the group (simultaneous) | the normal action |
+| `:free` | no | immediately | notes, declining, small side moves |
+| `:query` | no | immediately; calls a bridge | needs `:bridge`; limited by `:max-queries` per turn |
+| `:act` | yes | creates a pending request; runs after operator approval at the next round start | needs `:bridge` |
+
+Query and act actions also take:
+```clojure
+ :bridge      :open-meteo/daily                          ; key in :bridges
+ :bridge-args (fn [world actor args] bridge-args)        ; default: the action args
+ :on-result   (fn [world actor args result] [events])    ; optional
+```
+For query actions the bridge result is returned to the model as JSON. `:effect` is not used.
+For act actions, set `:actor` explicitly on `:on-result` events. `:valid?` runs when the request is
+made, not when it is executed.
+
+**Arguments:**
+- Use plain malli types that convert to JSON Schema: `:string`, `:int`, `:double`, `:boolean`,
+  `[:enum "a" "b"]`, `[:vector :string]`, nested `[:map ...]`, `{:optional true}` entries, and
+  `{:min :max}` properties. Avoid arbitrary predicate functions; they don't convert to JSON Schema.
+- Prefer string enums and string ids. JSON has no keywords.
+- Models often send `snake_case` or `camelCase` keys. The decoder normalizes them to kebab-case and
+  silently drops keys the schema doesn't declare. On a validation failure, the model is told the
+  error, the expected parameter names, and any ignored keys.
+- Keep each `:doc` short and concrete. Say what `give-*` and `want-*` style fields mean.
+
+**Validation:**
+- `:valid?` returns `nil` (allowed) or a human-readable reason. The reason is shown to the model,
+  which can retry within its step budget, so make it actionable:
+  `"you must be at Fields (fields) to plant"`, not `"invalid"`.
+- Check everything the effect relies on: holdings, location, existence of the target, and that the
+  target is still active.
+- Gate by location in `:valid?` (discoverable: the model learns where to go). Use `:available?`
+  only when a tool truly makes no sense (e.g. `move` while travelling).
+
+**Effects:**
+- Pure: read the world, return a vector of events. Never mutate anything or do I/O.
+- `:actor` is filled in automatically if you omit it.
+- Randomness: `(manor.rng/roll world [(:round world) actor :purpose] n)` gives an int in `[0, n)`
+  determined by the run seed and the key. **Record the outcome in the event data** (e.g.
+  `{:yield 15}`). Reducers must never roll.
+- Effects may return engine events too: `(manor.builtins/spawn-events scenario world spec)`,
+  `{:type :agent/retired :data {:id .. :reason ..} :visible-to :all}`,
+  `{:type :run/pause-requested :data {:reason ".."} :visible-to :gm}`.
+- Ids for new things should be deterministic, e.g. `(str "offer-" (inc (:seq world)))`.
+
+**Built-in actions** (merged before yours; define one with the same `:name` to override it):
+
+| Action | Roles | Kind | Behaviour |
+|---|---|---|---|
+| `pass` | all | final | does nothing |
+| `note` | all | free | private note, shown to the agent every round (last 15) |
+| `say` | all | final | heard by everyone in the same place (everyone, without locations) |
+| `whisper` | all | final | private to one agent; requires being together if both have locations |
+| `request-gm` | all | free | private message to the GM's inbox; triggers the GM this round |
+| `move` | all | final | follow a route (see Locations); only offered when the agent has a location |
+| `spawn-agent` | gm | final | spawn a `:spawnable?` role, optional location; respects `:limits` |
+| `retire-agent` | gm | final | remove an agent |
+| `announce` | gm | final | message to everyone or a list of ids |
+| `ask-human` | gm | final | pause after this round with a question for the operator |
+| `add-location`, `open-route`, `close-route` | gm | final | change the graph (only when it exists) |
+| `done` | gm | final | end the GM's intervention |
+
+Built-ins can't currently be removed, only overridden (see the roadmap).
+
+### Events and reducers
+
+Event shape (returned by effects, ticks and hooks; the engine stamps `:id` and `:round`):
+
+```clojure
+{:type :treasure/dug                 ; namespace it with your scenario name
+ :actor "iris"                       ; optional (filled in for action effects)
+ :data {:at "cave" :found? true}     ; plain EDN data only: no functions or objects
+ :visible-to #{"iris" "omar"}}       ; :all | #{agent-ids} | :gm | :system
+```
+
+- **Visibility:**
+  - `:all`: everyone.
+  - A set of ids: those agents, plus the GM and the operator.
+  - `:gm`: GM and operator only.
+  - `:system`: operator only, never in any prompt.
+
+  **The default if you omit it is `:gm`**, which hides the event from agents. Always set it
+  deliberately. For things that happen at a place use `(manor.space/here world actor)`. For a
+  private outcome use `#{actor}`.
+- **Reducers:** one per event type that changes state.
+  ```clojure
+  (defmethod manor.world/apply-event :treasure/dug [world {:keys [actor data]}]
+    (assoc-in world [:state :found-by] actor))
+  ```
+  Reducers must be pure and depend only on the world and the event: no clock, no rng, no I/O.
+  Event types without a reducer are informational (e.g. speech).
+- Engine-owned world keys: `:round :seq :agents :space :gm :pending-bridges :pause-requests :usage`.
+  Scenario reducers should only touch `:state`, unless deliberately using engine semantics via
+  engine events.
+- Multimethods are global. Namespace your event types (`:treasure/...`) so scenarios can't collide.
+
+### Narration
+
+Every event type an agent can see should have a description. That text *is* what agents read in
+"Recent events you witnessed".
+
+```clojure
+(defmethod manor.narrate/describe :treasure/dug [{:keys [actor data]} names]
+  (str (manor.narrate/who names actor) " digs at " (manor.narrate/place names (:at data)) "."))
+```
+
+`names` resolves agent ids (`narrate/who`) and location ids (`narrate/place`). Without a method
+you get a generic `"Iris: dug {:at ...}"`. Write descriptions so they read correctly for everyone
+who can see the event.
+
+### `:observe`
+
+`(fn [world agent-id] map)` returns the agent's private view, sent as JSON every turn. The engine
+adds:
+- `:round`
+- `:you {:id :name :role}`, merged with whatever you put under `:you`
+- `:location {:here .. :exits [{:to :name :travel-rounds}] :people-here [..]}` when the world
+  has locations, or `{:travelling {..}}` while in transit
+
+Rules: include only what this agent may know: its own holdings, public facts, and things at its
+location. This is the fog of war. Never return another agent's private data. Keep it compact; it
+is sent on every model call.
+
+`:gm-view` defaults to `{:state .. :agents [..] :space ..}` (the GM is omniscient). Override it to
+trim tokens.
+
+### `:systems`
+
+World processes that run at the start of every round, in order, before any agent acts. Each sees
+the world as changed by the previous systems.
+
+```clojure
+{:name :weather
+ :bridge :open-meteo/daily                  ; optional
+ :bridge-args (fn [world] args)             ; required if :bridge
+ :tick (fn [world bridge-response] [events])}
+```
+
+`bridge-response` is `{:result r}`, `{:error msg}`, or `nil` (no bridge). Handle the error case
+with a sensible fallback (the village uses neutral weather). Bridge calls made by systems are
+recorded as `:bridge/called` events, visible to the GM.
+
+Travellers still exist while in transit; systems that iterate agents (upkeep, wages) include them
+unless you filter on `(:travel agent)`.
+
+### `:bridges`
+
+The only way to touch the real world.
+
+```clojure
+{:open-meteo/daily {:doc "Historical daily weather"
+                    :call (fn [args ctx] result)   ; may throw; may block (timeout applies)
+                    :timeout-ms 20000              ; default 15000
+                    :max-chars 4000}}              ; results over this are truncated to a string
+```
+
+- `ctx` is `{:run-id :run-dir :opts}`. Write files only under `run-dir`.
+- Results must be plain data (they are stored in the event log and shown to models as JSON).
+  Exceptions and timeouts become `{:error msg}`.
+- Use `manor.bridge/get-json` (JDK HTTP client) for simple GET APIs. Don't use http-kit's client
+  (it broke on gzip responses).
+- Provide `:offline-stubs` with the same signature so `{:offline? true}` runs need no network.
+- Treat results as untrusted input: keep them small and structured.
+
+### Locations (`manor.space`)
+
+When `:init` returns `:space`, the engine provides:
+- agent positions (`:location` on the agent; `nil` while travelling)
+- the `move` action. A route with `:travel 1` is immediate (the move is the agent's action for the
+  round). `:travel n` > 1 puts the agent in transit: it skips its turns and arrives at the start
+  of round current+n.
+- location-scoped `say`/`whisper`, departure and arrival visibility, and the `:location` view section
+- GM graph tools, operator `place!`, and spawning at a location
+
+Helpers for your actions and views:
+
+| Function | Returns |
+|---|---|
+| `(space/location-of world id)` | location id or nil |
+| `(space/present world loc)` | set of active agent ids there |
+| `(space/here world actor)` | visibility set for "where actor is" (or `:all` without locations) |
+| `(space/together? world a b)` | same location? |
+| `(space/in-transit? world id)` | travelling? |
+| `(space/exits world loc)` | `[{:to id :travel n} ...]` over open routes |
+| `(space/route world from to)` | `{:travel n :open? bool}` or nil |
+| `(space/path world from to)` | quickest route by travel time, as locations after `from` |
+| `(space/location world loc)` | `{:id :name :desc}` |
+
+State that belongs to a location (items, prices) goes in your `:state`, keyed by location id.
+
+### Turn order: `:schedule`
+
+- `:round-robin` (default): one agent at a time in spawn order; each sees the previous agents'
+  results.
+- `:simultaneous`: all agents act on the same snapshot. Final actions are re-checked and resolved
+  in spawn order afterwards; losers get a private `:action/rejected` event. Free and query actions
+  still apply immediately.
+- `(fn [world] [[ids ...] ...])`: custom groups. Use `(manor.world/active-agents world)` (it
+  excludes the GM). Inactive and travelling agents are filtered out automatically.
+
+### GM triggers and pausing
+
+- `:gm-triggers`: functions run after agents act each round. Any non-nil string calls the GM with
+  that reason. The GM is also called when its inbox has requests, or every
+  `:gm-check-in-every` rounds if set. **Triggers fire every round while true**, and each firing
+  costs a GM call. Prefer edge conditions (e.g. `(= hunger 2)` rather than `(>= hunger 2)`).
+- `:pause-when`: checked after each round. A non-nil reason pauses auto mode. Use it for end
+  conditions.
+
+### `:mock-policy`
+
+Lets the scenario run for free with `{:llm :mock}`. It's essential for testing.
+
+```clojure
+(fn [{:keys [world agent-id role step used reasons]}]
+  {:tool :dig :args {} :say "optional text"})   ; nil means pass
+```
+
+- `step` is the model-call index within this turn. `used` is the tool names already called this
+  turn: after a free or query call, return a turn-ending action next.
+- For the GM (`role :gm`) return `{:tool :done}` unless testing GM behaviour.
+- Only choose valid actions. The scenario smoke test fails on forfeited turns.
+
+## Checklist for a new scenario
+
+1. Copy `treasure.clj` to `src/manor/scenarios/<name>.clj` and rename the namespace and `:name`.
+2. Define `:state` and (optionally) `:space` in `:init`, plus the starting agents.
+3. Write role briefs that explain the rules and goals.
+4. For each action: schema, `:valid?` with actionable reasons, `:effect` returning namespaced events
+   with deliberate `:visible-to`.
+5. A reducer for every event type that changes state, and a `describe` for every visible one.
+6. `:observe` that shows only what the agent may know. Check it by eye with `(view "id")`.
+7. A mock policy. Add the scenario to `test/manor/scenarios_test.clj` and run `clojure -M:test`.
+8. Run offline at the REPL: `(start! :<name> {:llm :mock :offline? true :test? true}) (step! 5) (feed)`.
+   Check `(feed 40 "some-agent")` shows nothing it shouldn't. (`:test? true` keeps experiments
+   under `test-runs/`, which can always be deleted.)
+9. Try real models cheaply: `(start! :<name> {:max-cost 0.10 :test? true})`. Then read `test-runs/<id>/llm.edn` or
+   the agent pages in the panel. Look for rejections, forfeits, and confused tool calls, and fix
+   docs, briefs and reasons accordingly.
+
+## Common mistakes
+
+- Forgetting `:visible-to`. The event is then hidden from agents (`:gm`), so nobody learns what
+  happened.
+- Putting randomness or the clock in a reducer: replay diverges.
+- Returning functions or Java objects in event `:data`: the log can't be written or read back.
+- Tool names with namespaces (`:my/dig`): only the name part is used, so names can collide.
+- Hiding a tool with `:available?` when a `:valid?` reason would teach the model where to go.
+- Long `:observe` maps: they are sent on every model call.
+- A GM trigger that stays true: a paid GM call every round.
+- `:on-result` events for act bridges without `:actor`.

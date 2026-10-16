@@ -1,15 +1,16 @@
 # Roadmap and known issues
 
-Status as of 2026-10-15. Each item says why it matters, what exists now, a proposed approach,
+Status as of 2026-10-16. Each item says why it matters, what exists now, a proposed approach,
 which files to touch, and how to tell it's done. Proposals are suggestions; check open questions
 with the user before making big decisions.
 
-B1 (MCP bridges) is done. Current work is the Claudeworth Manor scenario
-(`docs/claudeworth-design.md`); its phase 0 engine changes are done (clock, occupation,
-`:exclude-actions`, `:travel 0` routes, world files, grouped map). For scenario generation the
-recommended order is **A1 → A2 → A3 → A4 → A6**, then the rest by need (B1a lists MCP
-follow-ups).
-Known issues (section C) are small and can be fixed opportunistically.
+B1 (MCP bridges) is done, and the Claudeworth Manor vertical slice (phases 0-2,
+`docs/claudeworth-design.md`) is complete and committed; its handoff is `docs/next-steps.md`.
+Deferred by the user until after that work: the architect's hibernation (design decision 11) and
+a curated reference library to replace the Ashcombe extracts (decision 9); the design's section 10
+lists phase 3 (the inn, hunger, rents, hiring). For scenario generation the recommended order is
+**A1 → A2 → A3 → A4 → A6**, then the rest by need (B1a lists MCP follow-ups). Known issues
+(section C) are small and can be fixed opportunistically.
 
 ---
 
@@ -205,6 +206,11 @@ pi state on branches is for the GM/orchestrator to handle later; no cost limits 
 ### B5. GM adjudication of actions
 
 - **Why:** some outcomes are fuzzy ("persuade the guard").
+- **Done so far (2026-10-16):** the GM is no longer named to the characters. The built-in
+  `request-gm` (whose description said "the game master, who runs the world") became the
+  diegetic `pray`, which emits the same `:gm/requested` event; only the GM's own brief and the
+  GM-only `:gm/called` narration speak of a game master (`docs/claudeworth-design.md` decision
+  22). Any general adjudication tool should keep the GM out of the characters' view.
 - **Approach:** an action flag `:resolve :gm` plus `:outcomes {:success (fn ...) :failure (fn ...)}`.
   The action is checked as usual. Then, instead of `:effect`, the engine asks the GM (one
   structured call: choose an outcome key plus a one-line reason) and applies the chosen outcome's

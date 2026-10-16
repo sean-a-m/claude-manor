@@ -33,7 +33,7 @@ src/manor/
   world.clj      world value, event reducer (multimethod), visibility
   narrate.clj    event -> text (multimethod)
   actions.clj    action specs -> tools; decoding and validation
-  builtins.clj   pass/note/say/whisper/request-gm; GM spawn/retire/announce/ask-human/done
+  builtins.clj   pass/carry-on/note/say/whisper/pray; GM spawn/retire/announce/ask-human/done
   space.clj      locations graph, positions, travel, move + GM route actions, pathfinding
   prompt.clj     builds agent and GM requests
   llm.clj        LLM protocol; OpenRouter and Mock implementations

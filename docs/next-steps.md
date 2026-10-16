@@ -10,15 +10,16 @@ the world file, clock, `walk`/`travel`, talk, `sleep`/`spend-time`/`rouse`, mone
 (`consult-references`, `price-list`, `draw-plans`, `show-plans`, `commission`), the babashka
 architect MCP server, delayed construction, `map.edn`, and the optional architect
 (`:architect? false`). The engine gained interruptions (`b/interrupt`, the `carry-on` action,
-`b/resume`).
+`b/resume`), and the built-in `pray` replaced the agent-facing `request-gm` so characters never
+see the GM (decision 22).
 
-`clojure -M:test` passes: **63 tests, 767 assertions, 0 failures, 0 errors**, free and offline, in
+`clojure -M:test` passes: **63 tests, 770 assertions, 0 failures, 0 errors**, free and offline, in
 about 15 s. The full building slice is checked against both the offline stub and the real babashka
 server, including `:architect? false`, the odd room, malformed drafts, privacy and replay.
 
 - The build brief is `docs/claudeworth-phase2.md`.
 - The design and the decisions are in `docs/claudeworth-design.md` (section 10 marks phase 2 done,
-  with the deviations; section 12 has decisions 17-21).
+  with the deviations and the deferred work; section 12 has decisions 17-22).
 - The phase-2 implementation handoff (`docs/phase2-implementation-todo.md`) is closed: its wording
   fixes and the review are done.
 

@@ -142,6 +142,9 @@ exists and has `:kind :bedroom`; every `:hours` is two valid `"HH:MM"` strings.
 
 ## Actions
 
+> Historical note (2026-10-16): this brief's `request-gm` is now the diegetic `pray`, which emits
+the same `:gm/requested` event but never names the GM to a character (design decision 22).
+
 Exclude the built-in `move`. Keep `pass`, `note`, `say`, `whisper`, `request-gm`. All new
 actions are for every non-GM role.
 

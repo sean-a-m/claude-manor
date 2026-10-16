@@ -19,8 +19,8 @@ Finished after the checkpoint, in `97771ca` and this follow-up:
   regression test in `architect-server-contract`
 - step 6 documentation (README, AGENTS, DESIGN, scenario-authoring, Claudeworth design,
   next-steps) and the implementation review, with extra test assertions
-- two short real runs, archived under `old-test-runs/`; the final suite is 63 tests, 767
-  assertions, 0 failures, 0 errors
+- two short real runs, archived under `old-test-runs/`; the suite at the phase-2 finish was 63
+  tests, 767 assertions, 0 failures, 0 errors (770 after the later `pray` change)
 
 Not done, by the user's decision: architect hibernation (design decision 11) and the curated
 reference-library cleanup (decision 9). See `docs/next-steps.md`.

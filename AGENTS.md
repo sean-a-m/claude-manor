@@ -16,12 +16,10 @@ information is enforced per event. The real world is reachable only through engi
 | `README.md` | quick start, options, commands |
 | `DESIGN.md` | architecture and the decisions behind it |
 | `docs/scenario-authoring.md` | the complete scenario contract: how to write a scenario |
+| `docs/archive` | old documents |
 | `docs/roadmap.md` | what's left: prioritized tasks with approaches, plus known issues |
 | `docs/claudeworth-design.md` | design and phases for the Claudeworth Manor scenario (current work) |
 | `docs/next-steps.md` | **start here when resuming:** current state, review to do, open decisions, next phase |
-| `docs/claudeworth-phase1.md` | build brief for Claudeworth phase 1 (world file, daily life, mock day) |
-| `docs/claudeworth-phase1-fixes.md` | follow-up brief: rejection messages, area names, one home per fact, transcripts |
-| `docs/claudeworth-phase2.md` | build brief for Claudeworth phase 2 (interruptions, architect MCP server, money, plans, construction) |
 | `docs/user-todos.md` | the user's own wishlist for later; not agent tasks |
 
 ## The user's requirements and preferences
@@ -29,7 +27,7 @@ information is enforced per event. The real world is reachable only through engi
 These came from the design conversation; respect them unless told otherwise.
 
 - **Clojure**, because the user reads it easily. Code should stay readable: small functions,
-  docstrings, data over machinery.
+  docstrings, immutability when convenient, data over machinery.
 - **Simple and engine-managed.** The engine owns state, memory and context.
 - **No pi for state or memory.** Models are called directly via OpenRouter (`manor.llm`). pi is
   acceptable at most as an ad-hoc MCP bridge.

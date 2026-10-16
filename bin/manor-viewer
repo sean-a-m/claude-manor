@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Launcher for the manor transcript viewer (see viewer/README.md).
+#
+#   bin/manor-viewer                      # serve ./old-test-runs (or ./runs)
+#   bin/manor-viewer old-test-runs/phase2-real-1
+#   bin/manor-viewer --root runs --port 9000
+#
+# Runs under babashka (bb). The repo's own src/ is on the classpath so event
+# narration can be reused when it still matches the run's events; the viewer
+# falls back to plain event types when it does not. Nothing is written.
+set -euo pipefail
+
+here="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo="$(cd -- "$here/.." && pwd)"
+
+if ! command -v bb >/dev/null 2>&1; then
+  echo "manor-viewer needs babashka (bb): https://babashka.org" >&2
+  exit 1
+fi
+
+cd "$repo"
+exec bb -cp "viewer/src:src" -m manor.viewer.main "$@"

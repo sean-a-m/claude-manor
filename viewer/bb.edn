@@ -1,0 +1,9 @@
+{:paths ["src" "test"]
+ :tasks
+ {serve {:doc "serve the viewer (bb serve -- [args])"
+         :requires ([manor.viewer.main :as main])
+         :task (apply main/-main *command-line-args*)}
+  test {:doc "run the viewer's own tests"
+        :requires ([clojure.test :as t] [manor.viewer-test])
+        :task (let [r (t/run-tests 'manor.viewer-test)]
+                (when (pos? (+ (:fail r) (:error r))) (System/exit 1)))}}}

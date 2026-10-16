@@ -167,6 +167,16 @@
                                             [(data/round-label run r) evs])})))
     (error-response {:status 404 :message "no such run" :home "/"})))
 
+(defn- reasoning-page [state params]
+  (if-let [ctx (base-ctx state params)]
+    (render/reasoning-page (merge ctx
+                                  {:query params
+                                   :hits (vec (data/reasoning-hits (:calls (:run ctx))
+                                                                   {:agent (:agent params)
+                                                                    :round (int-param params :round)
+                                                                    :query (:q params)}))}))
+    (error-response {:status 404 :message "no such run" :home "/"})))
+
 (defn- search-page [state params]
   (if-let [ctx (base-ctx state params)]
     (render/search-page (merge ctx {:query params
@@ -219,6 +229,7 @@
                    "/call" (call-page state params)
                    "/events" (events-page state params)
                    "/search" (search-page state params)
+                   "/reasoning" (reasoning-page state params)
                    "/file" (file-page state params)
                    "/raw-file" (raw-file-page state params)
                    "/raw" (raw-call-page state params)

@@ -278,6 +278,32 @@
      :rejections (count (filter #(str/starts-with? % "rejected:") texts))
      :forfeits (count (filter #(= :action/forfeited (:type %)) events))}))
 
+(defn reasoning-stats
+  "What a run recorded of the models' reasoning (llm.edn's :thoughts).
+
+  A run can have reasoning tokens and no text (the provider billed them but the
+  record predates capture), which is worth saying out loud on the pages."
+  [calls]
+  (let [thoughts (fn [c] (str (:thoughts c)))
+        tokens (fn [c] (long (or (get-in c [:usage :thought-tokens]) 0)))]
+    {:calls (count calls)
+     :with-text (count (filter #(seq (thoughts %)) calls))
+     :with-tokens (count (filter #(pos? (tokens %)) calls))
+     :tokens (reduce + 0 (map tokens calls))
+     :bytes (reduce + 0 (map #(count (thoughts %)) calls))
+     :tokens-without-text (count (filter #(and (pos? (tokens %)) (empty? (thoughts %))) calls))}))
+
+(defn reasoning-hits
+  "Calls that carry reasoning text, in run order, optionally filtered."
+  [calls {:keys [agent round query]}]
+  (let [q (str/lower-case (str/trim (str query)))]
+    (for [[n call] (map-indexed vector calls)
+          :when (and (seq (str (:thoughts call)))
+                     (or (str/blank? agent) (= agent (:agent call)))
+                     (or (nil? round) (= round (:round call)))
+                     (or (str/blank? q) (str/includes? (str/lower-case (str (:thoughts call))) q)))]
+      (assoc call :n n))))
+
 (defn round-rollup
   "Per-round: calls, cost and the agents called, for the run overview."
   [calls]
@@ -329,6 +355,7 @@
            :calls-count (count (:calls run))
            :stats stats
            :replies (engine-reply-counts (:calls run) (:events run))
+           :reasoning (reasoning-stats (:calls run))
            :round-rollup (round-rollup (:calls run))
            :round-times (round-times (:calls run))
            :file-sizes sizes

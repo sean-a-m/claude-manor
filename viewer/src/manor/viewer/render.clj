@@ -256,7 +256,7 @@
 
 (defn run-page
   "One run: configuration, per-agent totals, rounds and files."
-  [{:keys [rel run name stats replies round-rollup round-times file-sizes rounds]}]
+  [{:keys [rel run name stats replies reasoning round-rollup round-times file-sizes rounds]}]
   (let [base {:dir rel}
         l (fn [p extra] (url p (merge base extra)))]
     (layout
@@ -273,6 +273,7 @@
           [:a {:href (l "/calls" {})} "all calls"]
           [:a {:href (l "/events" {})} "events"]
           [:a {:href (l "/file" {:name "transcript.md"})} "transcript.md"]
+          [:a {:href (l "/reasoning" {})} "reasoning"]
           [:a {:href (l "/search" {})} "search this run"]]
          [:div.totals
           [:p (str (n-int (get-in stats [:total :calls])) " model calls · " (n-int rounds) " rounds · " (money (:cost (:total stats)))
@@ -281,6 +282,19 @@
                    (n-int (:thought-tokens (:total stats))) " in reasoning)")]
           [:p (str (:errors replies) " error replies · " (:rejections replies) " rejections · "
                    (:forfeits replies) " forfeited turns")]
+          [:p (str (n-int (:with-text reasoning)) " of " (n-int (:calls reasoning))
+                   " calls recorded reasoning · " (n-int (:tokens reasoning)) " reasoning tokens · "
+                   (short-bytes (:bytes reasoning)))
+           (when (pos? (:tokens-without-text reasoning 0))
+             [:span (chip "rej" (str (:tokens-without-text reasoning) " with tokens but no text"))])
+           (when (pos? (:with-text reasoning 0))
+             [:a {:href (l "/reasoning" {})} " read the reasoning →"])
+           (when (zero? (:with-text reasoning 0))
+             [:span.muted.small
+              " no reasoning text in this run"
+              (when-let [asked (get-in run [:config :opts :reasoning])]
+                (str ", though it asked the provider for " (pr-str asked)))
+              " — " [:a {:href (l "/reasoning" {})} "why?"]])]
           (when (seq (:errors run))
             [:p (chip "err" (str (count (:errors run)) " lines that would not read"))
              [:span.small (str "  " (str/join "; " (for [e (take 4 (:errors run))]
@@ -290,7 +304,7 @@
        [:div
         [:h2 "calls by agent"]
         [:table
-         [:thead [:tr [:th "agent"] [:th "calls"] [:th "cost"] [:th "prompt"] [:th "completion"] [:th "thought"]]]
+         [:thead [:tr [:th "agent"] [:th "calls"] [:th "cost"] [:th "prompt"] [:th "completion"] [:th "reasoning tok"]]]
          [:tbody (for [[agent s] (:by-agent stats)]
                    [:tr [:td [:a {:href (l "/calls" {:agent agent})} (chip "agent" agent)]]
                     [:td (n-int (:calls s))] [:td (money (:cost s))]
@@ -361,7 +375,12 @@
    [:td (chip (reply-status call) (reply-status call))]
    [:td (money (get-in call [:usage :cost]))]
    [:td (n-int (get-in call [:usage :prompt-tokens]))]
-   [:td (n-int (get-in call [:usage :thought-tokens]))]
+   [:td (let [th (str (:thoughts call))
+              tk (long (or (get-in call [:usage :thought-tokens]) 0))]
+          (cond
+            (seq th) (str (short-bytes (count th)) (when (pos? tk) (str " · " tk " tok")))
+            (pos? tk) (chip "rej" (str tk " tok, no text"))
+            :else [:span.muted "—"]))]
    [:td (or (:finish-reason call) "")]])
 
 (defn calls-page
@@ -387,7 +406,7 @@
      [:button {:type "submit"} "Filter"]]
     [:table
      [:thead [:tr [:th "#"] [:th "round"] [:th "time"] [:th "agent"] [:th "tool call"] [:th "reply"]
-              [:th "cost"] [:th "prompt tok"] [:th "thought tok"] [:th "finish"]]]
+              [:th "cost"] [:th "prompt tok"] [:th "reasoning"] [:th "finish"]]]
      [:tbody (for [[n call] calls] (call-row {:base {:dir rel}} n call))]]
     (when (> pages 1)
       [:p (when prev-page [:a {:href prev-page} "← newer"])
@@ -430,7 +449,11 @@
        (chip nil (money (:cost u)))
        (chip nil (str (n-int (:prompt-tokens u)) " prompt tok"))
        (chip nil (str (n-int (:completion-tokens u)) " completion tok"))
-       (when (:thought-tokens u) (chip nil (str (n-int (:thought-tokens u)) " thought tok")))
+       (let [tk (long (or (:thought-tokens u) 0))
+             th (str (:thoughts call))]
+         (cond (seq th) (chip "agent" (str "reasoning " (short-bytes (count th))))
+               (pos? tk) (chip "rej" (str tk " reasoning tok, text not recorded"))
+               :else (chip "muted" "no reasoning recorded")))
        (chip nil (:model call))]
       (let [view (data/view-json call)
             here (get-in view ["location" "here" "name"])
@@ -444,9 +467,37 @@
        (when prev-same [:a {:href (l "/call" {:n prev-same})} (str "← previous " (:agent call))])
        (when next-same [:a {:href (l "/call" {:n next-same})} (str "next " (:agent call) " →")])
        [:a {:href (l "/raw" {:n n})} "raw EDN"]
-       [:a {:href (l "/calls" {:round (:round call) :agent (:agent call)})} "this turn in the log"]]
+       [:a {:href (l "/calls" {:round (:round call) :agent (:agent call)})} "this turn in the log"]
+       [:a {:href (l "/reasoning" {:agent (:agent call)})} "this agent's reasoning"]
+       " "
+       [:a {:href "#reasoning"} "jump to reasoning"] [:a {:href "#tools"} "tools"] [:a {:href "#prompt"} "prompt"]]
 
-      [:h2 "tool calls and replies"]
+      (let [tk (long (or (:thought-tokens u) 0))
+            th (str (:thoughts call))
+            run-reasoning (:reasoning run)]
+        (if (seq th)
+          [:div
+           [:h2 {:id "reasoning"} "reasoning (the model's private thoughts, captured out of band)"]
+           [:details (if (< (count th) 1800) {:open true} {})
+            [:summary (str (short-bytes (count th)) " · " tk " reasoning tokens · not sent back to the model")]
+            [:pre.blob th]]]
+          [:div
+           [:h2 {:id "reasoning"} "reasoning"]
+           (cond
+             (pos? tk)
+             [:p (chip "rej" (str tk " reasoning tokens were billed for this call, but no reasoning text was recorded"))
+              [:span.muted.small " the API returned no reasoning field for it"]]
+
+             (zero? (:with-text run-reasoning 0))
+             [:p.muted
+              "This run recorded no reasoning for any call"
+              (when-let [asked (get-in run [:config :opts :reasoning])]
+                (str ", though it asked the provider for " (pr-str asked)))
+              ". That is what runs made before reasoning was recorded, or models that return none, look like."]
+
+             :else [:p.muted "This call returned no reasoning (the model answered directly)."])]))
+
+      [:h2 {:id "tools"} "tool calls and replies"]
       (if (seq tool-calls)
         (for [tc tool-calls
               :let [reply (data/reply-for call (:id tc))]]
@@ -474,7 +525,7 @@
       (when-let [text (not-empty (str/trim (str (:content (:response call)))))]
         [:h2 "text returned"] [:div.reply (str text)])
 
-      [:h2 "prompt sent to the model"]
+      [:h2 {:id "prompt"} "prompt sent to the model"]
       [:p.muted.small (str (count msgs) " messages · the last one is what this call answered")]
       [:div (for [[i m] (map-indexed vector msgs)]
               (msg-block i m (= i (dec (count msgs))) (data/reminder? m)))]])))
@@ -513,6 +564,45 @@
                    [:td (visibility-chips (:visible-to e))]
                    [:td (md->hiccup (data/describe-event run e))]
                    [:td [:details [:summary "data"] [:pre.code (pr-str (:data e))]]]])]]])]))
+
+;;; ---------------------------------------------------------------------------
+;;; reasoning
+
+(defn reasoning-page
+  "Every deliberation a run captured, in order — the run's thinking, read
+  straight through instead of one call at a time."
+  [{:keys [rel run name query hits reasoning]}]
+  (layout
+   {:title (str name " · reasoning") :home (url "/" {})
+    :crumbs [["runs" (url "/" {})] [name (url "/run" {:dir rel})] ["reasoning" nil]]}
+   [[:h1 "reasoning"]
+    [:p.muted.small
+     (str (:with-text reasoning) " of " (:calls reasoning) " calls recorded reasoning · "
+          (n-int (:tokens reasoning)) " reasoning tokens · " (short-bytes (:bytes reasoning))
+          (when (pos? (:tokens-without-text reasoning 0))
+            (str " · " (:tokens-without-text reasoning) " calls have tokens but no text"))
+          (when (zero? (:with-text reasoning 0))
+            (str " — this run recorded none"
+                 (when-let [asked (get-in run [:config :opts :reasoning])]
+                   (str ", though it asked for " (pr-str asked))))))]
+    [:form.filters {:method "get" :action "/reasoning"}
+     [:input {:type "hidden" :name "dir" :value (str rel)}]
+     [:label "agent " [:input {:name "agent" :value (str (:agent query)) :size 12}]]
+     [:label "round " [:input {:name "round" :value (str (:round query)) :size 3}]]
+     [:label "text " [:input {:name "q" :value (str (:q query)) :size 22}]]
+     [:button {:type "submit"} "Filter"]]
+    [:p.muted.small (str (count hits) " shown")]
+    (for [call hits]
+      [:div.tool
+       [:div [:a {:href (url "/call" (merge {:dir rel} {:n (:n call)}))}
+              (str "call " (inc (:n call)))]
+        " " (chip "round" (str "round " (:round call))) " " (chip "agent" (:agent call))
+        (when-let [t (data/call-time call)] (chip "time" t))
+        (when-let [tok (get-in call [:usage :thought-tokens])]
+          (chip nil (str tok " reasoning tok")))
+        (when (seq (data/tool-calls call))
+          (chip nil (str/join ", " (map :name (data/tool-calls call)))))]
+       [:pre.blob (str (:thoughts call))]])]))
 
 ;;; ---------------------------------------------------------------------------
 ;;; search, transcript, raw

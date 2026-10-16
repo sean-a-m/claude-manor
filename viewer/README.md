@@ -41,7 +41,8 @@ cd viewer && bb test                # or from here
 | `/` | every run in the root: rounds, calls, cost, error/rejection counts; a search box that spans all runs |
 | `/run?dir=…` | one run: per-agent cost and tokens, tools called, finish reasons, per-round cost, files |
 | `/calls?dir=…` | the call log — filter by agent, round, flag or text; each row links to the call |
-| `/call?dir=…&n=…` | one call: tool calls with arguments and the engine's replies, the model's reasoning, and the whole prompt it answered |
+| `/call?dir=…&n=…` | one call: the model's reasoning, tool calls with arguments and the engine's replies, and the whole prompt it answered |
+| `/reasoning?dir=…` | a run's captured reasoning read straight through (filter by agent, round or text) |
 | `/events?dir=…` | the event log by round, with visibility and (optionally) raw event data |
 | `/search?dir=…` | full-text search of a run's calls |
 | `/file?dir=…&name=transcript.md` | the run's `transcript.md`, rendered |
@@ -51,6 +52,14 @@ Filters are query parameters, so a view can be linked to or bookmarked.
 
 Things worth knowing for review:
 
+- **Reasoning** is the model's private thoughts, captured out of band into
+  `llm.edn`'s `:thoughts` (the wire `reasoning` field; never sent back to the
+  model). `/reasoning` reads a run's deliberations in order, and a call page
+  shows its own thread above the tool calls (`#reasoning`).
+  Not every run has them: a run made before capture, or one whose model
+  returned none, records no `:thoughts` at all, and the pages say so rather
+  than showing nothing. A call can also be billed `:thought-tokens` with no
+  text recorded — that shows as a red chip (`12 tok, no text`).
 - **Flags** on `/calls`: `errors`, `rejections`, `notool` (the model returned no
   tool call), `length` (truncated by `:max-tokens`), `forfeit` (the turn was
   forfeited), `thoughts`.

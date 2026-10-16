@@ -31,11 +31,10 @@
     :messages [{:role "system" :content "You are Ann."}
                {:role "user" :content view-text}]}
    {:agent "bob" :round 1 :model "test/model" :finish-reason "length"
-    :thoughts "Nothing to say."
     :tools ["say"]
     :response {:role "assistant" :content "I hesitate." :tool_calls []}
     :replies [{:role "tool" :tool_call_id "c2" :content "rejected: you are not at home"}]
-    :usage {:prompt-tokens 50 :completion-tokens 80 :thought-tokens 0 :cost 0.002}
+    :usage {:prompt-tokens 50 :completion-tokens 80 :thought-tokens 12 :cost 0.002}
     :messages [{:role "system" :content "You are Bob."}
                {:role "user" :content (str "# Monday 1 January 1900, 09:00\n\n## Your view\n```json\n{\"you\":{\"id\":\"bob\"}}\n```")}
                {:role "user" :content "Your turn isn't over."}]}])
@@ -97,6 +96,19 @@
     (is (= {"length" 1 "tool_calls" 1} (:finish stats)))
     (is (= {"say" 1} (:tools stats)))
     (is (= {:errors 0 :rejections 1 :forfeits 0} replies))
+    (testing "reasoning recorded (or billed without text) is summarised"
+      (let [r (data/reasoning-stats (:calls run))]
+        (is (= 2 (:calls r)))
+        (is (= 1 (:with-text r)))
+        (is (= 2 (:with-tokens r)))
+        (is (= 17 (:tokens r)))
+        (is (= 1 (:tokens-without-text r)))
+        (is (= 26 (:bytes r))))
+      (is (= [0] (map :n (data/reasoning-hits (:calls run) {}))))
+      (is (= [0] (map :n (data/reasoning-hits (:calls run) {:agent "ann"}))))
+      (is (empty? (data/reasoning-hits (:calls run) {:agent "bob"})))
+      (is (empty? (data/reasoning-hits (:calls run) {:query "saloon"}))))
+
     (testing "search finds text in calls and can be narrowed"
       (is (= [0] (distinct (map :n (data/search-calls (:calls run) {:query "hello"})))))
       (is (= [0] (distinct (map :n (data/search-calls (:calls run) {:query "hello" :in :tools})))))
@@ -138,8 +150,12 @@
                                  ["/calls?dir=demo-run" "hello bob"]
                                  ["/call?dir=demo-run&n=0" "tool calls and replies"]
                                  ["/call?dir=demo-run&n=1" "rejected: you are not at home"]
+                                 ["/call?dir=demo-run&n=0" "I should say hello to bob."]
+                                 ["/call?dir=demo-run&n=1" "12 reasoning tokens"]
                                  ["/events?dir=demo-run" "action/say"]
                                  ["/search?dir=demo-run&q=hello" "call 1"]
+                                 ["/reasoning?dir=demo-run" "I should say hello to bob."]
+                                 ["/reasoning?dir=demo-run&agent=bob" "0 shown"]
                                  ["/file?dir=demo-run&name=transcript.md" "Ann says hello"]
                                  ["/raw?dir=demo-run&n=0" ":thoughts"]
                                  ["/raw-file?dir=demo-run&name=config.edn" ":demo"]]]

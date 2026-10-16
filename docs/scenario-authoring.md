@@ -742,7 +742,7 @@ Lets the scenario run for free with `{:llm :mock}`. It's essential for testing.
 8. Run offline at the REPL: `(start! :<name> {:llm :mock :offline? true :test? true}) (step! 5) (feed)`.
    Check `(feed 40 "some-agent")` shows nothing it shouldn't. (`:test? true` keeps experiments
    under `test-runs/`, which can always be deleted.)
-9. Try real models cheaply and briefly: `(start! :<name> {:max-cost 0.10 :max-rounds 10 :test? true})`
+9. Try real models cheaply and briefly: `(start! :<name> {:max-cost 0.20 :max-rounds 10 :test? true})`
    (a few rounds expose most problems; see "Real runs are short by default" in `AGENTS.md`). To
    check something late in the day, start near it with `:start` (see Time) instead of playing up
    to it. Then read

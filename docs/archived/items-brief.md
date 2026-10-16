@@ -7,30 +7,27 @@ wishlist (`docs/user-todos.md`, "Items", and the minimal part of "look"). This b
 authority on scope and details. The user approved it on 2026-10-16, including the proposals
 below.
 
-## Status (2026-10-16): I1-I3 done, I4 next
+## Status: I1-I4 done
 
 | Phase | Commit | Tests after |
 |---|---|---|
 | I1. Items core | `b4c94a4` | 71 |
 | I2. look | `46f75d9` | 73 |
 | I3. Work and the judge | `804608b` | 83 (1093 assertions) |
+| I4. Claudeworth mock day | `a4e9379` | 83 (1108 assertions) |
+| I4. Real run, docs and archive | this archive | 83 (1108 assertions) |
 
-Each phase was built by a sub-agent and reviewed. In each, village, treasure and quiz prompts
-and tool lists stayed byte-identical (a before/after dump that included a read-only replay of
-`runs/smoke-llm`). No real run has been made yet.
+I1-I3 were built and reviewed separately. In each, village, treasure and quiz prompts and tool
+lists stayed byte-identical (including a read-only replay of `runs/smoke-llm`).
 
-**I4 is what's left** (section 4's mock day, section 6):
+**I4 is done.** Hale buys a duster and dusts the cabinet from 14:00 to 15:30; the countess moves
+the candlesticks; Hale uses `look`. The mock day has no errors, rejections or forfeits and replays
+identically. The rules and authoring guide cover items; the layout, roadmap and design decisions
+are updated, and this brief is archived.
 
-- the Claudeworth mock day with items: Hale buys a feather duster and works on the china
-  cabinet; the countess moves the candlesticks; one `look`
-- the short real run, then reading its transcript
-- the docs listed in section 6: AGENTS.md layout (`items.clj`), the roadmap (B7, follow-ups),
-  and the items decisions in section 12 of `docs/claudeworth-design.md`
-- archiving this brief
-
-The rules text already mentions `take`, `put-down`, `give`, `look` and `work-on`. The authoring
-guide already has an Items section. `claudeworth_test` already has a work-on case: Hale dusts
-the cabinet from 14:00 for 1.5 hours, and it changes at 15:30, not 15:00. Reuse it.
+The single real check stopped after 9 rounds at $0.106296718 (98 calls): 6 errors, 0 rejections,
+2 forfeits. Agents used `look` 32 times, `take` once and `give` once, but no `work-on` or judge;
+no briefs were tuned to force use. Full findings are below, under I4 real-run findings.
 
 **How it was built, where the brief left room:**
 
@@ -55,7 +52,7 @@ the cabinet from 14:00 for 1.5 hours, and it changes at 15:30, not 15:00. Reuse 
 - **Narration.** The neutral summary is the narration's opening line ("Hale finishes dusting the
   china cabinet."), and the narration leaves out a summary that only repeats it.
 
-**Known gaps (not bugs; list them in the roadmap in I4):**
+**Known gaps (tracked in the roadmap):**
 
 - The judge's `error:` replies are counted in the transcript's overall error total.
 - The control panel's per-agent usage table has no judge row. Its cost is in the run total.
@@ -461,3 +458,44 @@ Docs:
 - `README.md`, if it lists actions.
 
 Move this brief to `docs/archived/` once its work is committed.
+
+## I4 real-run findings
+
+One real run, `test-runs/items-i4-real`, used `deepseek/deepseek-v4.1-flash`, starting at
+13:00 with `:test? true`, `:max-rounds 10` and `:max-cost 0.10`. The CLI does not accept
+`--max-rounds` or run rounds itself, so it used `dev/user.clj`'s `start!` and `step! 10` in the
+foreground. It paused after round 9 (17:00) at the cost limit: **$0.106296718**, **98 model
+calls**. The cap is checked at round boundaries, hence the overshoot. It was not repeated.
+The transcript was read in full and the counts checked against `llm.edn` and `events.edn`
+before cleaning up `test-runs/`.
+
+| Agent | Calls | Cost |
+|---|---:|---:|
+| Hale | 30 | $0.034449759 |
+| Lady Claudeworth | 27 | $0.023004346 |
+| Lord Claudeworth | 27 | $0.029548317 |
+| Pugh | 14 | $0.019294296 |
+
+- **6 `error:` replies, 0 `rejected:` replies, 2 `:action/forfeited` events.** Three errors
+  were the earl's `commission` calls using `planid`; `plan_id` then worked. Two reference
+  queries exceeded 200 characters and one speech exceeded the accepted length; all were
+  corrected after the existing actionable replies. Pugh forfeited rounds 7 and 8 after
+  returning DSML tool markup as ordinary text twice in each turn (`finish: stop`), not actual
+  tool calls. He recovered in round 9.
+- **Item calls:** `look` 32, `take` 1, `put-down` 0, `give` 1, `work-on` 0. Hale fetched the
+  estate ledgers and gave them to the earl without prompting from the operator. The countess
+  inspected the house and discussed its worn and dirty things, but the household focused on
+  commissioning rooms rather than doing item work. They repeatedly looked while searching
+  for people. No item purchase was made.
+- **Judge calls: none.** There is no real judge prompt, answer, condition-only result, answer
+  length or per-call cost to assess. Mock and unit tests cover the judge; this check does not
+  validate its real-model behaviour. No extra run or brief tuning was used to force it.
+- **Other observations:** Hale later reported a conversation with the nonexistent cook and
+  misstated the household balance. Pugh spoke of paid repairs between commissions, which are
+  not an implemented service. These were agent claims, not engine state changes.
+- **Wording fixes: none.** Existing validation replies sufficed for the argument errors. The
+  DSML output and unsupported narrative claims need separate investigation, not an items
+  design change in this phase.
+
+After this check the user raised the default cap for **future** short real checks to
+`:max-cost 0.20`. Current guidance was updated; this run retained its authorized $0.10 cap.

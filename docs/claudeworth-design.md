@@ -458,6 +458,10 @@ under `old-test-runs/`):
 The full-length real run (about two simulated days) is not part of the phase; the full slice is
 checked by the mock policy.
 
+**Items: done.** The engine's `manor.items` module supplies carrying, `look` and timed `work-on`
+with a judge at the end. Claudeworth's starting items, shop goods and mock day use it; see
+[the completed items brief](archived/items-brief.md) for the real-run findings.
+
 **Phase 3: incentives (after the slice, by need). Not started.** These mostly come from the Ashcombe documents:
 
 - an inn (dine for money; a reason to go out)
@@ -575,3 +579,28 @@ Decision after phase 2 (2026-10-16):
     never the machinery, and the GM's own narration is unchanged. This is an experiment: later,
     more interventions should be in-game. Only the GM's brief and the `:gm/called` narration still
     speak of the game master, and only the GM sees those.
+
+Decisions for items (done):
+
+23. **Items are an engine module.** `manor.items` is opt-in through a scenario's `:items` key,
+    like `manor.space`. Items load from the world file and export to `map.edn`; purchases create
+    carried items. Household provisions and coal remain counters, not individual objects.
+24. **Conditions are free text.** A short phrase of at most 80 characters describes an item's
+    state. Work changes only conditions, never names or descriptions.
+25. **A separate judge is asked when work ends.** This is a narrow engine-run model call, not
+    the GM or a bridge, and characters never hear of it. It sees the job, the worker, the items'
+    current conditions and the time actually worked, including an early stop after `rouse`.
+    Nothing changes before then. The engine checks the answer and records condition changes as
+    events; replay never calls the judge. Its usage counts towards the run's cost cap.
+26. **The agent chooses the hours.** `work-on` takes half an hour to four hours, default half an
+    hour. The judge decides what that time achieves, with an engine-supplied luck roll; the work
+    may be only partly done. There are no turns while occupied unless interrupted.
+27. **Carried items are visible.** Everyone in the same place can see what people carry.
+    `take`, `put-down` and `give` are free; ownership is shown, not enforced.
+28. **`look` is minimal.** It shows items here in detail, what people here carry, and an optional
+    extra paragraph about the room. It is free, changes nothing, and its reply is kept in
+    `llm.edn`, not as an event. Broader changing room states are later work.
+29. **Read items through accessors.** Only `manor.items` reads the item map directly or writes it
+    through its reducers. The accessors scan for now. Future indexes belong inside the module,
+    maintained by pure reducers and rebuilt by replay; any database must be a derived read
+    store, rebuilt from the event log, never the source of truth. Neither is needed yet.

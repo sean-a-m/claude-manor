@@ -71,6 +71,7 @@ src/manor/
   actions.clj    action specs -> tools; arg decoding (kebab normalisation, unknown keys dropped)
   builtins.clj   pass/carry-on/note/say/whisper/pray + GM spawn/retire/announce/ask-human/done
   space.clj      locations graph, positions, travel, move + GM route tools, pathfinding
+  items.clj      items, carrying, look, work-on jobs, judge requests and checked condition changes
   prompt.clj     builds agent/GM requests; agent-view = observe + identity + location
   llm.clj        LLM protocol; OpenRouter (JDK HTTP) and Mock (scenario policy) implementations
   bridge.clj     bridge executor: timeout, truncation, stubs, MCP tools; never throws
@@ -92,7 +93,7 @@ mcp-servers/pi/server.mjs  pi as an MCP server: send_message {session, message};
 mcp-servers/architect/  the architect MCP server: babashka, stateless, reference/price/draft tools
 config/        mcp.example.edn; mcp.edn is local and gitignored (the user's sets pi-sandbox)
 dev/user.clj     REPL helpers (start! step! auto! feed view last-prompt transcript! spawn! approve! act! ...)
-test/            engine, space, MCP, clock, world-file, panel, transcript, Claudeworth and scenario smoke tests;
+test/            engine, space, items, MCP, clock, world-file, panel, transcript, Claudeworth and scenario smoke tests;
                  test scenarios prize.clj and hamlet.clj (world file test/fixtures/hamlet.edn);
                  test/fixtures/fake-pi.mjs (fake `pi --mode rpc` for free MCP tests)
 runs/            real runs (gitignored; the user's data; never delete). runs/smoke-llm is a real 5-round village run
@@ -111,7 +112,7 @@ clj -M:dev                                    # REPL; see dev/user.clj docstring
   seconds. Real runs use the user's OpenRouter key: from `OPENROUTER_API_KEY`, or else read from
   `~/.pi/agent/auth.json`. Never print the key.
 - **Real runs are short by default:** at most about 8–12 rounds (4–6 minutes at roughly 27 seconds
-  a round) with `:max-rounds` and `:max-cost` 0.10, run in the foreground; report what it cost and
+  a round) with `:max-rounds` and `:max-cost` 0.20, run in the foreground; report what it cost and
   read its transcript. Most problems show up in a few rounds. To test something that happens
   late (bedtime, a finished building), start near it instead of playing up to it: use a shorter
   delay (`:build-rounds`) or a later clock (`:start "1904-10-15T21:00"`, CLI `--start`). A full day

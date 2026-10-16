@@ -119,7 +119,7 @@ The scenario boundary is already clean: the engine only reads the keys listed in
 - **Approach:** a prompt or pi skill that gives a model the authoring guide, `treasure.clj` and
   `village.clj` as examples, and the user's scenario description. It writes
   `scenarios/<name>.clj`, then runs validate (A1), smoke (A2) and the tests, iterating on
-  failures, and finally runs a short real-model check with `:max-cost 0.10`.
+  failures, and finally runs a short real-model check with `:max-cost 0.20`.
 - **Open question (A7):** see below. Generated scenarios are code that runs with full permissions.
 
 ### A7. Decision: code scenarios or a data-only format
@@ -222,10 +222,25 @@ pi state on branches is for the GM/orchestrator to handle later; no cost limits 
 - A fallback model on provider errors.
 - Compact `:observe` JSON (no pretty printing) as an option.
 
-### B7. State held by locations
+### B7. State held by locations: largely done
 
-Items, resources and prices at a place. Currently the scenario's job (`:state` keyed by location
-id). Promote to the engine only if several scenarios need the same thing.
+`manor.items` is an opt-in engine module: items at places or carried by people, free-text
+conditions, `take`, `put-down`, `give`, `look`, and timed `work-on` jobs. A separate judge decides
+condition changes when work ends, using the time actually worked. Claudeworth has starting
+items, shop purchases and a mock day that uses them. Resources and prices remain the scenario's
+job (`:state` keyed by location id).
+
+Follow-ups, by need:
+
+- Items getting dirty or wearing out over time: a GM job later, not automatic decay yet.
+- Containers.
+- GM tools to create or alter items.
+- Judge `error:` replies currently count in the transcript's overall error total; distinguish
+  them from character errors.
+- The panel's per-agent usage table has no judge row, although judge cost is in the run total.
+- Judging at round start adds latency before agents can act.
+
+The completed brief is [Items](archived/items-brief.md).
 
 ### B8. Control panel improvements
 

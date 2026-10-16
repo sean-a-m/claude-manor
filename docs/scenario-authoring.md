@@ -104,6 +104,11 @@ from the `:gm` run option (`:llm`, `:human`, or `:off`).
 
 - `:brief` is the main way to explain the rules to models. Say what the role can do, where, and
   what matters. Restate rules the engine enforces so models don't waste turns.
+- `:brief` is a string, or a function that builds one from the current world:
+  `(fn [world agent-id] string)` for agents, `(fn [world] string)` for the GM. It's called for
+  every model call, so it can fill in facts from the world (minutes per turn from the clock, text
+  your `:init` put in `:state` from a world file) instead of restating them. See One home per
+  fact below; `claudeworth.clj` does this.
 - `:on-spawn` receives a world that already contains the agent. Return events, e.g. one that sets
   starting holdings privately: `{:type :my/settled :actor id :data {...} :visible-to #{id}}`.
 - A role without `:spawnable? true` can only come from `:init` or an operator `spawn!`.
@@ -150,6 +155,10 @@ made, not when it is executed.
 - Models often send `snake_case` or `camelCase` keys. The decoder normalizes them to kebab-case and
   silently drops keys the schema doesn't declare. On a validation failure, the model is told the
   error, the expected parameter names, and any ignored keys.
+- A string or collection outside its `:min`/`:max` gets a reason that says how to fix it: `text is
+  1043 characters; the limit is 1000 - shorten it by at least 43`. To leave slack, set
+  `:advised-max` below `:max`, state the advised limit in the `:doc`, and oversize values are
+  advised down to it: `say` is `[:string {:min 1 :max 1500 :advised-max 1000}]`.
 - Keep each `:doc` short and concrete. Say what `give-*` and `want-*` style fields mean.
 
 **Validation:**
@@ -178,8 +187,8 @@ made, not when it is executed.
 |---|---|---|---|
 | `pass` | all | final | does nothing |
 | `note` | all | free | private note, shown to the agent every round (last 15) |
-| `say` | all | final | heard by everyone in the same place (everyone, without locations) |
-| `whisper` | all | final | private to one agent; requires being together if both have locations |
+| `say` | all | final | heard by everyone in the same place (everyone, without locations); told 1000 characters, accepts 1500 |
+| `whisper` | all | final | private to one agent; requires being together if both have locations; same limits |
 | `request-gm` | all | free | private message to the GM's inbox; triggers the GM this round |
 | `move` | all | final | follow a route (see Locations); only offered when the agent has a location |
 | `spawn-agent` | gm | final | spawn a `:spawnable?` role, optional location; respects `:limits` |
@@ -191,6 +200,31 @@ made, not when it is executed.
 
 Override a built-in by defining an action with the same `:name`, or leave it out with
 `:exclude-actions #{:move :whisper}`. Don't exclude `done`: the GM needs it.
+
+### One home per fact
+
+Every fact about the world (places, distances, opening hours, bedrooms, names, the setting) should
+live in exactly one place, and everything agents read should be derived from it. With a world
+file, that place is the world file: if the abbey moved farther away, editing its route should be
+enough. So:
+
+- Put the setting and each role's flavour in the world file too, read them into `:state` at
+  `:init`, and build the brief with a function (see `:roles`). Keep the rules of play in code,
+  with their numbers taken from the world and the actions.
+- Show places, journeys and opening hours in `:observe`, computed from the map
+  (`space/distance`, `space/area`, the locations' own keys), rather than in briefs.
+- Build `:valid?` reasons from the current world: look names up (`(:name (space/location world
+  id))`), list ids that would work, and never write a place name into a reason.
+
+Mock policies and their tests are exempt: they're scripts for one particular world.
+
+### Tool descriptions are mechanics
+
+A tool's `:doc` should be true for every role that has it and on any map: say how it works, not
+where things are. No place names, area names, role names or distances. Point at the view
+instead: "Walk to any place listed under `walkable` in your view", "`journeys` in your view shows
+how long each takes". The engine appends the kind hint ("Ends your turn." or "Free: does not end
+your turn.").
 
 ### Events and reducers
 
@@ -471,7 +505,8 @@ Lets the scenario run for free with `{:llm :mock}`. It's essential for testing.
 
 1. Copy `treasure.clj` to `src/manor/scenarios/<name>.clj` and rename the namespace and `:name`.
 2. Define `:state` and (optionally) `:space` in `:init`, plus the starting agents.
-3. Write role briefs that explain the rules and goals.
+3. Write role briefs that explain the rules and goals (functions of the world, if they would
+   otherwise restate facts from it).
 4. For each action: schema, `:valid?` with actionable reasons, `:effect` returning namespaced events
    with deliberate `:visible-to`.
 5. A reducer for every event type that changes state, and a `describe` for every visible one.
@@ -480,7 +515,8 @@ Lets the scenario run for free with `{:llm :mock}`. It's essential for testing.
 8. Run offline at the REPL: `(start! :<name> {:llm :mock :offline? true :test? true}) (step! 5) (feed)`.
    Check `(feed 40 "some-agent")` shows nothing it shouldn't. (`:test? true` keeps experiments
    under `test-runs/`, which can always be deleted.)
-9. Try real models cheaply: `(start! :<name> {:max-cost 0.10 :test? true})`. Then read `test-runs/<id>/llm.edn` or
+9. Try real models cheaply: `(start! :<name> {:max-cost 0.10 :test? true})`. Then read
+   `(transcript!)` (writes `transcript.md` in the run directory), `test-runs/<id>/llm.edn`, or
    the agent pages in the panel. Look for rejections, forfeits, and confused tool calls, and fix
    docs, briefs and reasons accordingly.
 

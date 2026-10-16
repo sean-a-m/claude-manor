@@ -13,6 +13,7 @@
     (act! \"eva\" :plant {:grain 3})       ; for a seat with :controller :human
     (load! \"village-20261014-...\")  (branch! 3)
     (export-map! \"resources/worlds/grown.edn\")  ; the live map as a world file
+    (transcript!)  (transcript! \"claudeworth-...\")  (transcript! id {:test? true})  ; <run-dir>/transcript.md
     (start! :village {:llm :mock :offline? true :test? true})  ; under test-runs/
     (clean-test-runs!)                ; delete everything under test-runs/"
   (:require [clojure.pprint :refer [pprint]]
@@ -20,6 +21,7 @@
             [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.store :as store]
+            [manor.transcript :as transcript]
             [manor.web :as web]
             [manor.world :as w]
             [manor.worldfile :as worldfile]))
@@ -130,3 +132,10 @@
     (do (spit path (worldfile/->edn-string (worldfile/export (world) start)))
         path)
     (println "This run did not start from a world file.")))
+
+(defn transcript!
+  "Write <run-dir>/transcript.md for the current run, or for the saved run
+  `id` (pass {:test? true} for one under test-runs/), and return its path."
+  ([] (transcript/write! (:dir (run))))
+  ([id] (transcript! id {}))
+  ([id {:keys [test?]}] (transcript/write! (store/run-dir id test?))))

@@ -102,6 +102,36 @@
 (def ^:private decoder
   (mt/transformer mt/strip-extra-keys-transformer mt/json-transformer))
 
+(defn- size-advice
+  "For a string or collection outside its schema's :min/:max: how long it is
+  and what to do about it. A schema may set :advised-max below :max, as the
+  limit to tell the model (the rest is slack); oversize values are then
+  advised down to it."
+  [{:keys [schema value in]}]
+  (let [{:keys [min max advised-max]} (m/properties schema)
+        [n size fewer more] (cond (and (= :string (m/type schema)) (string? value))
+                                [(count value) " is %d characters" "shorten it by" "lengthen it by"]
+                                (and (#{:vector :sequential :set} (m/type schema)) (coll? value))
+                                [(count value) " has %d items" "remove" "add"])
+        field (str/join "." (map #(if (keyword? %) (name %) (str %)) in))]
+    (when n
+      (cond (and max (> n max))
+            (let [limit (or advised-max max)]
+              (str field (format size n) "; the limit is " limit " - " fewer " at least " (- n limit)))
+            (and min (< n min))
+            (str field (format size n) "; the minimum is " min " - " more " at least " (- min n))))))
+
+(defn- explain-errors
+  "Why `args` don't fit `schema`: size advice where it applies, malli's
+  humanized errors for the rest."
+  [schema args]
+  (let [explanation (m/explain schema args)
+        advice (map (juxt identity size-advice) (:errors explanation))
+        others (vec (keep (fn [[e a]] (when-not a e)) advice))]
+    (str/join "; " (concat (keep second advice)
+                           (when (seq others)
+                             [(pr-str (me/humanize (assoc explanation :errors others)))])))))
+
 (defn decode-args
   "Decode raw tool arguments (a JSON string or a map) against the action's
   schema. Keys the schema doesn't declare are dropped (models invent them,
@@ -115,7 +145,7 @@
           ignored (remove (set (keys args)) (keys raw-args))]
       (if (m/validate schema args)
         {:args args}
-        {:error (str "invalid arguments: " (pr-str (me/humanize (m/explain schema args)))
+        {:error (str "invalid arguments: " (explain-errors schema args)
                      "; expected parameters: " (str/join ", " (param-names schema))
                      (when (seq ignored) (str "; ignored unknown keys: " (str/join ", " (map name ignored)))))}))
     (catch Exception e

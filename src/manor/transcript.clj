@@ -1,0 +1,112 @@
+(ns manor.transcript
+  "A readable record of a run, for reading after the fact:
+
+    (write! \"runs/claudeworth-20261015-101500\")  ; => \".../transcript.md\"
+
+  For each round: what happened (narrated, with who could see it), then
+  every model call: the tools called with their arguments, any text, and
+  the engine's reply to each tool call. Read from events.edn and llm.edn
+  only; nothing is called or changed.
+
+  llm.edn records each call's request and response, so the engine's replies
+  to a call are read from the next call of the same turn. A turn's last
+  call has no next call; the transcript says whether the turn was forfeited."
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
+            [manor.clock :as clock]
+            [manor.narrate :as narrate]
+            [manor.store :as store]
+            [manor.world :as w]))
+
+(def ^:private hidden #{:llm/usage :round/started :round/ended})
+
+(defn- round-label [world round]
+  (if-let [c (:clock world)]
+    (str (clock/short-label c round 1) " (round " round ")")
+    (str "Round " round)))
+
+(defn- visibility [{v :visible-to}]
+  (if (set? v) (str/join "," (sort v)) (name v)))
+
+(defn- replies
+  "What the engine sent back after `call`: the messages the next call of the
+  same turn adds after the call's own response. nil for a turn's last call."
+  [call next-call]
+  (when next-call
+    (drop (inc (count (:messages call))) (:messages next-call))))
+
+(defn- one-line [s] (str/replace (str s) #"\s*\n\s*" " "))
+
+(defn- call-lines
+  "Markdown lines for one model call."
+  [{:keys [agent response finish-reason usage] :as call} next-call forfeited?]
+  (let [tcs (:tool_calls response)
+        text (not-empty (str/trim (str (:content response))))]
+    (concat
+     [(str "- **" agent "** "
+           (if (seq tcs)
+             (str/join "; " (for [{{n :name args :arguments} :function} tcs] (str n " " args)))
+             "_(no tool call)_")
+           (when (and finish-reason (not= "tool_calls" finish-reason)) (str " _finish: " finish-reason "_"))
+           (format " _($%.4f)_" (double (or (:cost usage) 0))))]
+     (when text [(str "  - text: " (one-line text))])
+     (if next-call
+       (for [m (replies call next-call)]
+         (str "  - engine: " (one-line (:content m))))
+       (when forfeited? ["  - _turn forfeited: no valid action taken_"])))))
+
+(defn- summary-lines
+  "Calls and cost per agent, error and rejection replies, and forfeits.
+  `pairs` are [call next-call-of-its-turn]."
+  [pairs events]
+  (let [reply-texts (for [[call next-call] pairs
+                          m (replies call next-call)
+                          :when (= "tool" (:role m))]
+                      (str (:content m)))
+        count-of (fn [prefix] (count (filter #(str/starts-with? % prefix) reply-texts)))]
+    (concat
+     ["| agent | calls | cost |" "|---|---|---|"]
+     (for [[agent cs] (sort-by key (group-by :agent (map first pairs)))]
+       (format "| %s | %d | $%.4f |" agent (count cs) (double (reduce + 0 (keep (comp :cost :usage) cs)))))
+     [""
+      (str "Engine replies: " (count-of "error:") " errors, " (count-of "rejected:") " rejections"
+           " (replies to a turn's last call aren't recorded). Forfeits: "
+           (count (filter #(= :action/forfeited (:type %)) events)) ".")])))
+
+(defn render
+  "The transcript of a run directory, as a markdown string."
+  [run-dir]
+  (let [events (store/read-events run-dir)
+        world (w/replay events)
+        names (narrate/names world)
+        calls (store/read-llm run-dir)
+        ;; each call with the next call of its turn (same agent, same round), or nil
+        pairs (map-indexed (fn [i {:keys [agent round] :as call}]
+                             [call (first (filter #(and (= agent (:agent %)) (= round (:round %)))
+                                                  (drop (inc i) calls)))])
+                           calls)
+        forfeits (set (for [e events :when (= :action/forfeited (:type e))] [(:actor e) (:round e)]))
+        round-lines (fn [round]
+                      (let [in-round (filter #(= round (:round (first %))) pairs)]
+                        (concat
+                         ["" (str "## " (round-label world round)) "" "### What happened" ""]
+                         (for [e events :when (and (= round (:round e)) (not (hidden (:type e))))]
+                           (str "- " (narrate/describe e names) "  _[" (visibility e) "]_"))
+                         (when (seq in-round) ["" "### Model calls" ""])
+                         (mapcat (fn [[call next-call]] (call-lines call next-call (forfeits [(:agent call) round])))
+                                 in-round))))]
+    (str (str/join "\n" (concat
+                         [(str "# Transcript of " run-dir) ""
+                          (format "%d rounds, %d model calls, $%.4f" (:round world) (count calls)
+                                  (double (w/total-cost world)))
+                          ""]
+                         (summary-lines pairs events)
+                         (mapcat round-lines (range 1 (inc (:round world))))))
+         "\n")))
+
+(defn write!
+  "Write <run-dir>/transcript.md and return its path."
+  [run-dir]
+  (let [f (io/file run-dir "transcript.md")]
+    (spit f (render run-dir))
+    (str f)))

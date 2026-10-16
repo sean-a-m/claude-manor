@@ -3,6 +3,7 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
+            [manor.builtins :as b]
             [manor.engine :as e]
             [manor.llm :as llm]
             [manor.narrate :as n]
@@ -233,6 +234,22 @@
       (is (str/includes? gm-msg "--- Round 2 begins ---")))
     (e/stop-run run)))
 
+(deftest briefs-can-be-functions-of-the-world
+  (let [run (rounds! (hamlet) 2)
+        world (e/world run)
+        evs (e/events run)
+        sc (-> (:scenario run)
+               (assoc-in [:roles :resident :brief] (fn [world id] (str "Brief for " id " in round " (:round world) ".")))
+               (assoc-in [:roles :gm :brief] (fn [world] (str "GM brief in round " (:round world) "."))))]
+    (is (str/includes? (:content (first (prompt/agent-messages sc world evs "ben" {})))
+                       "## Your role\nBrief for ben in round 2."))
+    (is (str/includes? (:content (first (prompt/gm-messages sc world evs ["test"] {})))
+                       "## This world\nGM brief in round 2."))
+    (testing "string briefs are unchanged"
+      (is (str/includes? (:content (first (prompt/agent-messages (:scenario run) world evs "ben" {})))
+                         (str "## Your role\n" (get-in run [:scenario :roles :resident :brief])))))
+    (e/stop-run run)))
+
 (deftest scenarios-can-exclude-actions
   (let [sc (e/load-scenario :hamlet)
         names (set (map :name (e/all-actions (assoc sc :exclude-actions #{:move :say}))))]
@@ -255,3 +272,25 @@
       (let [{:keys [error]} (a/decode-args accept "{\"offer\": \"offer-1\"}")]
         (is (str/includes? error "expected parameters: offer-id"))
         (is (str/includes? error "ignored unknown keys: offer"))))))
+
+(deftest length-rejections-say-how-to-fix-the-call
+  (let [say (first (filter #(= :say (:name %)) (b/agent-actions)))
+        text (fn [n] {:text (apply str (repeat n "a"))})]
+    (testing "say and whisper tell models their limit"
+      (is (str/includes? (get-in (a/->tool say) [:function :description]) "at most 1000 characters")))
+    (testing "up to 1500 characters is accepted, as slack"
+      (is (= (text 1500) (:args (a/decode-args say (text 1500))))))
+    (testing "longer text is told its length and how much to cut, down to the advised limit"
+      (let [{:keys [error]} (a/decode-args say (text 1600))]
+        (is (str/includes? error "text is 1600 characters; the limit is 1000 - shorten it by at least 600"))
+        (is (str/includes? error "expected parameters: text"))))
+    (testing "without an advised limit, the schema's own; too short, and collections, likewise"
+      (let [act {:name :x :args [:map [:word [:string {:min 3 :max 5}]] [:ids {:optional true} [:vector {:max 2} :string]]]}]
+        (is (str/includes? (:error (a/decode-args act {:word "abcdefgh"}))
+                           "word is 8 characters; the limit is 5 - shorten it by at least 3"))
+        (is (str/includes? (:error (a/decode-args act {:word "a"}))
+                           "word is 1 characters; the minimum is 3 - lengthen it by at least 2"))
+        (is (str/includes? (:error (a/decode-args act {:word "abc" :ids ["a" "b" "c"]}))
+                           "ids has 3 items; the limit is 2 - remove at least 1"))
+        (testing "other errors are still humanized"
+          (is (str/includes? (:error (a/decode-args act {:word 7})) "should be a string")))))))

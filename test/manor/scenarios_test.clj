@@ -6,7 +6,7 @@
             [manor.store :as store]
             [manor.world :as w]))
 
-(def bundled [:village :treasure :quiz])
+(def bundled [:village :treasure :quiz :claudeworth])
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
 

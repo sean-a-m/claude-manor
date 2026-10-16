@@ -11,7 +11,9 @@ in code; the engine owns all state, private information, and access to the real 
 | [docs/roadmap.md](docs/roadmap.md) | what's left, and known issues |
 
 Bundled scenarios: `village` (economy, weather bridge, locations, GM), `treasure` (small
-example) and `quiz` (each contestant has a private, persistent pi assistant reached over MCP).
+example), `quiz` (each contestant has a private, persistent pi assistant reached over MCP) and
+`claudeworth` (an Edwardian household and the village architect, half-hour turns, sleep and
+pastimes; its world is `resources/worlds/claudeworth.edn`).
 
 ## MCP bridges
 
@@ -52,6 +54,8 @@ real historical weather:
 clojure -M:run village --max-cost 0.50
 clojure -M:run village --model openai/gpt-5-mini
 clojure -M:run --load smoke-llm            # reopen a saved run
+clojure -M:run claudeworth --max-cost 0.25  # one simulated day at Claudeworth Manor
+clojure -M:run claudeworth --mock           # free: the scripted day
 ```
 
 From the REPL (`clj -M:dev`):
@@ -67,6 +71,8 @@ From the REPL (`clj -M:dev`):
 (act! "eva" :plant {:grain 3})
 (approve! "req-63")
 (branch! 3)
+(transcript!)           ; <run-dir>/transcript.md: each round's events and every model call
+(transcript! "claudeworth-20261015-101500" {:test? true})   ; any saved run
 ```
 
 ## Real runs and test runs

@@ -18,7 +18,9 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/scenario-authoring.md` | the complete scenario contract: how to write a scenario |
 | `docs/roadmap.md` | what's left: prioritized tasks with approaches, plus known issues |
 | `docs/claudeworth-design.md` | design and phases for the Claudeworth Manor scenario (current work) |
+| `docs/next-steps.md` | **start here when resuming:** current state, review to do, open decisions, next phase |
 | `docs/claudeworth-phase1.md` | build brief for Claudeworth phase 1 (world file, daily life, mock day) |
+| `docs/claudeworth-phase1-fixes.md` | follow-up brief: rejection messages, area names, one home per fact, transcripts |
 
 ## The user's requirements and preferences
 
@@ -66,11 +68,14 @@ src/manor/
   rng.clj        deterministic rolls from seed + key
   clock.clj      optional game time (rounds <-> times); prompts show times when a scenario has one
   worldfile.clj  EDN world files: load + check, export live map (runs/<id>/map.edn)
-  scenarios/     village.clj (full example), treasure.clj (small example), quiz.clj (MCP/pi)
+  transcript.clj readable run record: <run-dir>/transcript.md from events.edn and llm.edn
+  scenarios/     village.clj (full example), treasure.clj (small example), quiz.clj (MCP/pi),
+                 claudeworth.clj (Claudeworth Manor: walk/travel, sleep, spend-time, rouse; phase 1)
+resources/worlds/ world files on the classpath; claudeworth.edn is Claudeworth's fresh world
 mcp-servers/pi/server.mjs  pi as an MCP server: send_message {session, message}; Node, no deps
 config/        mcp.example.edn; mcp.edn is local and gitignored (the user's sets pi-sandbox)
-dev/user.clj     REPL helpers (start! step! auto! feed view last-prompt spawn! approve! act! ...)
-test/            engine, space, MCP, clock, world-file, panel and scenario smoke tests;
+dev/user.clj     REPL helpers (start! step! auto! feed view last-prompt transcript! spawn! approve! act! ...)
+test/            engine, space, MCP, clock, world-file, panel, transcript, Claudeworth and scenario smoke tests;
                  test scenarios prize.clj and hamlet.clj (world file test/fixtures/hamlet.edn);
                  test/fixtures/fake-pi.mjs (fake `pi --mode rpc` for free MCP tests)
 runs/            real runs (gitignored; the user's data; never delete). runs/smoke-llm is a real 5-round village run
@@ -88,8 +93,11 @@ clj -M:dev                                    # REPL; see dev/user.clj docstring
 - **Verify with mock and offline runs first** (free, deterministic). Then do a short real run with
   `:max-cost` of $0.10–0.20 and report what it cost. Real runs use the user's OpenRouter key: from
   `OPENROUTER_API_KEY`, or else read from `~/.pi/agent/auth.json`. Never print the key.
-- To inspect a real run, read `runs/<id>/llm.edn` (every prompt, response, `finish-reason` and
-  cost). Count `error:`/`rejected:` tool replies and `:action/forfeited` events. That's how the
+- To inspect a real run, write its transcript first: `(transcript! id)` (or `{:test? true}` for
+  `test-runs/`) at the REPL, or `(manor.transcript/write! dir)`, writes `<run-dir>/transcript.md`:
+  each round's events with who saw them, then every model call with its tool calls and the
+  engine's replies, plus calls and cost per agent. For the raw record, read `runs/<id>/llm.edn`
+  (every prompt, response, `finish-reason` and cost). Count `error:`/`rejected:` tool replies and `:action/forfeited` events. That's how the
   argument-naming and reasoning-token issues were found.
 - Every new scenario goes in `bundled` in `test/manor/scenarios_test.clj`.
 - **Run directories:** `runs/` holds the user's real runs. **Never delete anything there.**

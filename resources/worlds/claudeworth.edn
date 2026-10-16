@@ -1,0 +1,80 @@
+;; Claudeworth Manor: the fresh world every :claudeworth run starts from.
+;; A template: nothing writes to it. Runs keep a copy (world-start.edn) and
+;; export their live map (map.edn) in this format. See docs/claudeworth-design.md.
+{:meta {:name "Claudeworth Manor"
+        :start "1904-10-15T08:00"
+        :minutes-per-round 30
+        :starting-funds 3000
+        :build-days 1
+        :setting "Claudeworth Manor is a modest Edwardian country house, the seat of the Earls of Claudeworth, whose fortune has lately been restored. Claudeworth village lies nearby, a sloping green with a general store and the offices of Pugh & Sons, Architects. Hollin Abbey is nearby too, where the monks keep to themselves."}
+
+ :locations
+ [;; ------------------------------------------------ the manor (small to begin with)
+  {:id "carriage-sweep" :name "Carriage sweep" :domain :house :floor :outside :kind :approach
+   :connects-to ["entrance-hall"]
+   :desc "A gravel turning circle before the front door. The motor car stands here, polished and rather out of place."}
+  {:id "entrance-hall" :name "Entrance hall" :domain :house :floor :ground :kind :hall
+   :connects-to ["drawing-room" "study" "dining-room" "kitchen" "staircase"]
+   :desc "A modest hall with a fireplace and a stag's head. Every door in the house seems to open off it."}
+  {:id "drawing-room" :name "Drawing room" :domain :house :floor :ground :kind :sitting-room
+   :desc "A pleasant room with chintz chairs and a piano, though four guests would crowd it."}
+  {:id "study" :name "Study" :domain :house :floor :ground :kind :study
+   :desc "The earl's business room: a leather-topped desk, estate ledgers and a view of the drive."}
+  {:id "dining-room" :name "Dining room" :domain :house :floor :ground :kind :dining-room
+   :desc "A mahogany table for eight under a gloomy family portrait. Breakfast is laid on the sideboard."}
+  {:id "kitchen" :name "Kitchen" :domain :house :floor :ground :kind :kitchen
+   :desc "A cold kitchen. There is no cook."}
+  {:id "staircase" :name "Staircase" :domain :house :floor :ground :kind :stair
+   :connects-to ["gallery"]
+   :desc "A narrow oak staircase, creaking on the fourth step."}
+  {:id "gallery" :name "First-floor gallery" :domain :house :floor :first :kind :landing
+   :connects-to ["earls-bedroom" "countess-bedroom" "secretarys-room"]
+   :desc "A short landing hung with watercolours, the bedroom doors opening off it."}
+  {:id "earls-bedroom" :name "Earl's bedroom" :domain :house :floor :first :kind :bedroom
+   :desc "A large bed with heavy curtains, a washstand and a dressing room no bigger than a cupboard."}
+  {:id "countess-bedroom" :name "Countess's bedroom" :domain :house :floor :first :kind :bedroom
+   :desc "A bright room with a dressing table, a writing desk and a window over the garden."}
+  {:id "secretarys-room" :name "Secretary's room" :domain :house :floor :first :kind :bedroom
+   :desc "A small, plain room under the eaves with a narrow bed and a deal table piled with papers."}
+
+  ;; ------------------------------------------------ Claudeworth village
+  {:id "village-green" :name "Village green" :domain :village :kind :green
+   :connects-to ["general-store" "architects-office"]
+   :desc "A sloping green with a pump, an old market cross and geese. The shops face it."}
+  {:id "general-store" :name "General store" :domain :village :kind :shop :hours ["08:00" "18:00"]
+   :desc "Groceries, candles, coal and gossip, sold over one long counter."}
+  {:id "architects-office" :name "Architect's office" :domain :village :kind :office :hours ["09:00" "18:00"]
+   :connects-to ["architects-lodgings"]
+   :desc "Pugh & Sons, Architects: a front room of drawing boards, plan chests and shelves of reference books."}
+  {:id "architects-lodgings" :name "Architect's lodgings" :domain :village :kind :bedroom
+   :desc "Rooms above the office, comfortable and cluttered with rolled plans."}
+
+  ;; ------------------------------------------------ Hollin Abbey
+  {:id "abbey-gatehouse" :name "Abbey gatehouse" :domain :abbey :kind :gatehouse
+   :connects-to ["abbey-church"]
+   :desc "The old stone gatehouse of Hollin Abbey, its porter's bell on a chain."}
+  {:id "abbey-church" :name "Abbey church" :domain :abbey :kind :church
+   :desc "Hollin Abbey's church, cool and quiet. The monks keep to themselves."}]
+
+ ;; journeys: [from to rounds], two-way; one round is half an hour
+ :routes [["carriage-sweep" "village-green" 1]
+          ["carriage-sweep" "abbey-gatehouse" 1]
+          ["abbey-gatehouse" "village-green" 1]]
+
+ ;; what each role is, in the world: read into every brief, after the setting
+ :roles
+ {:earl {:about "You are the Earl of Claudeworth, master of Claudeworth Manor; the household calls you my lord. The house is too small for your station, and you intend to enlarge it. Mr Pugh of Pugh & Sons, the architect in Claudeworth village, is the man to see. Lady Claudeworth will expect to be consulted, and your secretary, Mr Hale, can run errands for you."}
+  :countess {:about "You are the Countess of Claudeworth; the household calls you my lady. You run the household, you have firm views on what the house needs and how it should look, and you expect to be consulted on any alteration to it."}
+  :secretary {:about "You are Mr Hale, private secretary to the Earl of Claudeworth (my lord; the countess is my lady). You serve his lordship: correspondence, errands and arrangements, often in the village, and you report back to him. You work in the study."}
+  :architect {:about "You are Mr Pugh of Pugh & Sons, Architects, in Claudeworth village. You keep the architect's office and live in the lodgings above it. You want the manor's custom: address the earl as my lord and the countess as my lady."}
+  :gm {:about "A quiet period household: the family, their secretary and the village architect going about their days."}}
+
+ :agents
+ [{:name "Lord Claudeworth" :role :earl :location "earls-bedroom" :bedroom "earls-bedroom"
+   :persona "The Earl of Claudeworth, about fifty: an old title lately restored by new money. He finds Claudeworth Manor mortifyingly small for a man of his station and means to make it a proper seat, worthy of the family name."}
+  {:name "Lady Claudeworth" :role :countess :location "countess-bedroom" :bedroom "countess-bedroom"
+   :persona "The Countess of Claudeworth: sharp, practical and possessed of firm views on taste. She regards the house as hers to run and does not care to be surprised by her husband's schemes."}
+  {:name "Hale" :role :secretary :location "secretarys-room" :bedroom "secretarys-room"
+   :persona "Mr Hale, the earl's private secretary: young, meticulous and discreet, and a little anxious to please."}
+  {:name "Pugh" :role :architect :location "architects-office" :bedroom "architects-lodgings" :optional? true
+   :persona "Mr Pugh of Pugh & Sons, Architects, in Claudeworth village. Proud of his craft, keen for a commission from the manor, and prone to holding forth on proportion."}]}

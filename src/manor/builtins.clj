@@ -58,6 +58,13 @@
         :when (and until (<= until (:round world)))]
     (free world (:id a))))
 
+(def speech-limit
+  "The length `say` and `whisper` tell models to keep to. Their schemas allow
+  up to 1500 characters, as slack, and advise longer texts down to this."
+  1000)
+
+(def ^:private speech [:string {:min 1 :max 1500 :advised-max speech-limit}])
+
 (defn agent-actions []
   [{:name :pass
     :doc "Do nothing this round."
@@ -71,15 +78,17 @@
               [{:type :agent/noted :data {:text text} :visible-to #{actor}}])}
 
    {:name :say
-    :doc "Say something out loud. Everyone in the same place hears it."
-    :args [:map [:text [:string {:min 1 :max 800}]]]
+    :doc (str "Say something out loud to everyone in the same place: a few sentences, at most "
+              speech-limit " characters.")
+    :args [:map [:text speech]]
     :effect (fn [world actor {:keys [text]}]
               [{:type :agent/said :data {:text text :at (space/location-of world actor)}
                 :visible-to (space/here world actor)}])}
 
    {:name :whisper
-    :doc "Say something privately to one other participant in the same place (use their id)."
-    :args [:map [:to :string] [:text [:string {:min 1 :max 800}]]]
+    :doc (str "Say something privately to one other participant in the same place (use their id): "
+              "a few sentences, at most " speech-limit " characters.")
+    :args [:map [:to :string] [:text speech]]
     :valid? (fn [world actor {:keys [to]}]
               (cond (= to actor) "you cannot whisper to yourself"
                     (not (contains? (active-ids world) to)) (str "no active participant with id " to)

@@ -71,6 +71,12 @@ Your view is private. Others only learn what is public or what someone tells the
                 (update :you #(merge {:id agent-id :name (:name a) :role (name (:role a))} %)))
       (space/enabled? world) (assoc :location (space/view world agent-id)))))
 
+(defn- brief-text
+  "A role's :brief: a string, or a function of the world (and, for agents,
+  their id) that builds one, so it can fill in facts from the world."
+  [brief & args]
+  (if (fn? brief) (apply brief args) brief))
+
 (defn agent-messages
   [scenario world events agent-id {:keys [event-window]}]
   (let [a (w/agent world agent-id)
@@ -79,7 +85,7 @@ Your view is private. Others only learn what is public or what someone tells the
         notes (:notes a)]
     [{:role "system"
       :content (str agent-preamble
-                    "\n\n## Your role\n" (:brief role)
+                    "\n\n## Your role\n" (brief-text (:brief role) world agent-id)
                     "\n\n## Who you are\nYou are " (:name a) " (id: " agent-id ")."
                     (when-not (str/blank? (:persona a)) (str " " (:persona a))))}
      {:role "user"
@@ -109,7 +115,7 @@ You act only by calling tools. You may take a few actions; call `done` when fini
                                   (space/enabled? world) (assoc :space (:space world)))))]
     [{:role "system"
       :content (str gm-preamble
-                    (when-let [b (get-in scenario [:roles :gm :brief])] (str "\n\n## This world\n" b)))}
+                    (when-let [b (get-in scenario [:roles :gm :brief])] (str "\n\n## This world\n" (brief-text b world))))}
      {:role "user"
       :content (str "# " (heading world)
                     (when (:clock world) (str " (round " (:round world) ")"))

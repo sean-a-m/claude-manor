@@ -1,7 +1,7 @@
 # Claudeworth Manor: design for the manor-building vertical slice
 
-Status, 2026-10-15: phase 0 (the engine changes) is done; phases 1 and 2 are next. Decisions
-from the user are recorded in section 12.
+Status, 2026-10-15: phases 0 (the engine changes) and 1 (living in the house) are done; phase 2
+is next. Decisions from the user are recorded in section 12.
 
 The long-term target is the world in `external-resources/ashcombe_spec.md` and
 `ashcombe_world.yaml`: an Edwardian great house kept at late-Victorian staffing, with an abbey and
@@ -16,9 +16,9 @@ Four agents:
 
 | Agent | Role | Starts in | Purpose in the slice |
 |---|---|---|---|
-| The Earl of Claudeworth | `earl` | study | wants a grander house |
-| The Countess | `countess` | drawing room | is consulted; has her own (possibly strong) opinions |
-| Mr Hale, private secretary | `secretary` | study | is dispatched to the village to see to it |
+| The Earl of Claudeworth | `earl` | his bedroom | wants a grander house |
+| The Countess | `countess` | her bedroom | is consulted; has her own (possibly strong) opinions |
+| Mr Hale, private secretary | `secretary` | his room | is dispatched to the village to see to it |
 | Mr Pugh, architect (optional) | `architect` | architect's office (village) | consults the reference books, draws plans, gives advice, earns a fee |
 
 The design is done when a run supports this sequence, first with the mock policy (free,
@@ -63,6 +63,7 @@ consistent (section 6.4).
 | Plans, then commission | `draw-plans` is a *query* (calls the server; the drafted plan is stored in state as an event). `commission` is a *final* action with no bridge. | No engine change is needed for "final action that calls a bridge", the steps match the real-world process, and the optional architect agent can do the drawing. |
 | Money | One household account. **The earl, countess and secretary** can all spend from it freely. | The user decided anyone in the family spends for now. The secretary is included, acting for the family, so that he can be dispatched. That's one line to change for more drama later. |
 | Time | One round is 30 minutes, from a clock stored in the world. Prompts show "Saturday 15 October 1904, 09:30", not round numbers. | Agents need to reason about mornings, office hours and bedtime. |
+| Briefs | **Rules in code, setting and flavour in the world file.** A brief is a function of the world: the setting (`:meta :setting`) and the role's `:about` (`:roles`) come from the world file, and the rules paragraph is written in code with its numbers (minutes per turn, the speech limit) taken from the clock and the actions. Tool descriptions are mechanics only. | One home per fact: if the abbey moved farther away, only the world file's route would change (section 12, decision 12). |
 | Moving inside a building | A **free** `walk` action to anywhere reachable without a journey; journeys use a separate **final** `travel` action. | Walking from the study to the drawing room shouldn't cost a 30-minute turn. |
 | Sleep and pastimes | An engine-level **occupation**: an agent who is asleep or busy skips turns until a set round, at no model cost. | Overnight rounds cost nothing, and "pass the time doing whatever" becomes one cheap action. |
 | Model | `deepseek/deepseek-v4.1-flash` for every seat, including the GM. | The user's decision. |
@@ -77,7 +78,8 @@ edited copy, or `map.edn` exported from an earlier run).
         :start "1904-10-15T08:00"        ; round 1 starts here
         :minutes-per-round 30
         :starting-funds 3000             ; pounds, the household account
-        :build-days 1}
+        :build-days 1
+        :setting "Claudeworth Manor is a modest Edwardian country house ..."}   ; read into every brief
 
  :locations
  [;; ------------------------------------------------ the manor (small to begin with)
@@ -105,6 +107,8 @@ edited copy, or `map.edn` exported from an earlier run).
  :routes [["carriage-sweep" "village-green" 1]
           ["carriage-sweep" "abbey-gatehouse" 1]
           ["abbey-gatehouse" "village-green" 1]]
+
+ :roles {:earl {:about "You are the Earl of Claudeworth ..."} ...}   ; who each role is, in this world
 
  :agents [{:name "Lord Claudeworth" :role :earl :location "study" :bedroom "earls-bedroom"
          :persona "..."}
@@ -299,7 +303,11 @@ deterministic and free, and starts in milliseconds.
 
 ## 7. Roles and actions
 
-Briefs live in Clojure, beside the code whose rules they restate. Personas live in the world file's `:agents`.
+The rules of play live in Clojure, beside the code that enforces them: a brief function fills in
+their numbers from the world (minutes per turn from the clock, the speech limit from `say`). The
+setting (`:meta :setting`), what each role is (`:roles {:earl {:about ..}}`) and the personas
+(`:agents`) live in the world file. Tool descriptions say only how a tool works, true for any
+map; places, journeys and opening hours reach agents through their view.
 
 | Action | Who | Kind | Where / when |
 |---|---|---|---|
@@ -381,6 +389,26 @@ the village and back, a walk to the abbey, everyone in bed by 23:00. Done when a
 run has no forfeits, replays equal, agents are skipped while asleep, and `(feed 80 "hale")` shows
 nothing from rooms Hale wasn't in.
 
+Done 2026-10-15. Built: `resources/worlds/claudeworth.edn`, `src/manor/scenarios/claudeworth.clj`
+(`walk`, `travel`, `sleep`, `spend-time`, `rouse`, a `pass` only those present notice, `:observe`
+with `places`, `walkable` and `journeys`, and a scripted mock day), and `claudeworth_test` (the
+world, the actions, the mock day to 07:00 Sunday, privacy, `:architect? false`, and "move the
+abbey"). Then, from the first real run (`docs/claudeworth-phase1-fixes.md`):
+
+- length rejections say how long the text was and how much to cut (`manor.actions`, from the
+  schema's `:min`/`:max` and an optional `:advised-max`); `say` and `whisper` allow 1500
+  characters but tell models 1000 (decision 13)
+- `travel` accepts an area name (a `:domain`) and goes to its nearest place (decision 14);
+  unknown ids get a list of ids to use
+- briefs are functions of the world, with the setting and roles in the world file (decision 12)
+- `manor.transcript` writes a readable `transcript.md` for any run
+
+Deviations from the phase 1 brief: the first real run was stopped by the user at 15:30 (round
+16, $0.11) instead of running a whole day; the fixes above replaced its brief tuning. Everyone but
+Mr Pugh starts in their bedroom (section 1 used to say the study and drawing room). `places` also
+shows opening hours, so the office hours are known before you get there; the briefs no longer
+state them. The setting and role paragraphs moved from Clojure into the world file.
+
 **Phase 2: building (completes the slice).** Architect server, money, the store, plans,
 `show-plans`, commission, construction, `map.edn` export, and the optional architect agent
 (`:architect? false` leaves him out). Done when:
@@ -443,7 +471,8 @@ The real village run cost about $0.0018 per agent turn on `deepseek-v4.1-flash`.
 10. **Phase 1 details:** the names and personas above, the start at 08:00 on Saturday 15 October
     1904, and a real-run cap of $0.25 for one simulated day. The architect is in the scenario
     from phase 1, where he can only talk and pass the time; he gets his building role in
-    phase 2. The build brief is `docs/claudeworth-phase1.md`.
+    phase 2. The build brief is `docs/claudeworth-phase1.md`, and its follow-up
+    `docs/claudeworth-phase1-fixes.md`.
 11. **The architect shouldn't stay a full-time agent** (future work, not now). He costs a model
     call every waking half hour even when nobody comes near the village. He should hibernate
     when no one else is interacting in the village.
@@ -452,3 +481,14 @@ The real village run cost about $0.0018 per agent turn on `deepseek-v4.1-flash`.
     he is occupied ("at his drawing board") until someone arrives. A scenario system, or a hook
     on `:agent/arrived`/`:agent/moved` into the village, frees him (`b/free`). His day-to-day
     life would then be summarised rather than played.
+12. **One home per fact.** Every fact about the world (places, distances, opening hours,
+    bedrooms, names, setting) lives in the world file, and everything agents read is derived from
+    it. The rules of play live in code, as a brief function that takes its numbers from the world;
+    the setting and each role's flavour live in the world file (`:meta :setting`, `:roles`). Tool
+    descriptions are mechanics only. Mock-day scripts are exempt: they're written for one world.
+13. **Speech length:** `say` and `whisper` accept up to 1500 characters, but their descriptions
+    (and the briefs) tell models 1000. That leaves slack, so a slightly long speech isn't
+    rejected; one over 1500 is told its length and advised to get under 1000.
+14. **Area names in `travel`:** "travel to the village" goes to the nearest place of that area,
+    found by pathfinding (the first place of the area on the quickest path), e.g. the village
+    green. No world-file data marks entrances, for now.

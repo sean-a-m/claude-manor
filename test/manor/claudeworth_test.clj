@@ -148,6 +148,17 @@
         (let [shared (at world "hale" "architects-office")
               [shown] (perform run shared "pugh" :show-plans {:plan-id "library"})]
           (is (contains? (get-in shown [:state :plans "library" :holders]) "hale")))))
+    (testing "only one room is built at a time, whatever the plan"
+      (let [world (-> office
+                      (drafted "pugh" (assoc draft :for "lord-claudeworth"))
+                      (drafted "pugh" (assoc draft :name "Saloon" :size "grand" :desc "A fine saloon."
+                                             :connects-to ["entrance-hall"] :for "lord-claudeworth")))
+            [commissioned _] (perform run world "lord-claudeworth" :commission {:plan-id "library"})
+            refusal (check commissioned "lord-claudeworth" :commission {:plan-id "saloon"})]
+        (is (= "library" (get-in commissioned [:state :works 0 :plan-id])))
+        (is (str/includes? refusal "already being built"))
+        (is (str/includes? refusal "Only one room is built at a time"))
+        (is (str/includes? refusal "commission the Saloon then"))))
     (testing "the office marker, not the location id, selects the service"
       (let [moved (-> clerk (update-in [:space :locations "architects-office"] dissoc :services)
                       (assoc-in [:space :locations "study" :services] #{:architect})

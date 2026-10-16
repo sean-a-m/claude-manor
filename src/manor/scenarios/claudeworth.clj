@@ -236,6 +236,7 @@
          "Building is arranged at the architect's office while it is open, not at the house: talk at home is for deciding what you want. "
          "At the office you can search reference books (`consult-references`), ask for the `price-list`, have plans drawn (`draw-plans`), "
          "and `commission` a plan you hold. `show-plans` shares plans with everyone present, anywhere. "
+         "Only one room is built at a time: `commission` is refused while a room is being built (see `building` for the work in hand and when it finishes), so the next room must wait until the present one is finished. "
          "Commissioning pays from the household; the room appears at the completion time in `building`. The architect earns "
          building/fee-percent "% on commissions for plans he drew. Queries are limited per turn; continue them next turn.")))
 

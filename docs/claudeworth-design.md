@@ -256,8 +256,9 @@ construction system (every round)
 
   The server's draft is treated as untrusted input and checked against the same list before the
   plan is stored.
-- Plans don't go stale: rooms are never removed, so a plan's connections stay valid. Several works
-  may be under way at once.
+- Plans don't go stale: rooms are never removed, so a plan's connections stay valid. Only one
+  work is under way at a time: a commission is refused while any room is being built, and the next
+  room is commissioned once the present work is finished.
 - **The delay** is one day by default (48 rounds × `build-days`). The run option `:build-rounds`
   overrides it so tests and cheap real checks don't need a whole simulated day.
 - While works are in progress, `:observe` shows "builders at work beside the entrance hall,
@@ -516,8 +517,11 @@ Decisions for phase 2 (2026-10-16), detailed in `docs/claudeworth-phase2.md`:
     room instead of freeing them. The interrupted agent gets a turn and decides: `carry-on`
     ignores it, anything else ends the occupation. This is general (engine and built-ins), so a
     busy character, such as Mr Pugh at his drawing board, needs no rule of its own.
-18. **One commission at a time per plan.** A plan whose works are in progress can't be
-    commissioned again; once built, it can be (a second room).
+18. **One room built at a time.** Any work in progress blocks a new commission, whatever the
+    plan, and the refusal says when the current work finishes; the next room is commissioned once
+    it is done. (This replaces an earlier "one commission at a time per plan" rule that allowed
+    several works at once: the tool wording confused models, so the engine and the wording now
+    agree on a single build.)
 19. **The architect's office is marked in the world file** (`:services #{:architect}` on the
     location), not found by id in code.
 20. **The price list is a data file of the server** (`mcp-servers/architect/prices.edn`), read by

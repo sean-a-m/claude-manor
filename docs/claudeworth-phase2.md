@@ -398,7 +398,7 @@ Narration reads as spreading the plans out for the room to see.
 |---|---|
 | kind / roles | `:final` / `#{:earl :countess :secretary}` |
 | args | `[:map [:plan-id :string]]` |
-| `:valid?` | at an office, open now; the plan exists; the actor holds it; no works of this plan are in progress (`"the Library is already being built; it will be finished Sunday 10:00"`); `funds ≥ price` (`"the Library would cost £1200; the household has £900"`) |
+| `:valid?` | at an office, open now; the plan exists; the actor holds it; **no work at all is in progress** — only one room is built at a time, so any work in progress blocks the commission, whatever the plan (`"the Library is already being built; it will be finished Sunday 10:00. Only one room is built at a time: commission the Saloon then."`); `funds ≥ price` (`"the Library would cost £1200; the household has £900"`) |
 | `:effect` | `:claudeworth/commissioned`, `:visible-to :all` |
 
 Compute at commission time:

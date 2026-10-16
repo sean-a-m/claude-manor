@@ -22,6 +22,7 @@
 (defn- loc-name [world id] (:name (space/location world id) id))
 (defn- here [world actor] (space/location world (space/location-of world actor)))
 (defn- funds [world] (get-in world [:state :household :funds]))
+(defn- work-in-progress [world] (first (get-in world [:state :works])))
 (defn- plan [world id] (get-in world [:state :plans id]))
 (defn- house [world] (filter #(= :house (:domain %)) (vals (get-in world [:space :locations]))))
 (defn- floors [world] (set (remove #{nil :outside} (map :floor (house world)))))
@@ -224,13 +225,15 @@
               [{:type :claudeworth/plans-shown :visible-to (space/here world actor)
                 :data {:plan-id plan-id :to (vec (sort (space/here world actor)))}}])}
    {:name :commission :kind :final :roles spenders
-    :doc "Commission a plan you hold at an open architect's office, paid from household funds. A plan already being built must finish first. See building for completion times."
+    :doc "Commission a plan you hold at an open architect's office, paid from household funds. Only one room is built at a time: while any room is being built, a commission is refused until it is finished (see building for the completion time)."
     :args [:map [:plan-id :string]]
     :valid? (fn [world actor {:keys [plan-id]}]
               (or (office-reason world actor) (held-reason world actor plan-id)
-                  (when-let [work (first (filter #(= plan-id (:plan-id %)) (get-in world [:state :works])))]
+                  (when-let [work (work-in-progress world)]
                     (str "the " (:name work) " is already being built; it will be finished "
-                         (clock/short-label (:clock world) (:due work) (:round world))))
+                         (clock/short-label (:clock world) (:due work) (:round world))
+                         ". Only one room is built at a time: commission the "
+                         (:name (plan world plan-id)) " then."))
                   (when (> (:price (plan world plan-id)) (funds world))
                     (str "the " (:name (plan world plan-id)) " would cost £" (:price (plan world plan-id))
                          "; the household has £" (funds world)))))

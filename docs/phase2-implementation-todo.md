@@ -66,9 +66,10 @@ only handoff notes; it does not complete any of the remaining tasks below.
   client (for); without one, the clerk draws for you" confused clients into thinking they could
   invoke it while Pugh was present. Say explicitly: if an architect is here, only that agent can
   draw; clients must ask him using say. Without an architect, the clerk draws for the caller.
-- [ ] Clarify `commission`: only a repeat commission of **the same plan** is blocked while its
-  works are in progress. **Different plans may be built concurrently.** Several real models
-  spent substantial reasoning on the ambiguity of "A plan already being built must finish first".
+- [x] Clarify `commission`: only one room is built at a time, so **any** work in progress blocks
+  a new commission (the same plan or a different one). The tool doc, the scenario rules and the
+  refusal message all say so, and the architect is told the firm builds one room at a time. This
+  settles the ambiguity of "A plan already being built must finish first".
 - [ ] Clarify the shared query allowance in the scenario rules: reference lookup, price list and
   each individual draft all count toward the same allowance, even if calls are batched. After
   querying references and prices, draft next turn. Keep `:max-queries` at 2; avoid scattering

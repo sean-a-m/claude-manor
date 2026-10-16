@@ -370,8 +370,9 @@
 (def mock-day
   "Agent id -> time of day -> the tool calls of that turn, in order (free
   ones first). Turns not listed pass. Breakfast, the earl's visit to Mr Pugh,
-  the countess at the abbey, Mr Hale's letters, Mr Pugh's drawing board,
-  bed, and Mr Hale rousing the earl at 06:30."
+  the countess moving the candlesticks and visiting the abbey, Mr Hale's
+  errands and dusting, Mr Pugh's drawing board, bed, and Mr Hale rousing
+  the earl at 06:30."
   {"lord-claudeworth"
    {"08:00" [[:walk {:to "dining-room"}]
              [:say {:text "I have made up my mind: this house is too small for us, and I mean to enlarge it. I shall see Pugh, the architect, this morning."}]]
@@ -395,7 +396,9 @@
    {"08:00" [[:walk {:to "dining-room"}]
              [:say {:text "Enlarge it? Then I expect to be consulted on every room, Claudeworth."}]]
     "08:30" [[:spend-time {:activity "breakfasting" :hours 1}]]
-    "09:30" [[:walk {:to "drawing-room"}] [:spend-time {:activity "going over the household accounts" :hours 4}]]
+    "09:30" [[:take {:item "silver-candlesticks"}] [:walk {:to "drawing-room"}]
+             [:put-down {:item "silver-candlesticks"}]
+             [:spend-time {:activity "going over the household accounts" :hours 4}]]
     "13:30" [[:travel {:to "abbey-church"}]]
     "14:00" [[:spend-time {:activity "sitting quietly in the abbey church" :hours 2}]]
     "16:00" [[:travel {:to "carriage-sweep"}]]
@@ -411,10 +414,12 @@
     "09:30" [[:walk {:to "study"}] [:spend-time {:activity "writing letters" :hours 2}]]
     "11:30" [[:travel {:to "general-store"}]]
     "12:00" [[:buy {:item "coal" :qty 1}]]
-    "12:30" [[:travel {:to "carriage-sweep"}]]
-    "13:00" [[:walk {:to "dining-room"}] [:spend-time {:activity "lunching" :hours 1}]]
-    "14:00" [[:walk {:to "study"}] [:spend-time {:activity "writing letters" :hours 2}]]
-    "16:00" [[:spend-time {:activity "filing correspondence" :hours 2}]]
+    "12:30" [[:buy {:item "feather duster" :qty 1}]]
+    "13:00" [[:travel {:to "carriage-sweep"}]]
+    "13:30" [[:walk {:to "dining-room"}] [:spend-time {:activity "lunching" :hours 0.5}]]
+    "14:00" [[:walk {:to "drawing-room"}] [:look {}]
+             [:work-on {:items ["china-cabinet"] :doing "dusting the china cabinet" :hours 1.5}]]
+    "16:00" [[:walk {:to "study"}] [:spend-time {:activity "filing correspondence" :hours 2}]]
     "18:00" [[:spend-time {:activity "copying letters" :hours 2}]]
     "20:00" [[:spend-time {:activity "reading" :hours 2}]]
     "22:00" [[:walk {:to "secretarys-room"}] [:sleep {:until "06:30"}]]

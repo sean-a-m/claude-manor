@@ -4,6 +4,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
+            [jsonista.core :as json]
             [manor.actions :as a]
             [manor.builtins :as b]
             [manor.clock :as clock]
@@ -223,7 +224,7 @@
           (is (some #(and (= "library" (get-in % [:data :from])) (= "study" (get-in % [:data :to]))
                           (zero? (get-in % [:data :travel])) (= :gm (:visible-to %))) (of-type run :space/route-opened)))
           (is (some #(= "library" (:id %)) (:locations (edn/read-string (slurp (io/file (:dir run) "map.edn"))))))
-          (is (= 1798 (get-in world [:state :household :funds]))))
+          (is (= 1797 (get-in world [:state :household :funds]))))
         (rounds! run 34)
         (is (seq (moves-to run "lord-claudeworth" "library")))
         (is (empty? (of-type run :action/forfeited)))
@@ -362,11 +363,44 @@
 (deftest the-mock-day
   (let [run (rounds! (start) 47)
         world (e/world run)
-        evs (e/events run)]
-    (testing "a whole day to 07:00 Sunday with no forfeits, and replay gives the same world"
+        evs (e/events run)
+        calls (store/read-llm (:dir run))]
+    (testing "a whole day to 07:00 Sunday with no forfeits or bad replies, and replay gives the same world"
       (is (= 47 (:round world)))
       (is (empty? (of-type run :action/forfeited)))
+      (is (not-any? #(re-find #"^(error:|rejected:)" (:content % "")) (mapcat :replies calls)))
       (is (= world (w/replay (store/read-events (:dir run))))))
+    (testing "Hale buys and carries a feather duster on his errand"
+      (let [bought (first (filter #(= "feather duster" (get-in % [:data :item]))
+                                (by "hale" (of-type run :claudeworth/bought))))]
+        (is (= {:item "feather duster" :kind :item :qty 1 :price 1 :location "general-store"}
+               (:data bought)))
+        (is (= "12:30" (clock/short-label (:clock world) (:round bought) (:round bought))))
+        (is (= "hale" (:holder (items/item world "feather-duster"))))))
+    (testing "Hale dusts in the drawing room for 90 minutes; only the finish changes the cabinet"
+      (let [[begun] (by "hale" (of-type run :item/work-begun))
+            [done] (by "hale" (of-type run :item/work-done))
+            before (w/replay (take-while #(< (:round %) (:round done)) evs))]
+        (is (= {:items ["china-cabinet"] :doing "dusting the china cabinet" :place "drawing-room"
+                :started 13 :due 16}
+               (select-keys (:data begun) [:items :doing :place :started :due])))
+        (is (= 90 (get-in done [:data :minutes])))
+        (is (= "15:30" (clock/short-label (:clock world) (:round done) (:round done))))
+        (is (= "dusty, the glass smeared" (:condition (items/item before "china-cabinet"))))
+        (is (= "just seen to" (:condition (items/item world "china-cabinet"))))))
+    (testing "the countess carries the candlesticks from the dining room to the drawing room"
+      (is (= {:item "silver-candlesticks" :from-place "dining-room"}
+             (:data (first (by "lady-claudeworth" (of-type run :item/taken))))))
+      (is (= {:item "silver-candlesticks" :place "drawing-room"}
+             (:data (first (by "lady-claudeworth" (of-type run :item/put-down))))))
+      (is (= "drawing-room" (:place (items/item world "silver-candlesticks")))))
+    (testing "Hale's look reply shows the cabinet before he starts work"
+      (let [[call] (filter #(some (fn [tc] (= "look" (get-in tc [:function :name])))
+                                  (get-in % [:response :tool_calls])) calls)
+            seen (json/read-value (:content (first (:replies call))) json/keyword-keys-object-mapper)]
+        (is (= "hale" (:agent call)))
+        (is (= "Drawing room" (get-in seen [:place :name])))
+        (is (= "dusty, the glass smeared" (:condition (first (filter #(= "china-cabinet" (:id %)) (:items seen))))))))
     (testing "the earl visits Mr Pugh in office hours (rounds 3-20) and speaks to him"
       (is (some #(<= 3 (:round %) 20) (moves-to run "lord-claudeworth" "architects-office")))
       (let [said (filter #(= "architects-office" (get-in % [:data :at])) (by "lord-claudeworth" (of-type run :agent/said)))]
@@ -568,14 +602,7 @@
       (e/stop-run r2))))
 
 (deftest hale-dusts-the-china-cabinet
-  (let [hale (fn [{:keys [world agent-id step] :as ctx}]
-               (or (when (and (= "hale" agent-id) (= 1 (:round world)))
-                     (get [{:tool :walk :args {:to "drawing-room"}}
-                           {:tool :work-on :args {:items ["china-cabinet"] :doing "dusting the china cabinet" :hours 1.5}}]
-                          step))
-                   (cw/mock-policy ctx)))
-        ;; the engine's mock: judge calls go to items/mock-judge, the rest to the policy
-        run (rounds! (start {:start "1904-10-15T14:00" :llm-impl (#'e/mock-llm (assoc cw/scenario :mock-policy hale))}) 3)
+  (let [run (rounds! (start {:start "1904-10-15T14:00"}) 3)
         world (e/world run)]
     (testing "Hale is busy until 15:30, and the cabinet is unchanged meanwhile"
       (is (= "Hale is dusting the china cabinet until 15:30."

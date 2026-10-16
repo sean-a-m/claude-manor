@@ -18,6 +18,7 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/scenario-authoring.md` | the complete scenario contract: how to write a scenario |
 | `docs/roadmap.md` | what's left: prioritized tasks with approaches, plus known issues |
 | `docs/claudeworth-design.md` | design and phases for the Claudeworth Manor scenario (current work) |
+| `docs/claudeworth-phase1.md` | build brief for Claudeworth phase 1 (world file, daily life, mock day) |
 
 ## The user's requirements and preferences
 

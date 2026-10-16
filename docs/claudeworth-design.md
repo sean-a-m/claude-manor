@@ -440,3 +440,15 @@ The real village run cost about $0.0018 per agent turn on `deepseek-v4.1-flash`.
    to architecture (staff counts, precedence, etiquette). For now the server returns only
    architectural fields and building-related sections. Later, a curated reference document
    replaces them.
+10. **Phase 1 details:** the names and personas above, the start at 08:00 on Saturday 15 October
+    1904, and a real-run cap of $0.25 for one simulated day. The architect is in the scenario
+    from phase 1, where he can only talk and pass the time; he gets his building role in
+    phase 2. The build brief is `docs/claudeworth-phase1.md`.
+11. **The architect shouldn't stay a full-time agent** (future work, not now). He costs a model
+    call every waking half hour even when nobody comes near the village. He should hibernate
+    when no one else is interacting in the village.
+
+    One approach uses occupation, which already exists: when no other agent is in the village,
+    he is occupied ("at his drawing board") until someone arrives. A scenario system, or a hook
+    on `:agent/arrived`/`:agent/moved` into the village, frees him (`b/free`). His day-to-day
+    life would then be summarised rather than played.

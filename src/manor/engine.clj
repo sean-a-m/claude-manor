@@ -217,7 +217,8 @@
 (defn- record-call!
   "Log a model call to llm.edn. `replies` are the messages the engine added
   after the response (tool replies and any reminder), so a turn's last call
-  has its replies too."
+  has its replies too. The model's :reasoning, if it returned any, is kept
+  here only; it's never sent back to the model."
   [run agent-id request response replies]
   (let [entry {:agent agent-id
                :round (:round @(:world run))
@@ -225,6 +226,7 @@
                :messages (:messages request)
                :tools (mapv #(get-in % [:function :name]) (:tools request))
                :response (:message response)
+               :reasoning (:reasoning response)
                :finish-reason (:finish-reason response)
                :usage (:usage response)
                :replies replies}]

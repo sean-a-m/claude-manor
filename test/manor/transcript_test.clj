@@ -63,3 +63,22 @@
       (is (.awaitTermination ^java.util.concurrent.ExecutorService (:exec run) 10 TimeUnit/SECONDS))
       (is (pos? (:round (e/world run))))
       (is (= (:round (e/world run)) (written-rounds run))))))
+
+(deftest reasoning-is-shown-when-recorded
+  (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true
+                                       :run-id (str (gensym "transcript-"))})]
+    (e/auto! run 1)
+    (is (= :idle (e/wait-idle run 60000)))
+    (testing "a mock run records no reasoning, so none is shown"
+      (is (every? nil? (map :reasoning (store/read-llm (:dir run)))))
+      (is (not (str/includes? (transcript/render (:dir run)) "- thinking: "))))
+    (testing "reasoning and its token count show under the call"
+      (let [f (io/file (:dir run) "llm.edn")
+            calls (map #(assoc % :reasoning "Where is everyone?"
+                               :usage (assoc (:usage %) :reasoning-tokens 300))
+                       (store/read-llm (:dir run)))]
+        (spit f (apply str (map #(str (pr-str %) "\n") calls)))
+        (let [md (transcript/render (:dir run))]
+          (is (str/includes? md "  - thinking: Where is everyone?"))
+          (is (str/includes? md ", 300 thinking)")))))
+    (e/stop-run run))) 

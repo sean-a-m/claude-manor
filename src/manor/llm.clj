@@ -7,7 +7,11 @@
             :ctx is engine context for mock policies; it is never sent anywhere.
   Response: {:message {...assistant message, OpenAI wire format...}
              :content \"...\" :tool-calls [{:id :name :arguments}]
-             :usage {:prompt-tokens :completion-tokens :cost}}"
+             :reasoning \"...\"                  ; the model's thinking, if it exposes any
+             :usage {:prompt-tokens :completion-tokens :reasoning-tokens :cost}}
+
+  `:reasoning` is recorded (llm.edn, the transcript) but never sent back to
+  the model: `:message` is what the engine sends."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [jsonista.core :as json]
@@ -28,14 +32,18 @@
         (when (.exists f)
           (get-in (json/read-value f) ["openrouter" "key"])))))
 
-(defn- parse-response [body]
+(defn- parse-response
+  "Read one chat-completions response. The reasoning text some models
+  expose is kept separately from `:message`, so it is never sent back."
+  [body]
   (let [resp (json/read-value body json/keyword-keys-object-mapper)
         msg (get-in resp [:choices 0 :message])
         usage (:usage resp)]
     (when-let [err (:error resp)]
       (throw (ex-info (str "OpenRouter error: " (or (:message err) (pr-str err))) {:error err})))
-    {:message (select-keys msg [:role :content :tool_calls])
+    {:message (select-keys msg [:role :content :tool_calls])   ; what goes back to the model
      :content (:content msg)
+     :reasoning (not-empty (:reasoning msg))                  ; recorded, never sent back
      :finish-reason (get-in resp [:choices 0 :finish_reason])
      :tool-calls (mapv (fn [tc] {:id (:id tc)
                                  :name (get-in tc [:function :name])
@@ -43,6 +51,7 @@
                        (:tool_calls msg))
      :usage {:prompt-tokens (:prompt_tokens usage)
              :completion-tokens (:completion_tokens usage)
+             :reasoning-tokens (get-in usage [:completion_tokens_details :reasoning_tokens])
              :cost (:cost usage)}}))
 
 (defn- retryable? [{:keys [status]}]

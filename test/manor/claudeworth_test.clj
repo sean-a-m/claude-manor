@@ -532,8 +532,21 @@
         (is (every? #(= #{"hale"} (:visible-to %)) evs))
         (is (= "Hale buys 2 feather duster for £2 at the General store." (narrate/describe (first evs) names)))
         (is (= "Hale now has a feather duster." (narrate/describe (second evs) names)))))
-    (testing "the rules say the item actions are free"
-      (is (str/includes? (cw/rules world) "`take`, `put-down` and `give` don't end your turn")))
+    (testing "look in the drawing room: its detail, the furniture, and the earl's watch"
+      (let [room (-> world (at "hale" "drawing-room") (at "lord-claudeworth" "drawing-room"))
+            seen (items/look room "hale")]
+        (is (= "Drawing room" (get-in seen [:place :name])))
+        (is (str/starts-with? (get-in seen [:place :detail]) "Faded rose wallpaper"))
+        (is (= [["china-cabinet" "household" true "dusty, the glass smeared"] ["piano" "household" true "a little out of tune"]]
+               (map (juxt :id :owner :fixed? :condition) (:items seen))))
+        (is (= ["pocket-watch"]
+               (->> (:people seen) (filter #(= "Lord Claudeworth" (:name %))) first :carrying (map :id))))
+        (is (not (contains? (get-in (prompt/agent-view (:scenario run) room "hale") [:location :here]) :detail)))))
+    (testing "a few rooms have a :detail"
+      (is (every? #(:detail (space/location world %)) ["drawing-room" "study" "general-store"])))
+    (testing "the rules say the item actions are free, and what look shows"
+      (is (str/includes? (cw/rules world) "`look` shows the things here in detail and what the people here carry"))
+      (is (str/includes? (cw/rules world) "`look`, `take`, `put-down` and `give` don't end your turn")))
     (e/stop-run run))
   (testing "carried shop goods need a description and a condition"
     (let [world-file (:world-file (wf/load-world "worlds/claudeworth.edn"))]

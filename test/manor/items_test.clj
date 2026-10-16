@@ -1,10 +1,13 @@
 (ns manor.items-test
   "Items (manor.items) in the hamlet test world: world files, take, put-down
-  and give, views, privacy, replay and the exported map."
+  and give, look and free actions' replies, views, privacy, replay and the
+  exported map."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
+            [jsonista.core :as json]
             [manor.actions :as a]
+            [manor.builtins :as b]
             [manor.engine :as e]
             [manor.items :as items]
             [manor.llm :as llm]
@@ -192,6 +195,77 @@
         (is (not (str/includes? (pr-str v) "carrying")))
         (is (not (contains? (prompt/default-gm-view (e/world village)) :items)))
         (e/stop-run village)))
+    (e/stop-run run)))
+
+;; ---------------------------------------------------------------------------
+;; look
+
+(deftest look-around
+  (let [run (start)
+        world (assoc (e/world run) :round 1)          ; Ada and Ben in the hall
+        look (action run :look)]
+    (testing "free, for everyone but the GM, with no arguments and no effect"
+      (is (= :free (a/kind look)))
+      (is (not (a/allowed? look :gm)))
+      (is (= {} (:args (a/decode-args look "{\"at\": \"clock\"}"))))
+      (is (empty? (a/effect-events look world "ada" {}))))
+    (testing "the place with its detail, the items here in detail, owners by name, and what people carry"
+      (is (= {:place {:name "Hall" :detail "Coats on pegs, a worn rug, and a smell of pipe smoke."}
+              :items [{:id "clock" :name "Grandfather clock" :desc "A tall oak clock that strikes the hours."
+                       :condition "ticking loudly" :owner "Ada" :fixed? true}
+                      {:id "umbrella" :name "Umbrella" :desc "A black umbrella with a horn handle."
+                       :condition "dry" :owner "Ada"}]
+              :people [{:name "Ben" :carrying [{:id "pipe" :name "Pipe" :desc "A briar pipe, much chewed."
+                                                :condition "still warm"}]}]}
+             (items/look world "ada"))))
+    (testing "people who carry nothing, and what busy people are doing"
+      (let [busy (w/apply-event world (b/occupy world "ada" "reading" 4))]
+        (is (= [{:name "Ada" :doing "reading"}] (:people (items/look busy "ben"))))))
+    (testing "empty parts are left out; other owners are shown as they are"
+      (is (= {:place {:name "Porch"}} (items/look (at world "ada" "porch") "ada")))
+      (is (= ["the shop"] (map :owner (:items (items/look (at world "ada" "shop") "ada"))))))
+    (testing "what someone carries isn't among the items here"
+      (let [[taken] (perform run world "ben" :take {:item "umbrella"})]
+        (is (= ["clock"] (map :id (:items (items/look taken "ada")))))
+        (is (= ["pipe" "umbrella"] (map :id (:carrying (first (:people (items/look taken "ada")))))))))
+    (testing "not while travelling"
+      (let [[travelling] (perform run (at world "ada" "green") "ada" :move {:to "farm"})]
+        (is (space/in-transit? travelling "ada"))
+        (is (= "you can't look around while travelling" (a/check look travelling "ada" {})))))
+    (testing "the detail is only for look, never in the view"
+      (is (= {:id "hall" :name "Hall" :desc "A small hall."}
+             (dissoc (get-in (prompt/agent-view (:scenario run) world "ada") [:location :here]) :items))))
+    (e/stop-run run)))
+
+(defn- looker-policy
+  "Ben looks around, checks the time and takes the umbrella, then passes;
+  Ada goes to bed (the hamlet policy)."
+  [{:keys [world agent-id step] :as ctx}]
+  (if (not= agent-id "ben")
+    (hamlet/mock-policy ctx)
+    (get-in {1 [{:tool :look} {:tool :check-time} {:tool :take :args {:item "umbrella"}} {:tool :pass}]}
+            [(:round world) step]
+            {:tool :pass})))
+
+(deftest free-action-replies
+  (let [run (rounds! (start {:llm-impl (llm/mock looker-policy)}) 1)
+        replies (into {} (for [entry (store/read-llm (:dir run))
+                               :when (= "ben" (:agent entry))
+                               r (:replies entry)
+                               :when (= "tool" (:role r))]
+                           [(:tool_call_id r) (:content r)]))]
+    (testing "look's reply is the tool result, as JSON"
+      (let [seen (json/read-value (replies "mock-0-look") json/keyword-keys-object-mapper)]
+        (is (= {:name "Hall" :detail "Coats on pegs, a worn rug, and a smell of pipe smoke."} (:place seen)))
+        (is (= ["clock" "umbrella"] (map :id (:items seen))))))
+    (testing "a string :reply is sent as it is"
+      (is (= "It is Saturday 15 October 1904, 21:00." (replies "mock-1-check-time"))))
+    (testing "free actions without :reply still say ok"
+      (is (= "ok" (replies "mock-2-take"))))
+    (testing "looking records no event"
+      (is (= [:item/taken :agent/passed]
+             (map :type (filter #(and (= "ben" (:actor %)) (not= :llm/usage (:type %))) (e/events run)))))
+      (is (empty? (filter #(= :action/forfeited (:type %)) (e/events run)))))
     (e/stop-run run)))
 
 ;; ---------------------------------------------------------------------------

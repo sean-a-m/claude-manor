@@ -1,9 +1,9 @@
 (ns manor.scenarios.hamlet
   "Test scenario for world files, the clock, occupation and items: a house
   and a village loaded from test/fixtures/hamlet.edn, starting at 21:00,
-  with a few things about the house and the shop. With the
-  mock policy Ada goes to bed at once and Ben stays up; with real models it's
-  a cheap check of times, sleep and rousing.
+  with a few things about the house and the shop, and a free action with a
+  :reply (check-time). With the mock policy Ada goes to bed at once and Ben
+  stays up; with real models it's a cheap check of times, sleep and rousing.
 
     clojure -M:dev:run hamlet --mock --test
     clojure -M:dev:run hamlet --test --max-cost 0.05"
@@ -32,7 +32,12 @@
               (cond (not (space/together? world actor who)) (str who " is not here")
                     (not (w/busy world who)) (str who " is not busy")
                     (:interrupted-by (w/busy world who)) (str (:name (w/agent world who)) " has already been interrupted")))
-    :effect (fn [world actor {:keys [who]}] [(b/interrupt world who actor)])}])
+    :effect (fn [world actor {:keys [who]}] [(b/interrupt world who actor)])}
+
+   {:name :check-time
+    :kind :free
+    :doc "Look at the clock: the time now."
+    :reply (fn [world _ _] (str "It is " (clock/label (:clock world) (:round world)) "."))}])
 
 (defn mock-policy [{:keys [world agent-id role]}]
   (let [here (space/location-of world agent-id)]

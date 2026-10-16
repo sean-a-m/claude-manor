@@ -129,7 +129,8 @@ Each action is a map. Each role's actions become that role's LLM tools.
  :kind    :final                     ; :final (default) | :free | :query | :act
  :available? (fn [world actor] bool) ; optional: leave the tool out of this turn
  :valid?  (fn [world actor args] nil-or-reason-string)
- :effect  (fn [world actor args] [events])}
+ :effect  (fn [world actor args] [events])
+ :reply   (fn [world actor args] data)}   ; :free only, optional: the tool result instead of "ok"
 ```
 
 **Kinds:**
@@ -155,6 +156,12 @@ Query and act actions also take:
 For query actions the bridge result is returned to the model as JSON. `:effect` is not used.
 For act actions, set `:actor` explicitly on `:on-result` events. `:valid?` runs when the request is
 made, not when it is executed.
+
+An accepted free action replies `"ok"`, or, if it has a `:reply`, whatever that returns: a string
+as is, anything else as JSON. `:reply` is called with the world after the action's effect (if it
+has one), so it can report what changed or simply show something (`look`). A rejected action
+still replies `rejected: <reason>`. The reply goes only to the caller and is kept in `llm.edn`;
+it isn't an event, so anything that must be remembered or replayed belongs in `:effect`.
 
 **Arguments:**
 - Use plain malli types that convert to JSON Schema: `:string`, `:int`, `:double`, `:boolean`,
@@ -203,7 +210,7 @@ made, not when it is executed.
 | `whisper` | all | final | private to one agent; requires being together if both have locations; same limits |
 | `pray` | all | free | a private, diegetic way to reach the GM: its `:gm/requested` event fills the GM's inbox and triggers the GM this round |
 | `move` | all | final | follow a route (see Locations); only offered when the agent has a location |
-| `take`, `put-down`, `give` | all | free | only when the scenario has `:items` (see Items) |
+| `look`, `take`, `put-down`, `give` | all | free | only when the scenario has `:items` (see Items) |
 | `spawn-agent` | gm | final | spawn a `:spawnable?` role, optional location; respects `:limits` |
 | `retire-agent` | gm | final | remove an agent |
 | `announce` | gm | final | message to everyone or a list of ids |
@@ -472,6 +479,18 @@ carried item goes wherever its holder goes, with no events of its own.
 
 - **Actions** (all free, every role but the GM; merged before your own actions, so you can
   override or exclude them):
+  - `look {}`: replies (see `:reply` under `:actions`) with the place, the items lying here in
+    detail and the other people here with what they carry, and records nothing. Empty parts are
+    left out, as are `:detail`, `:owner`, `:fixed?` and `:doing` when absent; agent owners show
+    as names. Refused while travelling.
+
+    ```clojure
+    {:place {:name "Drawing room" :detail "..."}
+     :items [{:id "piano" :name "Piano" :desc "..." :condition "a little out of tune"
+              :owner "household" :fixed? true}]
+     :people [{:name "Hale" :doing "dusting the china cabinet"
+               :carrying [{:id "pocket-notebook" :name "Pocket notebook" :desc "..." :condition "half full"}]}]}
+    ```
   - `take {item}`: the item lies where you are and isn't fixed. Taking something you don't own is
     allowed; everyone here sees it.
   - `put-down {item}`: you carry it; it's left where you are.
@@ -479,8 +498,13 @@ carried item goes wherever its holder goes, with no events of its own.
 - **Views:** the engine adds to every agent's view `:you :carrying [{:id :name :condition}]`,
   `:location :here :items [{:id :name}]` (names only) and `:carrying ["Umbrella" ...]` on each of
   `:people-here`, each left out when empty. The default GM view gets `:items`.
-- Say in a brief that things are under `items` in the view and that `take`, `put-down` and `give`
-  don't end the turn (Claudeworth's `rules` does).
+- **`:detail`** is an optional location key: a paragraph about the room that only `look` shows,
+  never the view (which has `:id :name :desc`). Keep the `:desc` short and put what someone
+  would notice on looking round in `:detail`; in a world file it goes last, after `:desc`. Things
+  people could use or carry belong in items, not in either text.
+- Say in a brief that things are under `items` in the view, that `look` shows them in detail
+  with what people here carry, and that `look`, `take`, `put-down` and `give` don't end the turn
+  (Claudeworth's `rules` does).
 
 Fungible stores (provisions, coal) are better kept as counters in your `:state`.
 
@@ -499,6 +523,7 @@ in `:init`:
 ```clojure
 {:meta {:name "Hamlet" :start "1904-10-15T21:00" :minutes-per-round 30}   ; :start is optional
  :locations [{:id "hall" :name "Hall" :desc "A small hall."
+              :detail "Coats on pegs and a worn rug."  ; optional, shown only by look (see Items)
               :connects-to ["bedroom" "porch"]      ; next door (:travel 0); either side is enough
               :domain :house :kind :hall}           ; other keys are kept on the location
              ...]

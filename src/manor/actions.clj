@@ -13,6 +13,11 @@
      :valid?  (fn [world actor args]) => nil or a reason string
      :effect  (fn [world actor args]) => [events]
 
+     ;; :free actions only, optional
+     :reply   (fn [world actor args]) => data ; the tool result instead of \"ok\":
+                                            ; a string as is, else JSON; `world`
+                                            ; is the world after the effect
+
      ;; :query and :act actions only
      :bridge      :open-meteo/daily
      :bridge-args (fn [world actor args]) => bridge args

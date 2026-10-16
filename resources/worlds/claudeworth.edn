@@ -17,9 +17,11 @@
    :connects-to ["drawing-room" "study" "dining-room" "kitchen" "staircase"]
    :desc "A modest hall with a fireplace. Every door in the house seems to open off it."}
   {:id "drawing-room" :name "Drawing room" :domain :house :floor :ground :kind :sitting-room
-   :desc "A pleasant room with chintz chairs, though four guests would crowd it."}
+   :desc "A pleasant room with chintz chairs, though four guests would crowd it."
+   :detail "Faded rose wallpaper, a white marble chimneypiece and two tall windows onto the lawn. The chintz is worn thin on the arms of the best chair, and the carpet has been turned to hide a scorch mark by the fender."}
   {:id "study" :name "Study" :domain :house :floor :ground :kind :study
-   :desc "The earl's business room: a leather-topped desk and a view of the drive."}
+   :desc "The earl's business room: a leather-topped desk and a view of the drive."
+   :detail "Shelves of county histories and bound sermons that nobody reads, a map of the estate pinned above the fireplace, and a smell of pipe smoke and old leather. From the desk you can see every caller coming up the drive."}
   {:id "dining-room" :name "Dining room" :domain :house :floor :ground :kind :dining-room
    :desc "A mahogany table for eight. Breakfast is laid on the sideboard."}
   {:id "kitchen" :name "Kitchen" :domain :house :floor :ground :kind :kitchen
@@ -42,7 +44,8 @@
    :connects-to ["general-store" "architects-office"]
    :desc "A sloping green with a pump, an old market cross and geese. The shops face it."}
   {:id "general-store" :name "General store" :domain :village :kind :shop :hours ["08:00" "18:00"]
-   :desc "Groceries, candles, coal and gossip, sold over one long counter."}
+   :desc "Groceries, candles, coal and gossip, sold over one long counter."
+   :detail "Shelves to the ceiling of tins, jars and bolts of cloth, sacks of flour and meal along the floor, and a smell of paraffin and cheese. The bell over the door announces every customer, and the counter is where the village's news changes hands."}
   {:id "architects-office" :name "Architect's office" :domain :village :kind :office :hours ["09:00" "18:00"]
    :services #{:architect}
    :connects-to ["architects-lodgings"]

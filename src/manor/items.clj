@@ -175,7 +175,8 @@
   (str (n/who names actor) " gives " (the names (:item data)) " to " (n/who names (:to data)) "."))
 
 ;; ---------------------------------------------------------------------------
-;; Actions: free, for every role but the GM
+;; Actions: free, for every role but the GM. `look` changes nothing: it
+;; only replies.
 
 (defn- listing
   "\"china-cabinet (China cabinet), piano (Piano)\", or `none`."
@@ -212,8 +213,45 @@
             (not (some #(= to (:id %)) (w/active-agents world))) (str "no one has the id " to)
             (not (space/together? world actor to)) (str to " is not here"))))
 
+(defn- owner-name
+  "An owner as shown: an agent's name, or the label as it is."
+  [world owner]
+  (or (:name (w/agent world owner)) owner))
+
+(defn- look-item [world it]
+  (cond-> (select-keys it [:id :name :desc :condition])
+    (:owner it) (assoc :owner (owner-name world (:owner it)))
+    (:fixed? it) (assoc :fixed? true)))
+
+(defn- look-person [world id]
+  (let [a (w/agent world id)
+        carried (by-name (held-by world id))]
+    (cond-> {:name (:name a)}
+      (:busy a) (assoc :doing (get-in a [:busy :activity]))
+      (seq carried) (assoc :carrying (mapv #(select-keys % [:id :name :desc :condition]) carried)))))
+
+(defn look
+  "What `actor` sees on looking around: the place (with its :detail, if it
+  has one), the items lying here in detail, and the other people here with
+  what they carry. Empty parts are left out."
+  [world actor]
+  (let [here (space/location-of world actor)
+        {loc-name :name :keys [detail]} (space/location world here)
+        lying (by-name (items-at world here))
+        people (sort (disj (space/present world here) actor))]
+    (cond-> {:place (cond-> {:name loc-name} detail (assoc :detail detail))}
+      (seq lying) (assoc :items (mapv #(look-item world %) lying))
+      (seq people) (assoc :people (mapv #(look-person world %) people)))))
+
 (defn actions []
-  [{:name :take
+  [{:name :look
+    :kind :free
+    :doc "Look around: this place, the items here in detail and what the people here carry."
+    :valid? (fn [world actor _]
+              (when-not (space/location-of world actor) "you can't look around while travelling"))
+    :reply (fn [world actor _] (look world actor))}
+
+   {:name :take
     :kind :free
     :doc "Pick up an item in your place and carry it (use its id from `items` in your view)."
     :args [:map [:item :string]]

@@ -1,7 +1,8 @@
 {:meta {:name "Hamlet" :start "1904-10-15T21:00" :minutes-per-round 30}
 
  :locations
- [{:id "hall" :name "Hall" :domain :house :floor :ground :connects-to ["bedroom" "porch"] :desc "A small hall."}
+ [{:id "hall" :name "Hall" :domain :house :floor :ground :connects-to ["bedroom" "porch"] :desc "A small hall."
+   :detail "Coats on pegs, a worn rug, and a smell of pipe smoke."}
   {:id "bedroom" :name "Bedroom" :domain :house :floor :first :kind :bedroom}
   {:id "porch" :name "Porch" :domain :house :floor :ground}
   {:id "green" :name "Green" :domain :village :connects-to ["shop"]}

@@ -66,6 +66,10 @@
       (is (empty? (wf/problems exported))))
     (testing "the printed form reads back as the same data"
       (is (= exported (edn/read-string (wf/->edn-string exported)))))
+    (testing "a location's :detail is kept and printed last, after :desc"
+      (is (= "Coats on pegs, a worn rug, and a smell of pipe smoke." (:detail (first (:locations exported)))))
+      (is (str/includes? (wf/->edn-string exported)
+                         ":desc \"A small hall.\" :detail \"Coats on pegs, a worn rug, and a smell of pipe smoke.\"}")))
     (testing "other sections are kept"
       (is (= (:notices start) (:notices exported))))
     (e/stop-run run)))

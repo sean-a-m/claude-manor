@@ -191,7 +191,7 @@
 
 (defn- resolve!
   "Check and apply an action against the current world, atomically.
-  Returns {:ok true} or {:rejected reason}."
+  Returns {:ok true :world world-after} or {:rejected reason}."
   [run actor action args]
   (locking (:world run)
     (let [world @(:world run)]
@@ -199,7 +199,16 @@
         {:rejected reason}
         (do (stop-interrupted! run actor action)
             (emit! run (action-events action @(:world run) actor args))
-            {:ok true})))))
+            {:ok true :world @(:world run)})))))
+
+(defn- free-reply
+  "The tool result for an accepted free action: its :reply (a string as is,
+  anything else as JSON), computed from the world after its effect, or \"ok\"."
+  [action world actor args]
+  (if-let [f (:reply action)]
+    (let [data (f world actor args)]
+      (if (string? data) data (prompt/->json data)))
+    "ok"))
 
 (defn- run-query!
   "Run a query bridge during a turn. The result goes back to the caller and
@@ -264,8 +273,12 @@
           (reply st (str "error: " error))
           (case (a/kind action)
             :free
-            (let [{:keys [rejected]} (resolve! run agent-id action args)]
-              (-> st (update :used conj name) (reply (if rejected (str "rejected: " rejected) "ok"))))
+            (let [{:keys [rejected world]} (resolve! run agent-id action args)]
+              (-> st
+                  (update :used conj name)
+                  (reply (if rejected
+                           (str "rejected: " rejected)
+                           (free-reply action world agent-id args)))))
 
             :query
             (if (>= (:queries st) max-queries)

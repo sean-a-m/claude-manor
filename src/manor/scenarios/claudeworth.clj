@@ -280,7 +280,7 @@
          " characters); `whisper` is private. "
          "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). You get no turns while asleep or busy, unless someone uses `rouse` to interrupt you. On that turn, `carry-on` ignores them; any other accepted action means you stop. "
          "Use `spend-time` for longer pastimes (half an hour to " max-pastime-hours " hours). `note` keeps private notes. "
-         "Things in your place are under `items` in your view and what you carry under `carrying`; `take`, `put-down` and `give` don't end your turn. "
+         "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows the things here in detail and what the people here carry. `look`, `take`, `put-down` and `give` don't end your turn. "
          "If you are waiting on someone or nothing needs doing, `pass` is the way to wait a turn; you act again next turn. "
          "Opening hours are shown in your view where a place has them. "
          "The family and secretary spend freely from the household account (`household` in your view), and can `buy` at an open shop. "

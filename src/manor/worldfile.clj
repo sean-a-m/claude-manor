@@ -198,11 +198,13 @@
 (def ^:private item-key-order [:id :name :place :holder :owner :fixed? :condition :desc])
 
 (defn- location-str
-  "One location per line: :id and :name first, :connects-to and :desc last."
+  "One location per line: :id and :name first, :connects-to, :desc and
+  :detail last."
   [loc]
-  (let [ks (concat key-order
-                   (sort (remove (set (concat key-order [:connects-to :desc])) (keys loc)))
-                   [:connects-to :desc])]
+  (let [last-keys [:connects-to :desc :detail]
+        ks (concat key-order
+                   (sort (remove (set (concat key-order last-keys)) (keys loc)))
+                   last-keys)]
     (str "{" (str/join " " (for [k ks :when (contains? loc k)] (str (pr-str k) " " (pr-str (get loc k))))) "}")))
 
 (defn- item-str

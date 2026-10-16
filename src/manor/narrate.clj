@@ -78,7 +78,9 @@
 
 (defmethod describe :space/route-opened [{:keys [data]} names]
   (str "Route open: " (place names (:from data)) (if (:one-way? data) " -> " " <-> ") (place names (:to data))
-       " (" (:travel data) " round" (when (not= 1 (:travel data)) "s") ")."))
+       (if (zero? (:travel data))
+         " (next door)."
+         (str " (" (:travel data) " round" (when (not= 1 (:travel data)) "s") ")."))))
 
 (defmethod describe :space/route-closed [{:keys [data]} names]
   (str "Route closed: " (place names (:from data)) (if (:one-way? data) " -> " " <-> ") (place names (:to data)) "."))

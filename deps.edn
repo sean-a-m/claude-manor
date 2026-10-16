@@ -5,7 +5,7 @@
         metosin/malli       {:mvn/version "0.20.3"}
         hiccup/hiccup       {:mvn/version "2.0.0"}}
  :aliases
- {:dev  {:extra-paths ["dev"]}
+ {:dev  {:extra-paths ["dev" "test"]}       ; test/ for the test scenarios (prize, hamlet)
   :run  {:main-opts ["-m" "manor.main"]}
   :test {:extra-paths ["test"]
          :extra-deps {io.github.cognitect-labs/test-runner {:git/tag "v0.5.1" :git/sha "dfb30dd"}}

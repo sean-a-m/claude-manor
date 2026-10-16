@@ -13,7 +13,7 @@
   ["green" "farm" 3]]
 
  :agents
- [{:name "Ada" :role :resident :location "hall"}
-  {:name "Ben" :role :resident :location "hall"}]
+ [{:name "Ada" :role :resident :location "hall" :persona "An early riser who likes things orderly."}
+  {:name "Ben" :role :resident :location "hall" :persona "A night owl who hates going to bed."}]
 
  :notices ["A section the engine doesn't know about, kept as is."]}

@@ -21,6 +21,8 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/next-steps.md` | **start here when resuming:** current state, review to do, open decisions, next phase |
 | `docs/claudeworth-phase1.md` | build brief for Claudeworth phase 1 (world file, daily life, mock day) |
 | `docs/claudeworth-phase1-fixes.md` | follow-up brief: rejection messages, area names, one home per fact, transcripts |
+| `docs/claudeworth-phase2.md` | build brief for Claudeworth phase 2 (interruptions, architect MCP server, money, plans, construction) |
+| `docs/user-todos.md` | the user's own wishlist for later; not agent tasks |
 
 ## The user's requirements and preferences
 
@@ -54,7 +56,7 @@ src/manor/
   world.clj      world value, apply-event multimethod (reducers), visibility rules
   narrate.clj    describe multimethod: event -> text agents read
   actions.clj    action specs -> tools; arg decoding (kebab normalisation, unknown keys dropped)
-  builtins.clj   pass/note/say/whisper/request-gm + GM spawn/retire/announce/ask-human/done
+  builtins.clj   pass/carry-on/note/say/whisper/request-gm + GM spawn/retire/announce/ask-human/done
   space.clj      locations graph, positions, travel, move + GM route tools, pathfinding
   prompt.clj     builds agent/GM requests; agent-view = observe + identity + location
   llm.clj        LLM protocol; OpenRouter (JDK HTTP) and Mock (scenario policy) implementations
@@ -70,9 +72,11 @@ src/manor/
   worldfile.clj  EDN world files: load + check, export live map (runs/<id>/map.edn)
   transcript.clj readable run record: <run-dir>/transcript.md from events.edn and llm.edn
   scenarios/     village.clj (full example), treasure.clj (small example), quiz.clj (MCP/pi),
-                 claudeworth.clj (Claudeworth Manor: walk/travel, sleep, spend-time, rouse; phase 1)
+                 claudeworth.clj + building.clj (Claudeworth Manor: daily life, money, shop, plans,
+                 architect and construction; phases 1-2)
 resources/worlds/ world files on the classpath; claudeworth.edn is Claudeworth's fresh world
 mcp-servers/pi/server.mjs  pi as an MCP server: send_message {session, message}; Node, no deps
+mcp-servers/architect/  the architect MCP server: babashka, stateless, reference/price/draft tools
 config/        mcp.example.edn; mcp.edn is local and gitignored (the user's sets pi-sandbox)
 dev/user.clj     REPL helpers (start! step! auto! feed view last-prompt transcript! spawn! approve! act! ...)
 test/            engine, space, MCP, clock, world-file, panel, transcript, Claudeworth and scenario smoke tests;

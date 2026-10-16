@@ -221,7 +221,8 @@
 (defn rules
   "How actions work, for every role."
   [world]
-  (let [turn (duration (:minutes-per-round (:clock world)))]
+  (let [turn (duration (:minutes-per-round (:clock world)))
+        max-queries (get-in world [:state :max-queries] 2)]
     (str "Each turn is " turn " of game time, and you take one turn-ending action per turn. "
          "`walk` takes you at once to any place under `walkable` in your view, and doesn't end your turn: walk, then act there. "
          "`travel` goes to another area: use a place id from `places`, or an area name. It takes your turn; `journeys` "
@@ -234,11 +235,11 @@
          "Opening hours are shown in your view where a place has them. "
          "The family and secretary spend freely from the household account (`household` in your view), and can `buy` at an open shop. "
          "Building is arranged at the architect's office while it is open, not at the house: talk at home is for deciding what you want. "
-         "At the office you can search reference books (`consult-references`), ask for the `price-list`, have plans drawn (`draw-plans`), "
-         "and `commission` a plan you hold. `show-plans` shares plans with everyone present, anywhere. "
+         "At the office you can search reference books (`consult-references`), ask for the `price-list` and have plans drawn (`draw-plans`); only the family and the secretary can `commission` a plan they hold. `show-plans` shares plans with everyone present, anywhere. "
+         "A reference lookup, the price list and each draft all count towards your " max-queries " queries a turn, even if asked for at once; once you reach " max-queries ", take your action and query again next turn. "
          "Only one room is built at a time: `commission` is refused while a room is being built (see `building` for the work in hand and when it finishes), so the next room must wait until the present one is finished. "
          "Commissioning pays from the household; the room appears at the completion time in `building`. The architect earns "
-         building/fee-percent "% on commissions for plans he drew. Queries are limited per turn; continue them next turn.")))
+         building/fee-percent "% on commissions for plans he drew.")))
 
 (defn- setting [world] (get-in world [:state :setting]))
 
@@ -251,6 +252,7 @@
 
 (defn gm-brief [world]
   (str/join "\n\n" (remove str/blank? [(setting world) (about world :gm)
+                                       "This slice has no rents or other income: never narrate money arriving on its own, and promise no future payments."
                                        "The engine keeps time and runs the world. Intervene only when asked, and lightly; otherwise call done."])))
 
 (def roles
@@ -285,7 +287,8 @@
 
 (defn init
   "The world file, its agents (without Mr Pugh if :architect? is false), and
-  in :state everyone's bedroom, the setting and the roles' :about text."
+  in :state everyone's bedroom, the setting, the roles' :about text and the
+  query limit the rules quote."
   [{:keys [world-file] :as opts}]
   (let [source (or world-file "worlds/claudeworth.edn")
         {wf :world-file :as loaded} (worldfile/load-world source)]
@@ -297,8 +300,9 @@
              :agents (vec agents)
              :state (merge (building/initial-state wf agents opts)
                            {:bedrooms (into {} (map (juxt (comp b/slug :name) :bedroom)) agents)
-                     :setting (get-in wf [:meta :setting])
-                     :roles (:roles wf)})))))
+                            :setting (get-in wf [:meta :setting])
+                            :roles (:roles wf)
+                            :max-queries (:max-queries opts 2)})))))
 
 ;; ---------------------------------------------------------------------------
 ;; Mock policy: a scripted day, so the scenario runs with no model calls.

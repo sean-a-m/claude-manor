@@ -1,7 +1,7 @@
 # Claudeworth Manor: design for the manor-building vertical slice
 
-Status, 2026-10-15: phases 0 (the engine changes) and 1 (living in the house) are done; phase 2
-is next. Decisions from the user are recorded in section 12.
+Status, 2026-10-16: phases 0-2 (the engine changes, living in the house, and building) are done.
+Decisions from the user are recorded in section 12.
 
 The long-term target is the world in `external-resources/ashcombe_spec.md` and
 `ashcombe_world.yaml`: an Edwardian great house kept at late-Victorian staffing, with an abbey and
@@ -414,9 +414,9 @@ Mr Pugh starts in their bedroom (section 1 used to say the study and drawing roo
 shows opening hours, so the office hours are known before you get there; the briefs no longer
 state them. The setting and role paragraphs moved from Clojure into the world file.
 
-**Phase 2: building (completes the slice).** Architect server, money, the store, plans,
-`show-plans`, commission, construction, `map.edn` export, and the optional architect agent
-(`:architect? false` leaves him out). Done when:
+**Phase 2: building (completes the slice). Done 2026-10-16.** Architect server, money, the store,
+plans, `show-plans`, commission, construction, `map.edn` export, and the optional architect agent
+(`:architect? false` leaves him out). The done-criteria were:
 
 - `claudeworth_test` scripts the whole of section 1 with the mock policy, against both the
   offline stub and the real server. It asserts the new room exists only after the build delay, is
@@ -429,8 +429,34 @@ state them. The setting and role paragraphs moved from Clojure into the world fi
 - A short real run passes: `(start! :claudeworth {:test? true :build-rounds 6 :max-rounds 12
   :max-cost 0.10})`. Then read the transcript for rejections, forfeits and confusion, and tune
   the briefs and `:valid?` reasons.
-- A full-length real run (about two simulated days) is not part of the phase. It's for the user
-  to ask for, if they want one; the full slice is checked by the mock policy.
+
+Built as briefed, with these deviations:
+
+- Tool payloads use kebab-case (`connects-to`), not the brief's and section 6.5's snake_case
+  (decision 20).
+- The completion event carries the room's `:name` and `:connects-to` as well as the briefed
+  `{:plan-id :room}`, so narration can announce the room and its neighbours without hidden state.
+  `:observe`'s `:building` is a top-level view key, one entry per work in progress and its finish.
+- `draw-plans` normalises `floor`, so "Ground floor" and "ground" are the same; the first real
+  run spent three calls on the wording.
+- The reference extracts drop whole sentences that state a social rule ("Servants do not use it
+  except ...") instead of returning them. The curated reference is still deferred (decision 9).
+- `commission` builds one room at a time (decision 18), which the brief's per-plan rule was
+  changed to after the first run.
+
+Two short real runs, both `:test? true` with one build day shortened by `:build-rounds 4` (archived
+under `old-test-runs/`):
+
+- `phase2-real-1`: 10 rounds, 79 calls, **$0.109590879** (the $0.10 cap was checked at round
+  boundaries, so it overshot by one round), 17 error replies (15 query-limit, 2 "Pugh draws the
+  plans here; ask him"), 0 rejections, 0 forfeits. The Saloon was built at 12:30 and walked into;
+  the Library and a guest bedchamber were still building at the stop.
+- `one-build-real-1`, after the one-room change: 10 rounds, 76 calls, $0.0828, 6 errors (3 floor
+  wording, 3 query limit), 1 rejection, 0 forfeits. No commission confusion; the floor and query
+  wording were fixed in response.
+
+The full-length real run (about two simulated days) is not part of the phase; the full slice is
+checked by the mock policy.
 
 **Phase 3: incentives (after the slice, by need).** These mostly come from the Ashcombe documents:
 

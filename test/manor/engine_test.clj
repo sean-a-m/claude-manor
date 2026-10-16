@@ -209,7 +209,9 @@
         (is (= {:activity "asleep" :by "ben"} (:data freed)))
         (is (= #{"ada" "ben"} (:visible-to freed)))
         (is (= "ben" (:interrupted-by (w/busy (w/apply-event world freed) "ada"))))
-        (is (= "Ben interrupts Ada (asleep)." (n/describe freed (n/names world))))))
+        (is (= "Ben interrupts Ada (asleep)." (n/describe freed (n/names world))))
+        (is (= "Ada has already been interrupted"
+               (a/check rouse (w/apply-event world freed) "ben" {:who "ada"})))))
     (testing "only someone who is busy can be roused"
       (is (= "ben is not busy" (a/check rouse world "ada" {:who "ben"}))))
     (e/stop-run run)))

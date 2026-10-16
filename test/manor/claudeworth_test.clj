@@ -123,6 +123,9 @@
              (check (w/apply-event office (b/occupy office "pugh" "drawing" 10)) "lord-claudeworth" :draw-plans draft)))
       (is (str/includes? (check office "pugh" :draw-plans (assoc draft :for "hale")) "must be present"))
       (is (nil? (check clerk "lord-claudeworth" :draw-plans draft)))
+      (is (nil? (check clerk "lord-claudeworth" :draw-plans (assoc draft :floor "Ground floor"))))
+      (is (= :first (:floor (get-in (drafted clerk "lord-claudeworth" (assoc draft :floor "First Floor"))
+                                   [:state :plans "library"]))))
       (is (str/includes? (check clerk "lord-claudeworth" :draw-plans (assoc draft :for "hale")) "only for you"))
       (is (= "floor must be one of: first, ground" (check clerk "lord-claudeworth" :draw-plans (assoc draft :floor "attic"))))
       (is (str/includes? (check clerk "lord-claudeworth" :draw-plans (assoc draft :connects-to ["abbey-church"])) "not a room of the house"))
@@ -188,6 +191,9 @@
           (is (seq (:matches result)))
           (is (<= (reduce + (map (comp count :text) (:matches result))) 2500))
           (is (not (re-find #"precedence|staffing_tiers|reports_to|:access" text))))
+        (let [result (call "consult_references" {:query "portraits"}) text (pr-str result)]
+          (is (str/includes? text "Main stair hung with family portraits"))
+          (is (not (str/includes? text "Servants do not use"))))
         (finally (mcp/close! conn) (e/stop-run run))))))
 
 (declare moves-to)
@@ -447,14 +453,19 @@
         (is (str/includes? system (get-in world [:state :setting])))
         (is (str/includes? system (get-in world [:state :roles :architect :about])))
         (is (str/includes? system "Each turn is half an hour of game time"))
-        (is (str/includes? system "at most 1000 characters"))))
+        (is (str/includes? system "at most 1000 characters"))
+        (is (str/includes? system "only the family and the secretary can `commission`"))))
     (testing "opening hours appear only in the view, from :hours"
       (doseq [id ["lord-claudeworth" "lady-claudeworth" "hale" "pugh"]
               :let [system (:content (first (prompt/agent-messages (:scenario run) world (e/events run) id {})))]]
         (is (not (re-find #"\d\d:\d\d-\d\d:\d\d|09:00|18:00" system)) id)))
-    (testing "the GM brief has the setting too"
+    (testing "the GM brief has the setting too, and the no-income guard"
       (is (str/includes? (:content (first (prompt/gm-messages (:scenario run) world (e/events run) ["test"] {})))
-                         (get-in world [:state :setting]))))
+                         (get-in world [:state :setting])))
+      (is (str/includes? (cw/gm-brief world) "no rents")))
+    (testing "the rules quote the query limit from the world, not a literal"
+      (is (str/includes? (cw/rules world) "towards your 2 queries a turn"))
+      (is (str/includes? (cw/rules (assoc-in world [:state :max-queries] 3)) "towards your 3 queries a turn")))
     (e/stop-run run)))
 
 (deftest move-the-abbey

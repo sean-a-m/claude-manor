@@ -193,6 +193,7 @@ made, not when it is executed.
 | Action | Roles | Kind | Behaviour |
 |---|---|---|---|
 | `pass` | all | final | does nothing |
+| `carry-on` | all | final | only offered to an interrupted agent: keep the occupation and ignore the interruption |
 | `note` | all | free | private note, shown to the agent every round (last 15); told 400 characters, accepts 500 |
 | `say` | all | final | heard by everyone in the same place (everyone, without locations); told 1000 characters, accepts 1500 |
 | `whisper` | all | final | private to one agent; requires being together if both have locations; same limits |
@@ -479,6 +480,16 @@ and are freed at the start of that round. This makes nights and long activities 
   is in round `until`.
 - `(b/free world id by)` frees someone early (e.g. a `rouse` action). `by` is named in the
   narration and also sees the event.
+- `(b/interrupt world id by)` is the event a `rouse` action returns: it marks the occupation
+  interrupted (`:interrupted-by`), visible to everyone present plus `by`. The agent gets a turn
+  next round even though busy. In that turn, the built-in `carry-on` returns `(b/resume world id)`,
+  which keeps the occupation and its original deadline; any other accepted action frees them first
+  (the engine does this, so each action needs no rule of its own). A rejected or undecodable call
+  does not free them; a forfeit or a failed turn calls `(b/resume world id)`, so the occupation
+  still ends at its own time.
+- An agent can't be interrupted twice: a `rouse` should refuse when `(:interrupted-by (w/busy world
+  who))` is set (Claudeworth's and hamlet's do). The interrupted agent's view has `[:you :busy]`
+  with the activity, when it ends, and who interrupted them.
 - `(manor.world/busy world id)` is `{:activity .. :until ..}` or nil. Occupied agents still
   count as present, so they see what happens in the room, in their window when they wake.
 

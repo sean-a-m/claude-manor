@@ -23,6 +23,13 @@
 (defn- here [world actor] (space/location world (space/location-of world actor)))
 (defn- funds [world] (get-in world [:state :household :funds]))
 (defn- work-in-progress [world] (first (get-in world [:state :works])))
+
+(defn- floor-key
+  "The house floor as a keyword, tolerating \"Ground floor\" as well as \"ground\"."
+  [floor]
+  (-> (if (keyword? floor) (name floor) (str floor))
+      str/lower-case str/trim (str/replace #"\s*floor$" "") keyword))
+
 (defn- plan [world id] (get-in world [:state :plans id]))
 (defn- house [world] (filter #(= :house (:domain %)) (vals (get-in world [:space :locations]))))
 (defn- floors [world] (set (remove #{nil :outside} (map :floor (house world)))))
@@ -131,7 +138,7 @@
             (str "the client " client " must be present in this office"))
           architect (str (:name architect) " draws the plans here; ask him")
           (not= client actor) "the clerk can draw only for you; omit for or use your own id"))
-      (when-not (contains? (floors world) (keyword (:floor args)))
+      (when-not (contains? (floors world) (floor-key (:floor args)))
         (str "floor must be one of: " (str/join ", " (sort (map name (floors world))))))
       (when-let [bad (first (remove (set (map :id (house world))) (:connects-to args)))]
         (str bad " is not a room of the house; use: " (str/join ", " (sort (map :id (house world))))))))
@@ -141,7 +148,7 @@
                          :connects-to (mapv :to (filter #(zero? (:travel %)) (space/exits world (:id l))))})
                 (sort-by :id (house world)))
    :taken (vec (sort (taken world)))
-   :request (-> (select-keys args [:name :floor :desc :connects-to :size]) (update :floor keyword))})
+   :request (-> (select-keys args [:name :floor :desc :connects-to :size]) (update :floor floor-key))})
 
 (defn- short-text? [x max-length]
   (and (string? x) (not (str/blank? x)) (<= (count x) max-length)))
@@ -158,7 +165,7 @@
       (not (short-text? (:name p) 60)) "the draft name must be 1–60 characters"
       (not (short-text? (:desc p) 600)) "the draft description must be 1–600 characters"
       (not (and (or (string? (:floor p)) (keyword? (:floor p)))
-                (contains? (floors world) (keyword (:floor p))))) "the draft floor must be a house floor"
+                (contains? (floors world) (floor-key (:floor p))))) "the draft floor must be a house floor"
       (not (and (vector? (:connects-to p)) (<= 1 (count (:connects-to p)) 4)
                 (every? (set (map :id (house world))) (:connects-to p)))) "the draft must join 1–4 existing house rooms"
       (not quote) "the draft needs a size from the price list"
@@ -172,7 +179,7 @@
           p (merge (select-keys (:plan result) [:id :name :floor :desc :connects-to])
                    (select-keys result [:price :build-days])
                    {:size (:size args) :drawn-by actor :for client :holders (set [actor client])})
-          p (update p :floor keyword)]
+          p (update p :floor floor-key)]
       [{:type :claudeworth/plans-drawn :visible-to (set [actor client]) :data {:plan p}}])))
 
 (defn- held-reason [world actor id]
@@ -210,7 +217,7 @@
     :on-result (fn [_ actor result-args result]
                  [{:type :claudeworth/prices-quoted :visible-to #{actor} :data result}])}
    {:name :draw-plans :kind :query :roles :all
-    :doc "Draft and price a room at an open architect's office. The architect draws for a present client (for); without one, the clerk draws for you. Use house room ids from places for connects-to. Plans are stored, not commissioned."
+    :doc "Draft and price a room at an open architect's office. If an architect is here, only that agent can draw, naming a client with for; ask him with say. With no architect here, the clerk draws for you. Use house room ids from places for connects-to. Plans are stored, not commissioned."
     :args [:map [:for {:optional true} :string] [:name [:string {:min 1 :max 60}]] [:floor :string]
            [:desc [:string {:min 1 :max 600}]] [:connects-to [:vector {:min 1 :max 4} :string]]
            [:size (into [:enum] sizes)]]

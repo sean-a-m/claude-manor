@@ -12,8 +12,9 @@ in code; the engine owns all state, private information, and access to the real 
 
 Bundled scenarios: `village` (economy, weather bridge, locations, GM), `treasure` (small
 example), `quiz` (each contestant has a private, persistent pi assistant reached over MCP) and
-`claudeworth` (an Edwardian household and the village architect, half-hour turns, sleep and
-pastimes; its world is `resources/worlds/claudeworth.edn`).
+`claudeworth` (an Edwardian household and the village architect: half-hour turns, sleep and
+pastimes, a shop, plans and rooms built over a delay; the architect is a babashka MCP server; its
+world is `resources/worlds/claudeworth.edn`).
 
 ## MCP bridges
 
@@ -34,16 +35,19 @@ See "MCP bridges" in [docs/scenario-authoring.md](docs/scenario-authoring.md).
 
 - Clojure CLI (1.12+) and a JDK
 - Node.js and pi for the pi MCP server (the `quiz` scenario and the tests)
+- Babashka for the architect MCP server (the `claudeworth` scenario and its tests). The server is
+  started lazily per run; without babashka, run Claudeworth with `--offline` for the stub.
 - An OpenRouter key in `OPENROUTER_API_KEY`. If that's unset, the key stored by pi in
   `~/.pi/agent/auth.json` is used.
 
 ## Quick start
 
-Free and offline (scripted agents, synthetic weather):
+Free and offline (scripted agents, synthetic weather, stub architect):
 
 ```sh
 clojure -M:run treasure --mock
 clojure -M:run village --mock --offline
+clojure -M:run claudeworth --mock --offline   # the scripted Claudeworth day
 # open http://localhost:8080
 ```
 
@@ -54,8 +58,15 @@ real historical weather:
 clojure -M:run village --max-cost 0.50
 clojure -M:run village --model openai/gpt-5-mini
 clojure -M:run --load smoke-llm            # reopen a saved run
-clojure -M:run claudeworth --max-cost 0.25  # one simulated day at Claudeworth Manor
-clojure -M:run claudeworth --mock           # free: the scripted day
+```
+
+Claudeworth's architect bridge is an MCP server: with `--offline` the engine uses a stub with the
+same three tools, so the whole building slice runs free. `:build-rounds` (a run option, REPL only)
+shortens the build delay, and `:start` moves the clock:
+
+```clojure
+(start! :claudeworth {:test? true :offline? true :build-rounds 4})  ; a room within a few rounds
+(start! :claudeworth {:test? true :start "1904-10-15T21:00"})      ; begin at bedtime
 ```
 
 From the REPL (`clj -M:dev`):
@@ -99,6 +110,7 @@ Passed to `start-run` / `start!` (defaults in `manor.engine/default-opts`):
 | `:test?` | `false` | store the run under `test-runs/` (disposable) instead of `runs/` |
 | `:max-cost` | `1.0` | USD; the run pauses when reached |
 | `:start` | | start the scenario's clock at this time, e.g. `"1904-10-15T21:00"` (CLI: `--start`); scenarios with a clock only. People still start where the world puts them |
+| `:build-rounds` | | override the build delay for one run, in rounds (Claudeworth; default one day per build day) |
 | `:max-steps` / `:max-queries` | 10 / 2 | model calls and query bridges per turn (a cost guard, not game time) |
 | `:event-window` | 30 | recent events in each prompt |
 | `:gm-check-in-every` | 0 | rounds between GM check-ins (0 = only when triggered) |

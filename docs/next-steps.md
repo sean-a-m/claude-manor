@@ -1,43 +1,84 @@
-# Next steps (handoff, 2026-10-15)
+# Next steps (handoff, 2026-10-16)
 
 Where the Claudeworth Manor work stands, and what to do next, in order. For a new session or a
 sub-agent. Read `AGENTS.md` first.
 
 ## Where things are
 
-**All of phase 1 and the fixes brief (`docs/claudeworth-phase1-fixes.md`, tasks 1–6) is done and
-committed, but not yet reviewed** by the parent session. It's the commit after `9db0298`; see
-`git log`. In that commit:
+**Phases 0, 1 and 2 are done and committed.** The Claudeworth Manor vertical slice is complete:
+the world file, clock, `walk`/`travel`, talk, `sleep`/`spend-time`/`rouse`, money, the shop, plans
+(`consult-references`, `price-list`, `draw-plans`, `show-plans`, `commission`), the babashka
+architect MCP server, delayed construction, `map.edn`, and the optional architect
+(`:architect? false`). The engine gained interruptions (`b/interrupt`, the `carry-on` action,
+`b/resume`).
 
-- **The scenario:**
-  - `resources/worlds/claudeworth.edn` (world, setting, role paragraphs)
-  - `src/manor/scenarios/claudeworth.clj` (`walk`/`travel` with area names, `sleep`,
-    `spend-time`, `rouse`, `journeys` in the view, brief functions)
-  - `test/manor/claudeworth_test.clj` (including "move the abbey")
-- **Engine:**
-  - rejected arguments report their length and how much to cut (`actions.clj`, with a
-    `:advised-max` schema property)
-  - `say`/`whisper` accept 1500 characters but are documented as 1000 (`builtins.clj`)
-  - a role's `:brief` may be a function of the world (`prompt.clj`)
-  - transcripts: `src/manor/transcript.clj`, `(transcript! id)` at the REPL
-- **Docs:** the design doc (phase 1 done; decisions 13 and 14), the authoring guide ("one home
-  per fact", "tool descriptions are mechanics"), README, AGENTS.md.
-- **The worker's own checks:**
-  - `clojure -M:test`: 44 tests, 0 failures
-  - village prompts against `runs/smoke-llm` are byte-identical, apart from the `say`/`whisper`
-    tool descriptions and `maxLength` (800 to 1500)
+`clojure -M:test` passes: **63 tests, 767 assertions, 0 failures, 0 errors**, free and offline, in
+about 15 s. The full building slice is checked against both the offline stub and the real babashka
+server, including `:architect? false`, the odd room, malformed drafts, privacy and replay.
 
-**Real-model spend on Claudeworth:** $0.112 (the stopped run) + $0.092 (the 12-round check) =
-$0.204. Hamlet added $0.008. Phase 1's approved budget was $0.30.
+- The build brief is `docs/claudeworth-phase2.md`.
+- The design and the decisions are in `docs/claudeworth-design.md` (section 10 marks phase 2 done,
+  with the deviations; section 12 has decisions 17-21).
+- The phase-2 implementation handoff (`docs/phase2-implementation-todo.md`) is closed: its wording
+  fixes and the review are done.
 
-**Real runs, for reading** (`/tmp` may not survive a reboot; `clojure -M:test` deletes
-`test-runs/`):
+## Real spend and archived runs
 
-- **`/tmp/claudeworth-real-1-backup/`:** the stopped run before the fixes. 16 rounds, 25 speeches
-  rejected for length, 3 forfeits.
-- **`/tmp/claudeworth-real-2-backup/`:** after the fixes. 12 rounds, 82 calls, 1.71 calls per
-  turn, 0 length rejections except 2 speeches over 1500 (fixed on the next call), 0 bad ids,
-  2 forfeits. Each has `transcript.md`.
+Real Claudeworth spend, all runs: about **$0.56**. Before phase 2 it was about $0.37 (five runs,
+listed in the history below). Phase 2 added two short checks: `$0.109590879` (`phase2-real-1`) and
+`$0.0828` (`one-build-real-1`), **$0.192 in all** - just under the phase-2 budget of $0.20.
+(Note: the second check's `:max-cost` was 0.10 and it cost $0.0828, above the $0.05 guidance
+written before it; the total still fits.)
+
+Archived under `old-test-runs/` (gitignored; **never commit it**, delete it when the user is done):
+
+- `phase2-real-1`: first phase-2 check. 10 rounds, 79 calls, $0.109590879, 17 error replies (15
+  query-limit, 2 "Pugh draws the plans here; ask him"), 0 rejections, 0 forfeits. The Saloon was
+  built at 12:30 and walked into; the Library and a guest bedchamber were still building when the
+  $0.10 cost cap stopped the run one round late.
+- `one-build-real-1`: after the one-room-at-a-time change. 10 rounds, 76 calls, $0.0828, 6 errors
+  (3 floor wording, 3 query limit), 1 rejection, 0 forfeits. No commission confusion.
+- the three phase-1 runs: `claudeworth-real-3`, `claudeworth-reasoning-1` and the 12-round check
+  at the top level.
+
+## Not fixed (deliberate, or open)
+
+- **Architect hibernation** (design decision 11) and **reference-library cleanup** (decision 9)
+  are still deferred by the user. The server filters the Ashcombe extracts to architectural fields
+  and now drops whole sentences that state social rules ("Servants do not use it except ..."), but
+  the curated reference document is not written.
+- **The cost cap overshoots by one round**: cost is checked at round boundaries, so `phase2-real-1`
+  spent $0.109590879 against a $0.10 cap. Report this; don't hide it.
+- **Rents and income, hunger, hiring and the inn** are phase 3. The GM brief now tells the GM not to
+  invent money arriving.
+- The floor and query-limit wording was fixed and covered by tests, but only short real runs have
+  checked it. Chasing complete construction with a longer run is not needed.
+- `old-test-runs/` and `/tmp` backups are not durable; anything worth keeping should be read before
+  a cleanup.
+
+## Phase 3: incentives
+
+From design section 10: an inn, hunger and fatigue, quarterly rents as income, hiring servants as
+spawnable roles (which feeds on building), gongs and abbey bells, the access matrix and the green
+baize door, and spending rules. Nothing is scheduled; the user asked for phase 2 first.
+
+## Process notes (still true)
+
+- `clojure -M:test` is free, offline and fast; it deletes `test-runs/`.
+- Real runs are short by default (`AGENTS.md`, "Real runs are short by default"). Start near what
+  you are testing with `:start` or `:build-rounds` rather than playing up to it.
+- `runs/` is the user's data: never delete it and never write under it. Test and ad-hoc runs go to
+  `test-runs/` (`{:test? true}` / `--test`).
+- Sub-agents have a 30-minute default limit and must not start real runs unless their task says so.
+
+---
+
+# History
+
+The dated sections below were written during phase 1 and the phase 2 build. They are kept for
+reference; they are not a current task list.
+
+## Next steps (handoff, 2026-10-15)
 
 ## Step 1: review the committed work
 

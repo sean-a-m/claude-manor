@@ -7,6 +7,71 @@ wishlist (`docs/user-todos.md`, "Items", and the minimal part of "look"). This b
 authority on scope and details. The user approved it on 2026-10-16, including the proposals
 below.
 
+## Status (2026-10-16): I1-I3 done, I4 next
+
+| Phase | Commit | Tests after |
+|---|---|---|
+| I1. Items core | `b4c94a4` | 71 |
+| I2. look | `46f75d9` | 73 |
+| I3. Work and the judge | `804608b` | 83 (1093 assertions) |
+
+Each phase was built by a sub-agent and reviewed. In each, village, treasure and quiz prompts
+and tool lists stayed byte-identical (a before/after dump that included a read-only replay of
+`runs/smoke-llm`). No real run has been made yet.
+
+**I4 is what's left** (section 4's mock day, section 6):
+
+- the Claudeworth mock day with items: Hale buys a feather duster and works on the china
+  cabinet; the countess moves the candlesticks; one `look`
+- the short real run, then reading its transcript
+- the docs listed in section 6: AGENTS.md layout (`items.clj`), the roadmap (B7, follow-ups),
+  and the items decisions in section 12 of `docs/claudeworth-design.md`
+- archiving this brief
+
+The rules text already mentions `take`, `put-down`, `give`, `look` and `work-on`. The authoring
+guide already has an Items section. `claudeworth_test` already has a work-on case: Hale dusts
+the cabinet from 14:00 for 1.5 hours, and it changes at 15:30, not 15:00. Reuse it.
+
+**How it was built, where the brief left room:**
+
+- **Wiring.** Items are on when the scenario has `:items` (Claudeworth's is
+  `{:judge-brief ...}`). The world has `:items` once the first item is added. Jobs are in
+  `(:item-jobs world)`, read through `items/jobs` and `items/job`.
+- **Item names in narration.** `narrate/names` gets them with `requiring-resolve`, because
+  `manor.items` requires `manor.narrate`.
+- **Shop goods.** Goods you carry away show `:carried true` in the shop's `sells` view, and
+  `:claudeworth/bought` records `:kind :item`.
+- **`look` while travelling** is refused through `:valid?`, not hidden. `:people` in its reply
+  has no ids; ids are in the view's `:people-here`.
+- **Which jobs end** is decided *before* occupations are released at round start
+  (`items/ending-jobs`), so a stopped worker isn't credited the full time. The order of the
+  checks is: retired, then stopped early, then due.
+- **The engine** finishes jobs with `finish-job!` and `ask-judge` in `engine.clj`. The model call
+  is outside the world lock.
+- **Failures.** A bad judge answer gets one retry. A second failure, or an exception, gives
+  `:item/work-done` with no changes plus a `:system` event. It never pauses the run.
+- **Mock runs.** The mock LLM routes role `:judge` to the scenario's `:mock-judge` or to
+  `items/mock-judge` ("just seen to").
+- **Narration.** The neutral summary is the narration's opening line ("Hale finishes dusting the
+  china cabinet."), and the narration leaves out a summary that only repeats it.
+
+**Known gaps (not bugs; list them in the roadmap in I4):**
+
+- The judge's `error:` replies are counted in the transcript's overall error total.
+- The control panel's per-agent usage table has no judge row. Its cost is in the run total.
+- Judging at round start adds latency to the round.
+- `map.edn` can't carry items held by GM-spawned agents. That's fine, because nothing resumes
+  from it (roadmap B9).
+
+**What to look at in the real run:**
+
+- whether agents use `look` and `work-on` without being pushed
+- whether the judge keeps to conditions, how long its answers are, and what each call costs
+  (llm.edn agent `"judge"`)
+
+The judge prompt as built is in `items/judge-request`. To see it, start a mock run and read
+`llm.edn`.
+
 ## Phases
 
 The work is four phases. Each ends at a **stopping point**: `clojure -M:test` passes, the

@@ -240,7 +240,9 @@ Follow-ups, by need:
 - The panel's per-agent usage table has no judge row, although judge cost is in the run total.
 - Judging at round start adds latency before agents can act.
 
-The completed brief is [Items](archived/items-brief.md).
+The completed brief is [Items](archived/items-brief.md). **Next:**
+[items-followup.md](items-followup.md): a housemaid so the judge is tested on a real model, and
+cutting down constant `look` calls (a third of all calls in the first real run).
 
 ### B8. Control panel improvements
 

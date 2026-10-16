@@ -384,7 +384,7 @@ guide (clock, occupation, `:exclude-actions`, world files, travel 0), the roadma
 and `space_test`, using the test scenario `hamlet`), and `clojure -M:test` passes. The saved real
 village run replays identically, and its prompts are byte-for-byte unchanged.
 
-**Phase 1: living in the house.** World file, clock, `walk`/`travel`, talk, `spend-time`,
+**Phase 1: living in the house. Done 2026-10-16.** World file, clock, `walk`/`travel`, talk, `spend-time`,
 `sleep`, `rouse`, observe, and a mock policy for a normal day: breakfast talk, the earl drives to
 the village and back, a walk to the abbey, everyone in bed by 23:00. Done when a 48-round mock
 run has no forfeits, replays equal, agents are skipped while asleep, and `(feed 80 "hale")` shows
@@ -458,7 +458,7 @@ under `old-test-runs/`):
 The full-length real run (about two simulated days) is not part of the phase; the full slice is
 checked by the mock policy.
 
-**Phase 3: incentives (after the slice, by need).** These mostly come from the Ashcombe documents:
+**Phase 3: incentives (after the slice, by need). Not started.** These mostly come from the Ashcombe documents:
 
 - an inn (dine for money; a reason to go out)
 - hunger and fatigue (provisions get eaten; with no cook, a bigger kitchen and staff start to

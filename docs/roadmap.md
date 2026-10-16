@@ -1,17 +1,13 @@
 # Roadmap and known issues
 
-Status as of 2026-10-16. Each item says why it matters, what exists now, a proposed approach,
-which files to touch, and how to tell it's done. Proposals are suggestions; check open questions
-with the user before making big decisions.
+Each item says why it matters, what exists now, a proposed approach, which files to touch, and
+how to tell it's done. Proposals are suggestions; check open questions with the user before making
+big decisions. When an item is finished, mark it done here (or remove it) in the same commit.
 
-B1 (MCP bridges) is done, and the Claudeworth Manor vertical slice (phases 0-2,
-`docs/claudeworth-design.md`) is complete and committed; its handoff is `docs/next-steps.md`.
-The architect's hibernation (design decision 11) is done: the engine's `:hibernate` hook and
-a `:routine` for Mr Pugh. Deferred by the user until after that work:
-a curated reference library to replace the Ashcombe extracts (decision 9); the design's section 10
-lists phase 3 (the inn, hunger, rents, hiring). For scenario generation the recommended order is
-**A1 → A2 → A3 → A4 → A6**, then the rest by need (B1a lists MCP follow-ups). Known issues
-(section C) are small and can be fixed opportunistically.
+Claudeworth Manor's work is tracked in `docs/claudeworth-design.md`: its phases (section 10) and
+decisions (section 12), each marked done or deferred. For scenario generation the recommended
+order is **A1 → A2 → A3 → A4 → A6**, then the rest by need (B1a lists MCP follow-ups). Known
+issues (section C) are small and can be fixed opportunistically.
 
 ---
 

@@ -16,11 +16,25 @@ information is enforced per event. The real world is reachable only through engi
 | `README.md` | quick start, options, commands |
 | `DESIGN.md` | architecture and the decisions behind it |
 | `docs/scenario-authoring.md` | the complete scenario contract: how to write a scenario |
-| `docs/archive` | old documents |
 | `docs/roadmap.md` | what's left: prioritized tasks with approaches, plus known issues |
-| `docs/claudeworth-design.md` | design and phases for the Claudeworth Manor scenario (current work) |
-| `docs/next-steps.md` | **start here when resuming:** current state, review to do, open decisions, next phase |
+| `docs/claudeworth-design.md` | design, phases and numbered decisions for the Claudeworth Manor scenario |
 | `docs/user-todos.md` | the user's own wishlist for later; not agent tasks |
+| `docs/archived/` | finished build briefs and old handoff notes: history, not the present state |
+
+## Current state
+
+This section says where the status lives instead of restating it, so it stays true. Don't add
+dates, test counts or "phase N is next" here.
+
+- **What was done last, and what's in progress:** `git log --oneline | head -20` and `git status`.
+  Uncommitted changes may be the user's own; never discard them.
+- **What's left:** `docs/roadmap.md`. The Claudeworth phases are section 10 of
+  `docs/claudeworth-design.md`, and its decisions (section 12) say which are done or deferred.
+- **What the user wants later:** `docs/user-todos.md`. These aren't tasks until the user picks one.
+- **Whether the code works:** `clojure -M:test` passes on every commit; run it first.
+- **When you finish something,** record the outcome where it belongs: mark the roadmap item or
+  design decision done, and update `docs/scenario-authoring.md` for contract changes. Don't start a
+  new handoff file; build briefs and notes go to `docs/archived/` once their work is committed.
 
 ## The user's requirements and preferences
 
@@ -72,7 +86,7 @@ src/manor/
   transcript.clj readable run record: <run-dir>/transcript.md from events.edn and llm.edn
   scenarios/     village.clj (full example), treasure.clj (small example), quiz.clj (MCP/pi),
                  claudeworth.clj + building.clj (Claudeworth Manor: daily life, money, shop, plans,
-                 architect and construction; phases 1-2)
+                 architect and construction)
 resources/worlds/ world files on the classpath; claudeworth.edn is Claudeworth's fresh world
 mcp-servers/pi/server.mjs  pi as an MCP server: send_message {session, message}; Node, no deps
 mcp-servers/architect/  the architect MCP server: babashka, stateless, reference/price/draft tools

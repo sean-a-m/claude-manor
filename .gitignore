@@ -4,6 +4,7 @@
 .clj-kondo/.cache/
 runs/
 test-runs/
+old-test-runs/
 .clj-kondo/imports/
 config/mcp.edn
 pi-state/

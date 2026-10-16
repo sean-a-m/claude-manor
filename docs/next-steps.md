@@ -200,7 +200,8 @@ Scope matches the briefs. The run corroborates the reported numbers: 12 rounds, 
 
 ## Fix list items 1–6 done (2026-10-16)
 
-Uncommitted, in the working tree, for the parent session to review. No real runs were made.
+(Since committed in `16b747d`; the line below was true when written.) Uncommitted, in the
+working tree, for the parent session to review. No real runs were made.
 
 1. **Engine** (`engine.clj`): `:max-steps` default 10. A participant with no turn-ending action
    yet gets a user message after its 2nd call ("Your turn isn't over: free tools, queries and
@@ -294,3 +295,55 @@ them away from their bedroom there first, so he sleeps in his lodgings with no f
   captured or sent changed: `:message` is still the only thing returned to the model, and the
   transcript still shows the text.
 - A 12-round real run with the thoughts recorded cost $0.077 (`old-test-runs/claudeworth-reasoning-1`).
+
+## Tidy-up and phase 2 kickoff (2026-10-16, later session)
+
+Housekeeping before phase 2, by the user's instruction:
+
+- **`old-test-runs/` is now gitignored** (it held the archived real runs). The files stay on disk;
+  delete the directory whenever the user is done with them. It holds three real runs: the files at
+  its top level are the 12-round check after the phase 1 fixes (82 calls, $0.0918, `:max-steps`
+  4; the one the review above read), and two subdirectories:
+  - `claudeworth-real-3` (12 rounds, 92 calls, $0.0802) is the **paid check of the nudge**
+    (`:max-steps` 10 + reminder): the reminder appears after 2 free `walk`s, `engine: done` on the
+    last call of each turn, 3 errors, 1 rejection and 1 forfeit. It was not recorded in the
+    sections above.
+  - `claudeworth-reasoning-1` (12 rounds, 80 calls, $0.077) is the run after the `:thoughts`
+    rename, with `thoughts:` lines in the transcript.
+- **Test count:** `clojure -M:test` is now **56 tests, 540 assertions, 0 failures** (the sections
+  above still say 49; several tests were added with the reminder, `:start` and transcript work).
+- **Architect hibernation (design decision 11) is deferred to after phase 2.** Not scheduled; the
+  user wants to revisit once the simulation is larger.
+- **Reference cleanup (design decision 9) is also deferred to after phase 2**, together with
+  hibernation. The architect server keeps returning only the architectural fields of the Ashcombe
+  documents until then.
+- **Phase 2 is being kicked off.** The build brief is `docs/claudeworth-phase2.md` (item 7 above),
+  written this session from design §6.2–6.5, §7 and §10. Dispatch it to a worker once the parent
+  has read it; follow the short-real-run policy.
+
+## Phase 2 brief validated and revised (2026-10-16, later)
+
+The brief was checked against the code (`engine`, `bridge`, `mcp`, `space`, `worldfile`,
+`prompt`, the scenario and the world file); `clojure -M:test` was 56 tests, 540 assertions,
+0 failures. Real Claudeworth spend so far, all five real runs: about $0.37.
+
+Fixed in the brief:
+- the construction system read `(:works (get-in world [:state :works]))`, always nil, so nothing
+  would have been built
+- plan floors were strings while the world file's are keywords
+- the stored plan id could differ from the one the model saw (the engine renamed it after the
+  server replied, and a turn's prompt isn't rebuilt): the server now gets the `taken` ids
+- refusals in `:on-result` were invisible within the turn: the structural checks (rooms, floor)
+  move into `draw-plans`' `:valid?`
+- the result shape of the server and the stub is specified (`structuredContent`, keyword keys)
+- smaller: no `:connects-to` on built locations, space events left at `:gm`, no fee in the
+  public commission line, the rules say building happens at the office, `:build-rounds 4` for
+  the real run
+
+The user's decisions (design decisions 17–21): `rouse` becomes a general interruption with
+`carry-on` (an engine change, step 1 of the brief); one commission at a time per plan; the
+office is marked with `:services #{:architect}`; the price list is `mcp-servers/architect/prices.edn`,
+read by the server and the stub; queries may span turns, with reference and price results
+recorded privately so the caller still has them next turn.
+
+Next: the user reads the revised brief, then it is dispatched to a worker.

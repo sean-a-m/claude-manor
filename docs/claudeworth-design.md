@@ -509,3 +509,19 @@ These are estimates for the user's own long runs, not test plans: checks use sho
     turn-ending actions it has. Walking far in a bigger house is a separate, later question.
 16. **What the GM sees:** the default GM view leaves out `:setting` and `:roles :gm` in `:state`,
     which the GM brief already carries; it keeps the other roles' `:about` paragraphs.
+
+Decisions for phase 2 (2026-10-16), detailed in `docs/claudeworth-phase2.md`:
+
+17. **Interruptions, not special cases.** `rouse` interrupts anyone asleep or busy in the same
+    room instead of freeing them. The interrupted agent gets a turn and decides: `carry-on`
+    ignores it, anything else ends the occupation. This is general (engine and built-ins), so a
+    busy character, such as Mr Pugh at his drawing board, needs no rule of its own.
+18. **One commission at a time per plan.** A plan whose works are in progress can't be
+    commissioned again; once built, it can be (a second room).
+19. **The architect's office is marked in the world file** (`:services #{:architect}` on the
+    location), not found by id in code.
+20. **The price list is a data file of the server** (`mcp-servers/architect/prices.edn`), read by
+    the server and by the offline stub, so it has one home. `:meta :build-days` goes. Tool
+    payloads use kebab-case keys (`connects-to`), not the snake_case of section 6.5.
+21. **Queries may span turns.** `:max-queries` stays 2 a turn. Reference and price queries leave a
+    private record for the caller, so what they found is still in their prompt next turn.

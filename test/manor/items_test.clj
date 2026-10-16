@@ -308,3 +308,338 @@
           (is (= (items/all world) (items/all (e/world r2))))
           (e/stop-run r2))))
     (e/stop-run run)))
+
+;; ---------------------------------------------------------------------------
+;; Work on items and the judge
+
+(defn- scripted
+  "A mock policy: `script` maps agent id -> round -> the calls of that turn,
+  in order. Other turns carry on if interrupted, else follow the hamlet
+  policy (Ada goes to bed, Ben passes). Judge calls go to `judge` (default
+  items/mock-judge) and each judge ctx is added to the atom `judged`."
+  [script & {:keys [judge judged]}]
+  (fn [{:keys [world agent-id role step] :as ctx}]
+    (if (= :judge role)
+      (do (some-> judged (swap! conj ctx))
+          ((or judge items/mock-judge) ctx))
+      (or (get-in script [agent-id (:round world) step])
+          (when (:interrupted-by (w/busy world agent-id)) {:tool :carry-on})
+          (hamlet/mock-policy ctx)))))
+
+(defn- work [items doing hours]
+  {:tool :work-on :args (cond-> {:items items :doing doing} hours (assoc :hours hours))})
+
+(defn- of-type [run t] (filter #(= t (:type %)) (e/events run)))
+
+(defn- judge-calls [run] (filter #(= "judge" (:agent %)) (store/read-llm (:dir run))))
+
+(defn- condition [run id] (:condition (items/item (e/world run) id)))
+
+(deftest work-on-checks
+  (let [run (start)
+        world (assoc (e/world run) :round 1)          ; Ada and Ben in the hall, 21:00
+        work-on (action run :work-on)
+        check (fn [world actor args] (a/check work-on world actor args))]
+    (testing "turn-ending, for everyone but the GM, and offered only in worlds with a clock"
+      (is (= :final (a/kind work-on)))
+      (is (not (a/allowed? work-on :gm)))
+      (is (= [work-on] (a/available [work-on] world "ada")))
+      (is (empty? (a/available [work-on] (dissoc world :clock) "ada")))
+      (is (not-any? #(= :work-on (:name %)) (e/all-actions (e/load-scenario :village)))))
+    (testing "the arguments: 1-6 items, doing 3-120 characters, hours 0.5-4"
+      (is (str/includes? (:error (a/decode-args work-on {:items [] :doing "dusting"})) "items has 0 items"))
+      (is (str/includes? (:error (a/decode-args work-on {:items (repeat 7 "clock") :doing "dusting"})) "items has 7 items"))
+      (is (:error (a/decode-args work-on {:items ["clock"] :doing "do"})))
+      (is (:error (a/decode-args work-on {:items ["clock"] :doing "dusting" :hours 5})))
+      (is (= {:items ["clock"] :doing "dusting" :hours 1.0}
+             (:args (a/decode-args work-on "{\"items\": [\"clock\"], \"doing\": \"dusting\", \"hours\": 1}")))))
+    (testing "items lying here (fixed ones too) or carried by you; reasons name what would work"
+      (is (nil? (check world "ada" {:items ["clock" "umbrella"] :doing "dusting"})))
+      (is (nil? (check world "ben" {:items ["pipe" "clock"] :doing "cleaning"})))
+      (is (= "Ben is holding the Pipe" (check world "ada" {:items ["clock" "pipe"] :doing "cleaning"})))
+      (is (= "basket is neither here nor carried by you; items here: clock (Grandfather clock), umbrella (Umbrella); you carry: nothing"
+             (check world "ada" {:items ["basket"] :doing "mending"})))
+      (is (str/starts-with? (check world "ada" {:items ["teapot"] :doing "mending"}) "teapot is neither here nor carried by you"))
+      (is (= "there is no game time to work in" (check (dissoc world :clock) "ada" {:items ["clock"] :doing "dusting"})))
+      (let [[travelling] (perform run (at world "ada" "green") "ada" :move {:to "farm"})]
+        (is (= "you can't work on things while travelling" (check travelling "ada" {:items ["clock"] :doing "dusting"})))))
+    (testing "the job (seen by the GM) and the occupation that carries its id (seen by the room)"
+      (let [[after [begun occupied]] (perform run world "ben" :work-on {:items ["clock" "pipe" "clock"] :doing "polishing the clock" :hours 1.5})
+            id (str "job-" (inc (:seq world)))]
+        (is (= {:id id :actor "ben" :items ["clock" "pipe"] :doing "polishing the clock" :place "hall" :started 1 :due 4}
+               (:data begun) (items/job after id)))
+        (is (= :gm (:visible-to begun)))
+        (is (= #{"ada" "ben"} (:visible-to occupied)))
+        (is (= {:activity "polishing the clock" :until 4 :job id} (w/busy after "ben")))
+        (is (= "Ben is polishing the clock until 22:30." (n/describe occupied (n/names after))))
+        (is (= [(items/job after id)] (:item-jobs (prompt/default-gm-view after))))
+        (is (not (contains? (prompt/default-gm-view world) :item-jobs)))
+        (testing "nothing changes while the work goes on"
+          (is (= (items/all world) (items/all after))))))
+    (testing "half an hour by default"
+      (let [[_ [begun]] (perform run world "ada" :work-on {:items ["umbrella"] :doing "drying the umbrella"})]
+        (is (= 2 (get-in begun [:data :due])))))
+    (e/stop-run run)))
+
+(deftest work-runs-to-its-end
+  (let [judged (atom [])
+        policy (scripted {"ben" {1 [(work ["clock" "pipe"] "polishing the clock" 1.5)]}} :judged judged)
+        ;; the mock costs nothing; give judge calls a price to see them counted
+        priced (let [inner (llm/mock policy)]
+                 (reify llm/LLM
+                   (complete [_ req]
+                     (cond-> (llm/complete inner req)
+                       (= :judge (get-in req [:ctx :role])) (assoc-in [:usage :cost] 0.01)))))
+        run (rounds! (start {:llm-impl priced}) 3)]
+    (testing "the condition is unchanged at round due - 1"
+      (is (= 3 (:round (e/world run))))
+      (is (= "ticking loudly" (condition run "clock")))
+      (is (empty? @judged)))
+    (rounds! run 1)
+    (let [world (e/world run)
+          [done] (of-type run :item/work-done)]
+      (testing "and changed at due, when Ben is freed and acts again"
+        (is (= "just seen to" (condition run "clock") (condition run "pipe")))
+        (is (= 4 (:round done)))
+        (is (= 4 (:round (last (filter #(= "ben" (:actor %)) (of-type run :agent/freed))))))
+        (is (contains? (set (map :round (filter #(= "ben" (:actor %)) (of-type run :llm/usage)))) 4))
+        (is (empty? (items/jobs world))))
+      (testing "the judge was told the whole time, the luck, and the items in reach"
+        (let [[ctx] @judged]
+          (is (= 1 (count @judged)))
+          (is (= {:minutes 90 :stopped-early? false} (select-keys ctx [:minutes :stopped-early?])))
+          (is (<= 1 (:luck ctx) 100))
+          (is (= ["clock" "pipe"] (map :id (:items ctx))))))
+      (testing "the result: data, narration and who sees it (Ada is upstairs)"
+        (is (= {:actor "ben" :place "hall" :doing "polishing the clock" :minutes 90 :stopped-early? false
+                :summary "Ben finishes polishing the clock."
+                :changes [{:item "clock" :from "ticking loudly" :to "just seen to"}
+                          {:item "pipe" :from "still warm" :to "just seen to"}]}
+               (dissoc (:data done) :job :luck)))
+        (is (= #{"ben"} (:visible-to done)))
+        (is (= "Ben finishes polishing the clock. (Grandfather clock: just seen to; Pipe: just seen to)."
+               (n/describe done (n/names world))))
+        (is (empty? (filter item-event? (prompt/visible-events (e/events run) "ada" 1000)))))
+      (testing "the judge's usage counts towards the cost, and its call is in llm.edn"
+        (is (= {:calls 1 :cost 0.01} (select-keys (get-in world [:usage "judge"]) [:calls :cost])))
+        (is (= 0.01 (w/total-cost world)))
+        (let [[call] (judge-calls run)]
+          (is (= 4 (:round call)))
+          (is (= ["judge"] (:tools call)))
+          (is (= [{:role "tool" :tool_call_id "mock-0-judge" :content "ok"}] (:replies call)))))
+      (testing "the transcript lists the judge like any other agent"
+        (let [text (manor.transcript/render (:dir run))]
+          (is (str/includes? text "| judge | 1 | $0.0100 |"))
+          (is (str/includes? text "- **judge** judge {"))
+          (is (str/includes? text "Ben finishes polishing the clock. (Grandfather clock: just seen to; Pipe: just seen to)."))))
+      (testing "replay gives the same world"
+        (is (= world (w/replay (store/read-events (:dir run)))))))
+    (e/stop-run run)))
+
+(deftest the-judge-request
+  (let [run (start)
+        world (assoc (e/world run) :round 4)
+        job {:id "job-9" :actor "ben" :items ["clock" "pipe"] :doing "polishing the clock" :place "hall" :started 1 :due 4}
+        {:keys [messages tools]} (items/judge-request (assoc (:scenario run) :items {:judge-brief (constantly "A small house.")})
+                                                      world job {:minutes 60 :stopped-early? true :luck 7}
+                                                      (items/in-reach world job))
+        [system user] messages]
+    (is (= ["judge"] (map #(get-in % [:function :name]) tools)))
+    (is (str/includes? (:content system) "work can't turn a vase into gold"))
+    (is (str/ends-with? (:content system) "## The setting\nA small house."))
+    (is (str/includes? (:content user) (str "- Time: Saturday 15 October 1904, 22:30\n"
+                                            "- Worker: Ben. A night owl who hates going to bed.\n"
+                                            "- Place: Hall\n"
+                                            "- Doing: polishing the clock\n"
+                                            "- Time worked: 60 minutes; they stopped early\n"
+                                            "- Luck: 7\n")))
+    (is (str/includes? (:content user) "\"desc\" : \"A briar pipe, much chewed.\""))
+    (testing "only the job and its items: nothing about other items or people"
+      (is (not (str/includes? (pr-str messages) "Umbrella")))
+      (is (not (str/includes? (pr-str messages) "Ada"))))
+    (testing "without a :judge-brief, no setting"
+      (is (not (str/includes? (:content (first (:messages (items/judge-request (:scenario run) world job {:minutes 30} []))))
+                              "## The setting"))))
+    (e/stop-run run)))
+
+(defn- judge-says [args]
+  {:tool-calls [{:id "j1" :name "judge" :arguments (json/write-value-as-string args)}]})
+
+(deftest checking-the-judge
+  (let [run (start)
+        world (e/world run)
+        reach (map #(items/item world %) ["clock" "pipe"])
+        judge #(items/judgement (judge-says %) reach)]
+    (testing "a good answer: changes with their old condition; unchanged ones left out"
+      (is (= {:verdict {:summary "It shines."
+                        :changes [{:item "clock" :from "ticking loudly" :to "polished"}]}
+              :replies [{:role "tool" :tool_call_id "j1" :content "ok"}]}
+             (judge {:changes [{:item "clock" :condition "polished"} {:item "pipe" :condition "still warm"}]
+                     :summary "It shines."}))))
+    (testing "descriptions, names and other keys are ignored: only conditions change"
+      (is (= {:summary "Gilded." :changes [{:item "clock" :from "ticking loudly" :to "gilded"}]}
+             (:verdict (judge {:changes [{:item "clock" :condition "gilded" :desc "A gold clock." :name "Gold clock"}]
+                               :summary "Gilded." :desc "x"})))))
+    (testing "no changes is a fine answer"
+      (is (= {:summary "Nothing came of it." :changes []} (:verdict (judge {:summary "Nothing came of it."})))))
+    (testing "refused: items out of reach, bad lengths, no summary, no call"
+      (is (= "you may change only these items: clock, pipe; not umbrella"
+             (:error (judge {:changes [{:item "umbrella" :condition "dry"}] :summary "x"}))))
+      (is (str/includes? (:error (judge {:changes [{:item "clock" :condition (apply str (repeat 81 "x"))}] :summary "x"}))
+                         "is 81 characters; the limit is 80"))
+      (is (str/includes? (:error (judge {:changes [] :summary (apply str (repeat 301 "x"))})) "the limit is 300"))
+      (is (:error (judge {:changes [{:item "clock" :condition ""}] :summary "x"})))
+      (is (:error (judge {:changes []})))
+      (is (= "error: you may change only these items: clock, pipe; not umbrella. Call judge again with a corrected answer."
+             (:content (first (:replies (judge {:changes [{:item "umbrella" :condition "dry"}] :summary "x"}))))))
+      (is (= {:error "no judge call" :replies [{:role "user" :content "You must answer by calling the judge tool."}]}
+             (items/judgement {:tool-calls []} reach))))
+    (e/stop-run run)))
+
+(deftest bad-judge-answers
+  (let [run-with (fn [judge]
+                   (let [judged (atom [])
+                         run (rounds! (start {:llm-impl (llm/mock (scripted {"ben" {1 [(work ["clock"] "winding the clock" nil)]}}
+                                                                            :judge judge :judged judged))})
+                                      2)]
+                     [run judged]))]
+    (testing "an invalid answer is sent back with the reason; a good second answer is used"
+      (let [[run judged] (run-with (fn [{:keys [step]}]
+                                     {:tool :judge :args (if (zero? step)
+                                                           {:changes [{:item "umbrella" :condition "dry"}] :summary "x"}
+                                                           {:changes [{:item "clock" :condition "wound"}] :summary "It ticks."})}))
+            [first-call second-call] (judge-calls run)]
+        (is (= 2 (count @judged)))
+        (is (= "wound" (condition run "clock")))
+        (is (str/starts-with? (:content (last (:messages second-call))) "error: you may change only these items: clock"))
+        (is (= (:replies first-call) [(last (:messages second-call))]))
+        (is (empty? (of-type run :item/judge-failed)))
+        (e/stop-run run)))
+    (testing "a second bad answer: no changes, a neutral summary, and a :system event with the reason"
+      (let [[run judged] (run-with (constantly {:tool :judge :args {:changes [{:item "clock" :condition ""}] :summary "x"}}))
+            [done] (of-type run :item/work-done)
+            [failed] (of-type run :item/judge-failed)]
+        (is (= 2 (count @judged) (count (judge-calls run))))
+        (is (= "ticking loudly" (condition run "clock")))
+        (is (= {:summary "Ben finishes winding the clock." :changes []} (select-keys (:data done) [:summary :changes])))
+        (is (= :system (:visible-to failed)))
+        (is (str/starts-with? (get-in failed [:data :reason]) "a second bad answer: invalid arguments"))
+        (is (= "Ben finishes winding the clock." (n/describe done (n/names (e/world run)))))
+        (is (empty? (filter #(= :run/pause-requested (:type %)) (e/events run))) "the run isn't paused")
+        (e/stop-run run)))
+    (testing "an exception: the same, with no retry"
+      (let [[run] (run-with (fn [_] (throw (ex-info "provider down" {}))))
+            [failed] (of-type run :item/judge-failed)]
+        (is (= "the judge call failed: provider down" (get-in failed [:data :reason])))
+        (is (= 1 (count (of-type run :item/work-done))))
+        (is (= "ticking loudly" (condition run "clock")))
+        (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+        (e/stop-run run)))))
+
+(deftest stopping-early-or-carrying-on
+  (let [run-with (fn [ben-round-3]
+                   (let [judged (atom [])
+                         ;; Ada rouses Ben in round 2; in round 3 Ben decides
+                         policy (scripted {"ada" {1 [{:tool :pass}]
+                                                  2 [{:tool :rouse :args {:who "ben"}} {:tool :pass}]}
+                                           "ben" {1 [(work ["clock"] "winding the clock" 2)]
+                                                  3 ben-round-3}}
+                                          :judged judged)]
+                     [(start {:llm-impl (llm/mock policy)}) judged]))]
+    (testing "stopping after the interruption: judged on the time really worked"
+      (let [[run judged] (run-with [{:tool :say :args {:text "Coming!"}}])]
+        (rounds! run 3)
+        (is (= 1 (count (of-type run :item/work-begun))))
+        (is (empty? @judged) "the job is judged as the next round starts")
+        (rounds! run 1)
+        (let [[done] (of-type run :item/work-done)]
+          (is (= 4 (:round done)))
+          (is (= {:minutes 60 :stopped-early? true} (select-keys (:data done) [:minutes :stopped-early?])))
+          (is (= {:minutes 60 :stopped-early? true} (select-keys (first @judged) [:minutes :stopped-early?])))
+          (is (= "Ben leaves off winding the clock. (Grandfather clock: just seen to)."
+                 (n/describe done (n/names (e/world run))))))
+        (is (= "just seen to" (condition run "clock")))
+        (is (empty? (items/jobs (e/world run))))
+        (e/stop-run run)))
+    (testing "carrying on: the job runs to its end"
+      (let [[run judged] (run-with [{:tool :carry-on}])]
+        (rounds! run 4)
+        (is (empty? @judged))
+        (is (= "ticking loudly" (condition run "clock")))
+        (rounds! run 1)
+        (let [[done] (of-type run :item/work-done)]
+          (is (= 5 (:round done)))
+          (is (= {:minutes 120 :stopped-early? false} (select-keys (:data done) [:minutes :stopped-early?]))))
+        (is (= 1 (count @judged)))
+        (e/stop-run run)))))
+
+(deftest a-retired-worker
+  (let [judged (atom [])
+        run (rounds! (start {:llm-impl (llm/mock (scripted {"ben" {1 [(work ["clock"] "winding the clock" 1)]}}
+                                                           :judged judged))})
+                     1)]
+    (e/retire! run "ben" "called away")
+    (rounds! run 3)
+    (let [[ended] (of-type run :item/work-ended)]
+      (is (= {:reason :retired :job (get-in (first (of-type run :item/work-begun)) [:data :id])}
+             (select-keys (:data ended) [:reason :job])))
+      (is (= :gm (:visible-to ended)))
+      (is (= 2 (:round ended)))
+      (is (empty? @judged))
+      (is (empty? (judge-calls run)))
+      (is (empty? (items/jobs (e/world run))))
+      (is (= "ticking loudly" (condition run "clock"))))
+    (e/stop-run run)))
+
+(deftest things-taken-away-mid-job
+  (testing "only the items still in reach are judged"
+    (let [judged (atom [])
+          run (rounds! (start {:llm-impl (llm/mock (scripted {"ada" {1 [{:tool :pass}]
+                                                                     2 [{:tool :take :args {:item "umbrella"}}
+                                                                        {:tool :move :args {:to "porch"}}]}
+                                                              "ben" {1 [(work ["umbrella" "clock" "pipe"] "tidying up" 1.5)]}}
+                                                             :judged judged))})
+                       4)]
+      (is (= ["clock" "pipe"] (map :id (:items (first @judged)))))
+      (is (= "just seen to" (condition run "clock") (condition run "pipe")))
+      (is (= "dry" (condition run "umbrella")))
+      (e/stop-run run)))
+  (testing "nothing left in reach: the work ends with no call"
+    (let [judged (atom [])
+          run (rounds! (start {:llm-impl (llm/mock (scripted {"ada" {1 [{:tool :pass}]
+                                                                     2 [{:tool :take :args {:item "umbrella"}}
+                                                                        {:tool :move :args {:to "porch"}}]}
+                                                              "ben" {1 [(work ["umbrella"] "drying the umbrella" 1)]}}
+                                                             :judged judged))})
+                       3)
+          [ended] (of-type run :item/work-ended)]
+      (is (empty? @judged))
+      (is (empty? (judge-calls run)))
+      (is (= :nothing-in-reach (get-in ended [:data :reason])))
+      (is (= #{"ben"} (:visible-to ended)) "Ada took it to the porch, so only Ben is in the hall")
+      (is (= "Ben leaves off drying the umbrella before getting anywhere." (n/describe ended (n/names (e/world run)))))
+      (is (= "dry" (condition run "umbrella")))
+      (e/stop-run run))))
+
+(deftest overlapping-jobs
+  (let [judged (atom [])
+        judge (fn [{:keys [job]}]
+                {:tool :judge :args {:changes [{:item "clock" :condition (str "after " (:doing job))}]
+                                     :summary "Done."}})
+        run (rounds! (start {:llm-impl (llm/mock (scripted {"ada" {1 [(work ["clock"] "dusting the clock" 1)]}
+                                                            "ben" {1 [(work ["clock"] "winding the clock" 1)]}}
+                                                           :judge judge :judged judged))})
+                     3)
+        [first-job second-job] (map :job @judged)
+        dones (of-type run :item/work-done)]
+    (testing "both end in the same round, applied in order of id"
+      (is (= 2 (count dones)))
+      (is (= [3 3] (map :round dones)))
+      (is (= (sort (map :id [first-job second-job])) [(:id first-job) (:id second-job)])))
+    (testing "the second judge saw the first one's result, and the last applied wins"
+      (is (= "ticking loudly" (:condition (first (:items (first @judged))))))
+      (is (= (str "after " (:doing first-job)) (:condition (first (:items (second @judged))))))
+      (is (= (str "after " (:doing second-job)) (condition run "clock"))))
+    (testing "replay gives the same world"
+      (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
+    (e/stop-run run)))

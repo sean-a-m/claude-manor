@@ -104,7 +104,7 @@ Passed to `start-run` / `start!` (defaults in `manor.engine/default-opts`):
 | Option | Default | |
 |---|---|---|
 | `:llm` | `:openrouter` | or `:mock` (uses the scenario's mock policy) |
-| `:model` / `:gm-model` | `deepseek/deepseek-v4.1-flash` | per-agent `:model` overrides |
+| `:model` / `:gm-model` / `:judge-model` | `deepseek/deepseek-v4.1-flash` | per-agent `:model` overrides; `:gm-model` and `:judge-model` (the judge of work on items) default to `:model` |
 | `:gm` | `:llm` | who holds the GM seat: `:llm`, `:human`, `:off` |
 | `:offline?` | `false` | use the scenario's bridge stubs |
 | `:test?` | `false` | store the run under `test-runs/` (disposable) instead of `runs/` |

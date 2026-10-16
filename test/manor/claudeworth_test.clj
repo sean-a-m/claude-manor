@@ -567,6 +567,38 @@
       (e/stop-run r1)
       (e/stop-run r2))))
 
+(deftest hale-dusts-the-china-cabinet
+  (let [hale (fn [{:keys [world agent-id step] :as ctx}]
+               (or (when (and (= "hale" agent-id) (= 1 (:round world)))
+                     (get [{:tool :walk :args {:to "drawing-room"}}
+                           {:tool :work-on :args {:items ["china-cabinet"] :doing "dusting the china cabinet" :hours 1.5}}]
+                          step))
+                   (cw/mock-policy ctx)))
+        ;; the engine's mock: judge calls go to items/mock-judge, the rest to the policy
+        run (rounds! (start {:start "1904-10-15T14:00" :llm-impl (#'e/mock-llm (assoc cw/scenario :mock-policy hale))}) 3)
+        world (e/world run)]
+    (testing "Hale is busy until 15:30, and the cabinet is unchanged meanwhile"
+      (is (= "Hale is dusting the china cabinet until 15:30."
+             (narrate/describe (first (by "hale" (of-type run :agent/occupied))) (narrate/names world))))
+      (is (= "dusty, the glass smeared" (:condition (items/item world "china-cabinet")))))
+    (rounds! run 1)
+    (let [world (e/world run)
+          [call] (filter #(= "judge" (:agent %)) (store/read-llm (:dir run)))
+          [done] (of-type run :item/work-done)]
+      (testing "at 15:30 the cabinet's condition changes"
+        (is (= "15:30" (clock/short-label (:clock world) (:round done) (:round done))))
+        (is (= "just seen to" (:condition (items/item world "china-cabinet"))))
+        (is (contains? (:visible-to done) "hale")))
+      (testing "the judge was given the setting, the worker and the cabinet"
+        (is (str/includes? (:content (first (:messages call))) (str "## The setting\n" (get-in world [:state :setting]))))
+        (is (str/includes? (:content (second (:messages call))) "- Worker: Hale. Mr Hale, the earl's private secretary"))
+        (is (str/includes? (:content (second (:messages call))) "Meissen figures")))
+      (testing "the rules mention work-on"
+        (is (str/includes? (cw/rules world) "`work-on` spends time doing something to things here or that you carry")))
+      (is (empty? (of-type run :action/forfeited)))
+      (is (= world (w/replay (store/read-events (:dir run))))))
+    (e/stop-run run)))
+
 ;; ---------------------------------------------------------------------------
 ;; One home per fact: what agents read comes from the world file
 

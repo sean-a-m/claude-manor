@@ -130,7 +130,8 @@ You act only by calling tools. You may take a few actions; call `done` when fini
            :agents (mapv #(select-keys % [:id :name :role :status :persona :location :travel :busy])
                          (w/agents-in-order world))}
     (space/enabled? world) (assoc :space (:space world))
-    (items/enabled? world) (assoc :items (items/gm-view world))))
+    (items/enabled? world) (assoc :items (items/gm-view world))
+    (seq (items/jobs world)) (assoc :item-jobs (vec (items/jobs world)))))
 
 (defn gm-messages
   [scenario world events reasons {:keys [event-window]}]

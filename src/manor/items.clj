@@ -16,21 +16,40 @@
   A carried item goes wherever its holder goes, with no events. The world has
   :items once the first item is added, so worlds without items are unchanged.
 
+  Work on items (`work-on`, worlds with a clock only) is a job:
+    :item-jobs {\"job-41\" {:id \"job-41\" :actor \"hale\" :items [\"china-cabinet\"]
+                           :doing \"dusting the china cabinet\" :place \"drawing-room\"
+                           :started 12 :due 15}}
+  The worker is occupied until :due, with the job id in their :busy :job.
+  Nothing changes until the work is over: at the start of the round it
+  ends, the engine asks a judge (a narrow model call, never seen by the
+  characters) what the time worked did to the items still in reach, checks
+  the answer and records it as :item/work-done.
+
   Code outside this namespace never reads (:items world) directly: it uses
   the accessors below, and only the reducers here write items. That keeps
   faster lookups (an index kept by the same reducers, say) a change inside
   this namespace."
   (:require [clojure.string :as str]
+            [jsonista.core :as json]
             [malli.core :as m]
             [malli.error :as me]
+            [malli.json-schema :as mjs]
+            [manor.actions :as a]
             [manor.builtins :as b]
+            [manor.clock :as clock]
             [manor.narrate :as n]
+            [manor.rng :as rng]
             [manor.space :as space]
             [manor.world :as w]))
 
 (def max-desc 400)
 (def max-condition 80)
 (def max-name 60)
+(def max-summary 300)
+(def max-work-items 6)
+(def max-work-hours 4)
+(def default-work-hours 0.5)
 
 (def Item
   "An item as written in a world file or returned by :init (holder and owner
@@ -68,6 +87,13 @@
   (if place (items-where world #(= place (:place %))) []))
 
 (defn held-by [world agent-id] (items-where world #(= agent-id (:holder %))))
+
+(defn jobs
+  "Work in progress, in order of :due, then id."
+  [world]
+  (sort-by (juxt :due :id) (vals (:item-jobs world))))
+
+(defn job [world id] (get-in world [:item-jobs id]))
 
 (defn names
   "Item id -> name, as [:item id] keys for manor.narrate/names."
@@ -149,6 +175,18 @@
 (defmethod w/apply-event :item/given [world {:keys [data]}]
   (assoc-in world [:items (:item data) :holder] (:to data)))
 
+(defmethod w/apply-event :item/work-begun [world {:keys [data]}]
+  (assoc-in world [:item-jobs (:id data)] data))
+
+(defmethod w/apply-event :item/work-done [world {:keys [data]}]
+  (-> (reduce (fn [world {:keys [item to]}] (assoc-in world [:items item :condition] to))
+              world
+              (:changes data))
+      (update :item-jobs dissoc (:job data))))
+
+(defmethod w/apply-event :item/work-ended [world {:keys [data]}]
+  (update world :item-jobs dissoc (:job data)))
+
 ;; ---------------------------------------------------------------------------
 ;; Narration: names are looked up when the line is written.
 
@@ -174,9 +212,35 @@
 (defmethod n/describe :item/given [{:keys [actor data]} names]
   (str (n/who names actor) " gives " (the names (:item data)) " to " (n/who names (:to data)) "."))
 
+(defn- work-opener
+  "\"Hale finishes dusting the china cabinet.\", or \"leaves off\" when they stopped early."
+  [worker-name doing stopped-early?]
+  (str worker-name (if stopped-early? " leaves off " " finishes ") doing "."))
+
+(defmethod n/describe :item/work-begun [{:keys [actor data]} names]
+  (str (n/who names actor) " starts " (:doing data) " (" (:id data) ", on " (str/join ", " (:items data))
+       ", until " (n/at names (:due data)) ")."))
+
+(defmethod n/describe :item/work-done [{:keys [actor data]} names]
+  (let [{:keys [doing stopped-early? summary changes]} data
+        opener (work-opener (n/who names actor) doing stopped-early?)]
+    (str opener
+         (when (and summary (not= summary opener)) (str " " summary))
+         (when (seq changes)
+           (str " (" (str/join "; " (for [{:keys [item to]} changes] (str (get names [:item item] item) ": " to)))
+                ").")))))
+
+(defmethod n/describe :item/work-ended [{:keys [actor data]} names]
+  (if (= :retired (:reason data))
+    (str (n/who names actor) "'s work (" (:doing data) ", " (:job data) ") is dropped.")
+    (str (n/who names actor) " leaves off " (:doing data) " before getting anywhere.")))
+
+(defmethod n/describe :item/judge-failed [{:keys [data]} _]
+  (str "The judge's answer for " (:job data) " was not used: " (:reason data)))
+
 ;; ---------------------------------------------------------------------------
-;; Actions: free, for every role but the GM. `look` changes nothing: it
-;; only replies.
+;; Actions, for every role but the GM: all free but `work-on`. `look`
+;; changes nothing: it only replies.
 
 (defn- listing
   "\"china-cabinet (China cabinet), piano (Piano)\", or `none`."
@@ -243,6 +307,35 @@
       (seq lying) (assoc :items (mapv #(look-item world %) lying))
       (seq people) (assoc :people (mapv #(look-person world %) people)))))
 
+(defn- work-reason
+  "Why `actor` can't work on the item `id`, or nil: it must lie here or be
+  carried by them."
+  [world actor id]
+  (let [it (item world id)
+        holder (:holder it)]
+    (cond
+      (= actor holder) nil
+      (and holder (space/together? world actor holder)) (str (:name (w/agent world holder)) " is holding the " (:name it))
+      (or (nil? it) holder (not= (:place it) (space/location-of world actor)))
+      (str id " is neither here nor carried by you; " (here-list world actor) "; " (carried-list world actor)))))
+
+(defn- work-on-reason [world actor {ids :items}]
+  (cond (nil? (:clock world)) "there is no game time to work in"
+        (nil? (space/location-of world actor)) "you can't work on things while travelling"
+        :else (some #(work-reason world actor %) (distinct ids))))
+
+(defn- work-on-events
+  "The job (seen by the GM) and the occupation that carries its id (seen by
+  everyone here). Job ids come from the world's event count, so they are
+  deterministic."
+  [world actor {ids :items :keys [doing hours]}]
+  (let [id (str "job-" (inc (:seq world)))
+        due (+ (:round world) (clock/rounds-for (:clock world) (* 60 (or hours default-work-hours))))]
+    [{:type :item/work-begun :visible-to :gm
+      :data {:id id :actor actor :items (vec (distinct ids)) :doing doing
+             :place (space/location-of world actor) :started (:round world) :due due}}
+     (assoc-in (b/occupy world actor doing due) [:data :job] id)]))
+
 (defn actions []
   [{:name :look
     :kind :free
@@ -277,7 +370,22 @@
     :args [:map [:item :string] [:to :string]]
     :valid? give-reason
     :effect (fn [world actor {id :item to :to}]
-              [{:type :item/given :data {:item id :to to} :visible-to (space/here world actor)}])}])
+              [{:type :item/given :data {:item id :to to} :visible-to (space/here world actor)}])}
+
+   {:name :work-on
+    :kind :final
+    :doc (str "Spend time working on things here or that you carry (item ids, at most " max-work-items "). "
+              "doing is a short phrase that reads after \"is\", e.g. \"dusting the shelves\". "
+              "hours is how long you'll spend (half an hour to " max-work-hours ", default half an hour); "
+              "if the job needs longer, only part of it gets done. "
+              "You get no turns until it's over, and the results show when you finish.")
+    :args [:map
+           [:items [:vector {:min 1 :max max-work-items} :string]]
+           [:doing [:string {:min 3 :max 120}]]
+           [:hours {:optional true} [:double {:min 0.5 :max max-work-hours}]]]
+    :available? (fn [world _] (some? (:clock world)))
+    :valid? work-on-reason
+    :effect work-on-events}])
 
 ;; ---------------------------------------------------------------------------
 ;; Views
@@ -305,3 +413,184 @@
   "Every item, for the GM."
   [world]
   (vec (all world)))
+
+;; ---------------------------------------------------------------------------
+;; Finishing work. The engine takes the jobs that end as each round starts,
+;; one after another: for each it asks the judge (the request is built here)
+;; about the items still in reach, checks the answer, and emits the result.
+
+(defn- minutes-of [world rounds]
+  (* (max 0 rounds) (get-in world [:clock :minutes-per-round])))
+
+(defn- job-outcome
+  "How `job` stands as the round starts, or nil while it's still going on."
+  [world {:keys [id actor started due]}]
+  (let [round (:round world)]
+    (cond
+      (not (w/active? world actor)) {:outcome :dropped :minutes 0}
+      (not= id (:job (w/busy world actor)))
+      {:outcome :stopped :minutes (minutes-of world (- round 1 started)) :stopped-early? true}
+      (<= due round) {:outcome :finished :minutes (minutes-of world (- due started)) :stopped-early? false})))
+
+(defn ending-jobs
+  "The jobs that end as this round starts, in order of :due then id, each
+  {:job job :outcome o :minutes m :stopped-early? bool :luck 1-100}:
+    :dropped   the worker has been retired
+    :stopped   the worker's occupation is no longer this job (they stopped
+               after being interrupted, or something replaced it): judged on
+               the rounds before this one
+    :finished  :due has come: judged on the whole time
+  Call it on the world before occupations are released, so the worker of a
+  job that is due still holds it."
+  [world]
+  (vec (for [job (jobs world)
+             :let [o (job-outcome world job)]
+             :when o]
+         (assoc o :job job :luck (inc (rng/roll world [:judge (:id job)] 100))))))
+
+(defn in-reach
+  "The job's items still to hand: lying at the job's place, or carried by
+  the worker."
+  [world {:keys [items place actor]}]
+  (keep #(let [it (item world %)]
+           (when (or (= actor (:holder it)) (and place (= place (:place it)))) it))
+        items))
+
+(defn- audience
+  "The people at the job's place, and the worker wherever they are."
+  [world {:keys [actor place]}]
+  (conj (space/present world place) actor))
+
+(defn work-ended
+  "Event: `job` ends with nothing done. `reason` is :retired (the GM sees
+  it), :nothing-in-reach or :no-time (the worker and the people at the
+  place see it)."
+  [world job reason]
+  {:type :item/work-ended :actor (:actor job)
+   :visible-to (if (= :retired reason) :gm (audience world job))
+   :data {:job (:id job) :place (:place job) :doing (:doing job) :reason reason}})
+
+(defn neutral-summary
+  "\"Hale finishes dusting the china cabinet.\": the summary when the judge
+  gives none."
+  [world {:keys [actor doing]} stopped-early?]
+  (work-opener (:name (w/agent world actor)) doing stopped-early?))
+
+(defn work-done
+  "Event: the result of `job`, seen by the worker and the people at the
+  place. `verdict` is the judge's checked answer, {:summary :changes}, or
+  nil for no changes and a neutral summary."
+  [world job {:keys [minutes stopped-early? luck]} verdict]
+  {:type :item/work-done :actor (:actor job) :visible-to (audience world job)
+   :data {:job (:id job) :actor (:actor job) :place (:place job) :doing (:doing job)
+          :minutes minutes :stopped-early? stopped-early? :luck luck
+          :summary (or (:summary verdict) (neutral-summary world job stopped-early?))
+          :changes (vec (:changes verdict))}})
+
+(defn judge-failed
+  "Event, for the operator only: why the judge's answer about `job` wasn't used."
+  [job reason]
+  {:type :item/judge-failed :visible-to :system :data {:job (:id job) :reason reason}})
+
+;; ---------------------------------------------------------------------------
+;; The judge: what the prompt holds, its one tool, and the checks on its answer
+
+(def ^:private judge-schema
+  [:map
+   [:changes {:optional true} [:vector [:map [:item :string] [:condition [:string {:min 1 :max max-condition}]]]]]
+   [:summary [:string {:min 1 :max max-summary}]]])
+
+(def ^:private judge-tool
+  {:type "function"
+   :function {:name "judge"
+              :description (str "Give your judgement: the new condition of each item the work changed "
+                                "(its id, and a phrase of at most " max-condition " characters), and a summary "
+                                "of at most " max-summary " characters.")
+              :parameters (mjs/transform judge-schema)}})
+
+(def judge-instructions
+  (str "You judge the results of work in a simulation. Someone has spent time working on some things. "
+       "Decide what that much work, by this person, realistically did to these things, and answer by calling the `judge` tool. "
+       "The time may be too short for the whole job: then only part of it is done.
+
+- Change only conditions, each a short phrase of at most " max-condition " characters saying what state the thing is in now.
+- Leave out any item the work left unchanged.
+- An item's nature can't change: work can't turn a vase into gold. If the task is impossible or absurd, change nothing and say so in the summary.
+- Luck is a roll from 1 to 100, and 50 is ordinary: low luck means mishaps (a slip, a breakage), high luck means it went unusually well.
+- The summary is one or two sentences, past tense, third person, for the people present, at most " max-summary " characters."))
+
+(def ^:private pretty (json/object-mapper {:pretty true}))
+
+(defn judge-request
+  "The judge's request for `job`: {:messages :tools}. It holds only the
+  scenario's :judge-brief (under :items), the time, the worker's name and
+  persona, the place, what they were doing, the minutes worked and whether
+  they stopped early, the luck roll, and each item in reach (`reach`) with
+  its id, name, description and condition."
+  [scenario world job {:keys [minutes stopped-early? luck]} reach]
+  (let [worker (w/agent world (:actor job))
+        brief (when-let [f (get-in scenario [:items :judge-brief])] (f world))]
+    {:tools [judge-tool]
+     :messages
+     [{:role "system"
+       :content (str judge-instructions (when-not (str/blank? brief) (str "\n\n## The setting\n" brief)))}
+      {:role "user"
+       :content (str "# The work\n\n"
+                     "- Time: " (clock/label (:clock world) (:round world)) "\n"
+                     "- Worker: " (:name worker) (when-not (str/blank? (:persona worker)) (str ". " (:persona worker))) "\n"
+                     "- Place: " (:name (space/location world (:place job)) (:place job)) "\n"
+                     "- Doing: " (:doing job) "\n"
+                     "- Time worked: " minutes " minutes" (if stopped-early? "; they stopped early" ", as planned") "\n"
+                     "- Luck: " luck "\n\n"
+                     "## The things worked on\n```json\n"
+                     (json/write-value-as-string (mapv #(select-keys % [:id :name :desc :condition]) reach) pretty)
+                     "\n```\n\nCall `judge` now.")}]}))
+
+(defn- verdict
+  "The judge's tool arguments, checked: {:summary :changes [{:item :from :to}]}
+  or {:error reason}. Only items in `reach` may change, and only their
+  condition; other keys are dropped, and unchanged conditions left out."
+  [arguments reach]
+  (let [{:keys [args error]} (a/decode-args {:args judge-schema} arguments)
+        by-id (into {} (map (juxt :id identity)) reach)
+        strays (remove by-id (map :item (:changes args)))]
+    (cond
+      error {:error error}
+      (seq strays) {:error (str "you may change only these items: " (str/join ", " (keys by-id))
+                                "; not " (str/join ", " (distinct strays)))}
+      :else {:summary (:summary args)
+             :changes (vec (for [{:keys [item condition]} (:changes args)
+                                 :let [from (:condition (by-id item))]
+                                 :when (not= from condition)]
+                             {:item item :from from :to condition}))})))
+
+(defn judgement
+  "Read a judge response: {:verdict v :replies [...]} or {:error reason
+  :replies [...]}, where :replies are the messages to send back (a reply to
+  each tool call, or a reminder if it made none). Only the first `judge`
+  call counts."
+  [response reach]
+  (let [calls (:tool-calls response)
+        counted (first (filter #(= "judge" (:name %)) calls))
+        {:keys [error] :as v} (if counted
+                                (verdict (:arguments counted) reach)
+                                {:error "no judge call"})
+        reply (fn [{:keys [id] :as call}]
+                {:role "tool" :tool_call_id id
+                 :content (cond (not= "judge" (:name call)) (str "error: there is no tool called " (:name call) "; call judge")
+                                (not= call counted) "ignored: only your first judge call counts"
+                                error (str "error: " error ". Call judge again with a corrected answer.")
+                                :else "ok")})]
+    (cond-> {:replies (if (seq calls)
+                        (mapv reply calls)
+                        [{:role "user" :content "You must answer by calling the judge tool."}])}
+      error (assoc :error error)
+      (not error) (assoc :verdict v))))
+
+(defn mock-judge
+  "The judge in mock runs, a mock policy for calls with role :judge: every
+  item in reach is \"just seen to\", and the summary only says the work is over."
+  [{:keys [world job items stopped-early?]}]
+  {:tool :judge
+   :args {:changes (mapv (fn [it] {:item (:id it) :condition "just seen to"}) items)
+          :summary (neutral-summary world job stopped-early?)}})

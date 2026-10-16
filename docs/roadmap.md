@@ -241,6 +241,12 @@ id). Promote to the engine only if several scenarios need the same thing.
 `load-run` replays the whole log. Add periodic snapshots (`snapshot-<round>.edn`), loading from the
 latest snapshot plus subsequent events. Only needed once logs get long.
 
+A snapshot must be the whole world value plus the id of the last event it includes, not the
+world-file form of `map.edn`. `map.edn` only knows the starting agents. It names item holders by
+name, so an agent the GM spawned (who may carry items), or a name that got a `-2` id, doesn't
+round-trip through it. `map.edn` stays an output for reading; nothing resumes from it (the user
+confirmed on 2026-10-16 that runs are never started fresh from exported world data for now).
+
 ---
 
 ## C. Known issues and small fixes

@@ -10,7 +10,8 @@
     1. :round/started
     2. travellers who are due arrive, and occupied agents who are due are
        freed; the scenario's :hibernate puts agents out of play or wakes
-       them; run act-bridges the operator approved
+       them; work on items that ends now is judged and its results applied
+       (manor.items); run act-bridges the operator approved
     3. run world systems (ticks, possibly fed by bridges)
     4. for each schedule group: activate its agents, resolve their actions
     5. call the GM if anything triggers it
@@ -41,6 +42,7 @@
    :llm :openrouter                 ; :openrouter or :mock
    :model "deepseek/deepseek-v4.1-flash"
    :gm-model nil                    ; defaults to :model
+   :judge-model nil                 ; the judge of work on items (manor.items); defaults to :model
    :gm :llm                         ; who fills the GM seat: :llm, :human or :off
    :reasoning {:effort "low"}
    :max-tokens 4000                 ; includes reasoning tokens
@@ -80,10 +82,19 @@
 ;; ---------------------------------------------------------------------------
 ;; Run plumbing
 
+(defn- mock-llm
+  "The mock LLM: the scenario's :mock-policy, except that judge calls (role
+  :judge) go to its :mock-judge, or else manor.items/mock-judge, so mock
+  policies needn't know about the judge."
+  [scenario]
+  (let [policy (or (:mock-policy scenario) (constantly nil))
+        judge (or (:mock-judge scenario) items/mock-judge)]
+    (llm/mock (fn [ctx] (if (= :judge (:role ctx)) (judge ctx) (policy ctx))))))
+
 (defn- make-llm [scenario opts]
   (or (:llm-impl opts)
       (case (:llm opts)
-        :mock (llm/mock (:mock-policy scenario))
+        :mock (mock-llm scenario)
         :openrouter (llm/openrouter))))
 
 (defn- make-run [id dir scenario opts]
@@ -479,6 +490,50 @@
           (emit! run [{:type :action/rejected :actor agent-id :visible-to #{agent-id}
                        :data {:action (name (:name action)) :reason reason}}]))))))
 
+(defn- ask-judge
+  "Ask the judge what `job` did to the items in `reach`: {:summary :changes},
+  or {:failure reason}. A bad answer is sent back with the reason and asked
+  once more. Each call is recorded in llm.edn as agent \"judge\", and its
+  usage counts towards the run's cost."
+  [run world job work reach]
+  (let [{:keys [scenario opts]} run
+        {:keys [messages tools]} (items/judge-request scenario world job work reach)
+        model (or (:judge-model opts) (:model opts))]
+    (try
+      (loop [messages messages, attempt 0]
+        (let [request {:model model :messages messages :tools tools
+                       :max-tokens (:max-tokens opts) :reasoning (:reasoning opts)}
+              response (llm/complete (:llm run)
+                                     (assoc request :ctx (assoc (select-keys work [:minutes :stopped-early? :luck])
+                                                                :role :judge :step attempt :world world
+                                                                :job job :items reach)))
+              _ (record-usage! run "judge" request response)
+              {:keys [verdict error replies]} (items/judgement response reach)]
+          (record-call! run "judge" request response replies)
+          (cond verdict verdict
+                (zero? attempt) (recur (into (conj messages (:message response)) replies) 1)
+                :else {:failure (str "a second bad answer: " error)})))
+      (catch Throwable t
+        {:failure (str "the judge call failed: " (ex-message t))}))))
+
+(defn- finish-job!
+  "Apply the end of one job (see manor.items/ending-jobs): dropped, ended
+  with nothing in reach or no time worked, or judged. The model call is made
+  outside the world lock; the result is built from the world as it is then,
+  so a later job's judge sees this one's result."
+  [run {:keys [job outcome minutes] :as work}]
+  (let [world @(:world run)
+        reach (items/in-reach world job)]
+    (cond
+      (= :dropped outcome) (emit! run [(items/work-ended world job :retired)])
+      (empty? reach) (emit! run [(items/work-ended world job :nothing-in-reach)])
+      (zero? minutes) (emit! run [(items/work-ended world job :no-time)])
+      :else
+      (let [{:keys [failure] :as verdict} (ask-judge run world job work reach)]
+        (locking (:world run)
+          (emit! run (cond-> [(items/work-done @(:world run) job work (when-not failure verdict))]
+                       failure (conj (items/judge-failed job failure)))))))))
+
 (defn- run-approved-bridges! [run]
   (doseq [[req-id {:keys [bridge bridge-args action args requester status]}] (:pending-bridges @(:world run))
           :when (= status :approved)]
@@ -539,11 +594,15 @@
   [run]
   (let [round (inc (:round @(:world run)))]
     (emit! run [{:type :round/started :data {:round round} :visible-to :all}])
-    (locking (:world run)
-      (emit! run (space/arrivals @(:world run)))
-      (emit! run (b/releases @(:world run)))
-      (when-let [hibernate (:hibernate (:scenario run))]
-        (emit! run (b/hibernations hibernate @(:world run)))))
+    (doseq [work (locking (:world run)
+                   ;; decided before releases, so a worker whose job is due still holds it
+                   (let [ending (items/ending-jobs @(:world run))]
+                     (emit! run (space/arrivals @(:world run)))
+                     (emit! run (b/releases @(:world run)))
+                     (when-let [hibernate (:hibernate (:scenario run))]
+                       (emit! run (b/hibernations hibernate @(:world run))))
+                     ending))]
+      (finish-job! run work))
     (run-approved-bridges! run)
     (run-systems! run)
     (doseq [group (schedule run @(:world run))]

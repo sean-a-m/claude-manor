@@ -52,7 +52,7 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :bridges       {...}                    ; optional, real-world calls
    :mcp-servers   {...}                    ; optional, MCP servers that bridges call
    :systems       [...]                    ; optional, per-round world processes
-   :items         {}                       ; optional, turns on items (see Items)
+   :items         {:judge-brief (fn [world] "...")}   ; optional, turns on items (see Items)
    :hibernate     (fn [world agent-id] {:activity .. :location ..} or nil)  ; optional, see Hibernation
    :observe       (fn [world agent-id] {...})   ; strongly recommended
    :gm-view       (fn [world] {...})       ; optional, what the GM sees
@@ -63,6 +63,7 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :exclude-actions #{:move}               ; built-in actions to leave out
    :defaults      {:model "..." ...}       ; overrides engine default options for this scenario
    :mock-policy   (fn [ctx] {:tool :dig :args {}})
+   :mock-judge    (fn [ctx] {:tool :judge :args {..}})  ; optional, the judge in mock runs (see Items)
    :offline-stubs {:bridge/name (fn [args ctx] result)}})
 ```
 
@@ -211,6 +212,7 @@ it isn't an event, so anything that must be remembered or replayed belongs in `:
 | `pray` | all | free | a private, diegetic way to reach the GM: its `:gm/requested` event fills the GM's inbox and triggers the GM this round |
 | `move` | all | final | follow a route (see Locations); only offered when the agent has a location |
 | `look`, `take`, `put-down`, `give` | all | free | only when the scenario has `:items` (see Items) |
+| `work-on` | all | final | only when the scenario has `:items` and the world a clock (see Items) |
 | `spawn-agent` | gm | final | spawn a `:spawnable?` role, optional location; respects `:limits` |
 | `retire-agent` | gm | final | remove an agent |
 | `announce` | gm | final | message to everyone or a list of ids |
@@ -274,7 +276,7 @@ Event shape (returned by effects, ticks and hooks; the engine stamps `:id` and `
   Reducers must be pure and depend only on the world and the event: no clock, no rng, no I/O.
   Event types without a reducer are informational (e.g. speech).
 - Engine-owned world keys: `:round :seq :agents :space :gm :pending-bridges :pause-requests :usage`,
-  `:clock` when the scenario has one, and `:items` once a world has items.
+  `:clock` when the scenario has one, and `:items` (and `:item-jobs`) once a world has items.
   Scenario reducers should only touch `:state`, unless deliberately using engine semantics via
   engine events.
 - Multimethods are global. Namespace your event types (`:treasure/...`) so scenarios can't collide.
@@ -308,8 +310,9 @@ Rules: include only what this agent may know: its own holdings, public facts, an
 location. This is the fog of war. Never return another agent's private data. Keep it compact; it
 is sent on every model call.
 
-`:gm-view` defaults to `{:state .. :agents [..] :space .. :items [..]}` (the GM is omniscient;
-`:space` and `:items` only when the world has them). Override it to
+`:gm-view` defaults to `{:state .. :agents [..] :space .. :items [..] :item-jobs [..]}` (the GM is
+omniscient; `:space` and `:items` only when the world has them, `:item-jobs` while work is going on).
+Override it to
 trim tokens. The default GM view leaves out `:setting` and `:roles :gm` in `:state` (and `:roles`
 if nothing else is in it), which are brief material: put them in the GM's `:brief`. Other roles'
 entries in `:roles` stay.
@@ -432,7 +435,8 @@ id. Objects people can pick up and carry are items (next section).
 
 Items are things with a description and a condition that lie in a place or are carried by
 someone: a piano, a pocket watch, an umbrella someone bought. They need locations. A scenario
-turns them on with the key `:items` (a map; `{}` for now). Scenarios without it are unchanged.
+turns them on with the key `:items`, a map, possibly empty; its one key is `:judge-brief` (see
+Work and the judge). Scenarios without it are unchanged.
 
 An item:
 
@@ -463,6 +467,7 @@ carried item goes wherever its holder goes, with no events of its own.
   | `(items/held-by world agent-id)` | what an agent carries |
   | `(items/items-where world pred)` | items matching a predicate |
   | `(items/enabled? world)` | does the world have items? |
+  | `(items/jobs world)`, `(items/job world id)` | work in progress, by `:due` then id; one job |
 
 - **New items** (a purchase, say): `(items/added world fields visible-to)` is an `:item/added`
   event for an item with a fresh id from its name (`umbrella`, `umbrella-2`); `fields` are the
@@ -503,8 +508,67 @@ carried item goes wherever its holder goes, with no events of its own.
   would notice on looking round in `:detail`; in a world file it goes last, after `:desc`. Things
   people could use or carry belong in items, not in either text.
 - Say in a brief that things are under `items` in the view, that `look` shows them in detail
-  with what people here carry, and that `look`, `take`, `put-down` and `give` don't end the turn
+  with what people here carry, that `look`, `take`, `put-down` and `give` don't end the turn, and
+  that `work-on` spends time on things here or carried, with results when it's over
   (Claudeworth's `rules` does).
+
+#### Work and the judge
+
+`work-on {items doing hours}` (turn-ending, every role but the GM, offered only when the world has
+a clock) spends time doing something to things:
+
+- `items`: 1-6 item ids, each lying where you are or carried by you (fixed items are fine);
+  duplicates are dropped. `doing`: 3-120 characters, reading after "is" ("dusting the china
+  cabinet"). `hours`: optional, 0.5 to 4, default 0.5; rounds as `clock/rounds-for` gives them,
+  at least one.
+- Its effect is a job, `:item/work-begun` (visible to the GM; data: the job), and an occupation
+  (`b/occupy`, seen by the room: "Hale is dusting the china cabinet until 15:30") whose `:busy`
+  carries the job id as `:job`. The job table is `(:item-jobs world)`, keyed by id (`"job-<seq>"`):
+  `{:id :actor :items [..] :doing :place :started round :due round}`. Read it with `items/jobs`.
+- **Nothing changes until the work is over.** At the start of each round, after arrivals,
+  releases and hibernation and before approved bridges and systems, the engine takes the jobs that
+  end, in order of `:due` then id (decided on the world as the round starts, before releases):
+
+  | Situation | What happens |
+  |---|---|
+  | the worker has been retired | dropped: `:item/work-ended`, visible to the GM, no call |
+  | the worker's `:busy :job` is no longer this job (they stopped after `rouse`, or something replaced the occupation) | stopped early; minutes worked = (this round − 1 − started) × minutes per round |
+  | `:due` has come | finished; minutes worked = (due − started) × minutes per round |
+  | otherwise | still going on |
+
+  `carry-on` keeps the occupation and its job, so the work runs to its end.
+- For a stopped or finished job, the items **in reach** are the job's items still lying at the
+  job's place, or carried by the worker. If none are, or no time was worked, the job ends with
+  `:item/work-ended`, seen by the worker and the people at the place ("Hale leaves off dusting the
+  china cabinet before getting anywhere."), and no call. Otherwise the engine asks **the judge**
+  and emits `:item/work-done`, seen by the worker and the people at the place:
+  `{:job :actor :place :doing :minutes :stopped-early? :luck :summary :changes [{:item :from :to}]}`.
+  Its reducer sets each `:to` condition and removes the job. Jobs are applied one after another,
+  so a later job's judge sees an earlier one's result, and on the same item the last applied wins.
+  It reads "Hale finishes dusting the china cabinet. The glass is clean. (China cabinet: clean,
+  one figure chipped)." ("leaves off" when stopped early; the summary is left out when it only
+  repeats the opening).
+- **The judge** is a narrow model call, not the GM and not a bridge; characters never hear of it.
+  `manor.items/judge-request` builds it from only: the scenario's `:judge-brief` (`(fn [world]
+  text)` under `:items`, optional; Claudeworth gives its setting paragraph), the time, the
+  worker's name and persona, the place's name, what they were doing, the minutes worked and
+  whether they stopped early, a luck roll (1-100, 50 ordinary, from `manor.rng` with the key
+  `[:judge job-id]`), and each item in reach with its id, name, description and condition. It has
+  one required tool, `judge {changes: [{item, condition}], summary}`. The engine sends it through
+  the run's LLM with the model `:judge-model` (a run option; nil means `:model`) and the run's
+  `:reasoning` and `:max-tokens`, without holding the world lock. Each call is in `llm.edn` as
+  agent `"judge"` and its usage is an `:llm/usage` event, so it counts towards `:max-cost`;
+  replay uses the recorded events and never calls it.
+- **Checks on the answer:** only items in reach; conditions 1-80 characters; a summary of 1-300
+  characters; other keys (a `desc`, a `name`) are dropped, so only conditions ever change, and
+  unchanged conditions are left out. A bad answer is sent back with the reason and asked once
+  more. A second bad answer, or an exception, gives `:item/work-done` with no changes and a
+  neutral summary ("Hale finishes dusting the china cabinet."), plus an `:item/judge-failed`
+  event (`:visible-to :system`) with the reason. The run isn't paused.
+- **Mock runs:** a call with role `:judge` goes to the scenario's `:mock-judge` if it has one,
+  else to `items/mock-judge` (every item in reach becomes "just seen to"; the summary only says
+  the work is over), so `:mock-policy` never sees the judge. Its context has `:world :job :items`
+  (in reach) `:minutes :stopped-early? :luck :step`, and it returns `{:tool :judge :args {..}}`.
 
 Fungible stores (provisions, coal) are better kept as counters in your `:state`.
 
@@ -581,6 +645,8 @@ and are freed at the start of that round. This makes nights and long activities 
 ```
 
 - `(b/occupy world id activity until)` is an `:agent/occupied` event, visible to everyone present.
+  Its `:busy` keeps `:activity :until :hibernating? :job` from the event data (`work-on` adds the
+  `:job`; see Items).
   Write `activity` to read after "is": "asleep", "reading in the library". The agent's next turn
   is in round `until`.
 - `(b/free world id by)` frees someone early (e.g. a `rouse` action). `by` is named in the
@@ -658,6 +724,8 @@ Lets the scenario run for free with `{:llm :mock}`. It's essential for testing.
 - `step` is the model-call index within this turn. `used` is the tool names already called this
   turn: after a free or query call, return a turn-ending action next.
 - For the GM (`role :gm`) return `{:tool :done}` unless testing GM behaviour.
+- The judge of work on items (`role :judge`) never reaches the policy: the engine sends it to the
+  scenario's `:mock-judge`, or `manor.items/mock-judge` (see Items).
 - Only choose valid actions. The scenario smoke test fails on forfeited turns.
 
 ## Checklist for a new scenario

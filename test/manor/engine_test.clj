@@ -452,7 +452,7 @@
       (let [reminder (last-message (earl 2))]
         (is (str/includes? reminder "free tools, queries and rejected calls don't end it"))
         (is (str/includes? reminder "one of your 10 calls this turn (2 used)"))
-        (is (str/includes? reminder "turn-ending action: `say`, `commission`, `travel`, `buy`, `pass`, `sleep`, `spend-time` or `whisper`."))
+        (is (str/includes? reminder "turn-ending action: `say`, `commission`, `travel`, `buy`, `pass`, `work-on`, `sleep`, `spend-time` or `whisper`."))
         (is (str/includes? reminder "`pass` is a fine way to wait"))
         (is (not (str/includes? reminder "`walk`"))))
       (is (= 1 (count (filter #(and (= "user" (:role %)) (str/includes? (:content %) "turn isn't over"))

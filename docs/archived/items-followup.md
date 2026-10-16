@@ -1,5 +1,44 @@
 # Items follow-up: test the judge for real, and curb constant looking
 
+**Status: done.** Nellie the housemaid was added (`:housemaid? true`, off by default; a maid's
+room off the kitchen and a `:housemaid` role in the world file). Hale's dusting and duster-buy
+were removed; the countess now buys a duster on her way home and gives it to Nellie. The `look`
+wording changed in the tool doc, the rules and the authoring guide.
+
+The one authorized real run (`old-test-runs/items-maid-real`, 10 rounds from 09:00, `:test? true`,
+`:housemaid? true`, `:max-cost 0.20`) cost **$0.131405** over **169 calls**, capped by
+`:max-rounds` rather than cost. **0 forfeits, 3 `error:` replies, 1 `rejected:` reply.** It is the
+first real exercise of `work-on` and the judge: **6 jobs, 6 judge calls ($0.0034)**. Every judge
+answer kept to conditions and the limits (conditions well under 80 characters; summaries
+137–183), gave partial work for short jobs, mishaps on low luck (a chipped Meissen figure at luck
+19; abraded varnish at luck 2) and refused the impossible (left the piano out: dusting cannot
+tune it). **Looking was not reduced:** 54 `look` calls (32% of calls, against 33% in the items
+run); the thoughts show agents looking to *search for people*, not only to inspect conditions.
+Per-call judge latency was not captured (bad instrumentation); the judge adds one model call at
+the start of the round a job ends in.
+
+Key judge calls (from the transcript; the run is kept in `old-test-runs/items-maid-real`):
+
+| Round | Worker | Doing | Luck | New condition | Cost |
+|---|---|---|---|---|---|
+| 3 | Nellie | blacking and lighting the range (60 min) | 33 | "blacked and lit, though the fire caught slowly and there are smudges" | $0.000259 |
+| 4 | Lady Claudeworth | polishing the candlesticks (30 min) | 77 | "brightly polished, lustre fully restored" | $0.000333 |
+| 5 | Nellie | dusting and polishing the drawing room (60 min) | 19 | "dusted; a Meissen figure chipped; glass streaked, not clear" | $0.001520 |
+| 5 | Lady Claudeworth | cleaning the portrait (30 min) | 2 | "partly cleaned; varnish unevenly stripped, one patch of paint abraded" | $0.000427 |
+| 6 | Nellie | the cabinet glass and figures (30 min) | 70 | "glass cleaned clear; Meissen figures dusted; chipped shepherdess unharmed" | $0.000562 |
+| 7 | Nellie | the range's soot and ironwork (30 min) | 40 | "soot smudges wiped off and ironwork polished; fire lit and burning" | $0.000331 |
+
+The character errors were small and self-corrected: two "Pugh draws the plans here; ask him"
+(an agent tried to draw plans rather than ask) and one over-long `spend-time` `activity`; one
+`rejected:` with "no active participant with id earl".
+
+The run is also the Task B measurement: `look` per turn was about 1.1 (54 across ~50 agent
+turns), per move 0.44–1.43. Options 2 (conditions in the view), 3 ("nothing has changed" replies)
+and 4 (walk shows what `look` would) were declined or deferred by the user, so nothing further was
+built.
+
+---
+
 A brief for the agent who continues the items work. Read `AGENTS.md` first (invariants, run
 directories, cost rules: real runs are short and capped at `:max-cost` 0.20). Then read the
 completed brief, [archived/items-brief.md](archived/items-brief.md), for how items work and how

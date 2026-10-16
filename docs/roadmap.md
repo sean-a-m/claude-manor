@@ -238,11 +238,18 @@ Follow-ups, by need:
 - Judge `error:` replies currently count in the transcript's overall error total; distinguish
   them from character errors.
 - The panel's per-agent usage table has no judge row, although judge cost is in the run total.
-- Judging at round start adds latency before agents can act.
+- Judging at round start adds latency before agents can act (not yet measured per call).
+- `look` is still about a third of all model calls: the 2026-10 wording change did not reduce it.
 
-The completed brief is [Items](archived/items-brief.md). **Next:**
-[items-followup.md](items-followup.md): a housemaid so the judge is tested on a real model, and
-cutting down constant `look` calls (a third of all calls in the first real run).
+The completed briefs are [Items](archived/items-brief.md) and its follow-up
+[items-followup.md](archived/items-followup.md). The follow-up added Nellie the housemaid to
+Claudeworth (run option `:housemaid? true`, off by default) and rewrote the `look` guidance. Its
+real run (10 rounds, $0.131, 169 calls) put `work-on` and the judge in front of a real model for
+the first time: six jobs, sensible partial work and low-luck mishaps, $0.0034 of judge calls, no
+forfeits. The wording alone did **not** cut looking: 54 of 169 calls (32%), against 33% before.
+Agents look to search for people, not only to inspect conditions. The untried, engine-changing
+options are a "nothing has changed" reply to a repeat `look` and a `walk` reply that shows what
+`look` would; the user has deferred both.
 
 ### B8. Control panel improvements
 

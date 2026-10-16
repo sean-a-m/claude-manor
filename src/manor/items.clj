@@ -339,7 +339,10 @@
 (defn actions []
   [{:name :look
     :kind :free
-    :doc "Look around: this place, the items here in detail and what the people here carry."
+    :doc (str "Examine this place and its things closely: the room's detail, and the descriptions, conditions and owners of "
+              "the items here and what the people here carry. "
+              "Use it when you need to inspect the state of something or see it in detail; "
+              "your view already lists who is here and what items are here, so don't look routinely on arrival.")
     :valid? (fn [world actor _]
               (when-not (space/location-of world actor) "you can't look around while travelling"))
     :reply (fn [world actor _] (look world actor))}

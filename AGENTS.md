@@ -87,7 +87,8 @@ src/manor/
   transcript.clj readable run record: <run-dir>/transcript.md from events.edn and llm.edn
   scenarios/     village.clj (full example), treasure.clj (small example), quiz.clj (MCP/pi),
                  claudeworth.clj + building.clj (Claudeworth Manor: daily life, money, shop, plans,
-                 architect and construction)
+                 architect and construction; Nellie the housemaid when :housemaid? is true, whose
+                 work-on jobs exercise the judge)
 resources/worlds/ world files on the classpath; claudeworth.edn is Claudeworth's fresh world
 mcp-servers/pi/server.mjs  pi as an MCP server: send_message {session, message}; Node, no deps
 mcp-servers/architect/  the architect MCP server: babashka, stateless, reference/price/draft tools

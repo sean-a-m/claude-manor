@@ -116,7 +116,7 @@ edited copy, or `map.edn` exported from an earlier run).
          :persona "..."}
         {:name "Hale" :role :secretary :location "study" :bedroom "secretarys-room" :persona "..."}
         {:name "Pugh" :role :architect :location "architects-office" :bedroom "architects-lodgings"
-         :optional? true :persona "..."}]
+         :optional? :architect? :persona "..."}]
 
  :shop {"general-store" [{:item "provisions" :price 1 :desc "a week's groceries for the household"}
                          {:item "candles" :price 1}
@@ -604,3 +604,13 @@ Decisions for items (done):
     through its reducers. The accessors scan for now. Future indexes belong inside the module,
     maintained by pure reducers and rebuilt by replay; any database must be a derived read
     store, rebuilt from the event log, never the source of truth. Neither is needed yet.
+30. **The housemaid is optional and off by default.** Nellie (`:housemaid`), with a maid's room
+    off the kitchen, exists so `work-on` is somebody's job: `:housemaid? true` puts her in, and
+    without it runs, tests and costs are as they were. She has no household money. World-file
+    agents that may be left out carry `:optional?`, naming the run option that decides them
+    (`:architect?` for Mr Pugh, `:housemaid?` for Nellie); `:init` keeps each accordingly.
+31. **`look` is for close examination, not routine looking.** Conditions, descriptions and owners
+    come only from `look`; the view lists what is here by name. The rules and the tool doc say to
+    use it to inspect something, not on arrival. The housemaid run shows the wording alone does
+    not cut looking (54 of 169 calls), because agents also use it to search for people. A
+    "nothing has changed" reply and a `walk` reply that shows what `look` would are deferred.

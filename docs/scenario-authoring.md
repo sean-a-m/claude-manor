@@ -487,7 +487,9 @@ carried item goes wherever its holder goes, with no events of its own.
   - `look {}`: replies (see `:reply` under `:actions`) with the place, the items lying here in
     detail and the other people here with what they carry, and records nothing. Empty parts are
     left out, as are `:detail`, `:owner`, `:fixed?` and `:doing` when absent; agent owners show
-    as names. Refused while travelling.
+    as names. Refused while travelling. Conditions, descriptions and owners come **only** from
+    `look`: the view lists items here by name. Say in the brief that it is for examining
+    something closely, not a routine arrival action (Claudeworth's `rules` does).
 
     ```clojure
     {:place {:name "Drawing room" :detail "..."}
@@ -507,10 +509,15 @@ carried item goes wherever its holder goes, with no events of its own.
   never the view (which has `:id :name :desc`). Keep the `:desc` short and put what someone
   would notice on looking round in `:detail`; in a world file it goes last, after `:desc`. Things
   people could use or carry belong in items, not in either text.
-- Say in a brief that things are under `items` in the view, that `look` shows them in detail
-  with what people here carry, that `look`, `take`, `put-down` and `give` don't end the turn, and
-  that `work-on` spends time on things here or carried, with results when it's over
-  (Claudeworth's `rules` does).
+- Say in a brief that things are under `items` in the view and what you carry under `carrying`,
+  that `look` shows their descriptions, conditions and owners (and the room's `:detail`), so it
+  is for examining something closely rather than looking routinely on arrival, that `look`,
+  `take`, `put-down` and `give` don't end the turn, and that `work-on` spends time on things here
+  or carried, with results when it's over.
+- An agent you may leave out: mark the world-file agent `:optional?`, naming the run option that
+  decides it. Claudeworth reads these in `:init`: Mr Pugh (`:optional? :architect?`) is in unless
+  `:architect? false`, and Nellie the housemaid (`:optional? :housemaid?`) is in only when
+  `:housemaid? true`. Leave out too the items such an agent holds.
 
 #### Work and the judge
 
@@ -607,7 +614,7 @@ in `:init`:
   `"household"`, are kept). Each item is checked: its fields and lengths, a unique id, exactly one
   of `:place` (a location of the file) and `:holder` (an agent of the file). A scenario that leaves
   out one of the file's agents should leave out the items that agent holds (Claudeworth's
-  `:architect? false` does).
+  `:architect? false` and the housemaid do).
 - `:domain` groups locations into areas on the control panel's map (house, village, ...).
 - The file is a **template**: nothing writes to it. The engine saves a copy as
   `<run-dir>/world-start.edn`. Whenever the map changes, it writes the live map back in the same

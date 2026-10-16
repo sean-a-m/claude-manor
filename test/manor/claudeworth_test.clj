@@ -42,8 +42,8 @@
   [run id]
   (set (map :round (by id (of-type run :llm/usage)))))
 
-(def house #{"carriage-sweep" "entrance-hall" "drawing-room" "study" "dining-room" "kitchen" "staircase"
-             "gallery" "earls-bedroom" "countess-bedroom" "secretarys-room"})
+(def house #{"carriage-sweep" "entrance-hall" "drawing-room" "study" "dining-room" "kitchen" "maids-room"
+             "staircase" "gallery" "earls-bedroom" "countess-bedroom" "secretarys-room"})
 
 (deftest the-world
   (let [{:keys [world-file]} (wf/load-world "worlds/claudeworth.edn")
@@ -62,14 +62,19 @@
       (is (= #{"village-green" "general-store" "architects-office" "architects-lodgings"}
              (space/area world "architects-office")))
       (is (= 1 (space/distance world "study" "architects-office"))))
+    (testing "the housemaid is left out, and her room is in the house all the same"
+      (is (nil? (w/agent world "nellie")))
+      (is (not (contains? (get-in world [:state :bedrooms]) "nellie")))
+      (is (contains? (space/area world "kitchen") "maids-room")))
     (testing "everyone but Mr Pugh starts in their bedroom at 08:00"
       (is (= "earls-bedroom" (space/location-of world "lord-claudeworth")))
       (is (= "architects-office" (space/location-of world "pugh")))
       (is (= "Saturday 15 October 1904, 08:00" (:time (prompt/agent-view (:scenario run) world "hale")))))
     (testing "bad bedrooms and opening hours are named"
-      (let [ps (str/join "\n" (cw/problems (-> world-file
-                                                (assoc-in [:agents 0 :bedroom] "study")
-                                                (assoc-in [:locations 12 :hours] ["8am" "18:00"]))))]
+      (let [closed-store (fn [ls] (mapv #(if (= "general-store" (:id %)) (assoc % :hours ["8am" "18:00"]) %) ls))
+            ps (str/join "\n" (cw/problems (-> world-file
+                                               (assoc-in [:agents 0 :bedroom] "study")
+                                               (update :locations closed-store))))]
         (is (str/includes? ps "agent \"Lord Claudeworth\": :bedroom \"study\" is not a bedroom"))
         (is (str/includes? ps "location \"general-store\": :hours must be two times")))
       (let [ps (str/join "\n" (cw/problems (-> world-file (update :meta dissoc :setting) (update :roles dissoc :earl))))]
@@ -224,7 +229,7 @@
           (is (some #(and (= "library" (get-in % [:data :from])) (= "study" (get-in % [:data :to]))
                           (zero? (get-in % [:data :travel])) (= :gm (:visible-to %))) (of-type run :space/route-opened)))
           (is (some #(= "library" (:id %)) (:locations (edn/read-string (slurp (io/file (:dir run) "map.edn"))))))
-          (is (= 1797 (get-in world [:state :household :funds]))))
+          (is (= 1798 (get-in world [:state :household :funds]))))
         (rounds! run 34)
         (is (seq (moves-to run "lord-claudeworth" "library")))
         (is (empty? (of-type run :action/forfeited)))
@@ -370,37 +375,27 @@
       (is (empty? (of-type run :action/forfeited)))
       (is (not-any? #(re-find #"^(error:|rejected:)" (:content % "")) (mapcat :replies calls)))
       (is (= world (w/replay (store/read-events (:dir run))))))
-    (testing "Hale buys and carries a feather duster on his errand"
-      (let [bought (first (filter #(= "feather duster" (get-in % [:data :item]))
-                                (by "hale" (of-type run :claudeworth/bought))))]
+    (testing "the countess buys a feather duster on her way home, and keeps it while there is no maid"
+      (let [bought (first (by "lady-claudeworth" (of-type run :claudeworth/bought)))]
         (is (= {:item "feather duster" :kind :item :qty 1 :price 1 :location "general-store"}
                (:data bought)))
-        (is (= "12:30" (clock/short-label (:clock world) (:round bought) (:round bought))))
-        (is (= "hale" (:holder (items/item world "feather-duster"))))))
-    (testing "Hale dusts in the drawing room for 90 minutes; only the finish changes the cabinet"
-      (let [[begun] (by "hale" (of-type run :item/work-begun))
-            [done] (by "hale" (of-type run :item/work-done))
-            before (w/replay (take-while #(< (:round %) (:round done)) evs))]
-        (is (= {:items ["china-cabinet"] :doing "dusting the china cabinet" :place "drawing-room"
-                :started 13 :due 16}
-               (select-keys (:data begun) [:items :doing :place :started :due])))
-        (is (= 90 (get-in done [:data :minutes])))
-        (is (= "15:30" (clock/short-label (:clock world) (:round done) (:round done))))
-        (is (= "dusty, the glass smeared" (:condition (items/item before "china-cabinet"))))
-        (is (= "just seen to" (:condition (items/item world "china-cabinet"))))))
+        (is (= "16:30" (clock/short-label (:clock world) (:round bought) (:round bought))))
+        (is (= "lady-claudeworth" (:holder (items/item world "feather-duster"))))
+        (is (empty? (of-type run :item/given)))
+        (is (empty? (of-type run :item/work-begun)))))
+    (testing "the countess's look reply shows the drawing room and the dusty cabinet"
+      (let [[call] (filter #(some (fn [tc] (= "look" (get-in tc [:function :name])))
+                                  (get-in % [:response :tool_calls])) calls)
+            seen (json/read-value (:content (first (:replies call))) json/keyword-keys-object-mapper)]
+        (is (= "lady-claudeworth" (:agent call)))
+        (is (= "Drawing room" (get-in seen [:place :name])))
+        (is (= "dusty, the glass smeared" (:condition (first (filter #(= "china-cabinet" (:id %)) (:items seen))))))))
     (testing "the countess carries the candlesticks from the dining room to the drawing room"
       (is (= {:item "silver-candlesticks" :from-place "dining-room"}
              (:data (first (by "lady-claudeworth" (of-type run :item/taken))))))
       (is (= {:item "silver-candlesticks" :place "drawing-room"}
              (:data (first (by "lady-claudeworth" (of-type run :item/put-down))))))
       (is (= "drawing-room" (:place (items/item world "silver-candlesticks")))))
-    (testing "Hale's look reply shows the cabinet before he starts work"
-      (let [[call] (filter #(some (fn [tc] (= "look" (get-in tc [:function :name])))
-                                  (get-in % [:response :tool_calls])) calls)
-            seen (json/read-value (:content (first (:replies call))) json/keyword-keys-object-mapper)]
-        (is (= "hale" (:agent call)))
-        (is (= "Drawing room" (get-in seen [:place :name])))
-        (is (= "dusty, the glass smeared" (:condition (first (filter #(= "china-cabinet" (:id %)) (:items seen))))))))
     (testing "the earl visits Mr Pugh in office hours (rounds 3-20) and speaks to him"
       (is (some #(<= 3 (:round %) 20) (moves-to run "lord-claudeworth" "architects-office")))
       (let [said (filter #(= "architects-office" (get-in % [:data :at])) (by "lord-claudeworth" (of-type run :agent/said)))]
@@ -579,7 +574,7 @@
     (testing "a few rooms have a :detail"
       (is (every? #(:detail (space/location world %)) ["drawing-room" "study" "general-store"])))
     (testing "the rules say the item actions are free, and what look shows"
-      (is (str/includes? (cw/rules world) "`look` shows the things here in detail and what the people here carry"))
+      (is (str/includes? (cw/rules world) "`look` shows them in detail, with their descriptions, conditions and owners"))
       (is (str/includes? (cw/rules world) "`look`, `take`, `put-down` and `give` don't end your turn")))
     (e/stop-run run))
   (testing "carried shop goods need a description and a condition"
@@ -601,29 +596,51 @@
       (e/stop-run r1)
       (e/stop-run r2))))
 
-(deftest hale-dusts-the-china-cabinet
-  (let [run (rounds! (start {:start "1904-10-15T14:00"}) 3)
-        world (e/world run)]
-    (testing "Hale is busy until 15:30, and the cabinet is unchanged meanwhile"
-      (is (= "Hale is dusting the china cabinet until 15:30."
-             (narrate/describe (first (by "hale" (of-type run :agent/occupied))) (narrate/names world))))
-      (is (= "dusty, the glass smeared" (:condition (items/item world "china-cabinet")))))
-    (rounds! run 1)
-    (let [world (e/world run)
-          [call] (filter #(= "judge" (:agent %)) (store/read-llm (:dir run)))
-          [done] (of-type run :item/work-done)]
-      (testing "at 15:30 the cabinet's condition changes"
-        (is (= "15:30" (clock/short-label (:clock world) (:round done) (:round done))))
-        (is (= "just seen to" (:condition (items/item world "china-cabinet"))))
-        (is (contains? (:visible-to done) "hale")))
-      (testing "the judge was given the setting, the worker and the cabinet"
-        (is (str/includes? (:content (first (:messages call))) (str "## The setting\n" (get-in world [:state :setting]))))
-        (is (str/includes? (:content (second (:messages call))) "- Worker: Hale. Mr Hale, the earl's private secretary"))
-        (is (str/includes? (:content (second (:messages call))) "Meissen figures")))
-      (testing "the rules mention work-on"
-        (is (str/includes? (cw/rules world) "`work-on` spends time doing something to things here or that you carry")))
+(deftest the-housemaid
+  (let [run (rounds! (start {:housemaid? true}) 47)
+        world (e/world run)
+        evs (e/events run)
+        calls (store/read-llm (:dir run))]
+    (testing "Nellie is in the run, with her own room and none of the household's money"
+      (is (some? (w/agent world "nellie")))
+      (is (= :housemaid (:role (w/agent world "nellie"))))
+      (is (= "maids-room" (get-in world [:state :bedrooms "nellie"])))
+      (is (= "maids-room" (space/location-of world "nellie")))
+      (is (not (contains? (cw/observe world "nellie") :household))))
+    (testing "the day is free of forfeits and bad replies, and replay gives the same world"
+      (is (= 47 (:round world)))
       (is (empty? (of-type run :action/forfeited)))
+      (is (not-any? #(re-find #"^(error:|rejected:)" (:content % "")) (mapcat :replies calls)))
       (is (= world (w/replay (store/read-events (:dir run))))))
+    (testing "she works through the house, judged when each job ends"
+      (let [begun (by "nellie" (of-type run :item/work-begun))
+            done (by "nellie" (of-type run :item/work-done))]
+        (is (= [[3 5 ["family-portrait"]] [5 8 ["silver-candlesticks"]] [8 12 ["kitchen-range"]]
+                [12 14 ["stags-head"]] [21 23 ["china-cabinet"]]]
+               (mapv (fn [e] [(get-in e [:data :started]) (get-in e [:data :due]) (get-in e [:data :items])]) begun)))
+        (is (= (mapv #(get-in % [:data :id]) begun) (mapv #(get-in % [:data :job]) done)))
+        (is (every? #(seq (get-in % [:data :changes])) done))
+        (is (every? #(= "just seen to" (get-in % [:data :changes 0 :to])) done))
+        (is (= 5 (count (filter #(= "judge" (:agent %)) calls))))
+        (testing "the cabinet is dusty until the job that dusts it finishes"
+          (let [due (get-in (first (filter #(= ["china-cabinet"] (get-in % [:data :items])) begun)) [:data :due])
+                before (w/replay (take-while #(< (:round %) due) evs))]
+            (is (= "dusty, the glass smeared" (:condition (items/item before "china-cabinet"))))
+            (is (= "just seen to" (:condition (items/item world "china-cabinet"))))))))
+    (testing "the first judge call was given the setting, the worker and the item"
+      (let [[call] (filter #(= "judge" (:agent %)) calls)]
+        (is (str/includes? (:content (first (:messages call))) (str "## The setting\n" (get-in world [:state :setting]))))
+        (is (str/includes? (:content (second (:messages call))) "- Worker: Nellie. Nellie, the housemaid"))
+        (is (str/includes? (:content (second (:messages call))) "powdered wig"))))
+    (testing "the countess gives her the duster she bought in the village"
+      (is (empty? (by "hale" (of-type run :item/work-begun))))
+      (let [[given] (of-type run :item/given)]
+        (is (= "lady-claudeworth" (:actor given)))
+        (is (= {:item "feather-duster" :to "nellie"} (:data given)))
+        (is (= "nellie" (:holder (items/item world "feather-duster"))))))
+    (testing "the rules explain when to look"
+      (is (str/includes? (cw/rules world) "`work-on` spends time doing something to things here or that you carry"))
+      (is (str/includes? (cw/rules world) "not routinely on arrival")))
     (e/stop-run run)))
 
 ;; ---------------------------------------------------------------------------

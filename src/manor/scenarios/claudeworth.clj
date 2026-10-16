@@ -10,7 +10,8 @@
   could make false. Areas are the locations' :domains. `walk` (free) goes
   anywhere in the current area; `travel` (a turn) goes to another area.
   `sleep` and `spend-time` occupy an agent for several rounds at no model
-  cost; `rouse` asks someone busy whether to stop. :architect? false leaves Mr Pugh out.
+  cost; `rouse` asks someone busy whether to stop. :architect? false leaves Mr Pugh out,
+  and :housemaid? true brings the housemaid, Nellie, in.
   An agent with a :routine in the world file (Mr Pugh) hibernates whenever
   nobody else is near: the routine says where they are and what they're doing,
   and they make no model calls until someone comes into their area.
@@ -280,7 +281,8 @@
          " characters); `whisper` is private. "
          "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). You get no turns while asleep or busy, unless someone uses `rouse` to interrupt you. On that turn, `carry-on` ignores them; any other accepted action means you stop. "
          "Use `spend-time` for longer pastimes (half an hour to " max-pastime-hours " hours). `note` keeps private notes. "
-         "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows the things here in detail and what the people here carry. `look`, `take`, `put-down` and `give` don't end your turn; `work-on` spends time doing something to things here or that you carry, and its results show when you finish. "
+         "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows them in detail, with their descriptions, conditions and owners, along with the room and what the people here carry, so use it to examine something closely, not routinely on arrival. "
+         "`look`, `take`, `put-down` and `give` don't end your turn; `work-on` spends time doing something to things here or that you carry, and its results show when you finish. "
          "If you are waiting on someone or nothing needs doing, `pass` is the way to wait a turn; you act again next turn. "
          "Opening hours are shown in your view where a place has them. "
          "The family and secretary spend freely from the household account (`household` in your view), and can `buy` at an open shop. "
@@ -309,6 +311,7 @@
   {:earl {:brief agent-brief}
    :countess {:brief agent-brief}
    :secretary {:brief agent-brief}
+   :housemaid {:brief agent-brief}
    :architect {:brief agent-brief}
    :gm {:brief gm-brief}})
 
@@ -340,9 +343,21 @@
            :when (not (string? (get-in wf [:roles role :about])))]
        (str ":roles " role " needs an :about paragraph")))))
 
+(defn- optional-agent-kept?
+  "Whether an agent marked :optional? is in this run. The marker names the run
+  option that decides it: Mr Pugh (:architect?) is in unless it is false; the
+  housemaid (:housemaid?) only when it is true. Agents without a marker are
+  always in."
+  [opts agent]
+  (case (:optional? agent)
+    :architect? (not (false? (:architect? opts)))
+    :housemaid? (true? (:housemaid? opts))
+    true))
+
 (defn init
-  "The world file, its agents (without Mr Pugh if :architect? is false, and
-  without anything he holds), its items, and
+  "The world file, its agents (without Mr Pugh if :architect? is false,
+  without the housemaid unless :housemaid? is true, and without anything they
+  hold), its items, and
   in :state everyone's bedroom and routine, the setting, the roles' :about
   text and the query limit the rules quote."
   [{:keys [world-file] :as opts}]
@@ -350,8 +365,7 @@
         {wf :world-file :as loaded} (worldfile/load-world source)]
     (when-let [ps (seq (problems wf))]
       (throw (ex-info (str "world file " source " has problems:\n- " (str/join "\n- " ps)) {:problems (vec ps)})))
-    (let [agents (cond->> (:agents loaded)
-                   (false? (:architect? opts)) (remove :optional?))
+    (let [agents (filter #(optional-agent-kept? opts %) (:agents loaded))
           ids (set (map (comp b/slug :name) agents))]
       (assoc loaded
              :agents (vec agents)
@@ -370,9 +384,10 @@
 (def mock-day
   "Agent id -> time of day -> the tool calls of that turn, in order (free
   ones first). Turns not listed pass. Breakfast, the earl's visit to Mr Pugh,
-  the countess moving the candlesticks and visiting the abbey, Mr Hale's
-  errands and dusting, Mr Pugh's drawing board, bed, and Mr Hale rousing
-  the earl at 06:30."
+  the countess moving the candlesticks, visiting the abbey and buying a
+  duster to give the housemaid, Mr Hale's errands and secretarial work,
+  Nellie the housemaid's round of the house (only when :housemaid? is true),
+  Mr Pugh's drawing board, bed, and Mr Hale rousing the earl at 06:30."
   {"lord-claudeworth"
    {"08:00" [[:walk {:to "dining-room"}]
              [:say {:text "I have made up my mind: this house is too small for us, and I mean to enlarge it. I shall see Pugh, the architect, this morning."}]]
@@ -397,15 +412,18 @@
              [:say {:text "Enlarge it? Then I expect to be consulted on every room, Claudeworth."}]]
     "08:30" [[:spend-time {:activity "breakfasting" :hours 1}]]
     "09:30" [[:take {:item "silver-candlesticks"}] [:walk {:to "drawing-room"}]
-             [:put-down {:item "silver-candlesticks"}]
+             [:put-down {:item "silver-candlesticks"}] [:look {}]
              [:spend-time {:activity "going over the household accounts" :hours 4}]]
     "13:30" [[:travel {:to "abbey-church"}]]
     "14:00" [[:spend-time {:activity "sitting quietly in the abbey church" :hours 2}]]
-    "16:00" [[:travel {:to "carriage-sweep"}]]
-    "16:30" [[:walk {:to "drawing-room"}] [:spend-time {:activity "writing letters" :hours 1.5}]]
-    "18:00" [[:say {:text "I hope Mr Pugh understands that the drawing room is mine to decide."}]]
-    "18:30" [[:walk {:to "dining-room"}] [:spend-time {:activity "dining" :hours 2}]]
-    "20:30" [[:walk {:to "drawing-room"}] [:spend-time {:activity "reading a novel" :hours 2}]]
+    "16:00" [[:travel {:to "general-store"}]]
+    "16:30" [[:buy {:item "feather duster" :qty 1}]]
+    "17:00" [[:travel {:to "carriage-sweep"}]]
+    "17:30" [[:walk {:to "drawing-room"}] [:give {:item "feather-duster" :to "nellie"}]
+             [:spend-time {:activity "writing letters" :hours 1.5}]]
+    "19:00" [[:say {:text "I hope Mr Pugh understands that the drawing room is mine to decide."}]]
+    "19:30" [[:walk {:to "dining-room"}] [:spend-time {:activity "dining" :hours 2}]]
+    "21:30" [[:walk {:to "drawing-room"}] [:spend-time {:activity "reading a novel" :hours 1}]]
     "22:30" [[:walk {:to "countess-bedroom"}] [:sleep {:until "07:30"}]]}
 
    "hale"
@@ -414,17 +432,28 @@
     "09:30" [[:walk {:to "study"}] [:spend-time {:activity "writing letters" :hours 2}]]
     "11:30" [[:travel {:to "general-store"}]]
     "12:00" [[:buy {:item "coal" :qty 1}]]
-    "12:30" [[:buy {:item "feather duster" :qty 1}]]
     "13:00" [[:travel {:to "carriage-sweep"}]]
     "13:30" [[:walk {:to "dining-room"}] [:spend-time {:activity "lunching" :hours 0.5}]]
-    "14:00" [[:walk {:to "drawing-room"}] [:look {}]
-             [:work-on {:items ["china-cabinet"] :doing "dusting the china cabinet" :hours 1.5}]]
-    "16:00" [[:walk {:to "study"}] [:spend-time {:activity "filing correspondence" :hours 2}]]
+    "14:00" [[:walk {:to "study"}] [:spend-time {:activity "filing correspondence" :hours 4}]]
     "18:00" [[:spend-time {:activity "copying letters" :hours 2}]]
     "20:00" [[:spend-time {:activity "reading" :hours 2}]]
     "22:00" [[:walk {:to "secretarys-room"}] [:sleep {:until "06:30"}]]
     "06:30" [[:walk {:to "earls-bedroom"}] [:rouse {:who "lord-claudeworth"}]
              [:say {:text "Good morning, my lord. It is half past six."}]]}
+
+   "nellie"
+   {"08:00" [[:walk {:to "kitchen"}] [:say {:text "Morning. Fires, then the dining room."}]]
+    "09:00" [[:walk {:to "dining-room"}]
+             [:work-on {:items ["family-portrait"] :doing "dusting the dining room and the portrait" :hours 1}]]
+    "10:00" [[:walk {:to "drawing-room"}]
+             [:work-on {:items ["silver-candlesticks"] :doing "polishing the silver candlesticks" :hours 1.5}]]
+    "11:30" [[:walk {:to "kitchen"}]
+             [:work-on {:items ["kitchen-range"] :doing "blacking the kitchen range" :hours 2}]]
+    "13:30" [[:walk {:to "entrance-hall"}]
+             [:work-on {:items ["stags-head"] :doing "dusting the hall and the stag's head" :hours 1}]]
+    "14:30" [[:walk {:to "drawing-room"}]]
+    "18:00" [[:work-on {:items ["china-cabinet"] :doing "dusting the china cabinet and the glass with her new duster" :hours 1}]]
+    "21:30" [[:walk {:to "maids-room"}] [:sleep {:until "06:30"}]]}
 
    "pugh"
    {"08:00" [[:walk {:to "architects-lodgings"}] [:spend-time {:activity "breakfasting" :hours 1}]]
@@ -456,6 +485,17 @@
     (when (and bed (not= here bed))
       [(if (contains? (space/area world here) bed) :walk :travel) {:to bed}])))
 
+(def ^:private gift
+  "The countess's scripted gift of the new duster to the housemaid; dropped
+  when the housemaid is left out (see :housemaid?)."
+  [:give {:item "feather-duster" :to "nellie"}])
+
+(defn- remove-absent-cast
+  "Scripted calls that need someone left out of the run are dropped: the
+  countess's gift when there is no housemaid."
+  [world script]
+  (if (w/agent world "nellie") script (remove #(= gift %) script)))
+
 (defn mock-policy
   "The next call of `mock-day` for this turn. A scripted `sleep` away from
   your bedroom goes there first, e.g. after a late :start."
@@ -477,6 +517,7 @@
                         (space/location world (:id client-plan)))
                    (into [[:walk {:to (:id client-plan)}]] (get-in mock-day [agent-id time]))
                    :else (get-in mock-day [agent-id time]))
+          script (remove-absent-cast world script)
           script (mapv (fn [[tool args]]
                          [tool (if (and (#{:commission :show-plans} tool) client-plan)
                                  (assoc args :plan-id (:id client-plan)) args)]) script)

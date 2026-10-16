@@ -85,14 +85,22 @@ test-runs/       test and ad-hoc runs ({:test? true} / --test); always safe to d
 ## Working on it
 
 ```sh
-clojure -M:test                               # all tests (about 1 minute, free, offline)
+clojure -M:test                               # all tests (about 15 seconds, free, offline)
 clojure -M:run village --mock --offline --test   # panel at http://localhost:8080, free, disposable
 clj -M:dev                                    # REPL; see dev/user.clj docstring
 ```
 
-- **Verify with mock and offline runs first** (free, deterministic). Then do a short real run with
-  `:max-cost` of $0.10–0.20 and report what it cost. Real runs use the user's OpenRouter key: from
-  `OPENROUTER_API_KEY`, or else read from `~/.pi/agent/auth.json`. Never print the key.
+- **Verify with mock and offline runs first** (free, deterministic). A mock run of a whole day takes
+  seconds. Real runs use the user's OpenRouter key: from `OPENROUTER_API_KEY`, or else read from
+  `~/.pi/agent/auth.json`. Never print the key.
+- **Real runs are short by default:** at most about 8–12 rounds (4–6 minutes at roughly 27 seconds
+  a round) with `:max-rounds` and `:max-cost` 0.10, run in the foreground; report what it cost and
+  write its transcript. Most problems show up in a few rounds. To test something that happens
+  late (bedtime, a finished building), start near it instead of playing up to it: use a shorter
+  delay (`:build-rounds`) or a world file with a later `:meta :start` (`:world-file`). A full day
+  (48 half-hour rounds, about 20 minutes) is never the default check. A longer run, or a repeat
+  of one, needs the user's go-ahead, and sub-agents never start a real run unless their task
+  says they may. If a check seems to need a long run, ask instead.
 - To inspect a real run, write its transcript first: `(transcript! id)` (or `{:test? true}` for
   `test-runs/`) at the REPL, or `(manor.transcript/write! dir)`, writes `<run-dir>/transcript.md`:
   each round's events with who saw them, then every model call with its tool calls and the

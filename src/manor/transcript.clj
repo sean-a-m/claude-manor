@@ -8,9 +8,10 @@
   the engine's reply to each tool call. Read from events.edn and llm.edn
   only; nothing is called or changed.
 
-  llm.edn records each call's request and response, so the engine's replies
-  to a call are read from the next call of the same turn. A turn's last
-  call has no next call; the transcript says whether the turn was forfeited."
+  llm.edn records each call's request, response and the engine's :replies.
+  Runs recorded before :replies existed have them read from the next call
+  of the same turn instead, so there a turn's last call shows none. The
+  transcript says whether a turn was forfeited."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [manor.clock :as clock]
@@ -28,12 +29,15 @@
 (defn- visibility [{v :visible-to}]
   (if (set? v) (str/join "," (sort v)) (name v)))
 
+(defn- recorded? [call] (contains? call :replies))
+
 (defn- replies
-  "What the engine sent back after `call`: the messages the next call of the
-  same turn adds after the call's own response. nil for a turn's last call."
+  "What the engine sent back after `call`: its recorded :replies, or for
+  older runs the messages the next call of the same turn adds after the
+  call's own response (nil for a turn's last call)."
   [call next-call]
-  (when next-call
-    (drop (inc (count (:messages call))) (:messages next-call))))
+  (cond (recorded? call) (:replies call)
+        next-call (drop (inc (count (:messages call))) (:messages next-call))))
 
 (defn- one-line [s] (str/replace (str s) #"\s*\n\s*" " "))
 
@@ -50,10 +54,9 @@
            (when (and finish-reason (not= "tool_calls" finish-reason)) (str " _finish: " finish-reason "_"))
            (format " _($%.4f)_" (double (or (:cost usage) 0))))]
      (when text [(str "  - text: " (one-line text))])
-     (if next-call
-       (for [m (replies call next-call)]
-         (str "  - engine: " (one-line (:content m))))
-       (when forfeited? ["  - _turn forfeited: no valid action taken_"])))))
+     (for [m (replies call next-call)]
+       (str "  - engine: " (one-line (:content m))))
+     (when (and (nil? next-call) forfeited?) ["  - _turn forfeited: no valid action taken_"]))))
 
 (defn- summary-lines
   "Calls and cost per agent, error and rejection replies, and forfeits.
@@ -70,7 +73,9 @@
        (format "| %s | %d | $%.4f |" agent (count cs) (double (reduce + 0 (keep (comp :cost :usage) cs)))))
      [""
       (str "Engine replies: " (count-of "error:") " errors, " (count-of "rejected:") " rejections"
-           " (replies to a turn's last call aren't recorded). Forfeits: "
+           (when-not (every? (comp recorded? first) pairs)
+             " (this run didn't record replies to a turn's last call)")
+           ". Forfeits: "
            (count (filter #(= :action/forfeited (:type %)) events)) ".")])))
 
 (defn render

@@ -70,11 +70,21 @@
    :query "Query: returns information and does not end your turn (limited per turn)."
    :act   "Real-world action: ends your turn and needs operator approval before it happens."})
 
+(defn- tool-schema
+  "The arguments schema as models see it. A string with an :advised-max
+  leaves out its :max (still enforced on decoding), so the advised limit in
+  the :doc is the only number they're told."
+  [schema]
+  (m/walk schema (m/schema-walker (fn [s]
+                                    (if (and (= :string (m/type s)) (:advised-max (m/properties s)))
+                                      (m/-update-properties s dissoc :max)
+                                      s)))))
+
 (defn ->tool [action]
   {:type "function"
    :function {:name (name (:name action))
               :description (str (:doc action) " " (kind-hint (kind action)))
-              :parameters (mjs/transform (args-schema action))}})
+              :parameters (mjs/transform (tool-schema (args-schema action)))}})
 
 ;; ---------------------------------------------------------------------------
 ;; Decoding and validation

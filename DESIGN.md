@@ -73,7 +73,8 @@ The agent gets a fresh prompt and its role's tools, then loops for up to `:max-s
 - **free** tools (e.g. `note`, `decline`) apply immediately and the turn continues
 - **query** tools call a bridge; the result goes back to the model (up to `:max-queries` per turn)
 - a **final** or **act** tool ends the turn if valid; if rejected, the model is told why and can retry
-- no valid action by the end of the loop means the turn is forfeited
+- no valid action by the end of the loop means the turn is forfeited; an agent with no
+  turn-ending action yet is reminded after its second call and before its last
 
 The GM's turn is the same, except it may take up to `:gm-max-actions` actions and ends with `done`.
 

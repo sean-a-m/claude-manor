@@ -137,6 +137,11 @@ Each action is a map. Each role's actions become that role's LLM tools.
 | `:query` | no | immediately; calls a bridge, and the result comes back within the turn | needs `:bridge`; limited by `:max-queries` per turn; no approval |
 | `:act` | yes | creates a pending request; runs after operator approval at the next round start | needs `:bridge` |
 
+Every model call in a turn counts towards `:max-steps` (default 10): free and query actions, and
+retries after an error or rejection. A turn with no turn-ending action by then is forfeited. To
+avoid that, the engine reminds an agent with no turn-ending action yet, after its second call and
+again before its last, naming the turn-ending actions it has.
+
 Query and act actions also take:
 ```clojure
  :bridge      :open-meteo/daily                          ; key in :bridges
@@ -158,7 +163,9 @@ made, not when it is executed.
 - A string or collection outside its `:min`/`:max` gets a reason that says how to fix it: `text is
   1043 characters; the limit is 1000 - shorten it by at least 43`. To leave slack, set
   `:advised-max` below `:max`, state the advised limit in the `:doc`, and oversize values are
-  advised down to it: `say` is `[:string {:min 1 :max 1500 :advised-max 1000}]`.
+  advised down to it: `say` is `[:string {:min 1 :max 1500 :advised-max 1000}]`. A string with
+  an `:advised-max` has no `maxLength` in the tool schema, so the `:doc`'s number is the only one
+  the model sees; `:max` is still enforced.
 - Keep each `:doc` short and concrete. Say what `give-*` and `want-*` style fields mean.
 
 **Validation:**
@@ -186,7 +193,7 @@ made, not when it is executed.
 | Action | Roles | Kind | Behaviour |
 |---|---|---|---|
 | `pass` | all | final | does nothing |
-| `note` | all | free | private note, shown to the agent every round (last 15) |
+| `note` | all | free | private note, shown to the agent every round (last 15); told 400 characters, accepts 500 |
 | `say` | all | final | heard by everyone in the same place (everyone, without locations); told 1000 characters, accepts 1500 |
 | `whisper` | all | final | private to one agent; requires being together if both have locations; same limits |
 | `request-gm` | all | free | private message to the GM's inbox; triggers the GM this round |
@@ -289,7 +296,9 @@ location. This is the fog of war. Never return another agent's private data. Kee
 is sent on every model call.
 
 `:gm-view` defaults to `{:state .. :agents [..] :space ..}` (the GM is omniscient). Override it to
-trim tokens.
+trim tokens. The default GM view leaves out `:setting` and `:roles :gm` in `:state` (and `:roles`
+if nothing else is in it), which are brief material: put them in the GM's `:brief`. Other roles'
+entries in `:roles` stay.
 
 ### `:systems`
 
@@ -515,7 +524,8 @@ Lets the scenario run for free with `{:llm :mock}`. It's essential for testing.
 8. Run offline at the REPL: `(start! :<name> {:llm :mock :offline? true :test? true}) (step! 5) (feed)`.
    Check `(feed 40 "some-agent")` shows nothing it shouldn't. (`:test? true` keeps experiments
    under `test-runs/`, which can always be deleted.)
-9. Try real models cheaply: `(start! :<name> {:max-cost 0.10 :test? true})`. Then read
+9. Try real models cheaply and briefly: `(start! :<name> {:max-cost 0.10 :max-rounds 10 :test? true})`
+   (a few rounds expose most problems; see "Real runs are short by default" in `AGENTS.md`). Then read
    `(transcript!)` (writes `transcript.md` in the run directory), `test-runs/<id>/llm.edn`, or
    the agent pages in the panel. Look for rejections, forfeits, and confused tool calls, and fix
    docs, briefs and reasons accordingly.

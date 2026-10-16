@@ -276,8 +276,9 @@
 (deftest length-rejections-say-how-to-fix-the-call
   (let [say (first (filter #(= :say (:name %)) (b/agent-actions)))
         text (fn [n] {:text (apply str (repeat n "a"))})]
-    (testing "say and whisper tell models their limit"
-      (is (str/includes? (get-in (a/->tool say) [:function :description]) "at most 1000 characters")))
+    (testing "say and whisper tell models their limit, and only that one"
+      (is (str/includes? (get-in (a/->tool say) [:function :description]) "at most 1000 characters"))
+      (is (= {:type "string" :minLength 1} (get-in (a/->tool say) [:function :parameters :properties :text]))))
     (testing "up to 1500 characters is accepted, as slack"
       (is (= (text 1500) (:args (a/decode-args say (text 1500))))))
     (testing "longer text is told its length and how much to cut, down to the advised limit"
@@ -293,4 +294,115 @@
         (is (str/includes? (:error (a/decode-args act {:word "abc" :ids ["a" "b" "c"]}))
                            "ids has 3 items; the limit is 2 - remove at least 1"))
         (testing "other errors are still humanized"
-          (is (str/includes? (:error (a/decode-args act {:word 7})) "should be a string")))))))
+          (is (str/includes? (:error (a/decode-args act {:word 7})) "should be a string")))
+        (testing "and the tool schema keeps its maxLength"
+          (is (= {:type "string" :minLength 3 :maxLength 5}
+                 (get-in (a/->tool act) [:function :parameters :properties :word]))))))))
+
+(deftest notes-advise-400-characters-and-accept-500
+  (let [note (first (filter #(= :note (:name %)) (b/agent-actions)))
+        text (fn [n] {:text (apply str (repeat n "a"))})
+        tool (a/->tool note)]
+    (is (str/includes? (get-in tool [:function :description]) "at most 400 characters"))
+    (is (= {:type "string" :minLength 1} (get-in tool [:function :parameters :properties :text])))
+    (is (= (text 500) (:args (a/decode-args note (text 500)))))
+    (is (str/includes? (:error (a/decode-args note (text 501)))
+                       "text is 501 characters; the limit is 400 - shorten it by at least 101"))))
+
+(deftest the-default-gm-view
+  (testing "other scenarios' state is shown whole"
+    (let [run (mock-village)
+          world (e/world run)]
+      (is (= (:state world) (:state (prompt/default-gm-view world))))
+      (e/stop-run run)))
+  (testing "Claudeworth's setting and the GM's own :about are left to the GM brief"
+    (let [run (e/start-run :claudeworth {:llm :mock :test? true :run-id (test-id "claudeworth")})
+          world (e/world run)
+          state (:state (prompt/default-gm-view world))
+          gm-msgs (prompt/gm-messages (:scenario run) world (e/events run) ["test"] {})
+          occurrences (fn [s sub] (count (re-seq (re-pattern (java.util.regex.Pattern/quote sub)) s)))]
+      (is (not (contains? state :setting)))
+      (is (not (contains? (:roles state) :gm)))
+      (is (= (get-in world [:state :roles :architect]) (get-in state [:roles :architect])))
+      (is (= (get-in world [:state :bedrooms]) (:bedrooms state)))
+      (is (= 1 (occurrences (str/join "\n" (map :content gm-msgs)) (get-in world [:state :setting]))))
+      (e/stop-run run)))
+  (testing ":roles goes when only the GM's entry was in it"
+    (is (= {:x 1} (:state (prompt/default-gm-view {:state {:x 1 :setting "s" :roles {:gm {:about "a"}}}}))))))
+
+(defn- scripted
+  "A model that calls the tool `(policy ctx)` returns, as [tool args], and
+  keeps the messages of every call in `calls`."
+  [calls policy]
+  (reify llm/LLM
+    (complete [_ {:keys [messages ctx]}]
+      (swap! calls conj {:agent (:agent-id ctx) :step (:step ctx) :messages messages})
+      (let [[tool args] (policy ctx)
+            call {:id (str "c" (:step ctx)) :name tool :arguments (prompt/->json args)}]
+        {:message {:role "assistant" :content nil
+                   :tool_calls [{:id (:id call) :type "function"
+                                 :function {:name tool :arguments (:arguments call)}}]}
+         :tool-calls [call]
+         :usage {:prompt-tokens 10 :completion-tokens 5 :cost 0.001}}))))
+
+(defn- walker
+  "The earl walks back and forth `walks` times, then says good morning;
+  everyone else passes."
+  [walks]
+  (fn [{:keys [agent-id role step]}]
+    (cond (= role :gm) ["done" {}]
+          (not= "lord-claudeworth" agent-id) ["pass" {}]
+          (< step walks) ["walk" {:to (if (even? step) "dining-room" "earls-bedroom")}]
+          :else ["say" {:text "Good morning."}])))
+
+(defn- earls-calls [calls] (filterv #(= "lord-claudeworth" (:agent %)) @calls))
+
+(defn- last-message [call] (:content (peek (:messages call))))
+
+(defn- claudeworth-run [llm-impl opts]
+  (e/start-run :claudeworth (merge {:llm-impl llm-impl :offline? true :test? true :run-id (test-id "claudeworth")}
+                                   opts)))
+
+(deftest at-most-ten-calls-per-turn
+  (is (= 10 (:max-steps e/default-opts))))
+
+(deftest free-actions-get-a-reminder-to-end-the-turn
+  (let [calls (atom [])
+        run (rounds! (claudeworth-run (scripted calls (walker 3)) {}) 1)
+        earl (earls-calls calls)]
+    (testing "the earl walked three times, then spoke, and kept his turn"
+      (is (= 4 (count earl)))
+      (is (= 1 (count (filter #(= "lord-claudeworth" (:actor %)) (of-type run :agent/said)))))
+      (is (empty? (of-type run :action/forfeited))))
+    (testing "after two calls he was reminded, once, naming his turn-ending actions"
+      (is (not= "user" (:role (peek (:messages (earl 1))))))
+      (let [reminder (last-message (earl 2))]
+        (is (str/includes? reminder "free tools, queries and rejected calls don't end it"))
+        (is (str/includes? reminder "one of your 10 calls this turn (2 used)"))
+        (is (str/ends-with? reminder "turn-ending action: `say`, `travel`, `pass`, `sleep`, `spend-time` or `whisper`."))
+        (is (not (str/includes? reminder "`walk`"))))
+      (is (= 1 (count (filter #(and (= "user" (:role %)) (str/includes? (:content %) "turn isn't over"))
+                              (:messages (earl 3)))))))
+    (testing "the last call's replies are recorded"
+      (let [logged (filter #(= "lord-claudeworth" (:agent %)) (store/read-llm (:dir run)))]
+        (is (= 4 (count logged)))
+        (is (= [{:role "tool" :tool_call_id "c3" :content "done"}] (:replies (last logged))))
+        (testing "and every call's replies are what the next call was sent"
+          (is (= (:replies (first logged)) (drop (inc (count (:messages (first logged)))) (:messages (second logged))))))))
+    (testing "replay is unaffected"
+      (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
+    (e/stop-run run)))
+
+(deftest the-last-call-is-announced
+  (let [calls (atom [])
+        run (rounds! (claudeworth-run (scripted calls (walker 99)) {:max-steps 4}) 1)
+        earl (earls-calls calls)
+        logged (filter #(= "lord-claudeworth" (:agent %)) (store/read-llm (:dir run)))]
+    (is (= 4 (count earl)))
+    (testing "before the last call"
+      (is (str/starts-with? (last-message (earl 3)) "This is your last call this turn."))
+      (is (str/includes? (last-message (earl 3)) "or you lose your turn")))
+    (testing "a turn of free actions only is still forfeited, and its last replies are logged"
+      (is (= ["lord-claudeworth"] (map :actor (of-type run :action/forfeited))))
+      (is (= [{:role "tool" :tool_call_id "c3" :content "ok"}] (:replies (last logged)))))
+    (e/stop-run run)))

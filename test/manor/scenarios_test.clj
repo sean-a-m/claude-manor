@@ -2,6 +2,7 @@
   "Every bundled scenario should run offline with its mock policy and replay
   to the same world. Add new scenarios to `bundled`."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
+            [manor.actions :as a]
             [manor.engine :as e]
             [manor.store :as store]
             [manor.world :as w]))
@@ -21,4 +22,16 @@
         (is (empty? (filter #(= :action/forfeited (:type %)) (e/events run)))
             "the mock policy should only choose valid actions")
         (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+        (e/stop-run run)))))
+
+(deftest every-action-becomes-a-tool
+  ;; The mock GM never builds its tools, so a bad schema (e.g. an empty
+  ;; :enum) would otherwise only show up in a real run.
+  (doseq [k bundled]
+    (testing (name k)
+      (let [run (e/start-run k {:llm :mock :offline? true :test? true
+                                :run-id (str (gensym (str "tools-" (name k) "-")))})]
+        (doseq [action (:actions run)]
+          (is (map? (try (a/->tool action) (catch Exception ex (ex-message ex))))
+              (str (name (:name action)) " should become a tool")))
         (e/stop-run run)))))

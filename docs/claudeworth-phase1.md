@@ -262,10 +262,14 @@ Use `{:llm :mock :offline? true :test? true :run-id (str (gensym ...))}`, a
 
 ## The real run
 
-After the mock day passes, do **one** real run of one simulated day:
+> **Changed 2026-10-16:** this section used to ask for a real run of a whole simulated day (48
+> rounds, about 20 minutes). Real runs are now short by default (see "Real runs are short by
+> default" in `AGENTS.md`); the whole day is the mock day's job.
+
+After the mock day passes, do **one** short real run:
 
 ```clojure
-(e/start-run :claudeworth {:test? true :max-cost 0.25}) ; then (e/auto! run 48), wait-idle
+(e/start-run :claudeworth {:test? true :max-cost 0.10 :max-rounds 12}) ; then (e/auto! run 12), wait-idle
 ```
 
 It must be under `test-runs/`. Then read `test-runs/<id>/llm.edn`. Count tool replies starting

@@ -94,7 +94,7 @@ Passed to `start-run` / `start!` (defaults in `manor.engine/default-opts`):
 | `:offline?` | `false` | use the scenario's bridge stubs |
 | `:test?` | `false` | store the run under `test-runs/` (disposable) instead of `runs/` |
 | `:max-cost` | `1.0` | USD; the run pauses when reached |
-| `:max-steps` / `:max-queries` | 4 / 2 | model calls and query bridges per turn |
+| `:max-steps` / `:max-queries` | 10 / 2 | model calls and query bridges per turn (a cost guard, not game time) |
 | `:event-window` | 30 | recent events in each prompt |
 | `:gm-check-in-every` | 0 | rounds between GM check-ins (0 = only when triggered) |
 | `:reasoning` / `:max-tokens` | `{:effort "low"}` / 4000 | passed to OpenRouter |

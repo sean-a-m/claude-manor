@@ -106,13 +106,26 @@ Your view is private. Others only learn what is public or what someone tells the
 
 You act only by calling tools. You may take a few actions; call `done` when finished. If nothing is needed, call `done` immediately.")
 
+(defn- gm-state
+  "The world's :state for the default GM view, without what the GM brief
+  already carries: a :setting, and the GM's own entry in :roles (and
+  :roles, if nothing else is left in it)."
+  [state]
+  (let [roles (dissoc (:roles state) :gm)]
+    (cond-> (dissoc state :setting :roles)
+      (seq roles) (assoc :roles roles))))
+
+(defn default-gm-view
+  "What the GM is shown of the world unless a scenario sets :gm-view."
+  [world]
+  (cond-> {:state (gm-state (:state world))
+           :agents (mapv #(select-keys % [:id :name :role :status :persona :location :travel :busy])
+                         (w/agents-in-order world))}
+    (space/enabled? world) (assoc :space (:space world))))
+
 (defn gm-messages
   [scenario world events reasons {:keys [event-window]}]
-  (let [gm-view (or (:gm-view scenario)
-                    (fn [world] (cond-> {:state (:state world)
-                                         :agents (mapv #(select-keys % [:id :name :role :status :persona :location :travel :busy])
-                                                       (w/agents-in-order world))}
-                                  (space/enabled? world) (assoc :space (:space world)))))]
+  (let [gm-view (or (:gm-view scenario) default-gm-view)]
     [{:role "system"
       :content (str gm-preamble
                     (when-let [b (get-in scenario [:roles :gm :brief])] (str "\n\n## This world\n" (brief-text b world))))}

@@ -65,6 +65,11 @@
 
 (def ^:private speech [:string {:min 1 :max 1500 :advised-max speech-limit}])
 
+(def note-limit
+  "The length `note` tells models to keep to. Its schema allows up to 500
+  characters, as slack, and advises longer notes down to this."
+  400)
+
 (defn agent-actions []
   [{:name :pass
     :doc "Do nothing this round."
@@ -72,8 +77,9 @@
 
    {:name :note
     :kind :free
-    :doc "Write a private note to your future self. Notes are shown to you every round."
-    :args [:map [:text [:string {:min 1 :max 500}]]]
+    :doc (str "Write a private note to your future self, at most " note-limit
+              " characters. Notes are shown to you every round.")
+    :args [:map [:text [:string {:min 1 :max 500 :advised-max note-limit}]]]
     :effect (fn [_ actor {:keys [text]}]
               [{:type :agent/noted :data {:text text} :visible-to #{actor}}])}
 
@@ -104,12 +110,15 @@
     :effect (fn [_ actor {:keys [text]}]
               [{:type :gm/requested :data {:text text} :visible-to #{actor}}])}])
 
-(defn gm-actions [scenario]
+(defn gm-actions
+  "The GM's tools. `spawn-agent` is left out when no role is :spawnable?
+  (its role enum would be empty, which isn't a valid schema)."
+  [scenario]
   (let [spawnable (->> (:roles scenario)
                        (filter (comp :spawnable? val))
                        (map (comp name key)))
         max-agents (get-in scenario [:limits :max-agents] 10)]
-    [{:name :spawn-agent
+    (cond->> [{:name :spawn-agent
       :roles #{:gm}
       :doc "Bring a new participant into the world."
       :args [:map
@@ -153,4 +162,5 @@
      {:name :done
       :roles #{:gm}
       :doc "Finish this intervention."
-      :effect (fn [_ _ _] [])}]))
+      :effect (fn [_ _ _] [])}]
+      (empty? spawnable) (filterv #(not= :spawn-agent (:name %))))))

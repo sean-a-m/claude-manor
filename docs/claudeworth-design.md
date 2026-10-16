@@ -403,6 +403,10 @@ abbey"). Then, from the first real run (`docs/claudeworth-phase1-fixes.md`):
 - briefs are functions of the world, with the setting and roles in the world file (decision 12)
 - `manor.transcript` writes a readable `transcript.md` for any run
 
+After review (2026-10-16): `:max-steps` 10 with a reminder to end the turn (decision 15), the
+engine's replies to a turn's last call recorded in `llm.edn` and shown in transcripts, no
+`maxLength` where a schema has `:advised-max` (decision 13), and a trimmed GM view (decision 16).
+
 Deviations from the phase 1 brief: the first real run was stopped by the user at 15:30 (round
 16, $0.11) instead of running a whole day; the fixes above replaced its brief tuning. Everyone but
 Mr Pugh starts in their bedroom (section 1 used to say the study and drawing room). `places` also
@@ -421,10 +425,11 @@ state them. The setting and role paragraphs moved from Clojure into the world fi
 - An "odd" room goes through: a bathroom joined to the dining room and the gallery.
 - The structural refusals have tests: an unknown room in `connects-to`, a bad size, too little
   money.
-- A short real run passes: `(start! :claudeworth {:test? true :build-rounds 6 :max-cost 0.20})`.
-  Then read `llm.edn` for rejections, forfeits and confusion, and tune the briefs and `:valid?`
-  reasons.
-- Then, with the user's OK, one full-length real run (about two simulated days) capped at $0.60.
+- A short real run passes: `(start! :claudeworth {:test? true :build-rounds 6 :max-rounds 12
+  :max-cost 0.10})`. Then read the transcript for rejections, forfeits and confusion, and tune
+  the briefs and `:valid?` reasons.
+- A full-length real run (about two simulated days) is not part of the phase. It's for the user
+  to ask for, if they want one; the full slice is checked by the mock policy.
 
 **Phase 3: incentives (after the slice, by need).** These mostly come from the Ashcombe documents:
 
@@ -442,10 +447,13 @@ state them. The setting and role paragraphs moved from Clojure into the world fi
 
 The real village run cost about $0.0018 per agent turn on `deepseek-v4.1-flash`.
 
+These are estimates for the user's own long runs, not test plans: checks use short real runs
+(`AGENTS.md`, "Real runs are short by default").
+
 - Full slice: commissioning on day 1 plus a day of building is about 70 rounds. With four agents,
   roughly 9 hours of sleep and some multi-hour activities, expect about 150–200 agent turns, so
   **$0.30–0.40**.
-- With `:build-rounds 6`, about 20 rounds: **$0.10–0.15**.
+- With `:build-rounds 6`, the slice is about 20 rounds: **$0.10–0.15**.
 - The architect server costs nothing; it calls no model.
 
 ## 12. Decisions (2026-10-15)
@@ -488,7 +496,16 @@ The real village run cost about $0.0018 per agent turn on `deepseek-v4.1-flash`.
     descriptions are mechanics only. Mock-day scripts are exempt: they're written for one world.
 13. **Speech length:** `say` and `whisper` accept up to 1500 characters, but their descriptions
     (and the briefs) tell models 1000. That leaves slack, so a slightly long speech isn't
-    rejected; one over 1500 is told its length and advised to get under 1000.
+    rejected; one over 1500 is told its length and advised to get under 1000. The tool schema
+    shows no `maxLength`, so 1000 is the only number models see. `note` is the same: it tells
+    models 400 characters and accepts 500.
 14. **Area names in `travel`:** "travel to the village" goes to the nearest place of that area,
     found by pathfinding (the first place of the area on the quickest path), e.g. the village
     green. No world-file data marks entrances, for now.
+15. **Calls per turn:** `:max-steps` is 10, for every scenario. It is a guard against runaway
+    cost, not game time: a turn is half an hour however many calls it takes. Free actions
+    (`walk`, `note`, `rouse`), queries and retries all use calls, so an agent with no
+    turn-ending action yet is reminded after its second call and before its last, with the
+    turn-ending actions it has. Walking far in a bigger house is a separate, later question.
+16. **What the GM sees:** the default GM view leaves out `:setting` and `:roles :gm` in `:state`,
+    which the GM brief already carries; it keeps the other roles' `:about` paragraphs.

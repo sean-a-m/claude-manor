@@ -36,7 +36,7 @@
    :gm :llm                         ; who fills the GM seat: :llm, :human or :off
    :reasoning {:effort "low"}
    :max-tokens 4000                 ; includes reasoning tokens
-   :max-steps 4                     ; model calls per agent turn
+   :max-steps 10                    ; model calls per agent turn (a cost guard, not game time)
    :max-queries 2                   ; query-bridge calls per agent turn
    :gm-max-actions 4
    :event-window 30                 ; recent events shown to each agent
@@ -189,7 +189,15 @@
 ;; ---------------------------------------------------------------------------
 ;; Activations
 
-(defn- record-call! [run agent-id request response]
+(defn- record-usage! [run agent-id request response]
+  (emit! run [{:type :llm/usage :actor agent-id :visible-to :system
+               :data (assoc (:usage response) :agent agent-id :model (:model request))}]))
+
+(defn- record-call!
+  "Log a model call to llm.edn. `replies` are the messages the engine added
+  after the response (tool replies and any reminder), so a turn's last call
+  has its replies too."
+  [run agent-id request response replies]
   (let [entry {:agent agent-id
                :round (:round @(:world run))
                :model (:model request)
@@ -197,11 +205,10 @@
                :tools (mapv #(get-in % [:function :name]) (:tools request))
                :response (:message response)
                :finish-reason (:finish-reason response)
-               :usage (:usage response)}]
+               :usage (:usage response)
+               :replies replies}]
     (store/append-llm! (:dir run) entry)
-    (swap! (:last-calls run) assoc agent-id entry)
-    (emit! run [{:type :llm/usage :actor agent-id :visible-to :system
-                 :data (assoc (:usage response) :agent agent-id :model (:model request))}])))
+    (swap! (:last-calls run) assoc agent-id entry)))
 
 (defn- handle-call
   "Process one tool call within a turn. `commit` either applies a turn-ending
@@ -246,12 +253,61 @@
                     (assoc :done? true)))))))))))
 
 (defn- activate-llm [run snapshot agent-id {:keys [role reasons max-finals commit]}]
+(def ^:private early-reminder-at
+  "Calls into a turn, with no turn-ending action yet, after which an agent is
+  first reminded to take one. It is reminded again before its last call."
+  2)
+
+(defn- or-list [names]
+  (let [names (map #(str "`" % "`") names)]
+    (if (next names)
+      (str (str/join ", " (butlast names)) " or " (last names))
+      (first names))))
+
+(defn- turn-reminder
+  "A reminder for an agent that has made `calls-made` calls this turn without
+  a turn-ending action, or nil: once `early-reminder-at` calls have passed,
+  and again before the last call. `final-names` are the turn-ending actions
+  it has."
+  [calls-made max-steps final-names]
+  (cond
+    (>= calls-made max-steps) nil
+    (= calls-made (dec max-steps))
+    (str "This is your last call this turn. Finish now with one turn-ending action ("
+         (or-list final-names) "), or you lose your turn.")
+    (= calls-made early-reminder-at)
+    (str "Your turn isn't over: free tools, queries and rejected calls don't end it, but each uses one of your "
+         max-steps " calls this turn (" calls-made " used). When you're ready, finish with one turn-ending action: "
+         (or-list final-names) ".")))
+
+(defn- handle-response
+  "The turn state after one model response, with :replies (the messages to
+  send back). A response without tool calls is told to call one; a second
+  ends the turn."
+  [run agent-id by-name call-opts st response]
+  (let [calls (:tool-calls response)]
+    (cond
+      (seq calls) (reduce (partial handle-call run agent-id by-name call-opts) (assoc st :replies []) calls)
+      (:nudged st) (assoc st :replies [] :done? true)
+      :else (assoc st :nudged true
+                   :replies [{:role "user" :content "You must respond by calling one of the tools."}]))))
+
+(defn- add-reminder
+  "Append `text` to the replies as a user message, merged into one already
+  there."
+  [replies text]
+  (let [lst (peek replies)]
+    (cond (nil? text) replies
+          (= "user" (:role lst)) (conj (pop replies) (update lst :content str " " text))
+          :else (conj replies {:role "user" :content text}))))
+
   (let [{:keys [scenario opts]} run
         gm? (= role :gm)
         actions (a/available (a/for-role (:actions run) role) snapshot agent-id)
         by-name (a/by-name actions)
         tools (mapv a/->tool actions)
         agent (w/agent snapshot agent-id)
+        final-names (map (comp name :name) (filter a/ends-turn? actions))
         model (or (:model agent) (when gm? (:gm-model opts)) (:model opts))
         base (if gm?
                (prompt/gm-messages scenario snapshot @(:events run) reasons opts)
@@ -266,18 +322,18 @@
               response (llm/complete (:llm run)
                                      (assoc request :ctx {:world @(:world run) :agent-id agent-id :role role
                                                           :step step :used (:used st) :reasons reasons}))
-              _ (record-call! run agent-id request response)
-              calls (:tool-calls response)]
-          (if (empty? calls)
-            (if (:nudged st)
-              st
-              (recur (conj messages (:message response)
-                           {:role "user" :content "You must respond by calling one of the tools."})
-                     (inc step) (assoc st :nudged true)))
-            (let [st' (reduce (partial handle-call run agent-id by-name call-opts)
-                              (assoc st :replies []) calls)]
-              (recur (into (conj messages (:message response)) (:replies st'))
-                     (inc step) (dissoc st' :replies)))))))))
+              _ (record-usage! run agent-id request response)
+              st' (try (handle-response run agent-id by-name call-opts st response)
+                       (catch Throwable t
+                         (record-call! run agent-id request response [])
+                         (throw t)))
+              ;; the GM's turn has no forfeit, so only participants are reminded
+              remind? (and (not gm?) (not (:done? st')) (empty? (:finals st')))
+              replies (cond-> (:replies st')
+                        remind? (add-reminder (turn-reminder (inc step) max-steps final-names)))]
+          (record-call! run agent-id request response replies)
+          (recur (into (conj messages (:message response)) replies)
+                 (inc step) (dissoc st' :replies)))))))
 
 (defn- activate-human
   "A human holds this seat: wait for `act!` input. Free and query actions

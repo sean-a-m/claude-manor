@@ -206,12 +206,25 @@
       (let [[_ [slept]] (perform run (assoc (e/world run) :round 1) "hale" :sleep {:until "07:00"})]
         (is (= 21 (get-in slept [:data :until])))
         (is (= "Sunday 16 October 1904, 07:00" (clock/label c 21)))))
+    (testing "a scripted sleep away from your bedroom goes there first: a walk, or a travel from another area"
+      (let [world (assoc (e/world run) :round 3)
+            ctx {:world world :agent-id "pugh" :role :architect :used []}]
+        (is (= {:tool :walk :args {:to "architects-lodgings"}} (cw/mock-policy ctx)))
+        (is (= {:tool :sleep :args {:until "07:30"}}
+               (cw/mock-policy (assoc ctx :world (assoc-in world [:agents "pugh" :location] "architects-lodgings")
+                                      :used ["walk"]))))
+        (is (= {:tool :travel :args {:to "architects-lodgings"}}
+               (cw/mock-policy (assoc ctx :world (assoc-in world [:agents "pugh" :location] "study")))))))
     (testing "the scripted evening follows the clock: Hale sleeps at 22:00 and rouses the earl at 06:30"
       (rounds! run 20)
       (is (= 3 (:round (first (sleeps run "hale")))))
       (is (= 4 (:round (first (sleeps run "lord-claudeworth")))))
       (is (some #(and (= 20 (:round %)) (= "hale" (get-in % [:data :by]))) (by "lord-claudeworth" (of-type run :agent/freed))))
       (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
+    (testing "Mr Pugh, still in his office, walks to his lodgings and sleeps there: no forfeits"
+      (is (empty? (of-type run :action/forfeited)))
+      (is (= 3 (:round (first (sleeps run "pugh")))))
+      (is (= "architects-lodgings" (space/location-of (e/world run) "pugh"))))
     (e/stop-run run)))
 
 (deftest without-the-architect

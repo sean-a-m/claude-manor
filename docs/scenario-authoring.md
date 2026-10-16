@@ -533,7 +533,8 @@ Lets the scenario run for free with `{:llm :mock}`. It's essential for testing.
    (a few rounds expose most problems; see "Real runs are short by default" in `AGENTS.md`). To
    check something late in the day, start near it with `:start` (see Time) instead of playing up
    to it. Then read
-   `(transcript!)` (writes `transcript.md` in the run directory), `test-runs/<id>/llm.edn`, or
+   `transcript.md` in the run directory (written whenever the run pauses or stops),
+   `test-runs/<id>/llm.edn`, or
    the agent pages in the panel. Look for rejections, forfeits, and confused tool calls, and fix
    docs, briefs and reasons accordingly.
 

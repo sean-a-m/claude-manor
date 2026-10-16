@@ -255,7 +255,25 @@ replay, `load-run` and branching keep it. A bad time fails at start ("bad :start
 and so does `:start` with a scenario that has no clock. Only the clock changes:
 `world-start.edn` stays a copy of the world file (08:00), and people start where it puts them.
 From 21:00, Claudeworth's mock script picks up at 22:00 (Hale, Mr Pugh) and 22:30 (the family);
-everyone but Mr Pugh is asleep by 22:30 and Hale rouses the earl at 06:30. Mr Pugh's 22:00
-`sleep` is rejected because he is still in his office (his walk home is at 18:00), so he
-forfeits that turn and stays up. Tests: `the-start-option` (engine) and `a-late-start`
+everyone is asleep by 22:30 and Hale rouses the earl at 06:30. Mr Pugh is still in his office
+at 22:00 (his walk home is at 18:00); the mock policy walks anyone whose scripted `sleep` finds
+them away from their bedroom there first, so he sleeps in his lodgings with no forfeits. Tests: `the-start-option` (engine) and `a-late-start`
 (Claudeworth).
+
+## Automatic transcripts; walking to bed in the mock script (2026-10-16)
+
+- The engine writes `<run-dir>/transcript.md` whenever a run stops running rounds: at the end of
+  `do-round!` when the run isn't carrying on in auto mode (a pause for any reason, the end of
+  `auto!`'s `n` rounds, a manual step, `pause!` during a round), from `pause!` itself (queued, so
+  a pause between auto rounds and `stop-run` are covered), and after a round that throws. All of
+  these run on the run's executor, after the round's events and llm.edn entries are on disk. It is
+  skipped when no events were added since it was last written (or since the run was started or
+  loaded, so loading an old run and stopping it leaves its files alone), and a failure is printed
+  to stderr, never thrown. No option: the test suite's wall time didn't change measurably (about
+  14–16 s either way). `(transcript! ...)` stays for old runs. Test:
+  `transcripts-are-written-when-a-run-stops`.
+- Claudeworth's mock policy: a scripted `sleep` that finds someone away from their bedroom walks
+  them there first (or travels, if it's in another area; that takes the turn, so they then sleep
+  only if a later scripted turn says so). From a 21:00 start, Mr Pugh walks from his office to his
+  lodgings at 22:00 and sleeps there, with no forfeits; the 08:00 mock day's events and model calls
+  are unchanged. Script progress within a turn now skips calls off the script (`scripted-done`).

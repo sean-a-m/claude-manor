@@ -356,10 +356,30 @@
     "18:00" [[:walk {:to "architects-lodgings"}] [:spend-time {:activity "reading by the fire" :hours 4}]]
     "22:00" [[:sleep {:until "07:30"}]]}})
 
-(defn mock-policy [{:keys [world agent-id role used]}]
+(defn- scripted-done
+  "How many of `script`'s calls are done, given `used` (the tools called this
+  turn, in order). Calls off the script, like a walk to bed, don't count."
+  [script used]
+  (reduce (fn [i tool] (if (= tool (some-> (get script i) first name)) (inc i) i)) 0 used))
+
+(defn- way-to-bed
+  "The call that takes `id` to their bedroom: a walk, or a travel if it's in
+  another area (which takes the turn). nil if they're there already."
+  [world id]
+  (let [here (space/location-of world id)
+        bed (bedroom-of world id)]
+    (when (and bed (not= here bed))
+      [(if (contains? (space/area world here) bed) :walk :travel) {:to bed}])))
+
+(defn mock-policy
+  "The next call of `mock-day` for this turn. A scripted `sleep` away from
+  your bedroom goes there first, e.g. after a late :start."
+  [{:keys [world agent-id role used]}]
   (if (= role :gm)
     {:tool :done}
-    (let [[tool args] (get-in mock-day [agent-id (str (now world)) (count used)])]
+    (let [script (get-in mock-day [agent-id (str (now world))])
+          [tool args] (get script (scripted-done script used))
+          [tool args] (or (when (= :sleep tool) (way-to-bed world agent-id)) [tool args])]
       (if tool {:tool tool :args args} {:tool :pass}))))
 
 ;; ---------------------------------------------------------------------------

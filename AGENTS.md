@@ -95,14 +95,15 @@ clj -M:dev                                    # REPL; see dev/user.clj docstring
   `~/.pi/agent/auth.json`. Never print the key.
 - **Real runs are short by default:** at most about 8–12 rounds (4–6 minutes at roughly 27 seconds
   a round) with `:max-rounds` and `:max-cost` 0.10, run in the foreground; report what it cost and
-  write its transcript. Most problems show up in a few rounds. To test something that happens
+  read its transcript. Most problems show up in a few rounds. To test something that happens
   late (bedtime, a finished building), start near it instead of playing up to it: use a shorter
   delay (`:build-rounds`) or a later clock (`:start "1904-10-15T21:00"`, CLI `--start`). A full day
   (48 half-hour rounds, about 20 minutes) is never the default check. A longer run, or a repeat
   of one, needs the user's go-ahead, and sub-agents never start a real run unless their task
   says they may. If a check seems to need a long run, ask instead.
-- To inspect a real run, write its transcript first: `(transcript! id)` (or `{:test? true}` for
-  `test-runs/`) at the REPL, or `(manor.transcript/write! dir)`, writes `<run-dir>/transcript.md`:
+- To inspect a run, read its transcript first. The engine writes `<run-dir>/transcript.md`
+  whenever a run pauses or stops; for older runs, write it with `(transcript! id)` at the REPL
+  (`{:test? true}` for `test-runs/`) or `(manor.transcript/write! dir)`. It holds
   each round's events with who saw them, then every model call with its tool calls and the
   engine's replies, plus calls and cost per agent. For the raw record, read `runs/<id>/llm.edn`
   (every prompt, response, `finish-reason` and cost). Count `error:`/`rejected:` tool replies and `:action/forfeited` events. That's how the

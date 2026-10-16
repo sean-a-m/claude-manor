@@ -13,7 +13,12 @@
     3. run world systems (ticks, possibly fed by bridges)
     4. for each schedule group: activate its agents, resolve their actions
     5. call the GM if anything triggers it
-    6. :round/ended, then check pause conditions"
+    6. :round/ended, then check pause conditions
+
+  Whenever the run stops running rounds (a pause, the end of `auto!`'s
+  rounds, a manual step, `pause!`, `stop-run`) it writes
+  <run-dir>/transcript.md (see manor.transcript), on the executor so it
+  sees whole rounds."
   (:require [clojure.string :as str]
             [manor.actions :as a]
             [manor.bridge :as bridge]
@@ -24,6 +29,7 @@
             [manor.prompt :as prompt]
             [manor.space :as space]
             [manor.store :as store]
+            [manor.transcript :as transcript]
             [manor.world :as w]
             [manor.worldfile :as worldfile])
   (:import (java.util.concurrent ExecutorService Future TimeUnit)))
@@ -93,6 +99,7 @@
    :listeners (atom {})
    :last-calls (atom {})
    :input (atom nil)
+   :transcript-at (atom nil)         ; event count when transcript.md was last written
    :exec (java.util.concurrent.ThreadPoolExecutor.
           1 1 0 TimeUnit/MILLISECONDS (java.util.concurrent.LinkedBlockingQueue.))}))
 
@@ -130,6 +137,19 @@
         (notify! run {:kind :event :event e})))
     (when (some #(= "space" (namespace (:type %))) events)
       (export-map! run))))
+
+(defn- write-transcript!
+  "Write <run-dir>/transcript.md if events were added since it was last
+  written, or since the run was started or loaded. Call it on the executor,
+  between rounds. Never throws: a failure is printed and the run goes on."
+  [run]
+  (let [n (count @(:events run))]
+    (when-not (= n @(:transcript-at run))
+      (try (transcript/write! (:dir run))
+           (reset! (:transcript-at run) n)
+           (catch Throwable t
+             (binding [*out* *err*]
+               (println (str "transcript of " (:id run) " not written: " (ex-message t)))))))))
 
 (defn- bridge-ctx [run] {:run-id (:id run) :run-dir (str (:dir run)) :opts (:opts run) :mcp (:mcp run)})
 
@@ -500,6 +520,7 @@
                        (try (f)
                             (catch Throwable t
                               (set-status! run assoc :state :idle :mode :manual :error (ex-message t))
+                              (write-transcript! run)
                               (throw t))))))
 
 (defn- do-round! [run]
@@ -520,7 +541,9 @@
               (future
                 (Thread/sleep (long (:auto-delay-ms (:opts run))))
                 (when (= :auto (:mode @(:status run)))
-                  (submit! run #(do-round! run))))))))))
+                  (submit! run #(do-round! run))))))))
+    (when-not (= :auto (:mode @(:status run)))
+      (write-transcript! run))))
 
 (defn step!
   "Run one round (queued behind anything already running)."
@@ -537,9 +560,11 @@
      (submit! run #(do-round! run)))))
 
 (defn pause!
-  "Stop after the current round."
+  "Stop after the current round, then write the transcript."
   [run]
-  (set-status! run assoc :mode :manual :remaining nil))
+  (set-status! run assoc :mode :manual :remaining nil)
+  (when-not (.isShutdown ^ExecutorService (:exec run))
+    (submit! run #(write-transcript! run))))
 
 (defn idle? [run]
   (let [{:keys [state mode]} @(:status run)]
@@ -666,6 +691,7 @@
          run (make-run id dir scenario opts)]
      (store/write-config! dir {:scenario scenario-key :opts (apply dissoc opts :run-id non-data-opts)})
      (init! run)
+     (reset! (:transcript-at run) (count @(:events run)))
      run)))
 
 (defn load-run
@@ -680,6 +706,7 @@
          evs (store/read-events dir)]
      (reset! (:events run) evs)
      (reset! (:world run) (w/replay evs))
+     (reset! (:transcript-at run) (count evs))
      run)))
 
 (defn branch-run
@@ -701,7 +728,8 @@
      (load-run id (assoc opts :test? test?)))))
 
 (defn stop-run
-  "Stop after the current round, then close the run's MCP servers."
+  "Stop after the current round, write the transcript, then close the run's
+  MCP servers."
   [run]
   (pause! run)
   (submit! run #(mcp/close-all! (:mcp run)))

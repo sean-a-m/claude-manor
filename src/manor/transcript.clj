@@ -11,7 +11,10 @@
   llm.edn records each call's request, response and the engine's :replies.
   Runs recorded before :replies existed have them read from the next call
   of the same turn instead, so there a turn's last call shows none. The
-  transcript says whether a turn was forfeited."
+  transcript says whether a turn was forfeited.
+
+  The engine writes it whenever a run pauses or stops; call `write!` for
+  older runs."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [manor.clock :as clock]

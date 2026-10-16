@@ -4,7 +4,8 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.engine :as e]
             [manor.store :as store]
-            [manor.transcript :as transcript]))
+            [manor.transcript :as transcript])
+  (:import (java.util.concurrent TimeUnit)))
 
 ;; All runs here use {:test? true}, so they live under test-runs/.
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
@@ -35,3 +36,30 @@
           (is (not (re-find #"- \*\*lord-claudeworth\*\* say .*\n  - engine: done\n" md)))
           (is (str/includes? md "(this run didn't record replies to a turn's last call)")))))
     (e/stop-run run)))
+
+(defn- written-rounds
+  "The round count in <run-dir>/transcript.md's heading, or nil if there is none."
+  [run]
+  (let [f (io/file (:dir run) "transcript.md")]
+    (when (.exists f) (some-> (re-find #"\n(\d+) rounds, " (slurp f)) second parse-long))))
+
+(deftest transcripts-are-written-when-a-run-stops
+  (testing "a pause on :max-rounds"
+    (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true :max-rounds 3
+                                         :run-id (str (gensym "transcript-"))})]
+      (is (nil? (written-rounds run)))
+      (e/auto! run)
+      (is (= :idle (e/wait-idle run 60000)))
+      (is (= ["max rounds reached"] (:pause-reasons (e/status run))))
+      (is (= 3 (written-rounds run)))
+      (is (str/includes? (slurp (io/file (:dir run) "transcript.md")) "## 09:00 (round 3)"))
+      (e/stop-run run)))
+  (testing "stop-run, while auto mode waits between rounds"
+    (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true :auto-delay-ms 200
+                                         :run-id (str (gensym "transcript-"))})]
+      (e/auto! run)
+      (Thread/sleep 300)
+      (e/stop-run run)
+      (is (.awaitTermination ^java.util.concurrent.ExecutorService (:exec run) 10 TimeUnit/SECONDS))
+      (is (pos? (:round (e/world run))))
+      (is (= (:round (e/world run)) (written-rounds run))))))

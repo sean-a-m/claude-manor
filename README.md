@@ -71,9 +71,13 @@ From the REPL (`clj -M:dev`):
 (act! "eva" :plant {:grain 3})
 (approve! "req-63")
 (branch! 3)
-(transcript!)           ; <run-dir>/transcript.md: each round's events and every model call
-(transcript! "claudeworth-20261015-101500" {:test? true})   ; any saved run
+(transcript!)           ; rewrite <run-dir>/transcript.md now
+(transcript! "claudeworth-20261015-101500" {:test? true})   ; any saved run, e.g. an old one
 ```
+
+Whenever a run stops running rounds (it pauses, `auto!`'s rounds are done, a manual step ends,
+`pause!` or `stop-run`), the engine writes `<run-dir>/transcript.md`: each round's events with who
+saw them, then every model call with its tool calls and the engine's replies.
 
 ## Real runs and test runs
 

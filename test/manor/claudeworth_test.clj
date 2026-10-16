@@ -4,6 +4,7 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
             [manor.builtins :as b]
+            [manor.clock :as clock]
             [manor.engine :as e]
             [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as cw]
@@ -193,6 +194,24 @@
     (testing "the run keeps its starting world and its live map"
       (is (.exists (io/file (:dir run) "world-start.edn")))
       (is (.exists (io/file (:dir run) "map.edn"))))
+    (e/stop-run run)))
+
+(deftest a-late-start
+  (let [run (start {:start "1904-10-15T21:00"})
+        c (:clock (e/world run))]
+    (testing "the day starts at 21:00 with everyone where the world file puts them"
+      (is (= "Saturday 15 October 1904, 21:00" (:time (prompt/agent-view (:scenario run) (e/world run) "hale"))))
+      (is (= "secretarys-room" (space/location-of (e/world run) "hale"))))
+    (testing "sleeping until 07:00 from 21:00 takes 20 rounds"
+      (let [[_ [slept]] (perform run (assoc (e/world run) :round 1) "hale" :sleep {:until "07:00"})]
+        (is (= 21 (get-in slept [:data :until])))
+        (is (= "Sunday 16 October 1904, 07:00" (clock/label c 21)))))
+    (testing "the scripted evening follows the clock: Hale sleeps at 22:00 and rouses the earl at 06:30"
+      (rounds! run 20)
+      (is (= 3 (:round (first (sleeps run "hale")))))
+      (is (= 4 (:round (first (sleeps run "lord-claudeworth")))))
+      (is (some #(and (= 20 (:round %)) (= "hale" (get-in % [:data :by]))) (by "lord-claudeworth" (of-type run :agent/freed))))
+      (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
     (e/stop-run run)))
 
 (deftest without-the-architect

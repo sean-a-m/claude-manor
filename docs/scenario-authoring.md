@@ -458,6 +458,11 @@ If `:init` returns a `:clock`, rounds have times. Round 1 starts at `:start`, an
   `(clock/round-at c round "07:00")` (the round when someone waiting until 07:00 acts again),
   `(clock/rounds-for c minutes)`, `(clock/rounds-per-day c)`, `(clock/hh-mm? s)`.
 - The clock is in the world (`(:clock world)`), so actions and views can use it.
+- The run option `:start` (CLI: `--start 1904-10-15T21:00`) replaces the clock's `:start` for one
+  run and keeps its `:minutes-per-round`, so you can begin near what you want to test (bedtime,
+  say). It's checked like the clock, and a scenario without a clock refuses it. Only the time
+  changes: people start where the world file puts them (at 21:00 still in their 08:00 places), so
+  a late start may need a mock script or world file that makes sense then.
 
 ### Occupation: sleep and other long activities
 
@@ -525,7 +530,9 @@ Lets the scenario run for free with `{:llm :mock}`. It's essential for testing.
    Check `(feed 40 "some-agent")` shows nothing it shouldn't. (`:test? true` keeps experiments
    under `test-runs/`, which can always be deleted.)
 9. Try real models cheaply and briefly: `(start! :<name> {:max-cost 0.10 :max-rounds 10 :test? true})`
-   (a few rounds expose most problems; see "Real runs are short by default" in `AGENTS.md`). Then read
+   (a few rounds expose most problems; see "Real runs are short by default" in `AGENTS.md`). To
+   check something late in the day, start near it with `:start` (see Time) instead of playing up
+   to it. Then read
    `(transcript!)` (writes `transcript.md` in the run directory), `test-runs/<id>/llm.edn`, or
    the agent pages in the panel. Look for rejections, forfeits, and confused tool calls, and fix
    docs, briefs and reasons accordingly.

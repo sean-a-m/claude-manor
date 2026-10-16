@@ -245,3 +245,17 @@ review is signed off.
   adding with phase 2, so the phase 2 brief should mention it.
 - The phase 2 brief (item 7) must follow the policy: short real runs only, no full-length run
   in its done-criteria.
+
+## The `:start` run option (2026-10-16)
+
+The small open item above is done: `(start-run :claudeworth {:start "1904-10-15T21:00"})` (CLI
+`--start 1904-10-15T21:00`) starts the scenario's clock at that time and keeps its
+`:minutes-per-round`. `engine/init!` replaces the clock's `:start` before `:world/initialized`, so
+replay, `load-run` and branching keep it. A bad time fails at start ("bad :start option: ..."),
+and so does `:start` with a scenario that has no clock. Only the clock changes:
+`world-start.edn` stays a copy of the world file (08:00), and people start where it puts them.
+From 21:00, Claudeworth's mock script picks up at 22:00 (Hale, Mr Pugh) and 22:30 (the family);
+everyone but Mr Pugh is asleep by 22:30 and Hale rouses the earl at 06:30. Mr Pugh's 22:00
+`sleep` is rejected because he is still in his office (his walk home is at 18:00), so he
+forfeits that turn and stays up. Tests: `the-start-option` (engine) and `a-late-start`
+(Claudeworth).

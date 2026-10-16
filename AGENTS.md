@@ -97,7 +97,7 @@ clj -M:dev                                    # REPL; see dev/user.clj docstring
   a round) with `:max-rounds` and `:max-cost` 0.10, run in the foreground; report what it cost and
   write its transcript. Most problems show up in a few rounds. To test something that happens
   late (bedtime, a finished building), start near it instead of playing up to it: use a shorter
-  delay (`:build-rounds`) or a world file with a later `:meta :start` (`:world-file`). A full day
+  delay (`:build-rounds`) or a later clock (`:start "1904-10-15T21:00"`, CLI `--start`). A full day
   (48 half-hour rounds, about 20 minutes) is never the default check. A longer run, or a repeat
   of one, needs the user's go-ahead, and sub-agents never start a real run unless their task
   says they may. If a check seems to need a long run, ask instead.

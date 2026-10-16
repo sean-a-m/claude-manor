@@ -43,6 +43,7 @@
    :gm-check-in-every 0             ; 0 = only when triggered
    :max-cost 1.0                    ; USD; pauses the run when reached
    :max-rounds nil
+   :start nil                       ; e.g. "1904-10-15T21:00": start the scenario's clock then
    :auto-delay-ms 0
    :offline? false                  ; use scenario :offline-stubs for bridges
    :test? false})                   ; store under test-runs/ (disposable) instead of runs/
@@ -252,7 +253,6 @@
                     (or (= "done" name) (>= (count (:finals st)) max-finals))
                     (assoc :done? true)))))))))))
 
-(defn- activate-llm [run snapshot agent-id {:keys [role reasons max-finals commit]}]
 (def ^:private early-reminder-at
   "Calls into a turn, with no turn-ending action yet, after which an agent is
   first reminded to take one. It is reminded again before its last call."
@@ -301,13 +301,14 @@
           (= "user" (:role lst)) (conj (pop replies) (update lst :content str " " text))
           :else (conj replies {:role "user" :content text}))))
 
+(defn- activate-llm [run snapshot agent-id {:keys [role reasons max-finals commit]}]
   (let [{:keys [scenario opts]} run
         gm? (= role :gm)
         actions (a/available (a/for-role (:actions run) role) snapshot agent-id)
         by-name (a/by-name actions)
         tools (mapv a/->tool actions)
-        agent (w/agent snapshot agent-id)
         final-names (map (comp name :name) (filter a/ends-turn? actions))
+        agent (w/agent snapshot agent-id)
         model (or (:model agent) (when gm? (:gm-model opts)) (:model opts))
         base (if gm?
                (prompt/gm-messages scenario snapshot @(:events run) reasons opts)
@@ -619,14 +620,30 @@
 ;; ---------------------------------------------------------------------------
 ;; Creating, loading and branching runs
 
+(defn- with-start
+  "The scenario's `clock` with its :start replaced by the run option `start`,
+  if given. Throws if the scenario has no clock or `start` is not a time."
+  [scenario clock start]
+  (cond
+    (nil? start) clock
+    (nil? clock) (throw (ex-info (str "the :start option needs a scenario with a clock; "
+                                      (name (:name scenario)) " has none")
+                                 {:start start}))
+    :else (let [c (assoc clock :start start)]
+            (when-let [ps (clock/problems c)]
+              (throw (ex-info (str "bad :start option: " (str/join "; " ps)) {:start start})))
+            c)))
+
 (defn- init!
   "Build the starting world from the scenario's :init. A :world-file in the
-  result (see manor.worldfile) is saved as <run-dir>/world-start.edn."
+  result (see manor.worldfile) is saved as <run-dir>/world-start.edn. The
+  run option :start overrides the clock's start time."
   [run]
   (let [{:keys [scenario opts]} run
-        {:keys [state agents clock world-file] :as init} ((:init scenario) opts)]
-    (when-let [ps (and clock (clock/problems clock))]
-      (throw (ex-info (str "bad clock from :init: " (str/join "; " ps)) {:clock clock})))
+        {:keys [state agents clock world-file] :as init} ((:init scenario) opts)
+        _ (when-let [ps (and clock (clock/problems clock))]
+            (throw (ex-info (str "bad clock from :init: " (str/join "; " ps)) {:clock clock})))
+        clock (with-start scenario clock (:start opts))]
     (when world-file
       (store/write-text! (:dir run) "world-start.edn" (worldfile/->edn-string world-file)))
     (emit! run [{:type :world/initialized :visible-to :gm

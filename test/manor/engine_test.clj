@@ -4,6 +4,7 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
             [manor.builtins :as b]
+            [manor.clock :as clock]
             [manor.engine :as e]
             [manor.llm :as llm]
             [manor.narrate :as n]
@@ -171,7 +172,7 @@
            (get-in (a/->tool (first (filter #(= :plant (:name %)) (:actions run)))) [:function :parameters])))
     (e/stop-run run)))
 
-(defn- hamlet [] (e/start-run :hamlet {:llm :mock :test? true :run-id (test-id "hamlet")}))
+(defn- hamlet [& [opts]] (e/start-run :hamlet (merge {:llm :mock :test? true :run-id (test-id "hamlet")} opts)))
 
 (defn- rounds-acted
   "Rounds in which `id` made a model call."
@@ -249,6 +250,30 @@
       (is (str/includes? (:content (first (prompt/agent-messages (:scenario run) world evs "ben" {})))
                          (str "## Your role\n" (get-in run [:scenario :roles :resident :brief])))))
     (e/stop-run run)))
+
+(deftest the-start-option
+  (let [run (hamlet {:start "1904-10-15T23:00"})]
+    (testing "the clock starts at :start and keeps the scenario's minutes per round"
+      (is (= {:start "1904-10-15T23:00" :minutes-per-round 30} (:clock (e/world run))))
+      (is (= "Saturday 15 October 1904, 23:00" (:time (prompt/agent-view (:scenario run) (e/world run) "ada")))))
+    (rounds! run 4)
+    (testing "rounds count from there: Ada goes up at 23:00 and sleeps from 23:30 until 07:00"
+      (let [[slept] (filter #(= :agent/occupied (:type %)) (e/events run))]
+        (is (= 2 (:round slept)))
+        (is (= 17 (get-in slept [:data :until])))
+        (is (= "Sunday 16 October 1904, 07:00" (clock/label (:clock (e/world run)) 17)))))
+    (testing "replay, loading and branching keep the clock"
+      (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+      (is (= (e/world run) (e/world (e/load-run (:id run) {:test? true}))))
+      (let [b (e/branch-run run 2)]
+        (is (= (:clock (e/world run)) (:clock (e/world b))))
+        (e/stop-run b)))
+    (e/stop-run run))
+  (testing "a bad :start, or a scenario without a clock, fails at start"
+    (is (thrown-with-msg? Exception #"bad :start option: :start must look like \"1904-10-15T08:00\", not \"23:00\""
+                          (hamlet {:start "23:00"})))
+    (is (thrown-with-msg? Exception #"the :start option needs a scenario with a clock; village has none"
+                          (mock-village {:start "1904-10-15T23:00"})))))
 
 (deftest scenarios-can-exclude-actions
   (let [sc (e/load-scenario :hamlet)

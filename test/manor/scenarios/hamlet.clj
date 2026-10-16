@@ -1,6 +1,7 @@
 (ns manor.scenarios.hamlet
-  "Test scenario for world files, the clock and occupation: a house and a
-  village loaded from test/fixtures/hamlet.edn, starting at 21:00. With the
+  "Test scenario for world files, the clock, occupation and items: a house
+  and a village loaded from test/fixtures/hamlet.edn, starting at 21:00,
+  with a few things about the house and the shop. With the
   mock policy Ada goes to bed at once and Ben stays up; with real models it's
   a cheap check of times, sleep and rousing.
 
@@ -54,4 +55,5 @@
                       :spawnable? true}
            :gm {:brief "Test GM."}}
    :actions actions
+   :items {}
    :mock-policy mock-policy})

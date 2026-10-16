@@ -11,9 +11,13 @@
      :routes [[\"carriage-sweep\" \"village-green\" 1]       ; journeys, as in :space
               [\"cliff\" \"beach\" 1 :one-way]]
      :agents [{:name \"Hale\" :role :secretary :location \"study\"}]
+     :items [{:id \"pocket-watch\" :name \"Pocket watch\" :holder \"Hale\"   ; optional, see manor.items
+              :owner \"Hale\" :condition \"keeping good time\" :desc \"...\"}]
      ...}                                                   ; anything else is the scenario's
 
   `:connects-to` is undirected: listing a neighbour on either side is enough.
+  Items name their :holder (and an :owner who is an agent) by agent name;
+  loading turns those into agent ids, and exporting turns them back.
   `load-world` reads and checks a file and returns the parts a scenario's
   :init needs. The file is a template: nothing writes to it. The engine keeps
   a copy of it in the run directory (world-start.edn) and writes the live map
@@ -24,7 +28,10 @@
             [clojure.string :as str]
             [malli.core :as m]
             [malli.error :as me]
-            [manor.clock :as clock]))
+            [manor.builtins :as b]
+            [manor.clock :as clock]
+            [manor.items :as items]
+            [manor.world :as w]))
 
 (def Location
   [:map
@@ -38,7 +45,8 @@
    [:meta {:optional true} :map]
    [:locations [:vector {:min 1} Location]]
    [:routes {:optional true} [:vector [:vector :any]]]
-   [:agents {:optional true} [:vector [:map [:name :string] [:role :keyword] [:location {:optional true} :string]]]]])
+   [:agents {:optional true} [:vector [:map [:name :string] [:role :keyword] [:location {:optional true} :string]]]]
+   [:items {:optional true} [:vector :map]]])
 
 ;; ---------------------------------------------------------------------------
 ;; Reading and checking
@@ -88,7 +96,8 @@
             (for [{:keys [name location]} (:agents wf)
                   :when (and location (not (known location)))]
               (str "agent " (pr-str name) ": unknown location " (pr-str location)))
-            (when-let [c (->clock wf)] (map #(str ":meta clock: " %) (clock/problems c))))))))
+            (when-let [c (->clock wf)] (map #(str ":meta clock: " %) (clock/problems c)))
+            (items/problems (:items wf) {:places known :holders (set (map :name (:agents wf)))}))))))
 
 (defn ->space
   "The :space for a scenario's :init: locations (without :connects-to) and
@@ -100,19 +109,33 @@
                                (conj (vec (sort [id to])) 0)))
                    routes)})
 
+(defn ->items
+  "The file's items for a scenario's :init: a :holder, and an :owner that
+  names an agent of the file, become agent ids. Other owners (\"household\")
+  are kept as they are."
+  [{:keys [agents] :as wf}]
+  (let [ids (into {} (map (juxt :name (comp b/slug :name))) agents)]
+    (mapv (fn [it]
+            (cond-> it
+              (:holder it) (update :holder ids)
+              (contains? ids (:owner it)) (update :owner ids)))
+          (:items wf))))
+
 (defn load-world
   "Read and check a world file (a path, or a classpath resource such as
   \"worlds/claudeworth.edn\"). Throws with a list of problems if it is
-  wrong. Returns {:space :clock :agents :world-file}; the first three are
-  ready for a scenario's :init, and :world-file is the data as read (the
-  scenario reads its own sections from it; the engine saves a copy)."
+  wrong. Returns {:space :clock :agents :items :world-file}; all but the
+  last are ready for a scenario's :init (:clock, :agents and :items only if
+  the file has them), and :world-file is the data as read (the scenario
+  reads its own sections from it; the engine saves a copy)."
   [source]
   (let [wf (read-file source)]
     (when-let [ps (seq (problems wf))]
       (throw (ex-info (str "world file " source " has problems:\n- " (str/join "\n- " ps)) {:problems (vec ps)})))
     (cond-> {:space (->space wf) :world-file wf}
       (->clock wf) (assoc :clock (->clock wf))
-      (:agents wf) (assoc :agents (:agents wf)))))
+      (:agents wf) (assoc :agents (:agents wf))
+      (:items wf) (assoc :items (->items wf)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Exporting the live map
@@ -134,10 +157,25 @@
                     [i (if two? [from to (:travel r)] [from to (:travel r) :one-way])]))]
     (mapv second (sort-by first current))))
 
+(defn- export-items
+  "The live items, in `start`'s order with new ones after, holders and agent
+  owners as names again."
+  [world start]
+  (let [agent-name #(:name (w/agent world %))
+        live (into {} (map (juxt :id identity)) (items/all world))
+        orig (map :id (:items start))
+        order (concat (filter live orig) (sort (remove (set orig) (keys live))))]
+    (vec (for [id order
+               :let [it (live id)]]
+           (cond-> it
+             (:holder it) (update :holder #(or (agent-name %) %))
+             (agent-name (:owner it)) (update :owner agent-name))))))
+
 (defn export
   "The world file `start` with its :locations and :routes replaced by the
-  live world's map. Locations and routes keep the order they had in
-  `start`; new ones follow. Closed routes are left out."
+  live world's map, and its :items by the live items if the world has items.
+  Locations, routes and items keep the order they had in `start`; new ones
+  follow. Closed routes are left out."
   [world start]
   (let [locs (get-in world [:space :locations])
         routes (get-in world [:space :routes])
@@ -148,13 +186,16 @@
         connects (fn [id] (vec (sort (for [[to r] (get routes id)
                                            :when (and (= 0 (:travel r)) (two-way? id to))]
                                        to))))]
-    (assoc start
-           :locations (vec (for [id order
-                                 :let [c (connects id)]]
-                             (cond-> (get locs id) (seq c) (assoc :connects-to c))))
-           :routes (export-routes routes start two-way?))))
+    (cond-> (assoc start
+                   :locations (vec (for [id order
+                                         :let [c (connects id)]]
+                                     (cond-> (get locs id) (seq c) (assoc :connects-to c))))
+                   :routes (export-routes routes start two-way?))
+      (items/enabled? world) (assoc :items (export-items world start)))))
 
 (def ^:private key-order [:id :name])
+
+(def ^:private item-key-order [:id :name :place :holder :owner :fixed? :condition :desc])
 
 (defn- location-str
   "One location per line: :id and :name first, :connects-to and :desc last."
@@ -164,8 +205,14 @@
                    [:connects-to :desc])]
     (str "{" (str/join " " (for [k ks :when (contains? loc k)] (str (pr-str k) " " (pr-str (get loc k))))) "}")))
 
+(defn- item-str
+  "One item per line: :id and :name first, :condition and :desc last."
+  [it]
+  (str "{" (str/join " " (for [k item-key-order :when (contains? it k)] (str (pr-str k) " " (pr-str (get it k))))) "}"))
+
 (defn ->edn-string
-  "A world file as readable EDN: sections in a fixed order, one location per line."
+  "A world file as readable EDN: sections in a fixed order, one location and
+  one item per line."
   [wf]
   (binding [*print-namespace-maps* false]
     (let [pretty #(str/replace (str/trim (with-out-str (pp/pprint %))) "\n" "\n ")
@@ -173,7 +220,9 @@
                     (case k
                       :locations (str ":locations\n [" (str/join "\n  " (map location-str (:locations wf))) "]")
                       :routes (str ":routes\n " (pr-str (vec (:routes wf))))
+                      :items (str ":items\n [" (str/join "\n  " (map item-str (:items wf))) "]")
                       (str (pr-str k) "\n " (pretty (get wf k)))))
-          ks (concat (filter #(contains? wf %) [:meta :locations :routes :agents])
-                     (sort (remove #{:meta :locations :routes :agents} (keys wf))))]
+          fixed [:meta :locations :routes :agents :items]
+          ks (concat (filter #(contains? wf %) fixed)
+                     (sort (remove (set fixed) (keys wf))))]
       (str "{" (str/join "\n\n " (map section ks)) "}\n"))))

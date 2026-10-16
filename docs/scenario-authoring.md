@@ -52,6 +52,7 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :bridges       {...}                    ; optional, real-world calls
    :mcp-servers   {...}                    ; optional, MCP servers that bridges call
    :systems       [...]                    ; optional, per-round world processes
+   :items         {}                       ; optional, turns on items (see Items)
    :hibernate     (fn [world agent-id] {:activity .. :location ..} or nil)  ; optional, see Hibernation
    :observe       (fn [world agent-id] {...})   ; strongly recommended
    :gm-view       (fn [world] {...})       ; optional, what the GM sees
@@ -69,8 +70,8 @@ The engine reads no other keys.
 
 ### `:init`
 
-`(fn [opts] {:state map, :space map, :agents [spec ...], :clock map, :world-file map})` (only
-`:state` is required), where `opts` are the run
+`(fn [opts] {:state map, :space map, :agents [spec ...], :clock map, :items [item ...], :world-file map})`
+(only `:state` is required), where `opts` are the run
 options (engine defaults, merged with your `:defaults`, merged with the caller's options). Custom
 option keys pass through, e.g. the village reads `:start-date`.
 
@@ -87,6 +88,8 @@ option keys pass through, e.g. the village reads `:start-date`.
   with a `-2` suffix on collisions). `:location` defaults to the role's `:start-location`.
 
 - `:clock`: optional game time, `{:start "1904-10-15T08:00" :minutes-per-round 30}` (see Time).
+- `:items`: optional starting items, used only when the scenario has the `:items` key (see Items).
+  Holders and agent owners are agent ids here.
 - `:world-file`: the world file the scenario loaded, if any (see World files). The engine saves a
   copy as `<run-dir>/world-start.edn`.
 
@@ -200,6 +203,7 @@ made, not when it is executed.
 | `whisper` | all | final | private to one agent; requires being together if both have locations; same limits |
 | `pray` | all | free | a private, diegetic way to reach the GM: its `:gm/requested` event fills the GM's inbox and triggers the GM this round |
 | `move` | all | final | follow a route (see Locations); only offered when the agent has a location |
+| `take`, `put-down`, `give` | all | free | only when the scenario has `:items` (see Items) |
 | `spawn-agent` | gm | final | spawn a `:spawnable?` role, optional location; respects `:limits` |
 | `retire-agent` | gm | final | remove an agent |
 | `announce` | gm | final | message to everyone or a list of ids |
@@ -263,7 +267,7 @@ Event shape (returned by effects, ticks and hooks; the engine stamps `:id` and `
   Reducers must be pure and depend only on the world and the event: no clock, no rng, no I/O.
   Event types without a reducer are informational (e.g. speech).
 - Engine-owned world keys: `:round :seq :agents :space :gm :pending-bridges :pause-requests :usage`,
-  and `:clock` when the scenario has one.
+  `:clock` when the scenario has one, and `:items` once a world has items.
   Scenario reducers should only touch `:state`, unless deliberately using engine semantics via
   engine events.
 - Multimethods are global. Namespace your event types (`:treasure/...`) so scenarios can't collide.
@@ -297,7 +301,8 @@ Rules: include only what this agent may know: its own holdings, public facts, an
 location. This is the fog of war. Never return another agent's private data. Keep it compact; it
 is sent on every model call.
 
-`:gm-view` defaults to `{:state .. :agents [..] :space ..}` (the GM is omniscient). Override it to
+`:gm-view` defaults to `{:state .. :agents [..] :space .. :items [..]}` (the GM is omniscient;
+`:space` and `:items` only when the world has them). Override it to
 trim tokens. The default GM view leaves out `:setting` and `:roles :gm` in `:state` (and `:roles`
 if nothing else is in it), which are brief material: put them in the GM's `:brief`. Other roles'
 entries in `:roles` stay.
@@ -413,7 +418,71 @@ Helpers for your actions and views:
 | `(space/area world loc)` | every location reachable from `loc` over `:travel 0` routes, itself included |
 | `(space/location world loc)` | `{:id :name :desc}` |
 
-State that belongs to a location (items, prices) goes in your `:state`, keyed by location id.
+State that belongs to a location (prices, opening rules) goes in your `:state`, keyed by location
+id. Objects people can pick up and carry are items (next section).
+
+### Items (`manor.items`)
+
+Items are things with a description and a condition that lie in a place or are carried by
+someone: a piano, a pocket watch, an umbrella someone bought. They need locations. A scenario
+turns them on with the key `:items` (a map; `{}` for now). Scenarios without it are unchanged.
+
+An item:
+
+```clojure
+{:id "china-cabinet" :name "China cabinet"
+ :desc "A glass-fronted walnut cabinet of Meissen figures."   ; 1-400 characters, never changes
+ :condition "dusty, the glass smeared"                        ; 1-80 characters
+ :place "drawing-room"      ; exactly one of :place (a location id)
+ ;; :holder "hale"          ;   or :holder (an agent id)
+ :owner "household"         ; optional: an agent id or any label; shown, not enforced
+ :fixed? true}              ; optional: furniture, can't be taken
+```
+
+Ids are kebab-case and unique; at most 60 characters of name. No other keys are allowed. A
+carried item goes wherever its holder goes, with no events of its own.
+
+- **Starting items** come from `:init` (`:items`, a vector, holders and owners as ids), or from a
+  world file's `:items` (see World files). The engine checks them and adds each with an
+  `:item/added` event, visible to the GM, after the agents are spawned.
+- **Reading items:** never read `(:items world)` yourself; use the accessors, so the storage can
+  change later inside the one namespace:
+
+  | Function | Returns |
+  |---|---|
+  | `(items/item world id)` | the item, or nil |
+  | `(items/all world)` | every item, by id |
+  | `(items/items-at world loc)` | items lying at a location (not those carried there) |
+  | `(items/held-by world agent-id)` | what an agent carries |
+  | `(items/items-where world pred)` | items matching a predicate |
+  | `(items/enabled? world)` | does the world have items? |
+
+- **New items** (a purchase, say): `(items/added world fields visible-to)` is an `:item/added`
+  event for an item with a fresh id from its name (`umbrella`, `umbrella-2`); `fields` are the
+  item's keys without `:id`, and invalid ones throw. `(items/added-events world [fields ...]
+  visible-to)` makes several, each with its own id. Don't build item maps or events by hand.
+- **Events** (reducers in `manor.items`; narration looks up the item's name):
+
+  | Event | Data | Visible to | Reads |
+  |---|---|---|---|
+  | `:item/added` | `{:item {...}}` | the GM at the start; the room when bought | "Hale now has an umbrella." |
+  | `:item/taken` | `{:item :from-place}` | everyone here | "Lady Claudeworth picks up the silver candlesticks." |
+  | `:item/put-down` | `{:item :place}` | everyone here | "Hale puts down the feather duster." |
+  | `:item/given` | `{:item :to}` | everyone here | "Hale gives the pocket watch to Lord Claudeworth." |
+
+- **Actions** (all free, every role but the GM; merged before your own actions, so you can
+  override or exclude them):
+  - `take {item}`: the item lies where you are and isn't fixed. Taking something you don't own is
+    allowed; everyone here sees it.
+  - `put-down {item}`: you carry it; it's left where you are.
+  - `give {item to}`: you carry it, and `to` is someone else here.
+- **Views:** the engine adds to every agent's view `:you :carrying [{:id :name :condition}]`,
+  `:location :here :items [{:id :name}]` (names only) and `:carrying ["Umbrella" ...]` on each of
+  `:people-here`, each left out when empty. The default GM view gets `:items`.
+- Say in a brief that things are under `items` in the view and that `take`, `put-down` and `give`
+  don't end the turn (Claudeworth's `rules` does).
+
+Fungible stores (provisions, coal) are better kept as counters in your `:state`.
 
 ### World files (`manor.worldfile`)
 
@@ -435,16 +504,26 @@ in `:init`:
              ...]
  :routes [["porch" "green" 1]]                     ; journeys, as in :space
  :agents [{:name "Ada" :role :resident :location "hall"}]
+ :items [{:id "pipe" :name "Pipe" :holder "Ben" :owner "Ben"   ; optional, see Items
+          :condition "still warm" :desc "A briar pipe."}]
  :shop {...}}                                       ; your own sections, from :world-file
 ```
 
 - `load-world` takes a file path or a classpath resource name. It checks the file and throws a
-  list of readable problems (unknown locations, duplicate ids, bad routes, bad clock). It returns
-  `{:space :clock :agents :world-file}`. Read your own sections from `:world-file`.
+  list of readable problems (unknown locations, duplicate ids, bad routes, bad clock, bad items).
+  It returns `{:space :clock :agents :items :world-file}`. Read your own sections from
+  `:world-file`.
+- `:items` (optional) lists items as in Items, one per line, with `:holder` and an agent `:owner`
+  given by agent **name**, as `:agents` does; loading turns those into ids (other owners, such as
+  `"household"`, are kept). Each item is checked: its fields and lengths, a unique id, exactly one
+  of `:place` (a location of the file) and `:holder` (an agent of the file). A scenario that leaves
+  out one of the file's agents should leave out the items that agent holds (Claudeworth's
+  `:architect? false` does).
 - `:domain` groups locations into areas on the control panel's map (house, village, ...).
 - The file is a **template**: nothing writes to it. The engine saves a copy as
   `<run-dir>/world-start.edn`. Whenever the map changes, it writes the live map back in the same
-  format to `<run-dir>/map.edn` (output only). A run can start from an exported map
+  format to `<run-dir>/map.edn` (output only), and the live items with it (holders and owners as
+  names again) whenever an item changes hands. A run can start from an exported map
   (`{:world-file "runs/<id>/map.edn"}`), and `(export-map! path)` at the REPL writes one anywhere.
 - Loading, branching and replay never read world files: the starting map is recorded as events.
 

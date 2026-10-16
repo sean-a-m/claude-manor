@@ -108,7 +108,8 @@ The scenario boundary is already clean: the engine only reads the keys listed in
   `:moved` would clash.
 - **Approach:** a validator or smoke warning when a scenario emits non-namespaced event types or
   types namespaced with another scenario's name. Engine types (`agent/`, `round/`, `gm/`,
-  `bridge/`, `space/`, `run/`, `llm/`, `action/`, `world/`) are allowed. Fold this into A1/A2.
+  `bridge/`, `space/`, `item/`, `run/`, `llm/`, `action/`, `world/`) are allowed. Fold this into
+  A1/A2.
 
 ### A6. LLM-facing authoring prompt and generation workflow
 

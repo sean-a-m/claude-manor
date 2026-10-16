@@ -8,6 +8,7 @@
             [manor.builtins :as b]
             [manor.clock :as clock]
             [manor.engine :as e]
+            [manor.items :as items]
             [manor.prompt :as prompt]
             [manor.llm :as llm]
             [manor.mcp :as mcp]
@@ -109,7 +110,7 @@
       (let [[bought] (perform run shop "hale" :buy {:item "coal" :qty 3})]
         (is (= 2994 (get-in bought [:state :household :funds])))
         (is (= 3 (get-in bought [:state :household :stores "coal"]))))
-      (is (= "the General store sells: provisions (£1), candles (£1), coal (£2)"
+      (is (= "the General store sells: provisions (£1), candles (£1), coal (£2), umbrella (£1), walking stick (£1), feather duster (£1), tin of silver polish (£1), novel (£1), bunch of chrysanthemums (£1)"
              (check shop "hale" :buy {:item "diamonds" :qty 1})))
       (is (= "the General store is closed; it is open 08:00-18:00"
              (check (assoc shop :round 21) "hale" :buy {:item "coal" :qty 1})))
@@ -495,6 +496,63 @@
     (is (empty? (of-type run :action/forfeited)))
     (is (= world (w/replay (store/read-events (:dir run)))))
     (e/stop-run run)))
+
+;; ---------------------------------------------------------------------------
+;; Items
+
+(deftest items-in-claudeworth
+  (let [run (start)
+        world (assoc (e/world run) :round 9)              ; 12:00, the store is open
+        shop (at world "hale" "general-store")]
+    (testing "the starting items, with holders and agent owners as ids"
+      (is (= {:holder "lord-claudeworth" :owner "lord-claudeworth"}
+             (select-keys (items/item world "pocket-watch") [:holder :owner])))
+      (is (= {:holder "hale" :owner "hale"} (select-keys (items/item world "pocket-notebook") [:holder :owner])))
+      (is (= #{"piano" "china-cabinet"} (set (map :id (items/items-at world "drawing-room")))))
+      (is (every? #(= "household" (:owner %)) (items/items-where world :place))))
+    (testing "one home per fact: what became an item is gone from the rooms' descriptions"
+      (doseq [[loc word] [["entrance-hall" "stag"] ["drawing-room" "piano"] ["dining-room" "portrait"]
+                          ["carriage-sweep" "motor car"] ["study" "ledgers"]]]
+        (is (not (str/includes? (str/lower-case (:desc (space/location world loc))) word)) loc)))
+    (testing "Hale's view: what he carries, and the shop's carried goods marked"
+      (is (= [{:id "pocket-notebook" :name "Pocket notebook" :condition "half full"}]
+             (get-in (prompt/agent-view (:scenario run) world "hale") [:you :carrying])))
+      (is (= {:item "umbrella" :price 1 :carried true}
+             (first (filter #(= "umbrella" (:item %)) (get-in (cw/observe shop "hale") [:here :sells]))))))
+    (testing "buying carried goods hands the buyer new items owned by the household; stores are unchanged"
+      (let [[bought evs] (perform run shop "hale" :buy {:item "feather duster" :qty 2})
+            names (narrate/names bought)]
+        (is (= [:claudeworth/bought :item/added :item/added] (map :type evs)))
+        (is (= ["feather-duster" "feather-duster-2"] (map :id (items/items-where bought #(= "Feather duster" (:name %))))))
+        (is (every? #(= {:holder "hale" :owner "household" :condition "new, the feathers fluffy"}
+                        (select-keys % [:holder :owner :condition]))
+                    (map #(items/item bought %) ["feather-duster" "feather-duster-2"])))
+        (is (= 2998 (get-in bought [:state :household :funds])))
+        (is (= (get-in shop [:state :household :stores]) (get-in bought [:state :household :stores])))
+        (is (every? #(= #{"hale"} (:visible-to %)) evs))
+        (is (= "Hale buys 2 feather duster for £2 at the General store." (narrate/describe (first evs) names)))
+        (is (= "Hale now has a feather duster." (narrate/describe (second evs) names)))))
+    (testing "the rules say the item actions are free"
+      (is (str/includes? (cw/rules world) "`take`, `put-down` and `give` don't end your turn")))
+    (e/stop-run run))
+  (testing "carried shop goods need a description and a condition"
+    (let [world-file (:world-file (wf/load-world "worlds/claudeworth.edn"))]
+      (is (empty? (building/problems world-file)))
+      (is (str/includes? (str/join "\n" (building/problems (update-in world-file [:shop "general-store" 3] dissoc :desc)))
+                         ":shop general-store \"umbrella\": goods of :kind :item need"))))
+  (testing "leaving Mr Pugh out leaves out what he holds"
+    (let [with-pugh (update (wf/read-file "worlds/claudeworth.edn") :items conj
+                            {:id "set-square" :name "Set square" :holder "Pugh" :condition "true" :desc "A brass set square."})
+          file-name (str (gensym "pugh-items-") ".edn")
+          _ (store/write-text! store/test-runs-root file-name (wf/->edn-string with-pugh))
+          source (str (io/file store/test-runs-root file-name))
+          r1 (start {:world-file source})
+          r2 (start {:world-file source :architect? false})]
+      (is (= "pugh" (:holder (items/item (e/world r1) "set-square"))))
+      (is (nil? (items/item (e/world r2) "set-square")))
+      (is (some? (items/item (e/world r2) "pocket-watch")))
+      (e/stop-run r1)
+      (e/stop-run r2))))
 
 ;; ---------------------------------------------------------------------------
 ;; One home per fact: what agents read comes from the world file

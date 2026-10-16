@@ -25,6 +25,7 @@
             [manor.bridge :as bridge]
             [manor.builtins :as b]
             [manor.clock :as clock]
+            [manor.items :as items]
             [manor.llm :as llm]
             [manor.mcp :as mcp]
             [manor.prompt :as prompt]
@@ -68,11 +69,13 @@
     @(ns-resolve ns-sym 'scenario)))
 
 (defn all-actions
-  "Built-in and scenario actions, minus the scenario's :exclude-actions."
+  "Built-in and scenario actions (with the item actions if the scenario has
+  :items), minus the scenario's :exclude-actions."
   [scenario]
   (let [excluded (set (:exclude-actions scenario))]
     (remove #(excluded (:name %))
-            (a/merge-actions (b/agent-actions) (space/actions) (b/gm-actions scenario) (:actions scenario)))))
+            (a/merge-actions (b/agent-actions) (space/actions) (when (:items scenario) (items/actions))
+                             (b/gm-actions scenario) (:actions scenario)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Run plumbing
@@ -120,8 +123,9 @@
   (notify! run {:kind :status :status @(:status run)}))
 
 (defn- export-map!
-  "Runs started from a world file keep their live map in <run-dir>/map.edn,
-  in the same format. Output only: nothing reads it during the run."
+  "Runs started from a world file keep their live map (and items) in
+  <run-dir>/map.edn, in the same format. Output only: nothing reads it
+  during the run."
   [run]
   (when-let [start (store/read-world-start (:dir run))]
     (store/write-text! (:dir run) "map.edn" (worldfile/->edn-string (worldfile/export @(:world run) start)))))
@@ -136,7 +140,7 @@
         (swap! (:events run) conj e)
         (store/append-event! (:dir run) e)
         (notify! run {:kind :event :event e})))
-    (when (some #(= "space" (namespace (:type %))) events)
+    (when (some #(#{"space" "item"} (namespace (:type %))) events)
       (export-map! run))))
 
 (defn- write-transcript!
@@ -683,13 +687,21 @@
               (throw (ex-info (str "bad :start option: " (str/join "; " ps)) {:start start})))
             c)))
 
+(defn- check-items!
+  "Throw if the starting items don't fit the world: ids, fields, places and holders."
+  [world items]
+  (when-let [ps (seq (items/problems items {:places (set (keys (get-in world [:space :locations])))
+                                            :holders (set (keys (:agents world)))}))]
+    (throw (ex-info (str "bad :items from :init: " (str/join "; " ps)) {:problems (vec ps)}))))
+
 (defn- init!
   "Build the starting world from the scenario's :init. A :world-file in the
   result (see manor.worldfile) is saved as <run-dir>/world-start.edn. The
-  run option :start overrides the clock's start time."
+  run option :start overrides the clock's start time. If the scenario has
+  :items, the starting items are added after the agents."
   [run]
   (let [{:keys [scenario opts]} run
-        {:keys [state agents clock world-file] :as init} ((:init scenario) opts)
+        {:keys [state agents clock world-file items] :as init} ((:init scenario) opts)
         _ (when-let [ps (and clock (clock/problems clock))]
             (throw (ex-info (str "bad clock from :init: " (str/join "; " ps)) {:clock clock})))
         clock (with-start scenario clock (:start opts))]
@@ -700,7 +712,10 @@
                          clock (assoc :clock clock))}])
     (emit! run (space/init-events (:space init)))
     (doseq [spec (cons {:name "GM" :role :gm :model (:gm-model opts) :controller (:gm opts)} agents)]
-      (emit! run (b/spawn-events scenario @(:world run) (into {} (remove (comp nil? val)) spec))))))
+      (emit! run (b/spawn-events scenario @(:world run) (into {} (remove (comp nil? val)) spec))))
+    (when (:items scenario)
+      (check-items! @(:world run) items)
+      (emit! run (items/init-events items)))))
 
 (defn start-run
   "Create and initialise a new run of `scenario-key` (e.g. :village)."

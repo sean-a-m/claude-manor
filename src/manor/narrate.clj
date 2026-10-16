@@ -142,9 +142,12 @@
           (or (:prompt-tokens data) 0) (or (:completion-tokens data) 0) (double (or (:cost data) 0))))
 
 (defn names
-  "Display names: agent id -> name, and [:loc id] -> location name. With a
-  clock, also [:clock] and [:today] (the current round), for `at`."
+  "Display names: agent id -> name, [:loc id] -> location name, and
+  [:item id] -> item name. With a clock, also [:clock] and [:today] (the
+  current round), for `at`."
   [world]
   (cond-> (merge (into {} (map (juxt key (comp :name val))) (:agents world))
-                 (into {} (map (fn [[id l]] [[:loc id] (:name l)])) (get-in world [:space :locations])))
+                 (into {} (map (fn [[id l]] [[:loc id] (:name l)])) (get-in world [:space :locations]))
+                 ;; resolved at call time: manor.items requires this namespace for its describe methods
+                 ((requiring-resolve 'manor.items/names) world))
     (:clock world) (assoc [:clock] (:clock world) [:today] (:round world))))

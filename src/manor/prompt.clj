@@ -6,6 +6,7 @@
   (:require [clojure.string :as str]
             [jsonista.core :as json]
             [manor.clock :as clock]
+            [manor.items :as items]
             [manor.narrate :as narrate]
             [manor.space :as space]
             [manor.world :as w]))
@@ -60,7 +61,8 @@ Your view is private. Others only learn what is public or what someone tells the
 
 (defn agent-view
   "Everything an agent is shown about the world: the scenario's `observe`
-  projection, plus identity and (when the world has locations) where they are."
+  projection, plus identity, (when the world has locations) where they are,
+  and (when it has items) what they carry and the things around them."
   [scenario world agent-id]
   (let [a (w/agent world agent-id)
         observe (:observe scenario (fn [_ _] {}))]
@@ -74,7 +76,8 @@ Your view is private. Others only learn what is public or what someone tells the
                                       :interrupted-by (:name (w/agent world (get-in a [:busy :interrupted-by])))}
                                (get-in a [:busy :until])
                                (assoc :until (narrate/at (narrate/names world) (get-in a [:busy :until])))))
-      (space/enabled? world) (assoc :location (space/view world agent-id)))))
+      (space/enabled? world) (assoc :location (space/view world agent-id))
+      (items/enabled? world) (items/add-to-view world agent-id))))
 
 (defn- brief-text
   "A role's :brief: a string, or a function of the world (and, for agents,
@@ -126,7 +129,8 @@ You act only by calling tools. You may take a few actions; call `done` when fini
   (cond-> {:state (gm-state (:state world))
            :agents (mapv #(select-keys % [:id :name :role :status :persona :location :travel :busy])
                          (w/agents-in-order world))}
-    (space/enabled? world) (assoc :space (:space world))))
+    (space/enabled? world) (assoc :space (:space world))
+    (items/enabled? world) (assoc :items (items/gm-view world))))
 
 (defn gm-messages
   [scenario world events reasons {:keys [event-window]}]

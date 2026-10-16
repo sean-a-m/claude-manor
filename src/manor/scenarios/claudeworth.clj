@@ -4,7 +4,8 @@
 
   The world is in resources/worlds/claudeworth.edn (run option :world-file
   overrides it): the map, the clock, the agents and their personas, the
-  setting (:meta :setting) and what each role is (:roles). This namespace
+  things in the house (:items, see manor.items), the setting (:meta
+  :setting) and what each role is (:roles). This namespace
   holds only the rules, and briefs and tool docs say nothing a world file
   could make false. Areas are the locations' :domains. `walk` (free) goes
   anywhere in the current area; `travel` (a turn) goes to another area.
@@ -279,6 +280,7 @@
          " characters); `whisper` is private. "
          "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). You get no turns while asleep or busy, unless someone uses `rouse` to interrupt you. On that turn, `carry-on` ignores them; any other accepted action means you stop. "
          "Use `spend-time` for longer pastimes (half an hour to " max-pastime-hours " hours). `note` keeps private notes. "
+         "Things in your place are under `items` in your view and what you carry under `carrying`; `take`, `put-down` and `give` don't end your turn. "
          "If you are waiting on someone or nothing needs doing, `pass` is the way to wait a turn; you act again next turn. "
          "Opening hours are shown in your view where a place has them. "
          "The family and secretary spend freely from the household account (`household` in your view), and can `buy` at an open shop. "
@@ -339,7 +341,8 @@
        (str ":roles " role " needs an :about paragraph")))))
 
 (defn init
-  "The world file, its agents (without Mr Pugh if :architect? is false), and
+  "The world file, its agents (without Mr Pugh if :architect? is false, and
+  without anything he holds), its items, and
   in :state everyone's bedroom and routine, the setting, the roles' :about
   text and the query limit the rules quote."
   [{:keys [world-file] :as opts}]
@@ -348,9 +351,11 @@
     (when-let [ps (seq (problems wf))]
       (throw (ex-info (str "world file " source " has problems:\n- " (str/join "\n- " ps)) {:problems (vec ps)})))
     (let [agents (cond->> (:agents loaded)
-                   (false? (:architect? opts)) (remove :optional?))]
+                   (false? (:architect? opts)) (remove :optional?))
+          ids (set (map (comp b/slug :name) agents))]
       (assoc loaded
              :agents (vec agents)
+             :items (filterv #(or (nil? (:holder %)) (ids (:holder %))) (:items loaded))
              :state (merge (building/initial-state wf agents opts)
                            {:bedrooms (into {} (map (juxt (comp b/slug :name) :bedroom)) agents)
                             :routines (into {} (for [{:keys [name routine]} agents :when (seq routine)]
@@ -487,6 +492,7 @@
    :offline-stubs building/offline-stubs
    :mcp-servers building/mcp-servers
    :systems [building/construction]
+   :items {}
    :exclude-actions #{:move}
    :hibernate hibernate
    :observe observe

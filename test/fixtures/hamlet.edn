@@ -16,4 +16,10 @@
  [{:name "Ada" :role :resident :location "hall" :persona "An early riser who likes things orderly."}
   {:name "Ben" :role :resident :location "hall" :persona "A night owl who hates going to bed."}]
 
+ :items
+ [{:id "clock" :name "Grandfather clock" :place "hall" :owner "Ada" :fixed? true :condition "ticking loudly" :desc "A tall oak clock that strikes the hours."}
+  {:id "umbrella" :name "Umbrella" :place "hall" :owner "Ada" :condition "dry" :desc "A black umbrella with a horn handle."}
+  {:id "pipe" :name "Pipe" :holder "Ben" :owner "Ben" :condition "still warm" :desc "A briar pipe, much chewed."}
+  {:id "basket" :name "Basket" :place "shop" :owner "the shop" :condition "empty" :desc "A wicker shopping basket."}]
+
  :notices ["A section the engine doesn't know about, kept as is."]}

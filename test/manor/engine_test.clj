@@ -168,6 +168,10 @@
     (is (not (contains? farmer-tools "spawn-agent")))
     (is (contains? gm-tools "spawn-agent"))
     (is (not (contains? gm-tools "plant")))
+    (is (contains? farmer-tools "pray"))
+    (is (not (contains? farmer-tools "request-gm")))
+    (is (= [{:type :gm/requested :actor "ana" :data {:text "help"} :visible-to #{"ana"}}]
+           (a/effect-events (first (filter #(= :pray (:name %)) (:actions run))) (e/world run) "ana" {:text "help"})))
     (is (= {:type "object" :properties {:grain {:type "integer" :minimum 1 :maximum 30}} :required [:grain]}
            (get-in (a/->tool (first (filter #(= :plant (:name %)) (:actions run)))) [:function :parameters])))
     (e/stop-run run)))

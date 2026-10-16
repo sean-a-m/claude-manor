@@ -197,7 +197,7 @@ made, not when it is executed.
 | `note` | all | free | private note, shown to the agent every round (last 15); told 400 characters, accepts 500 |
 | `say` | all | final | heard by everyone in the same place (everyone, without locations); told 1000 characters, accepts 1500 |
 | `whisper` | all | final | private to one agent; requires being together if both have locations; same limits |
-| `request-gm` | all | free | private message to the GM's inbox; triggers the GM this round |
+| `pray` | all | free | a private, diegetic way to reach the GM: its `:gm/requested` event fills the GM's inbox and triggers the GM this round |
 | `move` | all | final | follow a route (see Locations); only offered when the agent has a location |
 | `spawn-agent` | gm | final | spawn a `:spawnable?` role, optional location; respects `:limits` |
 | `retire-agent` | gm | final | remove an agent |

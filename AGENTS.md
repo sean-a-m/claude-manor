@@ -43,7 +43,8 @@ These came from the design conversation; respect them unless told otherwise.
   branches later, and pi runs a cheap model (deepseek v4.1 flash) by default.
 - **Private information matters.** Never put the full world in an agent prompt. Be careful that
   bridges don't create shared side channels.
-- **The GM is an LLM by default but hands-off:** it's only called when triggered.
+- **The GM is an LLM by default but hands-off:** it's only called when triggered, and it is unseen
+  by the characters (agents reach it only through the diegetic `pray`, not a named GM tool).
 - **A minimal web UI:** a control panel and simple diagrams, nothing graphical.
 - **Cost-conscious.** Default model `deepseek/deepseek-v4.1-flash` (about $0.002 per agent per
   round). Always cap real runs with `:max-cost`.
@@ -56,7 +57,7 @@ src/manor/
   world.clj      world value, apply-event multimethod (reducers), visibility rules
   narrate.clj    describe multimethod: event -> text agents read
   actions.clj    action specs -> tools; arg decoding (kebab normalisation, unknown keys dropped)
-  builtins.clj   pass/carry-on/note/say/whisper/request-gm + GM spawn/retire/announce/ask-human/done
+  builtins.clj   pass/carry-on/note/say/whisper/pray + GM spawn/retire/announce/ask-human/done
   space.clj      locations graph, positions, travel, move + GM route tools, pathfinding
   prompt.clj     builds agent/GM requests; agent-view = observe + identity + location
   llm.clj        LLM protocol; OpenRouter (JDK HTTP) and Mock (scenario policy) implementations

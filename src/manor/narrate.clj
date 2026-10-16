@@ -101,7 +101,7 @@
   (str (who names actor) " waits."))
 
 (defmethod describe :gm/requested [{:keys [actor data]} names]
-  (str (who names actor) " asks the game master: \"" (:text data) "\""))
+  (str (who names actor) " prays: \"" (:text data) "\""))
 
 (defmethod describe :gm/announced [{:keys [data]} _]
   (str "Announcement: " (:text data)))

@@ -123,10 +123,11 @@
     :effect (fn [_ actor {:keys [to text]}]
               [{:type :agent/whispered :data {:to to :text text} :visible-to #{actor to}}])}
 
-   {:name :request-gm
+   {:name :pray
     :kind :free
-    :doc "Send a private request to the game master, who runs the world (for example, asking for a newcomer to be invited). The game master may or may not act on it."
+    :doc "Pray quietly for something beyond your own reach (help, company, a turn of fortune). A prayer is private, and whether it is answered is not yours to decide."
     :args [:map [:text [:string {:min 1 :max 500}]]]
+    ;; The diegetic stand-in for reaching the GM; the event still fills the GM's inbox.
     :effect (fn [_ actor {:keys [text]}]
               [{:type :gm/requested :data {:text text} :visible-to #{actor}}])}])
 

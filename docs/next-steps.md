@@ -49,6 +49,10 @@ Archived under `old-test-runs/` (gitignored; **never commit it**, delete it when
   the curated reference document is not written.
 - **The cost cap overshoots by one round**: cost is checked at round boundaries, so `phase2-real-1`
   spent $0.109590879 against a $0.10 cap. Report this; don't hide it.
+- **The GM is unseen by the characters** (decision 22): the diegetic `pray` replaced the
+  agent-facing `request-gm`, which had named the GM in a tool description. This is an experiment -
+  the user wants later world interventions to be more in-game. A short real run would show whether
+  models use `pray` diegetically rather than treating it as a help desk.
 - **Rents and income, hunger, hiring and the inn** are phase 3. The GM brief now tells the GM not to
   invent money arriving.
 - The floor and query-limit wording was fixed and covered by tests, but only short real runs have

@@ -526,7 +526,7 @@
             (= round 1) {:tool :say :args {:text "Welcome, everyone. The forecast is in; plan your planting."}}
             (= round 2) {:tool :set-tax :args {:percent 10}}
             (= round 3) {:tool :send-letter :args {:text "To the governor: our village is small but growing."}}
-            (and (= round 4) (not (used "request-gm"))) {:tool :request-gm :args {:text "We could use another farmer."}}
+            (and (= round 4) (not (used "pray"))) {:tool :pray :args {:text "We could use another farmer."}}
             (and hungry (>= (get-in world [:state :treasury]) 5)) {:tool :grant :args {:to (:id hungry) :coins 5}}
             :else {:tool :pass})
 

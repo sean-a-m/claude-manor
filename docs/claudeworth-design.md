@@ -312,7 +312,7 @@ map; places, journeys and opening hours reach agents through their view.
 
 | Action | Who | Kind | Where / when |
 |---|---|---|---|
-| `say`, `whisper`, `note`, `request-gm`, `pass` | all | built-in | |
+| `say`, `whisper`, `note`, `pray`, `pass` | all | built-in | |
 | `walk {to}` | all | free | within an area |
 | `travel {to}` | all | final | to another area |
 | `spend-time {activity hours}` | all | final | anywhere |
@@ -330,7 +330,7 @@ The briefs set up the social dynamics the rules leave out:
 - the countess's say over her house
 - the secretary reporting back
 
-The GM is hands-off: it's called only on `request-gm`.
+The GM is hands-off and unseen by the characters: it's called only when an agent prays (`pray`), the diegetic stand-in for reaching it.
 
 **`:observe`** (private per agent):
 
@@ -555,3 +555,13 @@ Decisions for phase 2 (2026-10-16), detailed in `docs/claudeworth-phase2.md`:
     payloads use kebab-case keys (`connects-to`), not the snake_case of section 6.5.
 21. **Queries may span turns.** `:max-queries` stays 2 a turn. Reference and price queries leave a
     private record for the caller, so what they found is still in their prompt next turn.
+
+Decision after phase 2 (2026-10-16):
+
+22. **The GM is unseen by the characters.** `request-gm` named the game master in an agent's tool
+    description, which invited meta-play: in the first phase-2 run the earl used it to ask for a
+    rent advance. It is replaced by the diegetic `pray`, which emits the same `:gm/requested` event
+    and so still triggers the GM, but reads as an in-world act; the caller sees "X prays: ...",
+    never the machinery, and the GM's own narration is unchanged. This is an experiment: later,
+    more interventions should be in-game. Only the GM's brief and the `:gm/called` narration still
+    speak of the game master, and only the GM sees those.

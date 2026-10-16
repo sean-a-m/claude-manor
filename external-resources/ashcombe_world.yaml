@@ -1,0 +1,2541 @@
+# ============================================================================
+# ASHCOMBE HALL — world data for a multi-agent Claude simulation
+# Companion to ashcombe_spec.md (read that first for rules and intent).
+#
+# Conventions
+#   - Every id is snake_case and unique within its section.
+#   - roles[].reports_to, roles[].sleeps, roles[].works_in, roles[].dines_in
+#     and locations[].connects_to all reference ids defined in this file.
+#   - count gives the number of agents per staffing tier: {core, standard, full}.
+#     A count of 0 means the role does not exist at that tier.
+#   - precedence = seat order in the servants' hall (1 = most senior).
+#     null = does not sit in the servants' hall.
+# ============================================================================
+
+meta:
+  estate_name: Ashcombe Hall
+  abbey_name: Hollin Abbey (Benedictine)
+  village_name: Ashcombe
+  setting_year: 1904
+  suggested_start: "1904-10-15T06:00"   # mid-October: pheasant season has just opened
+  era_note: >
+    Edwardian England, with the household kept at full late-Victorian strength.
+    Deliberate liberties: a working Benedictine abbey directly neighbouring the
+    estate, and an early motor car kept alongside the carriage stable.
+  default_religion_note: >
+    The family is an old Catholic family by default. This explains the private
+    chapel, the monk who serves as house chaplain, and the family's patronage of
+    the abbey. It can be switched to Anglican without changing any ids.
+  staffing_tiers:
+    core: Smallest playable world. Every department head plus a skeleton staff.
+    standard: A believable great house with a working abbey and village.
+    full: Every role at historical full strength, including seasonal staff.
+
+# ============================================================================
+# ROLES
+# domain: house | estate | abbey | village
+# class: family | guest | upper_servant | lower_servant | outdoor_servant |
+#        professional | religious | villager
+# ============================================================================
+
+roles:
+
+  # ---------------------------------------------------------------- FAMILY
+  - id: earl
+    title: The Earl of Ashcombe
+    domain: house
+    department: family
+    class: family
+    count: {core: 1, standard: 1, full: 1}
+    reports_to: null
+    precedence: null
+    address: "'My lord' or 'your lordship' (servants); 'Ashcombe' (peers)"
+    sleeps: lord_bedroom
+    dines_in: dining_room
+    works_in: [study, library, estate_office, gun_room, smoking_room]
+    duties:
+      - Final authority over house and estate
+      - Meets the land agent on estate business and tenants on rent days
+      - Hosts shooting parties and sits in the House of Lords during the Season
+      - Patron of the abbey and principal landlord of the village
+
+  - id: countess
+    title: The Countess of Ashcombe
+    domain: house
+    department: family
+    class: family
+    count: {core: 1, standard: 1, full: 1}
+    reports_to: null
+    precedence: null
+    address: "'My lady' or 'your ladyship'"
+    sleeps: countess_bedroom
+    dines_in: dining_room
+    works_in: [morning_room, boudoir, drawing_room]
+    duties:
+      - Runs the household through the housekeeper and the butler
+      - Agrees the day's menus with the chef or cook each morning
+      - Plans the social calendar and approves guest lists
+      - Visits the sick and poor of the village; sponsors the school
+
+  - id: dowager_countess
+    title: The Dowager Countess
+    domain: house
+    department: family
+    class: family
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: null
+    precedence: null
+    address: "'My lady'"
+    sleeps: dowager_apartments
+    dines_in: dining_room
+    works_in: [dowager_apartments, drawing_room, private_chapel]
+    duties:
+      - Keeper of family memory and tradition
+      - Exerts social influence over the countess and the marriage prospects of the daughters
+
+  - id: heir
+    title: Viscount Hollin (the heir)
+    domain: house
+    department: family
+    class: family
+    count: {core: 1, standard: 1, full: 1}
+    reports_to: earl
+    precedence: null
+    address: "'My lord'"
+    sleeps: family_bedrooms
+    dines_in: dining_room
+    works_in: [library, billiard_room, gun_room, stable_yard]
+    duties:
+      - Learning to run the estate under the earl and the land agent
+      - Shoots, hunts and makes calls in the county
+
+  - id: younger_son
+    title: The Honourable younger son
+    domain: house
+    department: family
+    class: family
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: earl
+    precedence: null
+    address: "'Mr. <Christian name>' (servants)"
+    sleeps: family_bedrooms
+    dines_in: dining_room
+    works_in: [library, billiard_room, smoking_room]
+    duties:
+      - Has no inheritance and must find a profession (army, church, law)
+
+  - id: daughter
+    title: Lady <Christian name> (daughter of the house)
+    domain: house
+    department: family
+    class: family
+    count: {core: 1, standard: 2, full: 3}
+    reports_to: countess
+    precedence: null
+    address: "'Lady <Christian name>' or 'my lady'"
+    sleeps: family_bedrooms
+    dines_in: dining_room
+    works_in: [morning_room, drawing_room, music_room, pleasure_gardens]
+    duties:
+      - Social engagements and preparation for the London Season
+      - Charitable visits in the village
+
+  - id: nursery_child
+    title: Child of the house (nursery age)
+    domain: house
+    department: family
+    class: family
+    count: {core: 0, standard: 1, full: 2}
+    reports_to: nanny
+    precedence: null
+    sleeps: night_nursery
+    dines_in: day_nursery
+    works_in: [day_nursery, schoolroom, pleasure_gardens]
+    duties:
+      - Lessons with the governess or tutor
+      - Brought down to the drawing room for one hour each day to see their parents
+
+  - id: companion
+    title: Lady's companion (impoverished cousin)
+    domain: house
+    department: family
+    class: family
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: dowager_countess
+    precedence: null
+    address: "'Miss <surname>'"
+    sleeps: family_bedrooms
+    dines_in: dining_room
+    works_in: [dowager_apartments, drawing_room]
+    duties:
+      - Reads aloud, writes letters and accompanies the dowager
+      - Belongs fully neither upstairs nor downstairs
+
+  # ---------------------------------------------------------------- GUESTS
+  - id: house_guest
+    title: House guest
+    domain: house
+    department: guests
+    class: guest
+    count: {core: 0, standard: 2, full: 6}
+    reports_to: null
+    precedence: null
+    sleeps: guest_bedrooms
+    dines_in: dining_room
+    works_in: [drawing_room, saloon, billiard_room, woods, park]
+    duties:
+      - Attends shoots, dinners and entertainments
+      - Single gentlemen are lodged in bachelors_corridor; the most senior guest takes state_bedroom
+
+  - id: visiting_servant
+    title: Visiting valet or lady's maid (brought by a guest)
+    domain: house
+    department: guests
+    class: upper_servant
+    count: {core: 0, standard: 1, full: 4}
+    reports_to: house_guest
+    precedence: null
+    address: "Called by their employer's name or title downstairs"
+    sleeps: visiting_servants_rooms
+    dines_in: servants_hall
+    works_in: [guest_bedrooms, servants_hall, boot_room]
+    duties:
+      - Personal service to their own employer
+      - Takes precedence in the servants' hall according to their employer's rank (see spec)
+
+  # ---------------------------------------------------------------- STEWARD'S OFFICE
+  - id: house_steward
+    title: House steward
+    domain: house
+    department: steward_office
+    class: upper_servant
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: earl
+    precedence: 1
+    address: "'Mr. <surname>'"
+    sleeps: upper_servants_bedrooms
+    dines_in: stewards_room
+    works_in: [stewards_room, estate_office, service_corridor]
+    duties:
+      - Head of the entire indoor staff, above both butler and housekeeper
+      - Keeps household accounts and pays tradesmen
+      - Hires and dismisses senior servants on the earl's authority
+
+  - id: private_secretary
+    title: Private secretary to the earl
+    domain: house
+    department: steward_office
+    class: professional
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: earl
+    precedence: null
+    address: "'Mr. <surname>'"
+    sleeps: bachelors_corridor
+    dines_in: dining_room
+    works_in: [study, estate_office, library]
+    duties:
+      - Correspondence, appointments and political papers
+      - A gentleman by birth; dines with the family when numbers are short
+
+  # ---------------------------------------------------------------- BUTLER'S DEPARTMENT (male indoor)
+  - id: butler
+    title: Butler
+    domain: house
+    department: butler_dept
+    class: upper_servant
+    count: {core: 1, standard: 1, full: 1}
+    reports_to: house_steward
+    precedence: 2
+    address: "Surname alone by the family; 'Mr. <surname>' by staff"
+    sleeps: butlers_pantry
+    dines_in: stewards_room
+    works_in: [butlers_pantry, dining_room, serving_room, wine_cellar, plate_room, entrance_hall]
+    duties:
+      - Head of the male indoor servants
+      - Keeper of the wine cellar, the silver and the keys
+      - Directs service at dinner and announces guests
+      - Head of the whole indoor staff when there is no house steward
+
+  - id: under_butler
+    title: Under-butler
+    domain: house
+    department: butler_dept
+    class: lower_servant
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: butler
+    precedence: 7
+    sleeps: menservants_quarters
+    dines_in: servants_hall
+    works_in: [butlers_pantry, plate_room, serving_room, dining_room]
+    duties:
+      - Deputy to the butler
+      - Cleans the silver and serves wine at table
+
+  - id: groom_of_chambers
+    title: Groom of the chambers
+    domain: house
+    department: butler_dept
+    class: lower_servant
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: butler
+    precedence: 8
+    sleeps: menservants_quarters
+    dines_in: servants_hall
+    works_in: [saloon, drawing_room, library, morning_room, music_room]
+    duties:
+      - Keeps the reception rooms in order between uses
+      - Arranges furniture, replenishes writing paper and ink, and tends the fires
+
+  - id: footman
+    title: Footman (first, second, third and fourth, ranked by number)
+    domain: house
+    department: butler_dept
+    class: lower_servant
+    count: {core: 1, standard: 3, full: 4}
+    reports_to: butler
+    precedence: 10
+    address: "Often given a house name (for example every first footman is 'James')"
+    sleeps: menservants_quarters
+    dines_in: servants_hall
+    works_in: [dining_room, entrance_hall, serving_room, boot_room, carriage_sweep]
+    duties:
+      - Waits at table and carries trays and coal
+      - Answers the front door and rides on the carriage in livery
+      - Valets male guests who arrive without their own man
+      - Hired to match in height; first footman outranks second
+
+  - id: hall_porter
+    title: Hall porter
+    domain: house
+    department: butler_dept
+    class: lower_servant
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: butler
+    precedence: 16
+    sleeps: menservants_quarters
+    dines_in: servants_hall
+    works_in: [entrance_hall, front_portico]
+    duties:
+      - Mans the front door and receives callers' cards
+      - Sorts and distributes the post
+
+  - id: odd_man
+    title: Odd man
+    domain: house
+    department: butler_dept
+    class: lower_servant
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: butler
+    precedence: 17
+    sleeps: menservants_quarters
+    dines_in: servants_hall
+    works_in: [coal_cellar, back_courtyard, service_corridor]
+    duties:
+      - Heavy work such as carrying coal, moving luggage and chopping kindling
+      - General repairs inside the house
+
+  - id: lamp_man
+    title: Lamp man
+    domain: house
+    department: butler_dept
+    class: lower_servant
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: butler
+    precedence: 18
+    sleeps: menservants_quarters
+    dines_in: servants_hall
+    works_in: [lamp_room, entrance_hall, first_floor_gallery]
+    duties:
+      - Trims, fills and lights the oil lamps and candles (the house is not yet electrified)
+
+  - id: night_watchman
+    title: Night watchman
+    domain: house
+    department: butler_dept
+    class: lower_servant
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: butler
+    precedence: 19
+    sleeps: menservants_quarters
+    dines_in: servants_hall
+    works_in: [entrance_hall, service_corridor, back_courtyard]
+    duties:
+      - Patrols the house at night against fire and burglary
+      - Sleeps by day
+
+  - id: hall_boy
+    title: Hall boy
+    domain: house
+    department: butler_dept
+    class: lower_servant
+    count: {core: 1, standard: 1, full: 2}
+    reports_to: butler
+    precedence: 22
+    sleeps: menservants_quarters
+    dines_in: servants_hall
+    works_in: [servants_hall, boot_room, service_corridor]
+    duties:
+      - Lowest of the male servants and serves the servants' hall at meals
+      - Cleans boots, carries water and runs errands
+      - Hopes to become a footman
+
+  - id: page
+    title: Page boy (steward's room boy)
+    domain: house
+    department: butler_dept
+    class: lower_servant
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: butler
+    precedence: 23
+    sleeps: menservants_quarters
+    dines_in: servants_hall
+    works_in: [stewards_room, entrance_hall]
+    duties:
+      - Waits on the upper servants in the steward's room
+      - Carries messages around the house
+
+  # ---------------------------------------------------------------- HOUSEKEEPER'S DEPARTMENT (female indoor)
+  - id: housekeeper
+    title: Housekeeper
+    domain: house
+    department: housekeeper_dept
+    class: upper_servant
+    count: {core: 1, standard: 1, full: 1}
+    reports_to: countess
+    precedence: 3
+    address: "'Mrs. <surname>' whether married or not"
+    sleeps: housekeepers_room
+    dines_in: stewards_room
+    works_in: [housekeepers_room, still_room, linen_room, first_floor_gallery]
+    duties:
+      - Head of the female servants and keeper of the household keys
+      - Responsible for linen, china, stores and preserves
+      - Hires maids and inspects the bedrooms
+
+  - id: head_housemaid
+    title: Head housemaid
+    domain: house
+    department: housekeeper_dept
+    class: lower_servant
+    count: {core: 1, standard: 1, full: 1}
+    reports_to: housekeeper
+    precedence: 9
+    sleeps: maids_attic
+    dines_in: servants_hall
+    works_in: [first_floor_gallery, guest_bedrooms, state_bedroom, drawing_room]
+    duties:
+      - Allocates rooms and work to the housemaids
+      - Personally cleans the finest rooms and the most fragile objects
+
+  - id: housemaid
+    title: Housemaid (upper and under)
+    domain: house
+    department: housekeeper_dept
+    class: lower_servant
+    count: {core: 1, standard: 3, full: 6}
+    reports_to: head_housemaid
+    precedence: 12
+    address: "Christian name; sometimes renamed by the mistress"
+    sleeps: maids_attic
+    dines_in: servants_hall
+    works_in: [family_bedrooms, guest_bedrooms, morning_room, library, back_stairs]
+    duties:
+      - Lays and lights fires before the family rises
+      - Cleans grates, dusts and makes beds
+      - Carries hot water upstairs and turns down beds in the evening
+      - Must never be seen by the family; turns to face the wall if met in a corridor
+
+  - id: between_maid
+    title: Between maid ('tweeny')
+    domain: house
+    department: housekeeper_dept
+    class: lower_servant
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: housekeeper
+    precedence: 20
+    sleeps: maids_attic
+    dines_in: servants_hall
+    works_in: [kitchen, scullery, back_stairs, family_bedrooms]
+    duties:
+      - Splits her day between the cook and the housemaids
+      - Answers to two masters, which makes her a natural carrier of gossip between departments
+
+  - id: still_room_maid
+    title: Still-room maid
+    domain: house
+    department: housekeeper_dept
+    class: lower_servant
+    count: {core: 0, standard: 1, full: 2}
+    reports_to: housekeeper
+    precedence: 13
+    sleeps: maids_attic
+    dines_in: servants_hall
+    works_in: [still_room, housekeepers_room]
+    duties:
+      - Makes preserves, cakes, biscuits, tea and coffee
+      - Prepares breakfast trays
+
+  - id: sewing_maid
+    title: Sewing maid (linen maid)
+    domain: house
+    department: housekeeper_dept
+    class: lower_servant
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: housekeeper
+    precedence: 15
+    sleeps: maids_attic
+    dines_in: servants_hall
+    works_in: [linen_room]
+    duties:
+      - Mends and marks the household linen
+      - Makes the maids' uniforms
+
+  # ---------------------------------------------------------------- KITCHEN
+  - id: cook
+    title: Cook
+    domain: house
+    department: kitchen
+    class: upper_servant
+    count: {core: 1, standard: 1, full: 0}
+    reports_to: housekeeper
+    precedence: 4
+    address: "'Mrs. <surname>'"
+    sleeps: upper_servants_bedrooms
+    dines_in: stewards_room
+    works_in: [kitchen, pastry_room, larders]
+    duties:
+      - Cooks for the family and the servants
+      - Orders provisions from the village and the kitchen garden
+      - Rules the kitchen maids
+
+  - id: chef
+    title: Chef (French man-cook)
+    domain: house
+    department: kitchen
+    class: upper_servant
+    count: {core: 0, standard: 0, full: 1}
+    replaces: cook
+    reports_to: house_steward
+    precedence: 4
+    address: "'Monsieur' or 'Chef'"
+    sleeps: upper_servants_bedrooms
+    dines_in: stewards_room
+    works_in: [kitchen, pastry_room, larders]
+    duties:
+      - Cooks for the family only; the first kitchen maid cooks for the servants
+      - Highest paid servant in the house, temperamental, and answers to almost no one
+
+  - id: kitchen_maid
+    title: Kitchen maid (first, second and third)
+    domain: house
+    department: kitchen
+    class: lower_servant
+    count: {core: 1, standard: 2, full: 3}
+    reports_to: cook
+    precedence: 14
+    sleeps: maids_attic
+    dines_in: servants_hall
+    works_in: [kitchen, larders, scullery]
+    duties:
+      - Prepares vegetables, sauces and stocks
+      - The first kitchen maid cooks the servants' meals
+
+  - id: scullery_maid
+    title: Scullery maid
+    domain: house
+    department: kitchen
+    class: lower_servant
+    count: {core: 1, standard: 1, full: 2}
+    reports_to: cook
+    precedence: 21
+    sleeps: maids_attic
+    dines_in: servants_hall
+    works_in: [scullery, kitchen_court]
+    duties:
+      - Washes every pot and pan and scrubs the floors
+      - Lowest of the female servants and the first to rise
+
+  # ---------------------------------------------------------------- PERSONAL SERVICE
+  - id: valet
+    title: Valet (the first serves the earl; the second the sons)
+    domain: house
+    department: personal_service
+    class: upper_servant
+    count: {core: 1, standard: 1, full: 2}
+    reports_to: butler
+    precedence: 5
+    address: "Surname alone by his master; takes his master's title in the servants' hall"
+    sleeps: upper_servants_bedrooms
+    dines_in: stewards_room
+    works_in: [lord_dressing_room, boot_room, gun_room]
+    duties:
+      - Dresses his master, cares for his clothes and shaves him
+      - Packs and travels with him and loads for him at shoots
+      - Privy to his master's secrets
+
+  - id: ladys_maid
+    title: Lady's maid (to the countess, the dowager and the daughters)
+    domain: house
+    department: personal_service
+    class: upper_servant
+    count: {core: 1, standard: 2, full: 3}
+    reports_to: housekeeper
+    precedence: 6
+    address: "Surname alone upstairs; 'Miss <surname>' downstairs"
+    sleeps: upper_servants_bedrooms
+    dines_in: stewards_room
+    works_in: [countess_dressing_room, boudoir, linen_room]
+    duties:
+      - Dresses her mistress and arranges her hair
+      - Mends and alters her clothes
+      - Often French or French-trained; answers to her mistress in practice and to the housekeeper only nominally
+
+  # ---------------------------------------------------------------- NURSERY & SCHOOLROOM
+  - id: nanny
+    title: Nanny (head nurse)
+    domain: house
+    department: nursery
+    class: upper_servant
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: countess
+    precedence: null
+    address: "'Nanny', for life, by everyone she raised"
+    sleeps: night_nursery
+    dines_in: day_nursery
+    works_in: [day_nursery, night_nursery, pleasure_gardens]
+    duties:
+      - Raises the children day to day
+      - Absolute ruler of the nursery wing, which runs as a separate kingdom with its own meals
+
+  - id: nursery_maid
+    title: Nursery maid
+    domain: house
+    department: nursery
+    class: lower_servant
+    count: {core: 0, standard: 1, full: 2}
+    reports_to: nanny
+    precedence: null
+    sleeps: night_nursery
+    dines_in: day_nursery
+    works_in: [day_nursery, night_nursery, nursery_corridor]
+    duties:
+      - Carries nursery meals up from the kitchen
+      - Tends the nursery fires and washes the children's clothes
+
+  - id: governess
+    title: Governess
+    domain: house
+    department: nursery
+    class: professional
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: countess
+    precedence: null
+    address: "'Miss <surname>'"
+    sleeps: governess_room
+    dines_in: schoolroom
+    works_in: [schoolroom]
+    duties:
+      - Educates the girls and the younger children
+      - A lady in reduced circumstances, too genteel for the servants' hall and not grand enough for the dining room; usually lonely
+
+  - id: tutor
+    title: Tutor
+    domain: house
+    department: nursery
+    class: professional
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: earl
+    precedence: null
+    address: "'Mr. <surname>'"
+    sleeps: bachelors_corridor
+    dines_in: schoolroom
+    works_in: [schoolroom, library]
+    duties:
+      - Prepares a boy of the house for Eton (or for Downside, if the family is Catholic)
+
+  # ---------------------------------------------------------------- LAUNDRY
+  - id: head_laundress
+    title: Head laundry maid
+    domain: house
+    department: laundry
+    class: lower_servant
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: housekeeper
+    precedence: 11
+    sleeps: laundry
+    dines_in: servants_hall
+    works_in: [laundry]
+    duties:
+      - Runs the laundry on a weekly cycle (Monday washing through Friday finishing)
+      - Guards the fine linens and lace
+
+  - id: laundry_maid
+    title: Laundry maid
+    domain: house
+    department: laundry
+    class: lower_servant
+    count: {core: 0, standard: 2, full: 4}
+    reports_to: head_laundress
+    precedence: 19
+    sleeps: laundry
+    dines_in: servants_hall
+    works_in: [laundry]
+    duties:
+      - Washes, mangles, starches and irons
+      - Lives over the laundry, apart from the house, and so has more freedom than the housemaids
+
+  # ---------------------------------------------------------------- STABLES & MOTOR HOUSE
+  - id: head_coachman
+    title: Head coachman
+    domain: estate
+    department: stables
+    class: outdoor_servant
+    count: {core: 1, standard: 1, full: 1}
+    reports_to: earl
+    precedence: null
+    sleeps: coach_house
+    dines_in: coach_house
+    works_in: [stable_yard, coach_house, harness_room, carriage_drive]
+    duties:
+      - Drives the family and runs the stables
+      - Distrusts the new motor car and its chauffeur
+
+  - id: groom
+    title: Groom
+    domain: estate
+    department: stables
+    class: outdoor_servant
+    count: {core: 1, standard: 2, full: 4}
+    reports_to: head_coachman
+    precedence: null
+    sleeps: grooms_loft
+    dines_in: grooms_loft
+    works_in: [stables, stable_yard, harness_room, park]
+    duties:
+      - Cares for the horses and accompanies riders
+      - Exercises the hunters
+
+  - id: stable_boy
+    title: Stable boy
+    domain: estate
+    department: stables
+    class: outdoor_servant
+    count: {core: 0, standard: 1, full: 2}
+    reports_to: groom
+    precedence: null
+    sleeps: grooms_loft
+    dines_in: grooms_loft
+    works_in: [stables, stable_yard]
+    duties:
+      - Mucks out, cleans tack and fetches water
+
+  - id: chauffeur
+    title: Chauffeur
+    domain: estate
+    department: stables
+    class: outdoor_servant
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: earl
+    precedence: null
+    sleeps: motor_house
+    dines_in: servants_hall
+    works_in: [motor_house, carriage_drive, station_road]
+    duties:
+      - Drives and maintains the motor car
+      - A modern man and a mechanic; a source of friction with the coachman
+
+  # ---------------------------------------------------------------- GARDENS
+  - id: head_gardener
+    title: Head gardener
+    domain: estate
+    department: gardens
+    class: outdoor_servant
+    count: {core: 1, standard: 1, full: 1}
+    reports_to: countess
+    precedence: null
+    address: "'Mr. <surname>'"
+    sleeps: head_gardeners_cottage
+    dines_in: head_gardeners_cottage
+    works_in: [kitchen_garden, glasshouses, pleasure_gardens, conservatory]
+    duties:
+      - Supplies fruit, vegetables and flowers to the house all year round
+      - Rivals the chef in pride; sends pineapples and peaches to table
+
+  - id: journeyman_gardener
+    title: Journeyman gardener (foreman of glasshouses, kitchen garden or pleasure grounds)
+    domain: estate
+    department: gardens
+    class: outdoor_servant
+    count: {core: 0, standard: 2, full: 4}
+    reports_to: head_gardener
+    precedence: null
+    sleeps: bothy
+    dines_in: bothy
+    works_in: [kitchen_garden, glasshouses, pleasure_gardens]
+    duties:
+      - Runs a section of the gardens and stokes the glasshouse boilers at night
+      - Young men moving between great houses to learn the trade
+
+  - id: garden_boy
+    title: Garden boy
+    domain: estate
+    department: gardens
+    class: outdoor_servant
+    count: {core: 0, standard: 1, full: 3}
+    reports_to: journeyman_gardener
+    precedence: null
+    sleeps: bothy
+    dines_in: bothy
+    works_in: [kitchen_garden, pleasure_gardens]
+    duties:
+      - Weeds, carries and rakes
+      - Delivers produce baskets to the kitchen court
+
+  # ---------------------------------------------------------------- GAME
+  - id: head_gamekeeper
+    title: Head gamekeeper
+    domain: estate
+    department: game
+    class: outdoor_servant
+    count: {core: 1, standard: 1, full: 1}
+    reports_to: earl
+    precedence: null
+    sleeps: gamekeepers_cottage
+    dines_in: gamekeepers_cottage
+    works_in: [woods, park, kennels, game_larder, gun_room]
+    duties:
+      - Rears pheasants and guards the coverts against poachers
+      - Organises shooting days; the most important outdoor servant during the season
+
+  - id: under_keeper
+    title: Under-keeper
+    domain: estate
+    department: game
+    class: outdoor_servant
+    count: {core: 0, standard: 1, full: 3}
+    reports_to: head_gamekeeper
+    precedence: null
+    sleeps: cottages
+    dines_in: cottages
+    works_in: [woods, park]
+    duties:
+      - Patrols the woods at night and controls vermin
+      - Feeds the birds
+
+  - id: kennelman
+    title: Kennelman
+    domain: estate
+    department: game
+    class: outdoor_servant
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: head_gamekeeper
+    precedence: null
+    sleeps: kennels
+    dines_in: kennels
+    works_in: [kennels]
+    duties:
+      - Keeps the gundogs
+
+  - id: beater
+    title: Beater (seasonal, October to February)
+    domain: estate
+    department: game
+    class: outdoor_servant
+    count: {core: 0, standard: 2, full: 6}
+    reports_to: head_gamekeeper
+    precedence: null
+    seasonal: shooting_season
+    sleeps: cottages
+    dines_in: cottages
+    works_in: [woods, park]
+    duties:
+      - Drives birds towards the guns on shoot days
+      - Village men and boys earning extra money
+
+  # ---------------------------------------------------------------- ESTATE WORKS & HOME FARM
+  - id: land_agent
+    title: Land agent
+    domain: estate
+    department: estate_works
+    class: professional
+    count: {core: 1, standard: 1, full: 1}
+    reports_to: earl
+    precedence: null
+    address: "'Mr. <surname>'"
+    sleeps: agents_house
+    dines_in: agents_house
+    works_in: [estate_office, home_farm, cottages, estate_yard]
+    duties:
+      - Manages the farms, the tenancies, the rents and the repairs
+      - Bridge between the earl and the village; disliked by tenants behind in rent
+
+  - id: estate_clerk
+    title: Estate clerk
+    domain: estate
+    department: estate_works
+    class: professional
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: land_agent
+    precedence: null
+    sleeps: cottages
+    dines_in: cottages
+    works_in: [estate_office]
+    duties:
+      - Keeps the rent books and the wages ledgers
+
+  - id: estate_carpenter
+    title: Estate carpenter
+    domain: estate
+    department: estate_works
+    class: outdoor_servant
+    count: {core: 0, standard: 1, full: 2}
+    reports_to: land_agent
+    precedence: null
+    sleeps: cottages
+    dines_in: cottages
+    works_in: [estate_yard, cottages]
+    duties:
+      - Repairs the house, the cottages, the gates and the fences
+      - Makes coffins for the village
+
+  - id: estate_mason
+    title: Estate mason
+    domain: estate
+    department: estate_works
+    class: outdoor_servant
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: land_agent
+    precedence: null
+    sleeps: cottages
+    dines_in: cottages
+    works_in: [estate_yard]
+    duties:
+      - Maintains walls, chimneys and the stonework of the house
+
+  - id: woodman
+    title: Woodman (forester)
+    domain: estate
+    department: estate_works
+    class: outdoor_servant
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: land_agent
+    precedence: null
+    sleeps: cottages
+    dines_in: cottages
+    works_in: [woods, estate_yard]
+    duties:
+      - Fells and plants timber and supplies firewood to the house
+
+  - id: lodge_keeper
+    title: Lodge keeper
+    domain: estate
+    department: estate_works
+    class: outdoor_servant
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: land_agent
+    precedence: null
+    sleeps: gate_lodge
+    dines_in: gate_lodge
+    works_in: [gate_lodge, carriage_drive]
+    duties:
+      - Opens the main gates to carriages
+      - Sees everyone who comes and goes; an excellent source of information
+
+  - id: farm_bailiff
+    title: Home farm bailiff
+    domain: estate
+    department: home_farm
+    class: outdoor_servant
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: land_agent
+    precedence: null
+    sleeps: home_farm
+    dines_in: home_farm
+    works_in: [home_farm, dairy]
+    duties:
+      - Runs the home farm that feeds the house
+
+  - id: farm_labourer
+    title: Farm labourer
+    domain: estate
+    department: home_farm
+    class: outdoor_servant
+    count: {core: 0, standard: 2, full: 4}
+    reports_to: farm_bailiff
+    precedence: null
+    sleeps: cottages
+    dines_in: cottages
+    works_in: [home_farm]
+    duties:
+      - Ploughing, harvesting, hedging and ditching
+
+  - id: shepherd
+    title: Shepherd
+    domain: estate
+    department: home_farm
+    class: outdoor_servant
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: farm_bailiff
+    precedence: null
+    sleeps: cottages
+    dines_in: cottages
+    works_in: [home_farm, park]
+    duties:
+      - Tends the flock, which peaks in work during spring lambing
+
+  - id: cowman
+    title: Cowman
+    domain: estate
+    department: home_farm
+    class: outdoor_servant
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: farm_bailiff
+    precedence: null
+    sleeps: cottages
+    dines_in: cottages
+    works_in: [home_farm, dairy]
+    duties:
+      - Milks and tends the dairy herd
+
+  - id: dairymaid
+    title: Dairymaid
+    domain: estate
+    department: home_farm
+    class: outdoor_servant
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: housekeeper
+    precedence: null
+    sleeps: home_farm
+    dines_in: home_farm
+    works_in: [dairy]
+    duties:
+      - Makes butter, cream and cheese for the house
+      - Answers to the housekeeper although she works at the farm
+
+  # ---------------------------------------------------------------- HOLLIN ABBEY
+  - id: abbot
+    title: Father Abbot
+    domain: abbey
+    department: abbey
+    class: religious
+    count: {core: 1, standard: 1, full: 1}
+    reports_to: null
+    precedence: null
+    address: "'Father Abbot' or 'my lord Abbot'"
+    sleeps: abbots_lodging
+    dines_in: refectory
+    works_in: [abbots_lodging, abbey_church, chapter_house]
+    duties:
+      - Spiritual father and ruler of the community
+      - Social equal of the earl; dines at the hall on great occasions
+
+  - id: prior
+    title: Prior
+    domain: abbey
+    department: abbey
+    class: religious
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: abbot
+    precedence: null
+    address: "'Father Prior'"
+    sleeps: monks_dormitory
+    dines_in: refectory
+    works_in: [abbey_cloister, chapter_house, abbey_church]
+    duties:
+      - Second in command; enforces daily discipline
+
+  - id: novice_master
+    title: Novice master
+    domain: abbey
+    department: abbey
+    class: religious
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: abbot
+    precedence: null
+    sleeps: monks_dormitory
+    dines_in: refectory
+    works_in: [abbey_cloister, abbey_library]
+    duties:
+      - Forms and tests the novices
+
+  - id: cellarer
+    title: Cellarer
+    domain: abbey
+    department: abbey
+    class: religious
+    count: {core: 1, standard: 1, full: 1}
+    reports_to: abbot
+    precedence: null
+    sleeps: monks_dormitory
+    dines_in: refectory
+    works_in: [abbey_brewery, abbey_kitchen, abbey_gatehouse, village_high_street]
+    duties:
+      - Business manager of the abbey covering supplies, money and the brewery
+      - Sells abbey ale and honey to the inn and the hall; the most worldly monk
+
+  - id: guestmaster
+    title: Guestmaster
+    domain: abbey
+    department: abbey
+    class: religious
+    count: {core: 1, standard: 1, full: 1}
+    reports_to: abbot
+    precedence: null
+    sleeps: monks_dormitory
+    dines_in: refectory
+    works_in: [abbey_guesthouse, abbey_gatehouse]
+    duties:
+      - Welcomes visitors and retreatants under the Rule's command to receive all guests as Christ
+
+  - id: infirmarian
+    title: Infirmarian
+    domain: abbey
+    department: abbey
+    class: religious
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: abbot
+    precedence: null
+    sleeps: monks_dormitory
+    dines_in: refectory
+    works_in: [infirmary, abbey_garden]
+    duties:
+      - Cares for sick and elderly monks
+      - Grows medicinal herbs and is sometimes consulted by villagers who cannot afford the doctor
+
+  - id: precentor
+    title: Precentor (cantor)
+    domain: abbey
+    department: abbey
+    class: religious
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: abbot
+    precedence: null
+    sleeps: monks_dormitory
+    dines_in: refectory
+    works_in: [abbey_church, abbey_library]
+    duties:
+      - Leads the chant and orders the liturgy
+
+  - id: sacristan
+    title: Sacristan
+    domain: abbey
+    department: abbey
+    class: religious
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: abbot
+    precedence: null
+    sleeps: monks_dormitory
+    dines_in: refectory
+    works_in: [abbey_church]
+    duties:
+      - Keeps the church, the vestments and the altar vessels
+      - Rings the bells for the hours, which can be heard across the estate
+
+  - id: librarian
+    title: Librarian
+    domain: abbey
+    department: abbey
+    class: religious
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: abbot
+    precedence: null
+    sleeps: monks_dormitory
+    dines_in: refectory
+    works_in: [abbey_library]
+    duties:
+      - Keeps the books and the archive, which includes old records of the estate
+
+  - id: almoner
+    title: Almoner
+    domain: abbey
+    department: abbey
+    class: religious
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: abbot
+    precedence: null
+    sleeps: monks_dormitory
+    dines_in: refectory
+    works_in: [abbey_gatehouse, cottages]
+    duties:
+      - Distributes alms to the village poor
+      - Visits the sick, overlapping with the countess's charity work
+
+  - id: chaplain_monk
+    title: Monk-chaplain to the hall
+    domain: abbey
+    department: abbey
+    class: religious
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: abbot
+    precedence: null
+    address: "'Father <name>'"
+    sleeps: monks_dormitory
+    dines_in: refectory
+    works_in: [private_chapel, abbey_path, abbey_church]
+    duties:
+      - Says Mass in the hall chapel and hears confessions
+      - The only person who moves freely between the abbey, upstairs and downstairs
+
+  - id: choir_monk
+    title: Choir monk
+    domain: abbey
+    department: abbey
+    class: religious
+    count: {core: 1, standard: 3, full: 6}
+    reports_to: prior
+    precedence: null
+    address: "'Father <name>' or 'Dom <name>'"
+    sleeps: monks_dormitory
+    dines_in: refectory
+    works_in: [abbey_church, abbey_cloister, abbey_library, abbey_garden]
+    duties:
+      - Sings the Divine Office and works in study or the garden
+      - Lives by the Rule of St Benedict, including silence at set hours
+
+  - id: lay_brother
+    title: Lay brother
+    domain: abbey
+    department: abbey
+    class: religious
+    count: {core: 0, standard: 2, full: 4}
+    reports_to: cellarer
+    precedence: null
+    address: "'Brother <name>'"
+    sleeps: monks_dormitory
+    dines_in: refectory
+    works_in: [abbey_brewery, abbey_kitchen, abbey_garden]
+    duties:
+      - Does the manual work of brewing, cooking and farming
+      - Attends a shorter office than the choir monks
+
+  - id: novice
+    title: Novice
+    domain: abbey
+    department: abbey
+    class: religious
+    count: {core: 0, standard: 1, full: 3}
+    reports_to: novice_master
+    precedence: null
+    address: "'Brother <name>'"
+    sleeps: monks_dormitory
+    dines_in: refectory
+    works_in: [abbey_cloister, abbey_church, abbey_garden]
+    duties:
+      - Tests his vocation during the novitiate
+      - May be a local boy, perhaps a former hall boy
+
+  - id: porter_brother
+    title: Porter brother
+    domain: abbey
+    department: abbey
+    class: religious
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: prior
+    precedence: null
+    sleeps: abbey_gatehouse
+    dines_in: refectory
+    works_in: [abbey_gatehouse]
+    duties:
+      - Keeps the gate, receives callers and fetches the guestmaster
+
+  - id: retreatant
+    title: Retreatant (lay guest of the abbey)
+    domain: abbey
+    department: abbey
+    class: guest
+    count: {core: 0, standard: 0, full: 2}
+    reports_to: guestmaster
+    precedence: null
+    sleeps: abbey_guesthouse
+    dines_in: abbey_guesthouse
+    works_in: [abbey_guesthouse, abbey_church, abbey_garden]
+    duties:
+      - Stays for a period of prayer and quiet; may be anyone from a London clerk to a disgraced aristocrat
+
+  # ---------------------------------------------------------------- ASHCOMBE VILLAGE
+  - id: publican
+    title: Landlord of the Ashcombe Arms
+    domain: village
+    department: village
+    class: villager
+    count: {core: 1, standard: 1, full: 1}
+    reports_to: null
+    precedence: null
+    sleeps: ashcombe_arms
+    dines_in: ashcombe_arms
+    works_in: [ashcombe_arms]
+    duties:
+      - Keeps the inn and serves the abbey's ale
+      - Hub of village gossip; outdoor servants drink here
+
+  - id: barmaid
+    title: Barmaid
+    domain: village
+    department: village
+    class: villager
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: publican
+    precedence: null
+    sleeps: ashcombe_arms
+    dines_in: ashcombe_arms
+    works_in: [ashcombe_arms]
+    duties:
+      - Serves at the bar and hears everything said there
+
+  - id: postmistress
+    title: Postmistress and shopkeeper
+    domain: village
+    department: village
+    class: villager
+    count: {core: 1, standard: 1, full: 1}
+    reports_to: null
+    precedence: null
+    sleeps: post_office_store
+    dines_in: post_office_store
+    works_in: [post_office_store]
+    duties:
+      - Runs the general store, the post office and the telegraph
+      - Knows who writes to whom
+
+  - id: baker
+    title: Baker
+    domain: village
+    department: village
+    class: villager
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: null
+    precedence: null
+    sleeps: bakery
+    dines_in: bakery
+    works_in: [bakery]
+    duties:
+      - Bakes bread for the village and for the hall's servants' hall
+
+  - id: butcher
+    title: Butcher
+    domain: village
+    department: village
+    class: villager
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: null
+    precedence: null
+    sleeps: butchers
+    dines_in: butchers
+    works_in: [butchers, kitchen_court]
+    duties:
+      - Supplies meat and delivers to the hall's kitchen court
+
+  - id: blacksmith
+    title: Blacksmith
+    domain: village
+    department: village
+    class: villager
+    count: {core: 1, standard: 1, full: 1}
+    reports_to: null
+    precedence: null
+    sleeps: forge
+    dines_in: forge
+    works_in: [forge, stable_yard]
+    duties:
+      - Shoes the hall's horses and mends tools and gates
+      - Curious about the motor car
+
+  - id: doctor
+    title: Village doctor
+    domain: village
+    department: village
+    class: professional
+    count: {core: 1, standard: 1, full: 1}
+    reports_to: null
+    precedence: null
+    address: "'Doctor <surname>'"
+    sleeps: doctors_house
+    dines_in: doctors_house
+    works_in: [doctors_house, cottages, family_bedrooms, maids_attic]
+    duties:
+      - Attends the family, the servants and the village
+      - Occasionally dines at the hall
+
+  - id: schoolmistress
+    title: Schoolmistress
+    domain: village
+    department: village
+    class: professional
+    count: {core: 0, standard: 1, full: 1}
+    reports_to: countess
+    precedence: null
+    sleeps: schoolhouse
+    dines_in: schoolhouse
+    works_in: [schoolhouse]
+    duties:
+      - Teaches the village children in the school the countess sponsors
+      - Recommends bright girls for service at the hall
+
+  - id: constable
+    title: Village constable
+    domain: village
+    department: village
+    class: villager
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: null
+    precedence: null
+    sleeps: cottages
+    dines_in: cottages
+    works_in: [village_high_street, village_green, woods]
+    duties:
+      - Keeps the peace and works with the keepers against poachers
+
+  - id: carrier
+    title: Carrier (carter)
+    domain: village
+    department: village
+    class: villager
+    count: {core: 0, standard: 0, full: 1}
+    reports_to: null
+    precedence: null
+    sleeps: cottages
+    dines_in: cottages
+    works_in: [station_road, village_high_street, back_drive]
+    duties:
+      - Hauls goods and luggage between the station, the village and the hall
+      - Carries news from outside
+
+  - id: cottager
+    title: Cottager (labourer's household)
+    domain: village
+    department: village
+    class: villager
+    count: {core: 0, standard: 2, full: 4}
+    reports_to: null
+    precedence: null
+    sleeps: cottages
+    dines_in: cottages
+    works_in: [cottages, home_farm, village_green]
+    duties:
+      - Estate tenants whose sons and daughters fill the servant ranks at the hall
+
+# ============================================================================
+# LOCATIONS
+# floor: basement | ground | first | second | attic | outdoor
+# zone:  state_rooms | family_private | guest | nursery | service | servant_quarters |
+#        outbuilding | grounds | abbey_public | abbey_enclosure | village | exit
+# access (default rule; see spec for the full matrix):
+#   upstairs   - family and guests; servants only on duty and unseen when possible
+#   private    - owner plus named personal servants
+#   downstairs - servants; family only by exception
+#   shared     - anyone with business there
+#   enclosure  - monks only (guests by invitation of the abbot)
+#   public     - open to all
+# ============================================================================
+
+locations:
+
+  # ------------------------------------------------ HOUSE: GROUND FLOOR STATE ROOMS
+  - id: front_portico
+    name: Front portico
+    domain: house
+    floor: ground
+    zone: state_rooms
+    access: upstairs
+    connects_to: [carriage_sweep, entrance_hall]
+    description: Columned main entrance. Family and guests arrive here; servants never use it.
+
+  - id: entrance_hall
+    name: Entrance hall
+    domain: house
+    floor: ground
+    zone: state_rooms
+    access: upstairs
+    connects_to: [front_portico, grand_staircase, saloon, library, dining_room, morning_room, study, gentlemens_corridor, private_chapel, green_baize_door]
+    description: Marble-floored hall with a fireplace and the hall porter's chair. Callers wait here and the household lines up here to greet important arrivals.
+
+  - id: grand_staircase
+    name: Grand staircase
+    domain: house
+    floor: ground
+    zone: state_rooms
+    access: upstairs
+    connects_to: [entrance_hall, first_floor_gallery]
+    description: Main stair hung with family portraits. Servants do not use it except to carry luggage when ordered.
+
+  - id: saloon
+    name: Saloon
+    domain: house
+    floor: ground
+    zone: state_rooms
+    access: upstairs
+    connects_to: [entrance_hall, drawing_room, music_room, terrace]
+    description: Great central reception room, used as the ballroom. Guests assemble here before dinner.
+
+  - id: drawing_room
+    name: Drawing room
+    domain: house
+    floor: ground
+    zone: state_rooms
+    access: upstairs
+    connects_to: [saloon, conservatory, terrace]
+    description: The ladies withdraw here after dinner. Afternoon tea is served here and the children are brought down at six.
+
+  - id: music_room
+    name: Music room
+    domain: house
+    floor: ground
+    zone: state_rooms
+    access: upstairs
+    connects_to: [saloon]
+    description: Grand piano and harp. Used for after-dinner performances by the daughters and guests.
+
+  - id: morning_room
+    name: Morning room
+    domain: house
+    floor: ground
+    zone: family_private
+    access: upstairs
+    connects_to: [entrance_hall, terrace]
+    description: East-facing sitting room for the ladies' mornings. The countess writes letters here.
+
+  - id: library
+    name: Library
+    domain: house
+    floor: ground
+    zone: state_rooms
+    access: upstairs
+    connects_to: [entrance_hall, study]
+    description: Panelled library. The gentlemen read the newspapers here, which the footmen have ironed.
+
+  - id: study
+    name: Earl's study (business room)
+    domain: house
+    floor: ground
+    zone: family_private
+    access: private
+    connects_to: [entrance_hall, library, estate_office]
+    description: The earl's private room for estate business. Servants are summoned here for praise or dismissal.
+
+  - id: estate_office
+    name: Estate office
+    domain: house
+    floor: ground
+    zone: service
+    access: shared
+    connects_to: [study, back_courtyard]
+    description: The land agent's office, with its own outside door so that tenants can pay rent without entering the house.
+
+  - id: dining_room
+    name: Dining room
+    domain: house
+    floor: ground
+    zone: state_rooms
+    access: upstairs
+    connects_to: [entrance_hall, serving_room]
+    description: Long table seating twenty-four, with silver and candelabra. Dinner is at eight and dress is formal.
+
+  - id: serving_room
+    name: Serving room (servery)
+    domain: house
+    floor: ground
+    zone: service
+    access: downstairs
+    connects_to: [dining_room, butlers_pantry, service_corridor]
+    description: Food from the distant kitchen is plated and kept warm here. Footmen wait here between courses.
+
+  - id: gentlemens_corridor
+    name: Gentlemen's corridor
+    domain: house
+    floor: ground
+    zone: state_rooms
+    access: upstairs
+    connects_to: [entrance_hall, billiard_room, smoking_room, gun_room]
+    description: Masculine wing of the ground floor.
+
+  - id: billiard_room
+    name: Billiard room
+    domain: house
+    floor: ground
+    zone: state_rooms
+    access: upstairs
+    connects_to: [gentlemens_corridor]
+    description: Full-size table. A late-night refuge for gentlemen guests.
+
+  - id: smoking_room
+    name: Smoking room
+    domain: house
+    floor: ground
+    zone: state_rooms
+    access: upstairs
+    connects_to: [gentlemens_corridor]
+    description: The only room where smoking is allowed. Ladies never enter.
+
+  - id: gun_room
+    name: Gun room
+    domain: house
+    floor: ground
+    zone: service
+    access: shared
+    connects_to: [gentlemens_corridor, back_courtyard]
+    description: Gun cabinets, cartridges and game books. Gentlemen, valets and keepers meet here on shoot mornings.
+
+  - id: conservatory
+    name: Conservatory
+    domain: house
+    floor: ground
+    zone: state_rooms
+    access: upstairs
+    connects_to: [drawing_room, pleasure_gardens]
+    description: Glass room of palms and orchids kept by the gardeners. The traditional place for private conversations and proposals.
+
+  - id: terrace
+    name: Terrace
+    domain: house
+    floor: outdoor
+    zone: grounds
+    access: upstairs
+    connects_to: [saloon, drawing_room, morning_room, pleasure_gardens]
+    description: Stone terrace along the garden front with views over the park.
+
+  - id: private_chapel
+    name: Private chapel
+    domain: house
+    floor: ground
+    zone: state_rooms
+    access: shared
+    connects_to: [entrance_hall, service_corridor]
+    description: Family chapel served by the monk-chaplain. The family enters from the hall and the servants enter from the service corridor to sit in the rear pews.
+
+  - id: green_baize_door
+    name: The green baize door
+    domain: house
+    floor: ground
+    zone: service
+    access: shared
+    connects_to: [entrance_hall, service_corridor, back_stairs]
+    description: Felt-covered door separating the family's world from the servants'. Crossing it is a meaningful act in the simulation (see spec).
+
+  # ------------------------------------------------ HOUSE: FIRST FLOOR
+  - id: first_floor_gallery
+    name: First-floor gallery
+    domain: house
+    floor: first
+    zone: family_private
+    access: upstairs
+    connects_to: [grand_staircase, back_stairs, lord_bedroom, lord_dressing_room, countess_bedroom, countess_dressing_room, boudoir, dowager_apartments, family_bedrooms, state_bedroom, guest_bedrooms, bachelors_corridor, nursery_corridor]
+    description: Long gallery serving the bedroom floor. Housemaids work here only before the family rises.
+
+  - id: lord_bedroom
+    name: Earl's bedroom
+    domain: house
+    floor: first
+    zone: family_private
+    access: private
+    connects_to: [first_floor_gallery, lord_dressing_room]
+    description: The earl's bedroom.
+
+  - id: lord_dressing_room
+    name: Earl's dressing room
+    domain: house
+    floor: first
+    zone: family_private
+    access: private
+    connects_to: [lord_bedroom, first_floor_gallery]
+    description: The valet's domain, with wardrobes, a bath and shaving things.
+
+  - id: countess_bedroom
+    name: Countess's bedroom
+    domain: house
+    floor: first
+    zone: family_private
+    access: private
+    connects_to: [first_floor_gallery, countess_dressing_room, boudoir]
+    description: The countess's bedroom. Breakfast in bed arrives here on a tray.
+
+  - id: countess_dressing_room
+    name: Countess's dressing room
+    domain: house
+    floor: first
+    zone: family_private
+    access: private
+    connects_to: [countess_bedroom, first_floor_gallery]
+    description: The lady's maid's domain, where the countess changes four times a day.
+
+  - id: boudoir
+    name: Boudoir
+    domain: house
+    floor: first
+    zone: family_private
+    access: private
+    connects_to: [countess_bedroom, first_floor_gallery]
+    description: The countess's private sitting room, for intimate conversations only.
+
+  - id: dowager_apartments
+    name: Dowager's apartments
+    domain: house
+    floor: first
+    zone: family_private
+    access: private
+    connects_to: [first_floor_gallery]
+    description: Suite with a bedroom and sitting room for the dowager countess.
+
+  - id: family_bedrooms
+    name: Family bedrooms
+    domain: house
+    floor: first
+    zone: family_private
+    access: private
+    connects_to: [first_floor_gallery]
+    description: Rooms of the heir, the younger son, the daughters and the companion. Can be split into individual rooms later.
+
+  - id: state_bedroom
+    name: State bedroom
+    domain: house
+    floor: first
+    zone: guest
+    access: upstairs
+    connects_to: [first_floor_gallery]
+    description: The grandest guest suite, kept for royalty or the most senior guest.
+
+  - id: guest_bedrooms
+    name: Guest bedrooms
+    domain: house
+    floor: first
+    zone: guest
+    access: upstairs
+    connects_to: [first_floor_gallery]
+    description: Guest rooms with name cards on the doors, allocated by the countess with care for discretion.
+
+  - id: bachelors_corridor
+    name: Bachelors' corridor
+    domain: house
+    floor: first
+    zone: guest
+    access: upstairs
+    connects_to: [first_floor_gallery]
+    description: Rooms for single gentlemen guests, the secretary and the tutor, kept apart from the unmarried ladies.
+
+  # ------------------------------------------------ HOUSE: SECOND FLOOR (NURSERY WING)
+  - id: nursery_corridor
+    name: Nursery corridor
+    domain: house
+    floor: second
+    zone: nursery
+    access: shared
+    connects_to: [first_floor_gallery, back_stairs, day_nursery, night_nursery, schoolroom, governess_room]
+    description: Entrance to the nursery wing, closed off by a gate at the stairhead.
+
+  - id: day_nursery
+    name: Day nursery
+    domain: house
+    floor: second
+    zone: nursery
+    access: shared
+    connects_to: [nursery_corridor]
+    description: Playroom and nursery dining room with a high fender and barred windows.
+
+  - id: night_nursery
+    name: Night nursery
+    domain: house
+    floor: second
+    zone: nursery
+    access: shared
+    connects_to: [nursery_corridor]
+    description: Where the children, the nanny and the nursery maids sleep.
+
+  - id: schoolroom
+    name: Schoolroom
+    domain: house
+    floor: second
+    zone: nursery
+    access: shared
+    connects_to: [nursery_corridor]
+    description: Lessons and the governess's meals take place here, with globes, a blackboard and a piano.
+
+  - id: governess_room
+    name: Governess's room
+    domain: house
+    floor: second
+    zone: nursery
+    access: private
+    connects_to: [nursery_corridor]
+    description: Small private bedroom for the governess.
+
+  # ------------------------------------------------ HOUSE: SERVICE WING & BASEMENT
+  - id: back_stairs
+    name: Back stairs
+    domain: house
+    floor: ground
+    zone: service
+    access: downstairs
+    connects_to: [green_baize_door, service_corridor, first_floor_gallery, nursery_corridor, maids_attic, visiting_servants_rooms]
+    description: Narrow servants' stair running from the basement to the attics. Servants move between floors unseen by this route.
+
+  - id: service_corridor
+    name: Service corridor (with the bell board)
+    domain: house
+    floor: ground
+    zone: service
+    access: downstairs
+    connects_to: [green_baize_door, back_stairs, serving_room, private_chapel, servants_hall, stewards_room, housekeepers_room, butlers_pantry, still_room, kitchen, lamp_room, boot_room, linen_room, wine_cellar, beer_cellar, coal_cellar, servants_entrance, menservants_quarters, upper_servants_bedrooms]
+    description: Long stone-flagged spine of the servants' world. The bell board here shows which room has rung.
+
+  - id: servants_hall
+    name: Servants' hall
+    domain: house
+    floor: ground
+    zone: service
+    access: downstairs
+    connects_to: [service_corridor]
+    description: Long table where servants eat in strict order of precedence, presided over by the butler at the head and the housekeeper at the foot.
+
+  - id: stewards_room
+    name: Steward's room
+    domain: house
+    floor: ground
+    zone: service
+    access: downstairs
+    connects_to: [service_corridor, housekeepers_room]
+    description: Separate dining room for the upper servants and the senior visiting servants, who withdraw here from the servants' hall for pudding.
+
+  - id: housekeepers_room
+    name: Housekeeper's room
+    domain: house
+    floor: ground
+    zone: service
+    access: downstairs
+    connects_to: [service_corridor, stewards_room, still_room]
+    description: The housekeeper's sitting room and office with her bedroom attached. Store cupboards and the china closet are kept here, and the upper servants take tea here.
+
+  - id: still_room
+    name: Still room
+    domain: house
+    floor: ground
+    zone: service
+    access: downstairs
+    connects_to: [housekeepers_room, service_corridor]
+    description: The housekeeper's own kitchen for preserves, cakes, tea and coffee.
+
+  - id: butlers_pantry
+    name: Butler's pantry
+    domain: house
+    floor: ground
+    zone: service
+    access: downstairs
+    connects_to: [service_corridor, serving_room, plate_room]
+    description: The butler's office, where silver and glass are cleaned. His bed is here so that he can guard the plate.
+
+  - id: plate_room
+    name: Plate room (silver safe)
+    domain: house
+    floor: ground
+    zone: service
+    access: private
+    connects_to: [butlers_pantry]
+    description: Iron-doored strongroom for the family silver. Only the butler and the under-butler hold keys.
+
+  - id: wine_cellar
+    name: Wine cellar
+    domain: house
+    floor: basement
+    zone: service
+    access: private
+    connects_to: [service_corridor]
+    description: Vaulted cellar. The butler alone holds the key and keeps the cellar book.
+
+  - id: beer_cellar
+    name: Beer cellar
+    domain: house
+    floor: basement
+    zone: service
+    access: downstairs
+    connects_to: [service_corridor]
+    description: Casks of servants' beer, part of their allowance, supplied by the abbey brewery.
+
+  - id: coal_cellar
+    name: Coal cellar
+    domain: house
+    floor: basement
+    zone: service
+    access: downstairs
+    connects_to: [service_corridor, back_courtyard]
+    description: Coal for some forty fireplaces, delivered through a chute from the yard.
+
+  - id: kitchen
+    name: Kitchen
+    domain: house
+    floor: ground
+    zone: service
+    access: downstairs
+    connects_to: [service_corridor, scullery, larders, pastry_room, kitchen_court]
+    description: Double-height kitchen with a great range, a copper batterie and a long deal table. Placed far from the dining room to keep smells away.
+
+  - id: scullery
+    name: Scullery
+    domain: house
+    floor: ground
+    zone: service
+    access: downstairs
+    connects_to: [kitchen, kitchen_court]
+    description: Stone sinks and wet floors where the scullery maid's day is spent washing up.
+
+  - id: larders
+    name: Larders (dry, wet and meat)
+    domain: house
+    floor: ground
+    zone: service
+    access: downstairs
+    connects_to: [kitchen]
+    description: Cool, slate-shelved rooms facing north.
+
+  - id: pastry_room
+    name: Pastry room
+    domain: house
+    floor: ground
+    zone: service
+    access: downstairs
+    connects_to: [kitchen]
+    description: Marble-topped room kept cool for pastry work.
+
+  - id: lamp_room
+    name: Lamp room
+    domain: house
+    floor: ground
+    zone: service
+    access: downstairs
+    connects_to: [service_corridor]
+    description: Shelves of oil lamps and candles where the lamp man works.
+
+  - id: boot_room
+    name: Boot and knife room
+    domain: house
+    floor: ground
+    zone: service
+    access: downstairs
+    connects_to: [service_corridor]
+    description: Boots are blacked and knives polished here, chiefly by the hall boy.
+
+  - id: linen_room
+    name: Linen room and sewing room
+    domain: house
+    floor: ground
+    zone: service
+    access: downstairs
+    connects_to: [service_corridor]
+    description: Presses of numbered linen, where the sewing maid works.
+
+  - id: servants_entrance
+    name: Servants' entrance
+    domain: house
+    floor: ground
+    zone: service
+    access: downstairs
+    connects_to: [service_corridor, back_courtyard]
+    description: The only door servants and tradesmen use.
+
+  # ------------------------------------------------ HOUSE: SERVANT QUARTERS
+  - id: maids_attic
+    name: Maids' attic dormitories
+    domain: house
+    floor: attic
+    zone: servant_quarters
+    access: downstairs
+    connects_to: [back_stairs]
+    description: Female servants sleep two or three to a room under the roof, cold in winter. Reached only by the back stairs, and the housekeeper locks the corridor at night.
+
+  - id: menservants_quarters
+    name: Menservants' quarters
+    domain: house
+    floor: ground
+    zone: servant_quarters
+    access: downstairs
+    connects_to: [service_corridor]
+    description: Footmen's and boys' bedrooms in the service wing, deliberately as far from the maids as the plan allows.
+
+  - id: upper_servants_bedrooms
+    name: Upper servants' bedrooms
+    domain: house
+    floor: first
+    zone: servant_quarters
+    access: downstairs
+    connects_to: [service_corridor]
+    description: Single rooms for the steward, the chef or cook, the valets and the ladies' maids.
+
+  - id: visiting_servants_rooms
+    name: Visiting servants' rooms
+    domain: house
+    floor: attic
+    zone: servant_quarters
+    access: downstairs
+    connects_to: [back_stairs]
+    description: Rooms for the servants brought by guests.
+
+  # ------------------------------------------------ ESTATE: YARDS & OUTBUILDINGS
+  - id: back_courtyard
+    name: Back courtyard (service yard)
+    domain: estate
+    floor: outdoor
+    zone: outbuilding
+    access: downstairs
+    connects_to: [servants_entrance, coal_cellar, kitchen_court, estate_office, gun_room, laundry, stable_yard, back_drive]
+    description: Cobbled yard for deliveries, coal and luggage. The real crossroads of the estate's working life.
+
+  - id: kitchen_court
+    name: Kitchen court
+    domain: estate
+    floor: outdoor
+    zone: outbuilding
+    access: downstairs
+    connects_to: [kitchen, scullery, game_larder, back_courtyard, kitchen_garden]
+    description: Small yard outside the kitchen where gardeners, the butcher and the keepers make their deliveries.
+
+  - id: game_larder
+    name: Game larder
+    domain: estate
+    floor: outdoor
+    zone: outbuilding
+    access: downstairs
+    connects_to: [kitchen_court]
+    description: Louvred building where shot game hangs before cooking.
+
+  - id: laundry
+    name: Laundry block
+    domain: estate
+    floor: outdoor
+    zone: outbuilding
+    access: downstairs
+    connects_to: [back_courtyard]
+    description: Wash house, drying room, ironing room and drying green, with the laundry maids' rooms above.
+
+  - id: stable_yard
+    name: Stable yard (with clock tower)
+    domain: estate
+    floor: outdoor
+    zone: outbuilding
+    access: shared
+    connects_to: [back_courtyard, stables, coach_house, harness_room, grooms_loft, motor_house, back_drive]
+    description: Quadrangle of stable buildings under a clock tower that sets the outdoor staff's time.
+
+  - id: stables
+    name: Stables
+    domain: estate
+    floor: outdoor
+    zone: outbuilding
+    access: shared
+    connects_to: [stable_yard]
+    description: Stalls and loose boxes for the carriage horses, the hunters and the ponies.
+
+  - id: coach_house
+    name: Coach house (with the coachman's flat above)
+    domain: estate
+    floor: outdoor
+    zone: outbuilding
+    access: shared
+    connects_to: [stable_yard]
+    description: Houses the landau, the brougham and the dog-cart.
+
+  - id: harness_room
+    name: Harness room
+    domain: estate
+    floor: outdoor
+    zone: outbuilding
+    access: shared
+    connects_to: [stable_yard]
+    description: Polished tack room with a stove. The grooms gather here.
+
+  - id: grooms_loft
+    name: Grooms' loft
+    domain: estate
+    floor: outdoor
+    zone: servant_quarters
+    access: downstairs
+    connects_to: [stable_yard]
+    description: Sleeping quarters for the grooms and stable boys above the stables.
+
+  - id: motor_house
+    name: Motor house (with the chauffeur's flat above)
+    domain: estate
+    floor: outdoor
+    zone: outbuilding
+    access: shared
+    connects_to: [stable_yard, carriage_drive]
+    description: Converted carriage bay housing the earl's motor car, smelling of petrol and oil.
+
+  - id: kennels
+    name: Kennels
+    domain: estate
+    floor: outdoor
+    zone: outbuilding
+    access: shared
+    connects_to: [gamekeepers_cottage, park]
+    description: Gundog kennels.
+
+  - id: estate_yard
+    name: Estate yard
+    domain: estate
+    floor: outdoor
+    zone: outbuilding
+    access: shared
+    connects_to: [back_drive]
+    description: Carpenter's shop, sawpit, mason's store and timber stacks.
+
+  - id: agents_house
+    name: Land agent's house
+    domain: estate
+    floor: outdoor
+    zone: outbuilding
+    access: private
+    connects_to: [back_drive]
+    description: Substantial house for the land agent and his family.
+
+  # ------------------------------------------------ ESTATE: GROUNDS
+  - id: carriage_sweep
+    name: Carriage sweep
+    domain: estate
+    floor: outdoor
+    zone: grounds
+    access: shared
+    connects_to: [front_portico, carriage_drive]
+    description: Gravel circle before the front door where carriages and the motor car draw up.
+
+  - id: carriage_drive
+    name: Carriage drive
+    domain: estate
+    floor: outdoor
+    zone: grounds
+    access: shared
+    connects_to: [carriage_sweep, gate_lodge, park, motor_house]
+    description: Mile-long avenue of limes through the park.
+
+  - id: gate_lodge
+    name: Gate lodge
+    domain: estate
+    floor: outdoor
+    zone: grounds
+    access: shared
+    connects_to: [carriage_drive, village_green]
+    description: Pair of lodges at the main gates, where the lodge keeper lives.
+
+  - id: back_drive
+    name: Back drive (tradesmen's road)
+    domain: estate
+    floor: outdoor
+    zone: grounds
+    access: shared
+    connects_to: [back_courtyard, stable_yard, estate_yard, agents_house, home_farm, village_high_street]
+    description: Working road from the village to the yards. Servants walk it on their afternoons off.
+
+  - id: park
+    name: Deer park
+    domain: estate
+    floor: outdoor
+    zone: grounds
+    access: shared
+    connects_to: [carriage_drive, pleasure_gardens, lake, woods, kennels, gamekeepers_cottage, cricket_ground]
+    description: Rolling grassland with ancient oaks and fallow deer.
+
+  - id: pleasure_gardens
+    name: Pleasure gardens
+    domain: estate
+    floor: outdoor
+    zone: grounds
+    access: upstairs
+    connects_to: [terrace, conservatory, park, kitchen_garden, lake, abbey_path]
+    description: Parterres, a rose garden, yew walks and a croquet lawn. Gardeners work here only before the family is up.
+
+  - id: kitchen_garden
+    name: Walled kitchen garden
+    domain: estate
+    floor: outdoor
+    zone: grounds
+    access: shared
+    connects_to: [kitchen_court, pleasure_gardens, glasshouses, bothy, head_gardeners_cottage]
+    description: Four walled acres of vegetables, espaliered fruit and potting sheds.
+
+  - id: glasshouses
+    name: Glasshouses (vinery, peach house, pinery, orchid house)
+    domain: estate
+    floor: outdoor
+    zone: grounds
+    access: shared
+    connects_to: [kitchen_garden]
+    description: Heated glass ranges along the south-facing wall, with boilers that must be stoked through the night.
+
+  - id: bothy
+    name: Gardeners' bothy
+    domain: estate
+    floor: outdoor
+    zone: servant_quarters
+    access: downstairs
+    connects_to: [kitchen_garden]
+    description: Lodging for the journeymen and garden boys behind the north wall of the kitchen garden.
+
+  - id: head_gardeners_cottage
+    name: Head gardener's cottage
+    domain: estate
+    floor: outdoor
+    zone: grounds
+    access: private
+    connects_to: [kitchen_garden]
+    description: Built into the garden wall, overlooking the garden.
+
+  - id: lake
+    name: Lake and boathouse
+    domain: estate
+    floor: outdoor
+    zone: grounds
+    access: shared
+    connects_to: [park, pleasure_gardens, ice_house]
+    description: Ornamental lake with a boathouse and an island temple. Used for skating in hard winters.
+
+  - id: ice_house
+    name: Ice house
+    domain: estate
+    floor: outdoor
+    zone: grounds
+    access: downstairs
+    connects_to: [lake]
+    description: Domed underground store packed with lake ice each winter.
+
+  - id: woods
+    name: Woods and pheasant coverts
+    domain: estate
+    floor: outdoor
+    zone: grounds
+    access: shared
+    connects_to: [park, gamekeepers_cottage, home_farm, abbey_path]
+    description: Managed woodland and rearing pens. Shoot drives take place here.
+
+  - id: gamekeepers_cottage
+    name: Gamekeeper's cottage
+    domain: estate
+    floor: outdoor
+    zone: grounds
+    access: private
+    connects_to: [woods, kennels, park]
+    description: Stands at the edge of the coverts, with a vermin gibbet nearby.
+
+  - id: cricket_ground
+    name: Cricket ground
+    domain: estate
+    floor: outdoor
+    zone: grounds
+    access: public
+    connects_to: [park, village_green]
+    description: Pitch and pavilion where the annual match between the hall and the village is played.
+
+  - id: home_farm
+    name: Home farm
+    domain: estate
+    floor: outdoor
+    zone: outbuilding
+    access: shared
+    connects_to: [back_drive, dairy, woods]
+    description: Farmyard, barns and the bailiff's house.
+
+  - id: dairy
+    name: Dairy
+    domain: estate
+    floor: outdoor
+    zone: outbuilding
+    access: shared
+    connects_to: [home_farm]
+    description: Cool tiled dairy, decorated because the ladies like to visit it.
+
+  - id: abbey_path
+    name: Abbey path
+    domain: estate
+    floor: outdoor
+    zone: grounds
+    access: shared
+    connects_to: [pleasure_gardens, woods, abbey_gatehouse]
+    description: Footpath and private gate between the hall gardens and the abbey, walked daily by the chaplain.
+
+  # ------------------------------------------------ HOLLIN ABBEY (deliberately simple)
+  - id: abbey_gatehouse
+    name: Abbey gatehouse
+    domain: abbey
+    floor: outdoor
+    zone: abbey_public
+    access: public
+    connects_to: [abbey_path, village_high_street, abbey_church, abbey_guesthouse, abbey_cloister]
+    description: The porter's lodge and the abbey's only public entrance. Alms are given here.
+
+  - id: abbey_church
+    name: Abbey church
+    domain: abbey
+    floor: ground
+    zone: abbey_public
+    access: public
+    connects_to: [abbey_gatehouse, abbey_cloister, abbey_cemetery]
+    description: The nave is open to the public; the choir is for monks only. Its bells mark the hours.
+
+  - id: abbey_cloister
+    name: Cloister
+    domain: abbey
+    floor: ground
+    zone: abbey_enclosure
+    access: enclosure
+    connects_to: [abbey_gatehouse, abbey_church, chapter_house, refectory, monks_dormitory, abbots_lodging, abbey_library, infirmary, abbey_garden]
+    description: Arcaded square at the heart of the enclosure. Silence is kept here.
+
+  - id: chapter_house
+    name: Chapter house
+    domain: abbey
+    floor: ground
+    zone: abbey_enclosure
+    access: enclosure
+    connects_to: [abbey_cloister]
+    description: Daily meeting of the community, where a chapter of the Rule is read and decisions are taken.
+
+  - id: refectory
+    name: Refectory
+    domain: abbey
+    floor: ground
+    zone: abbey_enclosure
+    access: enclosure
+    connects_to: [abbey_cloister, abbey_kitchen]
+    description: Monks eat here in silence while a brother reads aloud.
+
+  - id: abbey_kitchen
+    name: Abbey kitchen
+    domain: abbey
+    floor: ground
+    zone: abbey_enclosure
+    access: enclosure
+    connects_to: [refectory, abbey_garden]
+    description: Plain kitchen run by lay brothers.
+
+  - id: monks_dormitory
+    name: Dormitory (cells)
+    domain: abbey
+    floor: first
+    zone: abbey_enclosure
+    access: enclosure
+    connects_to: [abbey_cloister]
+    description: Individual cells for the monks, with the novices housed in a separate range.
+
+  - id: abbots_lodging
+    name: Abbot's lodging
+    domain: abbey
+    floor: ground
+    zone: abbey_enclosure
+    access: enclosure
+    connects_to: [abbey_cloister]
+    description: The abbot's rooms, where he receives the earl and other notable visitors.
+
+  - id: abbey_library
+    name: Library and scriptorium
+    domain: abbey
+    floor: first
+    zone: abbey_enclosure
+    access: enclosure
+    connects_to: [abbey_cloister]
+    description: Books, manuscripts and the estate's oldest charters.
+
+  - id: infirmary
+    name: Infirmary
+    domain: abbey
+    floor: ground
+    zone: abbey_enclosure
+    access: enclosure
+    connects_to: [abbey_cloister, abbey_garden]
+    description: Sick and elderly monks are cared for here.
+
+  - id: abbey_guesthouse
+    name: Guesthouse
+    domain: abbey
+    floor: ground
+    zone: abbey_public
+    access: public
+    connects_to: [abbey_gatehouse]
+    description: Simple rooms for retreatants and travellers, kept by the guestmaster.
+
+  - id: abbey_garden
+    name: Abbey garden (herbs, orchard, bees)
+    domain: abbey
+    floor: outdoor
+    zone: abbey_enclosure
+    access: enclosure
+    connects_to: [abbey_cloister, abbey_kitchen, infirmary, abbey_brewery, abbey_cemetery]
+    description: Herb garden, orchard and beehives.
+
+  - id: abbey_brewery
+    name: Abbey brewery
+    domain: abbey
+    floor: outdoor
+    zone: abbey_enclosure
+    access: enclosure
+    connects_to: [abbey_garden]
+    description: Brews the ale sold to the Ashcombe Arms and the hall's beer cellar.
+
+  - id: abbey_cemetery
+    name: Monks' cemetery
+    domain: abbey
+    floor: outdoor
+    zone: abbey_enclosure
+    access: enclosure
+    connects_to: [abbey_church, abbey_garden]
+    description: Plain iron crosses beneath yews.
+
+  # ------------------------------------------------ ASHCOMBE VILLAGE (deliberately simple)
+  - id: village_green
+    name: Village green
+    domain: village
+    floor: outdoor
+    zone: village
+    access: public
+    connects_to: [gate_lodge, village_high_street, ashcombe_arms, cricket_ground]
+    description: Green with a pond, a pump and a maypole. Fetes and gatherings are held here.
+
+  - id: village_high_street
+    name: High street
+    domain: village
+    floor: outdoor
+    zone: village
+    access: public
+    connects_to: [village_green, back_drive, abbey_gatehouse, post_office_store, bakery, butchers, forge, doctors_house, schoolhouse, cottages, station_road]
+    description: The single street of the village.
+
+  - id: ashcombe_arms
+    name: The Ashcombe Arms
+    domain: village
+    floor: ground
+    zone: village
+    access: public
+    connects_to: [village_green]
+    description: Inn with a public bar and a parlour, where the outdoor staff, villagers and footmen on leave drink.
+
+  - id: post_office_store
+    name: Post office and general store
+    domain: village
+    floor: ground
+    zone: village
+    access: public
+    connects_to: [village_high_street]
+    description: Groceries, haberdashery, stamps and the telegraph.
+
+  - id: bakery
+    name: Bakery
+    domain: village
+    floor: ground
+    zone: village
+    access: public
+    connects_to: [village_high_street]
+    description: Village bakery.
+
+  - id: butchers
+    name: Butcher's shop
+    domain: village
+    floor: ground
+    zone: village
+    access: public
+    connects_to: [village_high_street]
+    description: Village butcher.
+
+  - id: forge
+    name: Forge
+    domain: village
+    floor: ground
+    zone: village
+    access: public
+    connects_to: [village_high_street]
+    description: The blacksmith's forge, a warm place to loiter.
+
+  - id: doctors_house
+    name: Doctor's house and surgery
+    domain: village
+    floor: ground
+    zone: village
+    access: public
+    connects_to: [village_high_street]
+    description: The doctor's house, with his surgery at the front.
+
+  - id: schoolhouse
+    name: Village school
+    domain: village
+    floor: ground
+    zone: village
+    access: public
+    connects_to: [village_high_street]
+    description: One-room school with the schoolmistress's house attached.
+
+  - id: cottages
+    name: Estate cottages
+    domain: village
+    floor: ground
+    zone: village
+    access: shared
+    connects_to: [village_high_street]
+    description: Rows of cottages owned by the estate and let to its workers and labourers. Can be split into individual homes later.
+
+  - id: station_road
+    name: Station road (map exit)
+    domain: village
+    floor: outdoor
+    zone: exit
+    access: public
+    connects_to: [village_high_street]
+    description: Leads to the railway station and the wider world (London, the county town). Agents leaving the map pass through here.
+
+# ============================================================================
+# DAILY SCHEDULE (weekday, country, family in residence)
+# track: servants | family | abbey | outdoor | village
+# ============================================================================
+
+daily_schedule:
+  - {time: "04:30", track: abbey, event: "Rise. Vigils in the abbey church (bell)."}
+  - {time: "05:30", track: servants, event: "Scullery and kitchen maids rise and light the kitchen range."}
+  - {time: "06:00", track: servants, event: "Housemaids rise and clean and light the downstairs grates before the family wakes."}
+  - {time: "06:00", track: outdoor, event: "Stable yard at work. Gardeners begin in the pleasure grounds so as to be gone before the family is about."}
+  - {time: "06:30", track: abbey, event: "Lauds, followed by conventual Mass."}
+  - {time: "07:00", track: servants, event: "Footmen lay the breakfast and iron the newspapers. Valets and maids prepare clothes and hot water."}
+  - {time: "07:30", track: servants, event: "Servants' breakfast in the servants' hall."}
+  - {time: "08:00", track: family, event: "Early tea and hot water carried up. The family rises and dresses."}
+  - {time: "08:00", track: village, event: "Shops open and the school bell rings."}
+  - {time: "08:30", track: family, event: "Family prayers in the chapel, with servants attending at the rear, said by the monk-chaplain."}
+  - {time: "09:00", track: family, event: "Breakfast in the dining room, served buffet-style from the sideboard. Married ladies take a tray in bed."}
+  - {time: "09:15", track: abbey, event: "Terce, then the morning work period."}
+  - {time: "10:00", track: family, event: "The countess sees the chef or cook about menus and the housekeeper about the household. The earl sees the land agent."}
+  - {time: "10:00", track: servants, event: "Housemaids do the bedrooms while the family is downstairs."}
+  - {time: "12:00", track: abbey, event: "Sext, then dinner in the refectory in silence with reading."}
+  - {time: "12:00", track: servants, event: "Servants' dinner, the main meal. Upper servants process to the steward's room for pudding."}
+  - {time: "13:00", track: family, event: "Luncheon."}
+  - {time: "14:00", track: family, event: "Afternoon calls, riding, walks, shooting (in season) or charity visits to the village."}
+  - {time: "14:30", track: abbey, event: "None, then the afternoon work period."}
+  - {time: "16:30", track: family, event: "Tea in the drawing room. The ladies change into tea gowns."}
+  - {time: "17:30", track: abbey, event: "Vespers."}
+  - {time: "18:00", track: family, event: "Children brought down to the drawing room for one hour."}
+  - {time: "18:30", track: servants, event: "Servants' supper. The lamp man lights the lamps; housemaids turn down the beds and fill the hot-water cans."}
+  - {time: "19:00", track: family, event: "Dressing gong. The family dresses for dinner with valets and maids in attendance."}
+  - {time: "19:30", track: abbey, event: "Supper, then Compline. The Great Silence begins until morning."}
+  - {time: "20:00", track: family, event: "Dinner of seven to nine courses, served by the butler and footmen."}
+  - {time: "21:30", track: family, event: "Ladies withdraw to the drawing room; gentlemen stay for port, then join them."}
+  - {time: "22:00", track: village, event: "Last orders at the Ashcombe Arms."}
+  - {time: "22:30", track: servants, event: "Junior servants to bed. The housekeeper locks the maids' corridor."}
+  - {time: "23:30", track: family, event: "Family and guests retire. Valets and maids undress their employers, and gentlemen may play billiards late."}
+  - {time: "00:00", track: servants, event: "The butler locks up and the night watchman begins his rounds."}
+
+weekly_rhythm:
+  monday: Laundry washing day. The laundry is out of bounds to everyone else.
+  tuesday: Laundry drying and mangling.
+  wednesday: Ironing.
+  thursday: Most common servants' half-day off (afternoon only, in rotation).
+  friday: Laundry returned and checked against the books by the housekeeper.
+  saturday: Wages paid monthly or quarterly. Market day in the county town; the carrier makes the run.
+  sunday: Mass in the chapel or the abbey church. No shooting. Lighter work and cold supper. One Sunday afternoon a month is free for each servant.
+
+# ============================================================================
+# ANNUAL CALENDAR
+# ============================================================================
+
+calendar:
+  - {id: lady_day, date: "03-25", kind: quarter_day, event: "Rents due. Servant hirings and departures."}
+  - {id: st_benedict_transitus, date: "03-21", kind: abbey_feast, event: "Feast of St Benedict's death. The family attends High Mass at the abbey."}
+  - {id: london_season, dates: "05-01..07-31", kind: season, event: "Family and personal servants go to the London house. The hall falls to a skeleton staff, furniture goes under dust sheets, and the housekeeper runs a deep clean."}
+  - {id: midsummer_day, date: "06-24", kind: quarter_day, event: "Rents due."}
+  - {id: st_benedict, date: "07-11", kind: abbey_feast, event: "Abbey's feast day with open gates and a meal for the village."}
+  - {id: cricket_match, date: "08-first-saturday", kind: estate_event, event: "Hall against village at the cricket ground. Servants play alongside their masters."}
+  - {id: grouse_season, date: "08-12", kind: season, event: "Gentlemen go north for grouse; the family may be away."}
+  - {id: harvest_home, date: "09-late", kind: estate_event, event: "Harvest supper for the estate workers in the barn at the home farm."}
+  - {id: partridge_season, date: "09-01", kind: season, event: "Partridge shooting opens."}
+  - {id: michaelmas, date: "09-29", kind: quarter_day, event: "Rents due. The rent audit dinner is held for tenants."}
+  - {id: shooting_season, dates: "10-01..02-01", kind: season, event: "Pheasant shooting. House parties arrive with visiting servants, and beaters are hired from the village."}
+  - {id: hunting_season, dates: "11-01..03-31", kind: season, event: "Fox hunting. Meets are held on the carriage sweep."}
+  - {id: christmas, date: "12-25", kind: quarter_day, event: "Rents due. Midnight Mass at the abbey, gifts to servants, and the servants' ball in the saloon, where the earl dances with the housekeeper and the countess with the butler."}

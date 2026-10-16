@@ -122,6 +122,12 @@
 (defmethod apply-event :agent/occupied [world {:keys [actor data]}]
   (assoc-in world [:agents actor :busy] (select-keys data [:activity :until])))
 
+(defmethod apply-event :agent/interrupted [world {:keys [actor data]}]
+  (assoc-in world [:agents actor :busy :interrupted-by] (:by data)))
+
+(defmethod apply-event :agent/resumed [world {:keys [actor]}]
+  (update-in world [:agents actor :busy] dissoc :interrupted-by))
+
 (defmethod apply-event :agent/freed [world {:keys [actor]}]
   (update-in world [:agents actor] dissoc :busy))
 

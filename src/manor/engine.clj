@@ -177,6 +177,13 @@
                :args args :bridge-args bargs}}])
     (a/effect-events action world actor args)))
 
+(defn- stop-interrupted!
+  "An accepted action other than carry-on ends an interrupted occupation first."
+  [run actor action]
+  (when (not= :carry-on (:name action))
+    (when-let [by (:interrupted-by (w/busy @(:world run) actor))]
+      (emit! run [(b/free @(:world run) actor by)]))))
+
 (defn- resolve!
   "Check and apply an action against the current world, atomically.
   Returns {:ok true} or {:rejected reason}."
@@ -185,7 +192,8 @@
     (let [world @(:world run)]
       (if-let [reason (a/check action world actor args)]
         {:rejected reason}
-        (do (emit! run (action-events action world actor args))
+        (do (stop-interrupted! run actor action)
+            (emit! run (action-events action @(:world run) actor args))
             {:ok true})))))
 
 (defn- run-query!
@@ -195,7 +203,9 @@
   (let [world @(:world run)]
     (if-let [reason (a/check action world actor args)]
       {:error reason}
-      (let [bargs ((or (:bridge-args action) (fn [_ _ args] args)) world actor args)
+      (let [_ (stop-interrupted! run actor action)
+            world @(:world run)
+            bargs ((or (:bridge-args action) (fn [_ _ args] args)) world actor args)
             {:keys [result error cost] :as res} (bridge/call (:scenario run) (:opts run) (bridge-ctx run)
                                                              (:bridge action) bargs)]
         (locking (:world run)
@@ -254,7 +264,7 @@
 
             :query
             (if (>= (:queries st) max-queries)
-              (reply st "error: query limit reached for this turn; take your action now")
+              (reply st (str "error: query limit reached for this turn (" max-queries "); take your action now, and query again next turn"))
               (let [{:keys [result error]} (run-query! run agent-id action args)]
                 (-> st
                     (update :queries inc)
@@ -393,13 +403,17 @@
                (activate-llm run snapshot agent-id turn))]
       (when (and (empty? (:finals st)) (not= role :gm))
         (emit! run [{:type :action/forfeited :actor agent-id :visible-to #{agent-id}
-                     :data {:reason "no valid action taken"}}]))
+                     :data {:reason "no valid action taken"}}])
+        (when (:interrupted-by (w/busy @(:world run) agent-id))
+          (emit! run [(b/resume @(:world run) agent-id)])))
       (assoc st :agent-id agent-id))
     (catch Throwable t
       (emit! run [{:type :action/forfeited :actor agent-id :visible-to #{agent-id}
                    :data {:reason "the turn failed"}}
                   {:type :run/pause-requested :visible-to :system
                    :data {:reason (str "error during " agent-id "'s turn: " (ex-message t))}}])
+      (when (:interrupted-by (w/busy @(:world run) agent-id))
+        (emit! run [(b/resume @(:world run) agent-id)]))
       {:agent-id agent-id :finals []})
     (finally
       (set-status! run update :acting disj agent-id))))
@@ -410,7 +424,7 @@
 (defn- schedule
   "Groups of agents to act this round. Travellers and occupied agents are skipped."
   [run world]
-  (let [ids (mapv :id (remove #(or (:travel %) (:busy %)) (w/active-agents world)))
+  (let [ids (mapv :id (remove #(or (:travel %) (and (:busy %) (not (get-in % [:busy :interrupted-by])))) (w/active-agents world)))
         s (or (:schedule (:scenario run)) :round-robin)]
     (cond
       (fn? s) (s world)
@@ -424,14 +438,17 @@
   [run ids]
   (let [ids (filter #(and (w/active? @(:world run) %)
                           (not (space/in-transit? @(:world run) %))
-                          (not (w/busy @(:world run) %)))
+                          (let [busy (w/busy @(:world run) %)]
+                            (or (nil? busy) (:interrupted-by busy))))
                     ids)
         snapshot @(:world run)
         simultaneous? (> (count ids) 1)
         turn (fn [id]
                (let [commit (if simultaneous?
                               (fn [action args]
-                                (when-let [r (a/check action @(:world run) id args)] {:rejected r}))
+                                (if-let [r (a/check action @(:world run) id args)]
+                                  {:rejected r}
+                                  (stop-interrupted! run id action)))
                               (fn [action args] (resolve! run id action args)))]
                  {:role (:role (w/agent snapshot id)) :max-finals 1 :commit commit}))
         results (if simultaneous?

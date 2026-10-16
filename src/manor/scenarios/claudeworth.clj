@@ -1,7 +1,6 @@
 (ns manor.scenarios.claudeworth
   "Claudeworth Manor: an earl, a countess, a private secretary and the
-  village architect, living at a manor beside a village and an abbey (phase
-  1 of docs/claudeworth-design.md: daily life, before any building).
+  village architect, living at and enlarging a manor beside a village and an abbey.
 
   The world is in resources/worlds/claudeworth.edn (run option :world-file
   overrides it): the map, the clock, the agents and their personas, the
@@ -10,13 +9,14 @@
   could make false. Areas are the locations' :domains. `walk` (free) goes
   anywhere in the current area; `travel` (a turn) goes to another area.
   `sleep` and `spend-time` occupy an agent for several rounds at no model
-  cost; `rouse` wakes someone early. :architect? false leaves Mr Pugh out.
+  cost; `rouse` asks someone busy whether to stop. :architect? false leaves Mr Pugh out.
 
     clojure -M:dev:run claudeworth --mock --test
     clojure -M:run claudeworth --test --max-cost 0.25"
   (:require [clojure.string :as str]
             [manor.builtins :as b]
             [manor.clock :as clock]
+            [manor.scenarios.building :as building]
             [manor.space :as space]
             [manor.world :as w]
             [manor.worldfile :as worldfile])
@@ -35,9 +35,7 @@
   ^LocalTime [world]
   (.toLocalTime (clock/time-of (:clock world) (:round world))))
 
-(defn- open-now? [world [open close]]
-  (let [t (now world)]
-    (and (not (.isBefore t (LocalTime/parse open))) (.isBefore t (LocalTime/parse close)))))
+(def open-now? building/open-now?)
 
 (defn- bedroom-of [world id] (get-in world [:state :bedrooms id]))
 
@@ -165,12 +163,13 @@
 
    {:name :rouse
     :kind :free
-    :doc "Wake someone here who is asleep, or interrupt someone busy (use their id)."
+    :doc "Interrupt someone here who is asleep or busy (use their id). They get a turn and decide whether to stop."
     :args [:map [:who :string]]
     :valid? (fn [world actor {:keys [who]}]
               (cond (not (space/together? world actor who)) (str who " is not here")
-                    (not (w/busy world who)) (str (:name (w/agent world who)) " is not asleep or busy")))
-    :effect (fn [world actor {:keys [who]}] [(b/free world who actor)])}])
+                    (not (w/busy world who)) (str (:name (w/agent world who)) " is not asleep or busy")
+                    (:interrupted-by (w/busy world who)) (str (:name (w/agent world who)) " has already been interrupted")))
+    :effect (fn [world actor {:keys [who]}] [(b/interrupt world who actor)])}])
 
 ;; ---------------------------------------------------------------------------
 ;; Views
@@ -208,8 +207,8 @@
   [world id]
   (let [here (space/location-of world id)
         hours (:hours (space/location world here))]
-    (cond-> {:you {:bedroom (bedroom-of world id)}}
-      hours (assoc :here {:open (str/join "-" hours) :open-now? (open-now? world hours)})
+    (cond-> (update (building/observe world id) :you assoc :bedroom (bedroom-of world id))
+      hours (update :here merge {:open (str/join "-" hours) :open-now? (open-now? world hours)})
       true (assoc :places (places world))
       here (assoc :walkable (vec (sort (walkable world here)))
                   :journeys (journeys world here)))))
@@ -229,11 +228,16 @@
          "in your view shows how long each journey takes, and a longer one leaves you travelling until you arrive. "
          "You're only heard by people in the same place (`say`: a few sentences, at most " b/speech-limit
          " characters); `whisper` is private. "
-         "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). You get no turns while asleep, and others can `rouse` you. "
+         "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). You get no turns while asleep or busy, unless someone uses `rouse` to interrupt you. On that turn, `carry-on` ignores them; any other accepted action means you stop. "
          "Use `spend-time` for longer pastimes (half an hour to " max-pastime-hours " hours). `note` keeps private notes. "
          "If you are waiting on someone or nothing needs doing, `pass` is the way to wait a turn; you act again next turn. "
          "Opening hours are shown in your view where a place has them. "
-         "Nothing can be built yet: alterations can be talked over and planned, but not commissioned.")))
+         "The family and secretary spend freely from the household account (`household` in your view), and can `buy` at an open shop. "
+         "Building is arranged at the architect's office while it is open, not at the house: talk at home is for deciding what you want. "
+         "At the office you can search reference books (`consult-references`), ask for the `price-list`, have plans drawn (`draw-plans`), "
+         "and `commission` a plan you hold. `show-plans` shares plans with everyone present, anywhere. "
+         "Commissioning pays from the household; the room appears at the completion time in `building`. The architect earns "
+         building/fee-percent "% on commissions for plans he drew. Queries are limited per turn; continue them next turn.")))
 
 (defn- setting [world] (get-in world [:state :setting]))
 
@@ -264,6 +268,7 @@
   [{:keys [locations agents meta] :as wf}]
   (let [by-id (into {} (map (juxt :id identity)) locations)]
     (concat
+     (building/problems wf)
      (for [{:keys [name bedroom]} agents
            :when (not= :bedroom (:kind (by-id bedroom)))]
        (str "agent " (pr-str name) ": :bedroom " (pr-str bedroom)
@@ -289,9 +294,10 @@
                    (false? (:architect? opts)) (remove :optional?))]
       (assoc loaded
              :agents (vec agents)
-             :state {:bedrooms (into {} (map (juxt (comp b/slug :name) :bedroom)) agents)
+             :state (merge (building/initial-state wf agents opts)
+                           {:bedrooms (into {} (map (juxt (comp b/slug :name) :bedroom)) agents)
                      :setting (get-in wf [:meta :setting])
-                     :roles (:roles wf)}))))
+                     :roles (:roles wf)})))))
 
 ;; ---------------------------------------------------------------------------
 ;; Mock policy: a scripted day, so the scenario runs with no model calls.
@@ -307,8 +313,10 @@
     "08:30" [[:spend-time {:activity "breakfasting" :hours 1}]]
     "09:30" [[:travel {:to "architects-office"}]]
     "10:00" [[:say {:text "Good morning, Mr Pugh. I want Claudeworth made a proper seat: a library to begin with. What do you advise?"}]]
-    "10:30" [[:travel {:to "carriage-sweep"}]]
-    "11:00" [[:walk {:to "study"}] [:spend-time {:activity "attending to estate business" :hours 2}]]
+    "10:30" [[:say {:text "A library beside the study, then. Please draw it for me."}]]
+    "11:00" [[:commission {:plan-id "library"}]]
+    "11:30" [[:travel {:to "carriage-sweep"}]]
+    "12:00" [[:walk {:to "study"}] [:spend-time {:activity "attending to estate business" :hours 1}]]
     "13:00" [[:walk {:to "dining-room"}] [:spend-time {:activity "lunching" :hours 1}]]
     "14:00" [[:walk {:to "study"}] [:spend-time {:activity "reading the newspapers" :hours 4}]]
     "18:00" [[:walk {:to "drawing-room"}]
@@ -336,7 +344,9 @@
    {"08:00" [[:walk {:to "dining-room"}] [:say {:text "Good morning, my lord. Good morning, my lady."}]]
     "08:30" [[:spend-time {:activity "breakfasting" :hours 1}]]
     "09:30" [[:walk {:to "study"}] [:spend-time {:activity "writing letters" :hours 2}]]
-    "11:30" [[:spend-time {:activity "answering the post" :hours 1.5}]]
+    "11:30" [[:travel {:to "general-store"}]]
+    "12:00" [[:buy {:item "coal" :qty 1}]]
+    "12:30" [[:travel {:to "carriage-sweep"}]]
     "13:00" [[:walk {:to "dining-room"}] [:spend-time {:activity "lunching" :hours 1}]]
     "14:00" [[:walk {:to "study"}] [:spend-time {:activity "writing letters" :hours 2}]]
     "16:00" [[:spend-time {:activity "filing correspondence" :hours 2}]]
@@ -349,8 +359,12 @@
    "pugh"
    {"08:00" [[:walk {:to "architects-lodgings"}] [:spend-time {:activity "breakfasting" :hours 1}]]
     "09:00" [[:walk {:to "architects-office"}] [:pass {}]]
-    "10:00" [[:say {:text "An honour, my lord. A library on the garden side would answer admirably, provided we mind the proportions."}]]
-    "10:30" [[:spend-time {:activity "at his drawing board" :hours 2}]]
+    "10:00" [[:consult-references {:query "library study"}] [:price-list {}]
+             [:say {:text "An honour, my lord. A library on the garden side would answer admirably, provided we mind the proportions."}]]
+    "10:30" [[:draw-plans {:for "lord-claudeworth" :name "Library" :floor "ground"
+                           :desc "A panelled library with shelves and a reading table." :connects-to ["study"] :size "large"}]
+             [:show-plans {:plan-id "library"}]
+             [:spend-time {:activity "at his drawing board" :hours 2}]]
     "12:30" [[:walk {:to "architects-lodgings"}] [:spend-time {:activity "lunching" :hours 1}]]
     "13:30" [[:walk {:to "architects-office"}] [:spend-time {:activity "at his drawing board" :hours 4}]]
     "17:30" [[:spend-time {:activity "tidying the office" :hours 0.5}]]
@@ -378,10 +392,28 @@
   [{:keys [world agent-id role used]}]
   (if (= role :gm)
     {:tool :done}
-    (let [script (get-in mock-day [agent-id (str (now world))])
+    (let [time (str (now world))
+          architect (building/architect-here world agent-id)
+          client-plan (first (sort-by :id (filter #(= "lord-claudeworth" (:for %)) (vals (get-in world [:state :plans])))))
+          clerk? (and (= agent-id "lord-claudeworth") (nil? architect))
+          script (cond
+                   (and clerk? (= time "10:00"))
+                   [[:consult-references {:query "library study"}] [:price-list {}] [:pass {}]]
+                   (and clerk? (= time "10:30"))
+                   [[:draw-plans {:name "Library" :floor "ground" :size "large"
+                                  :desc "A panelled library with shelves and a reading table." :connects-to ["study"]}]
+                    [:pass {}]]
+                   (and (= agent-id "lord-claudeworth") (= time "18:00")
+                        (space/location world (:id client-plan)))
+                   (into [[:walk {:to (:id client-plan)}]] (get-in mock-day [agent-id time]))
+                   :else (get-in mock-day [agent-id time]))
+          script (mapv (fn [[tool args]]
+                         [tool (if (and (#{:commission :show-plans} tool) client-plan)
+                                 (assoc args :plan-id (:id client-plan)) args)]) script)
           [tool args] (get script (scripted-done script used))
           [tool args] (or (when (= :sleep tool) (way-to-bed world agent-id)) [tool args])]
-      (if tool {:tool tool :args args} {:tool :pass}))))
+      (if tool {:tool tool :args args}
+          {:tool (if (:interrupted-by (w/busy world agent-id)) :carry-on :pass)}))))
 
 ;; ---------------------------------------------------------------------------
 
@@ -390,7 +422,11 @@
    :doc "Claudeworth Manor, 1904: a family, a secretary and the village architect, living from day to day."
    :init init
    :roles roles
-   :actions actions
+   :actions (into actions building/actions)
+   :bridges building/bridges
+   :offline-stubs building/offline-stubs
+   :mcp-servers building/mcp-servers
+   :systems [building/construction]
    :exclude-actions #{:move}
    :observe observe
    :mock-policy mock-policy})

@@ -25,12 +25,13 @@
 
    {:name :rouse
     :kind :free
-    :doc "Wake someone here who is asleep or busy."
+    :doc "Interrupt someone here who is asleep or busy; they decide whether to stop."
     :args [:map [:who :string]]
     :valid? (fn [world actor {:keys [who]}]
               (cond (not (space/together? world actor who)) (str who " is not here")
-                    (not (w/busy world who)) (str who " is not busy")))
-    :effect (fn [world actor {:keys [who]}] [(b/free world who actor)])}])
+                    (not (w/busy world who)) (str who " is not busy")
+                    (:interrupted-by (w/busy world who)) (str (:name (w/agent world who)) " has already been interrupted")))
+    :effect (fn [world actor {:keys [who]}] [(b/interrupt world who actor)])}])
 
 (defn mock-policy [{:keys [world agent-id role]}]
   (let [here (space/location-of world agent-id)]

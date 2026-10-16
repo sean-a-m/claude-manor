@@ -50,6 +50,18 @@
      {:type :agent/freed :actor id :visible-to (if (and by (set? v)) (conj v by) v)
       :data (cond-> {:activity (:activity (w/busy world id))} by (assoc :by by))})))
 
+(defn interrupt
+  "Event: ask a busy agent to decide whether to stop on their next turn."
+  [world id by]
+  {:type :agent/interrupted :actor id :visible-to (conj (space/here world id) by)
+   :data {:activity (:activity (w/busy world id)) :by by}})
+
+(defn resume
+  "Event: keep the occupation and its original deadline, ignoring an interruption."
+  [world id]
+  {:type :agent/resumed :actor id :visible-to (space/here world id)
+   :data (select-keys (w/busy world id) [:activity :until])})
+
 (defn releases
   "Events freeing everyone whose occupation ends by the current round."
   [world]
@@ -71,7 +83,15 @@
   400)
 
 (defn agent-actions []
-  [{:name :pass
+  [{:name :carry-on
+    :kind :final :roles :all
+    :doc "Ignore the interruption and carry on with what you were doing until it is over."
+    :available? (fn [world actor] (some? (:interrupted-by (w/busy world actor))))
+    :valid? (fn [world actor _]
+              (when-not (:interrupted-by (w/busy world actor)) "you are not interrupted"))
+    :effect (fn [world actor _] [(resume world actor)])}
+
+   {:name :pass
     :doc "Wait here and do nothing this round: a fine choice when you want to see what others do, or there is nothing to do yet. It ends your turn, but you take your turn again next round."
     :effect (fn [_ _ _] [{:type :agent/passed :visible-to :all}])}
 

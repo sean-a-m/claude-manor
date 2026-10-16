@@ -63,6 +63,12 @@
 (defmethod describe :agent/occupied [{:keys [actor data]} names]
   (str (who names actor) " is " (:activity data) " until " (at names (:until data)) "."))
 
+(defmethod describe :agent/interrupted [{:keys [actor data]} names]
+  (str (who names (:by data)) " interrupts " (who names actor) " (" (:activity data) ")."))
+
+(defmethod describe :agent/resumed [{:keys [actor data]} names]
+  (str (who names actor) " carries on (" (:activity data) ", until " (at names (:until data)) ")."))
+
 (defmethod describe :agent/freed [{:keys [actor data]} names]
   (str (who names actor) " is no longer " (:activity data)
        (when-let [by (:by data)] (str " (interrupted by " (who names by) ")")) "."))

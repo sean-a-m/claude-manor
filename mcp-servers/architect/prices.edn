@@ -1,0 +1,4 @@
+{:sizes [{:size "small" :price 200 :build-days 1}
+         {:size "medium" :price 500 :build-days 1}
+         {:size "large" :price 1200 :build-days 1}
+         {:size "grand" :price 3000 :build-days 2}]}

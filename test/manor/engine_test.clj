@@ -203,16 +203,58 @@
         rouse (first (filter #(= :rouse (:name %)) (:actions run)))]
     (testing "people present see what someone is doing"
       (is (= "asleep" (:doing (first (:people-here (:location (prompt/agent-view (:scenario run) world "ben"))))))))
-    (testing "rousing frees them early, and the rouser is named"
+    (testing "rousing interrupts them, and the rouser is named"
       (is (nil? (a/check rouse world "ben" {:who "ada"})))
       (let [[freed] (a/effect-events rouse world "ben" {:who "ada"})]
         (is (= {:activity "asleep" :by "ben"} (:data freed)))
         (is (= #{"ada" "ben"} (:visible-to freed)))
-        (is (nil? (w/busy (w/apply-event world freed) "ada")))
-        (is (= "Ada is no longer asleep (interrupted by Ben)." (n/describe freed (n/names world))))))
+        (is (= "ben" (:interrupted-by (w/busy (w/apply-event world freed) "ada"))))
+        (is (= "Ben interrupts Ada (asleep)." (n/describe freed (n/names world))))))
     (testing "only someone who is busy can be roused"
       (is (= "ben is not busy" (a/check rouse world "ada" {:who "ben"}))))
     (e/stop-run run)))
+
+(deftest interrupted-turn-decisions
+  (doseq [decision [:carry-on :pass :note :bad :undecodable :query]]
+    (let [seen (atom [])
+          policy (fn [{:keys [agent-id world step]}]
+                   (swap! seen conj [agent-id (:round world) (w/busy world agent-id)])
+                   (cond
+                     (= agent-id "ben") {:tool :rouse :args {:who "ada"}}
+                     (= decision :bad) {:tool :whisper :args {:to "nobody" :text "hello"}}
+                     (= decision :undecodable) {:tool :note :args {:text 1}}
+                     (= decision :note) (if (zero? step) {:tool :note :args {:text "awake"}} {:tool :pass})
+                     (= decision :query) {:tool :test-query}
+                     :else {:tool decision}))
+          run (hamlet {:llm-impl (llm/mock policy) :max-steps 1})
+          query {:name :test-query :kind :query :roles :all :args [:map]
+                 :bridge :test/query}
+          run (-> run (update :actions conj query)
+                  (assoc-in [:opts :bridge-stubs :test/query]
+                            (fn [_ _] (is (nil? (w/busy (e/world run) "ada"))) {:ok true})))]
+      @(e/place! run "ben" "bedroom")
+      @(e/place! run "ada" "bedroom")
+      (e/emit! run [(b/occupy (e/world run) "ada" "asleep" 8)])
+      (rounds! run 1)
+      (is (= #{"ben"} (set (map first @seen))))
+      (is (= "ben" (:interrupted-by (w/busy (e/world run) "ada"))))
+      (is (= {:activity "asleep" :until "Sun 00:30" :interrupted-by "Ben"}
+             (get-in (prompt/agent-view (:scenario run) (e/world run) "ada") [:you :busy])))
+      ;; No further interruptions: Ben also becomes busy, and must not get a turn.
+      (e/emit! run [(b/occupy (e/world run) "ben" "reading" 8)])
+      (reset! seen [])
+      (rounds! run 1)
+      (is (= ["ada"] (mapv first @seen)))
+      (if (#{:pass :note :query} decision)
+        (let [freed (first (of-type run :agent/freed))]
+          (is (nil? (w/busy (e/world run) "ada")))
+          (is (= "ben" (get-in freed [:data :by])))
+          (is (< (:id freed) (:id (last (e/events run))))))
+        (do (is (= {:activity "asleep" :until 8} (w/busy (e/world run) "ada")))
+            (is (empty? (of-type run :agent/freed)))
+            (is (= 1 (count (of-type run :agent/resumed))))))
+      (is (= (e/world run) (w/replay (e/events run))))
+      (e/stop-run run))))
 
 (deftest prompts-with-a-clock
   (let [run (rounds! (hamlet) 3)
@@ -404,7 +446,7 @@
       (let [reminder (last-message (earl 2))]
         (is (str/includes? reminder "free tools, queries and rejected calls don't end it"))
         (is (str/includes? reminder "one of your 10 calls this turn (2 used)"))
-        (is (str/includes? reminder "turn-ending action: `say`, `travel`, `pass`, `sleep`, `spend-time` or `whisper`."))
+        (is (str/includes? reminder "turn-ending action: `say`, `commission`, `travel`, `buy`, `pass`, `sleep`, `spend-time` or `whisper`."))
         (is (str/includes? reminder "`pass` is a fine way to wait"))
         (is (not (str/includes? reminder "`walk`"))))
       (is (= 1 (count (filter #(and (= "user" (:role %)) (str/includes? (:content %) "turn isn't over"))

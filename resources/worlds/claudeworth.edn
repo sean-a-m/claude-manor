@@ -5,7 +5,7 @@
         :start "1904-10-15T08:00"
         :minutes-per-round 30
         :starting-funds 3000
-        :build-days 1
+        :starting-stores {"provisions" 2}
         :setting "Claudeworth Manor is a modest Edwardian country house, the seat of the Earls of Claudeworth, whose fortune has lately been restored. Claudeworth village lies nearby, a sloping green with a general store and the offices of Pugh & Sons, Architects. Hollin Abbey is nearby too, where the monks keep to themselves."}
 
  :locations
@@ -44,6 +44,7 @@
   {:id "general-store" :name "General store" :domain :village :kind :shop :hours ["08:00" "18:00"]
    :desc "Groceries, candles, coal and gossip, sold over one long counter."}
   {:id "architects-office" :name "Architect's office" :domain :village :kind :office :hours ["09:00" "18:00"]
+   :services #{:architect}
    :connects-to ["architects-lodgings"]
    :desc "Pugh & Sons, Architects: a front room of drawing boards, plan chests and shelves of reference books."}
   {:id "architects-lodgings" :name "Architect's lodgings" :domain :village :kind :bedroom
@@ -56,6 +57,10 @@
   {:id "abbey-church" :name "Abbey church" :domain :abbey :kind :church
    :desc "Hollin Abbey's church, cool and quiet. The monks keep to themselves."}]
 
+ :shop {"general-store" [{:item "provisions" :price 1 :desc "a week's groceries for the household"}
+                          {:item "candles" :price 1}
+                          {:item "coal" :price 2 :desc "a ton"}]}
+
  ;; journeys: [from to rounds], two-way; one round is half an hour
  :routes [["carriage-sweep" "village-green" 1]
           ["carriage-sweep" "abbey-gatehouse" 1]
@@ -66,7 +71,7 @@
  {:earl {:about "You are the Earl of Claudeworth, master of Claudeworth Manor; the household calls you my lord. The house is too small for your station, and you intend to enlarge it. Mr Pugh of Pugh & Sons, the architect in Claudeworth village, is the man to see. Lady Claudeworth will expect to be consulted, and your secretary, Mr Hale, can run errands for you."}
   :countess {:about "You are the Countess of Claudeworth; the household calls you my lady. You run the household, you have firm views on what the house needs and how it should look, and you expect to be consulted on any alteration to it."}
   :secretary {:about "You are Mr Hale, private secretary to the Earl of Claudeworth (my lord; the countess is my lady). You serve his lordship: correspondence, errands and arrangements, often in the village, and you report back to him. You work in the study."}
-  :architect {:about "You are Mr Pugh of Pugh & Sons, Architects, in Claudeworth village. You keep the architect's office and live in the lodgings above it. You want the manor's custom: address the earl as my lord and the countess as my lady."}
+  :architect {:about "You are Mr Pugh of Pugh & Sons, Architects, in Claudeworth village. You keep the architect's office and live in the lodgings above it. You consult your reference books, draw plans for clients and earn your living from commissions. You are proud of your craft and keen for the manor's custom: advise on proportion, but respect the client's wishes. Address the earl as my lord and the countess as my lady."}
   :gm {:about "A quiet period household: the family, their secretary and the village architect going about their days."}}
 
  :agents

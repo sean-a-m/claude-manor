@@ -1,7 +1,7 @@
 (ns manor.llm-test
-  "The OpenRouter response parser. A model's reasoning is kept for the
-  record (llm.edn, the transcript) and never put in the message the engine
-  sends back."
+  "The OpenRouter response parser. A character's private thoughts are kept
+  for the record (llm.edn, the transcript) and never put in the message the
+  engine sends back."
   (:require [clojure.test :refer [deftest is testing]]
             [jsonista.core :as json]
             [manor.llm :as llm]))
@@ -17,23 +17,23 @@
     :usage {:prompt_tokens 120 :completion_tokens 365 :cost 0.0011
             :completion_tokens_details {:reasoning_tokens 300}}}))
 
-(deftest parse-response-keeps-reasoning-apart
+(deftest parse-response-keeps-thoughts-apart
   (let [parsed ((var-get #'llm/parse-response) body)
-        {:keys [message reasoning content tool-calls usage]} parsed]
-    (testing "reasoning is read"
-      (is (= "Let me think about where everyone is." reasoning))
-      (is (= 300 (:reasoning-tokens usage)))
+        {:keys [message thoughts content tool-calls usage]} parsed]
+    (testing "the character's thoughts are read"
+      (is (= "Let me think about where everyone is." thoughts))
+      (is (= 300 (:thought-tokens usage)))
       (is (= 365 (:completion-tokens usage))))
-    (testing "the message sent back to the model has no reasoning in it"
-      (is (not (contains? message :reasoning)))
+    (testing "the message sent back to the model has no thoughts in it"
+      (is (not (contains? message :thoughts)))
       (is (= "assistant" (:role message)))
       (is (= "Very well." content))
       (is (= "walk" (get-in tool-calls [0 :name]))))))
 
-(deftest no-reasoning-is-nil
+(deftest no-thoughts-is-nil
   (let [parsed ((var-get #'llm/parse-response)
                 (json/write-value-as-string
                  {:choices [{:message {:role "assistant" :content ""} :finish_reason "stop"}]
                   :usage {:prompt_tokens 1 :completion_tokens 1 :cost 0}}))]
-    (is (nil? (:reasoning parsed)))
-    (is (nil? (:reasoning-tokens (:usage parsed))))))
+    (is (nil? (:thoughts parsed)))
+    (is (nil? (:thought-tokens (:usage parsed))))))

@@ -217,8 +217,8 @@
 (defn- record-call!
   "Log a model call to llm.edn. `replies` are the messages the engine added
   after the response (tool replies and any reminder), so a turn's last call
-  has its replies too. The model's :reasoning, if it returned any, is kept
-  here only; it's never sent back to the model."
+  has its replies too. The character's private :thoughts, if the model
+  returned any, are kept here only; they're never sent back to the model."
   [run agent-id request response replies]
   (let [entry {:agent agent-id
                :round (:round @(:world run))
@@ -226,7 +226,7 @@
                :messages (:messages request)
                :tools (mapv #(get-in % [:function :name]) (:tools request))
                :response (:message response)
-               :reasoning (:reasoning response)
+               :thoughts (:thoughts response)
                :finish-reason (:finish-reason response)
                :usage (:usage response)
                :replies replies}]
@@ -292,15 +292,17 @@
   and again before the last call. `final-names` are the turn-ending actions
   it has."
   [calls-made max-steps final-names]
-  (cond
-    (>= calls-made max-steps) nil
-    (= calls-made (dec max-steps))
-    (str "This is your last call this turn. Finish now with one turn-ending action ("
-         (or-list final-names) "), or you lose your turn.")
-    (= calls-made early-reminder-at)
-    (str "Your turn isn't over: free tools, queries and rejected calls don't end it, but each uses one of your "
-         max-steps " calls this turn (" calls-made " used). When you're ready, finish with one turn-ending action: "
-         (or-list final-names) ".")))
+  (let [wait (when (some #{"pass"} final-names)
+               " If you're unsure what to do, `pass` is a fine way to wait and see.")]
+    (cond
+      (>= calls-made max-steps) nil
+      (= calls-made (dec max-steps))
+      (str "This is your last call this turn. Finish now with one turn-ending action ("
+           (or-list final-names) "), or you lose your turn." wait)
+      (= calls-made early-reminder-at)
+      (str "Your turn isn't over: free tools, queries and rejected calls don't end it, but each uses one of your "
+           max-steps " calls this turn (" calls-made " used). When you're ready, finish with one turn-ending action: "
+           (or-list final-names) "." wait))))
 
 (defn- handle-response
   "The turn state after one model response, with :replies (the messages to

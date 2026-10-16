@@ -231,6 +231,7 @@
          " characters); `whisper` is private. "
          "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). You get no turns while asleep, and others can `rouse` you. "
          "Use `spend-time` for longer pastimes (half an hour to " max-pastime-hours " hours). `note` keeps private notes. "
+         "If you are waiting on someone or nothing needs doing, `pass` is the way to wait a turn; you act again next turn. "
          "Opening hours are shown in your view where a place has them. "
          "Nothing can be built yet: alterations can be talked over and planned, but not commissioned.")))
 

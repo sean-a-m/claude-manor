@@ -104,10 +104,11 @@ clj -M:dev                                    # REPL; see dev/user.clj docstring
 - To inspect a run, read its transcript first. The engine writes `<run-dir>/transcript.md`
   whenever a run pauses or stops; for older runs, write it with `(transcript! id)` at the REPL
   (`{:test? true}` for `test-runs/`) or `(manor.transcript/write! dir)`. It holds
-  each round's events with who saw them, then every model call with its tool calls and the
-  engine's replies, plus calls and cost per agent. For the raw record, read `runs/<id>/llm.edn`
-  (every prompt, response, `finish-reason` and cost). Count `error:`/`rejected:` tool replies and `:action/forfeited` events. That's how the
-  argument-naming and reasoning-token issues were found.
+  each round's events with who saw them, then every model call with its tool calls, the engine's
+  replies, and — where the model returned them — the character's private thoughts (a `thoughts:`
+  line), plus calls and cost per agent. For the raw record, read `runs/<id>/llm.edn` (every
+  prompt, response, `:thoughts`, `finish-reason` and cost). Count `error:`/`rejected:` tool replies
+  and `:action/forfeited` events. That's how the argument-naming and reasoning-token issues were found.
 - Every new scenario goes in `bundled` in `test/manor/scenarios_test.clj`.
 - **Run directories:** `runs/` holds the user's real runs. **Never delete anything there.**
   Anything you start for testing or checking must use `{:test? true}` (CLI: `--test`), which puts

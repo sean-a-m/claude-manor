@@ -277,3 +277,20 @@ them away from their bedroom there first, so he sleeps in his lodgings with no f
   only if a later scripted turn says so). From a 21:00 start, Mr Pugh walks from his office to his
   lodgings at 22:00 and sleeps there, with no forfeits; the 08:00 mock day's events and model calls
   are unchanged. Script progress within a turn now skips calls off the script (`scripted-done`).
+
+## `pass` as waiting, and the private-thoughts rename (2026-10-16)
+
+- **`pass` now reads as a legitimate wait.** Its doc says it's a fine choice when you want to see
+  what others do, and the engine's reminder adds "If you're unsure what to do, `pass` is a fine way
+  to wait and see." when the agent has `pass`. Claudeworth's brief says the same. This is a first
+  response to the pacing seen in real runs (agents used free `walk`s to hedge instead of ending a
+  turn); the other causes recorded earlier (movement is public, no within-turn question/reply) are
+  untouched by decision.
+- **The captured deliberation is now called the character's `:thoughts`** everywhere in our own
+  code: the llm.edn key, the response key, the usage key (`:thought-tokens`) and the transcript
+  line (`thoughts:`). The wire field stays `reasoning`, and the run option `:reasoning` (passed to
+  OpenRouter) is unchanged. Reason: the project's vocabulary is the world's (`note`, `say`, `brief`,
+  `persona`), and the value is the character's cognition in the run record. Nothing about what is
+  captured or sent changed: `:message` is still the only thing returned to the model, and the
+  transcript still shows the text.
+- A 12-round real run with the thoughts recorded cost $0.077 (`old-test-runs/claudeworth-reasoning-1`).

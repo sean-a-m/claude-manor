@@ -533,9 +533,9 @@ Lets the scenario run for free with `{:llm :mock}`. It's essential for testing.
    (a few rounds expose most problems; see "Real runs are short by default" in `AGENTS.md`). To
    check something late in the day, start near it with `:start` (see Time) instead of playing up
    to it. Then read
-   `transcript.md` in the run directory (written whenever the run pauses or stops),
-   `test-runs/<id>/llm.edn`, or
-   the agent pages in the panel. Look for rejections, forfeits, and confused tool calls, and fix
+   `transcript.md` in the run directory (written whenever the run pauses or stops), which shows each
+   model call with the character's private thoughts when the model returned any (`thoughts:` lines),
+   `test-runs/<id>/llm.edn`, or the agent pages in the panel. Look for rejections, forfeits, and confused tool calls, and fix
    docs, briefs and reasons accordingly.
 
 ## Common mistakes

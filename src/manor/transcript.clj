@@ -46,7 +46,7 @@
 
 (defn- call-lines
   "Markdown lines for one model call."
-  [{:keys [agent reasoning response finish-reason usage] :as call} next-call forfeited?]
+  [{:keys [agent thoughts response finish-reason usage] :as call} next-call forfeited?]
   (let [tcs (:tool_calls response)
         text (not-empty (str/trim (str (:content response))))]
     (concat
@@ -56,8 +56,8 @@
              "_(no tool call)_")
            (when (and finish-reason (not= "tool_calls" finish-reason)) (str " _finish: " finish-reason "_"))
            (format " _($%.4f%s)_" (double (or (:cost usage) 0))
-                   (if-let [rt (:reasoning-tokens usage)] (str ", " rt " thinking") "")))]
-     (when reasoning [(str "  - thinking: " (one-line reasoning))])
+                   (if-let [rt (:thought-tokens usage)] (str ", " rt " in thought") "")))]
+     (when thoughts [(str "  - thoughts: " (one-line thoughts))])
      (when text [(str "  - text: " (one-line text))])
      (for [m (replies call next-call)]
        (str "  - engine: " (one-line (:content m))))

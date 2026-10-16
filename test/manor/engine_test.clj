@@ -404,7 +404,8 @@
       (let [reminder (last-message (earl 2))]
         (is (str/includes? reminder "free tools, queries and rejected calls don't end it"))
         (is (str/includes? reminder "one of your 10 calls this turn (2 used)"))
-        (is (str/ends-with? reminder "turn-ending action: `say`, `travel`, `pass`, `sleep`, `spend-time` or `whisper`."))
+        (is (str/includes? reminder "turn-ending action: `say`, `travel`, `pass`, `sleep`, `spend-time` or `whisper`."))
+        (is (str/includes? reminder "`pass` is a fine way to wait"))
         (is (not (str/includes? reminder "`walk`"))))
       (is (= 1 (count (filter #(and (= "user" (:role %)) (str/includes? (:content %) "turn isn't over"))
                               (:messages (earl 3)))))))
@@ -426,7 +427,8 @@
     (is (= 4 (count earl)))
     (testing "before the last call"
       (is (str/starts-with? (last-message (earl 3)) "This is your last call this turn."))
-      (is (str/includes? (last-message (earl 3)) "or you lose your turn")))
+      (is (str/includes? (last-message (earl 3)) "or you lose your turn"))
+      (is (str/includes? (last-message (earl 3)) "`pass` is a fine way to wait")))
     (testing "a turn of free actions only is still forfeited, and its last replies are logged"
       (is (= ["lord-claudeworth"] (map :actor (of-type run :action/forfeited))))
       (is (= [{:role "tool" :tool_call_id "c3" :content "ok"}] (:replies (last logged)))))

@@ -7,11 +7,13 @@
             :ctx is engine context for mock policies; it is never sent anywhere.
   Response: {:message {...assistant message, OpenAI wire format...}
              :content \"...\" :tool-calls [{:id :name :arguments}]
-             :reasoning \"...\"                  ; the model's thinking, if it exposes any
-             :usage {:prompt-tokens :completion-tokens :reasoning-tokens :cost}}
+             :thoughts \"...\"                 ; the character's private thoughts, if it returns any
+             :usage {:prompt-tokens :completion-tokens :thought-tokens :cost}}
 
-  `:reasoning` is recorded (llm.edn, the transcript) but never sent back to
-  the model: `:message` is what the engine sends."
+  A model may return the character's private thoughts beside its reply. They
+  are recorded (llm.edn, the transcript) and never sent back: `:message` is
+  what the engine sends. The run option `:reasoning` is the provider's own
+  deliberation setting."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [jsonista.core :as json]
@@ -33,8 +35,8 @@
           (get-in (json/read-value f) ["openrouter" "key"])))))
 
 (defn- parse-response
-  "Read one chat-completions response. The reasoning text some models
-  expose is kept separately from `:message`, so it is never sent back."
+  "Read one chat-completions response. Any private thoughts the model returns
+  are kept apart from `:message`, so they are never sent back to the model."
   [body]
   (let [resp (json/read-value body json/keyword-keys-object-mapper)
         msg (get-in resp [:choices 0 :message])
@@ -43,7 +45,7 @@
       (throw (ex-info (str "OpenRouter error: " (or (:message err) (pr-str err))) {:error err})))
     {:message (select-keys msg [:role :content :tool_calls])   ; what goes back to the model
      :content (:content msg)
-     :reasoning (not-empty (:reasoning msg))                  ; recorded, never sent back
+     :thoughts (not-empty (:reasoning msg))                   ; the wire field; recorded, never sent back
      :finish-reason (get-in resp [:choices 0 :finish_reason])
      :tool-calls (mapv (fn [tc] {:id (:id tc)
                                  :name (get-in tc [:function :name])
@@ -51,7 +53,7 @@
                        (:tool_calls msg))
      :usage {:prompt-tokens (:prompt_tokens usage)
              :completion-tokens (:completion_tokens usage)
-             :reasoning-tokens (get-in usage [:completion_tokens_details :reasoning_tokens])
+             :thought-tokens (get-in usage [:completion_tokens_details :reasoning_tokens])
              :cost (:cost usage)}}))
 
 (defn- retryable? [{:keys [status]}]

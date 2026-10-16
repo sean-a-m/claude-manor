@@ -72,7 +72,7 @@
 
 (defn agent-actions []
   [{:name :pass
-    :doc "Do nothing this round."
+    :doc "Wait here and do nothing this round: a fine choice when you want to see what others do, or there is nothing to do yet. It ends your turn, but you take your turn again next round."
     :effect (fn [_ _ _] [{:type :agent/passed :visible-to :all}])}
 
    {:name :note

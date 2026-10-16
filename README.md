@@ -10,12 +10,28 @@ in code; the engine owns all state, private information, and access to the real 
 | [docs/scenario-authoring.md](docs/scenario-authoring.md) | how to write a scenario |
 | [docs/roadmap.md](docs/roadmap.md) | what's left, and known issues |
 
-Bundled scenarios: `village` (economy, weather bridge, locations, GM) and `treasure` (small
-example).
+Bundled scenarios: `village` (economy, weather bridge, locations, GM), `treasure` (small
+example) and `quiz` (each contestant has a private, persistent pi assistant reached over MCP).
+
+## MCP bridges
+
+Agents can reach MCP servers through in-game actions: the engine is the MCP client, and each
+scenario names the exact tools its actions may call. `mcp-servers/pi/server.mjs` exposes pi as an
+MCP tool: one persistent pi session per agent. The safety settings live in that server (which
+command starts pi, model, allowed pi tools). Put machine-specific settings, such as a sandboxed pi
+command, in `config/mcp.edn` (copy `config/mcp.example.edn`).
+
+```sh
+clojure -M:run quiz --max-cost 0.10       # contestants consult their pi assistants
+clojure -M:run quiz --mock --offline      # free: scripted contestants, stub assistant
+```
+
+See "MCP bridges" in [docs/scenario-authoring.md](docs/scenario-authoring.md).
 
 ## Requirements
 
 - Clojure CLI (1.12+) and a JDK
+- Node.js and pi for the pi MCP server (the `quiz` scenario and the tests)
 - An OpenRouter key in `OPENROUTER_API_KEY`. If that's unset, the key stored by pi in
   `~/.pi/agent/auth.json` is used.
 
@@ -76,6 +92,7 @@ Passed to `start-run` / `start!` (defaults in `manor.engine/default-opts`):
 | `:event-window` | 30 | recent events in each prompt |
 | `:gm-check-in-every` | 0 | rounds between GM check-ins (0 = only when triggered) |
 | `:reasoning` / `:max-tokens` | `{:effort "low"}` / 4000 | passed to OpenRouter |
+| `:mcp-servers` | | per-server overrides, e.g. `{:pi {:env {"PI_MCP_TOOLS" "read"}}}` |
 
 ## Tests
 

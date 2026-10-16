@@ -18,6 +18,7 @@
             [manor.bridge :as bridge]
             [manor.builtins :as b]
             [manor.llm :as llm]
+            [manor.mcp :as mcp]
             [manor.prompt :as prompt]
             [manor.space :as space]
             [manor.store :as store]
@@ -76,6 +77,8 @@
    :opts opts
    :actions (all-actions scenario)
    :llm (make-llm scenario opts)
+   :mcp (mcp/pool (mcp/server-configs (:mcp-servers scenario) (mcp/local-config) (:mcp-servers opts))
+                  {:run-id id :run-dir dir})
    :world (atom (w/new-world))
    :events (atom [])
    :status (atom {:state :idle :mode :manual :acting #{}})
@@ -111,7 +114,15 @@
         (store/append-event! (:dir run) e)
         (notify! run {:kind :event :event e})))))
 
-(defn- bridge-ctx [run] {:run-id (:id run) :run-dir (str (:dir run)) :opts (:opts run)})
+(defn- bridge-ctx [run] {:run-id (:id run) :run-dir (str (:dir run)) :opts (:opts run) :mcp (:mcp run)})
+
+(defn- record-bridge-cost!
+  "Bridges that spend money (e.g. an MCP server running its own model)
+  report a cost; count it towards the run's usage, under the caller."
+  [run who bridge cost]
+  (when (and cost (pos? cost))
+    (emit! run [{:type :llm/usage :actor who :visible-to :system
+                 :data {:agent who :model (str "bridge " (subs (str bridge) 1)) :cost cost}}])))
 
 (defn- action-named [run n] (get (a/by-name (:actions run)) (name n)))
 
@@ -148,11 +159,12 @@
     (if-let [reason (a/check action world actor args)]
       {:error reason}
       (let [bargs ((or (:bridge-args action) (fn [_ _ args] args)) world actor args)
-            {:keys [result error] :as res} (bridge/call (:scenario run) (:opts run) (bridge-ctx run)
-                                                        (:bridge action) bargs)]
+            {:keys [result error cost] :as res} (bridge/call (:scenario run) (:opts run) (bridge-ctx run)
+                                                             (:bridge action) bargs)]
         (locking (:world run)
           (emit! run [{:type :bridge/called :actor actor :visible-to #{actor}
                        :data {:bridge (:bridge action) :args bargs :result result :error error}}])
+          (record-bridge-cost! run actor (:bridge action) cost)
           (when (and result (:on-result action))
             (emit! run (mapv #(cond-> % (not (:actor %)) (assoc :actor actor))
                              ((:on-result action) @(:world run) actor args result)))))
@@ -335,11 +347,12 @@
 (defn- run-approved-bridges! [run]
   (doseq [[req-id {:keys [bridge bridge-args action args requester status]}] (:pending-bridges @(:world run))
           :when (= status :approved)]
-    (let [{:keys [result error]} (bridge/call (:scenario run) (:opts run) (bridge-ctx run) bridge bridge-args)
+    (let [{:keys [result error cost]} (bridge/call (:scenario run) (:opts run) (bridge-ctx run) bridge bridge-args)
           on-result (:on-result (action-named run action))]
       (locking (:world run)
         (emit! run [{:type :bridge/completed :actor requester :visible-to #{requester}
                      :data {:req-id req-id :bridge bridge :result result :error error}}])
+        (record-bridge-cost! run requester bridge cost)
         (when (and result on-result)
           (emit! run (on-result @(:world run) requester args result)))))))
 
@@ -351,6 +364,7 @@
                   (emit! run [{:type :bridge/called :visible-to :gm
                                :data {:system name :bridge bridge :args bargs
                                       :result (:result r) :error (:error r)}}])
+                  (record-bridge-cost! run "system" bridge (:cost r))
                   r))]
       (locking (:world run)
         (emit! run (tick @(:world run) res))))))
@@ -582,6 +596,9 @@
      (doseq [e kept] (store/append-event! dir e))
      (load-run id (assoc opts :test? test?)))))
 
-(defn stop-run [run]
+(defn stop-run
+  "Stop after the current round, then close the run's MCP servers."
+  [run]
   (pause! run)
+  (submit! run #(mcp/close-all! (:mcp run)))
   (.shutdown ^ExecutorService (:exec run)))

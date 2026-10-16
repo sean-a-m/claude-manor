@@ -1,0 +1,12 @@
+;; Machine-specific MCP server settings. Copy to config/mcp.edn (gitignored).
+;;
+;; Merged per server over a scenario's :mcp-servers (:env maps are merged);
+;; the run option :mcp-servers is merged over this. Don't put secrets here or
+;; in run options (run options are saved in config.edn): servers inherit the
+;; JVM's environment, so export secrets there instead.
+{:pi {:env {;; Start pi through a sandbox wrapper instead of plain `pi`.
+            "PI_MCP_COMMAND" "/home/you/system-scripts/pi-sandbox"
+            ;; pi tools the assistant may use; empty = none (chat only).
+            ;; e.g. "read,grep,find,ls" (read-only) or "read,bash,edit,write"
+            "PI_MCP_TOOLS" ""
+            "PI_MCP_MODEL" "deepseek/deepseek-v4.1-flash"}}}

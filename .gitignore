@@ -5,3 +5,5 @@
 runs/
 test-runs/
 .clj-kondo/imports/
+config/mcp.edn
+pi-state/

@@ -1,11 +1,13 @@
 # Scenario authoring guide
 
-This is the complete contract between a scenario and the engine as it stands today. Two working
+This is the complete contract between a scenario and the engine as it stands today. Three working
 scenarios ship with the engine:
 
 - `src/manor/scenarios/treasure.clj`: small, about 100 lines. Start here and copy it.
 - `src/manor/scenarios/village.clj`: full-featured. Economy, bridges, an act bridge, systems, GM
   triggers, locations, mock policy.
+- `src/manor/scenarios/quiz.clj`: an MCP bridge. Each contestant messages a private,
+  persistent pi assistant through the pi MCP server.
 
 `test/manor/scenarios/prize.clj` is a 22-line minimal scenario used by the tests (no locations,
 simultaneous turns).
@@ -47,6 +49,7 @@ simultaneous turns).
    :roles         {...}                    ; required, see below
    :actions       [...]                    ; scenario actions, see below
    :bridges       {...}                    ; optional, real-world calls
+   :mcp-servers   {...}                    ; optional, MCP servers that bridges call
    :systems       [...]                    ; optional, per-round world processes
    :observe       (fn [world agent-id] {...})   ; strongly recommended
    :gm-view       (fn [world] {...})       ; optional, what the GM sees
@@ -119,7 +122,7 @@ Each action is a map. Each role's actions become that role's LLM tools.
 |---|---|---|---|
 | `:final` | yes | immediately (sequential turns) or after the group (simultaneous) | the normal action |
 | `:free` | no | immediately | notes, declining, small side moves |
-| `:query` | no | immediately; calls a bridge | needs `:bridge`; limited by `:max-queries` per turn |
+| `:query` | no | immediately; calls a bridge, and the result comes back within the turn | needs `:bridge`; limited by `:max-queries` per turn; no approval |
 | `:act` | yes | creates a pending request; runs after operator approval at the next round start | needs `:bridge` |
 
 Query and act actions also take:
@@ -273,13 +276,58 @@ The only way to touch the real world.
                     :max-chars 4000}}              ; results over this are truncated to a string
 ```
 
-- `ctx` is `{:run-id :run-dir :opts}`. Write files only under `run-dir`.
+- `ctx` is `{:run-id :run-dir :opts :mcp}`. Write files only under `run-dir`.
 - Results must be plain data (they are stored in the event log and shown to models as JSON).
   Exceptions and timeouts become `{:error msg}`.
 - Use `manor.bridge/get-json` (JDK HTTP client) for simple GET APIs. Don't use http-kit's client
   (it broke on gzip responses).
 - Provide `:offline-stubs` with the same signature so `{:offline? true}` runs need no network.
 - Treat results as untrusted input: keep them small and structured.
+
+#### MCP bridges
+
+A bridge can be a tool on an MCP server instead of a function. The bridge args become the tool's
+arguments; the result is the tool's text content (or its structured content, if any). A tool
+error becomes `{:error msg}`.
+
+```clojure
+:bridges {:pi/send-message {:doc "Message the caller's own pi session"
+                            :mcp {:server :pi :tool "send_message"}
+                            :timeout-ms 300000
+                            :max-chars 3000}}
+:mcp-servers {:pi {:command ["node" "mcp-servers/pi/server.mjs"]   ; relative to the repo
+                   :env {"PI_MCP_SYSTEM_PROMPT" "..."}}}
+```
+
+- Only the stdio transport is supported. Each server is one process per run, started on the
+  first call and closed by `stop-run`. Its stderr goes to `<run-dir>/mcp-<name>.log`, and it gets
+  `MANOR_RUN_ID` and `MANOR_RUN_DIR` in its environment.
+- Server settings merge per server: the scenario's `:mcp-servers`, then `config/mcp.edn`
+  (machine-specific, gitignored; see `config/mcp.example.edn`), then the run option
+  `:mcp-servers`. `:env` maps are merged.
+- **Safety belongs in the server.** The engine only decides *which* tool an action may call (only
+  tools named in `:bridges` are reachable) and with what arguments.
+- **Choose identity-bearing arguments in `:bridge-args`, never from the model.** For per-agent
+  state such as a pi session, pass the actor id: `(fn [_ actor args] {:session actor ...})`.
+  Otherwise one agent could address another's session.
+- Query results reach only the caller's current turn. The `:bridge/called` event the agent sees
+  later doesn't contain the result. If the agent should remember it, emit a private event from
+  `:on-result` with a `describe` that includes it (the quiz does this).
+- If the server reports `_meta {"manor/cost" usd}` in a tool result, the engine adds it to the
+  caller's usage, so it counts towards `:max-cost`.
+- Replays and loads read the recorded results; they never start servers. Servers with their own
+  memory (pi sessions) keep it across loads; a branch gets a new run directory and therefore
+  fresh pi sessions.
+
+#### The pi MCP server
+
+`mcp-servers/pi/server.mjs` (Node, no dependencies) has one tool, `send_message {session,
+message}`. Each session is a long-lived `pi --mode rpc` process with its own workspace
+(`<run-dir>/pi/<session>/`, also its working directory) and a persisted conversation. Its
+settings are environment variables (documented at the top of the file): `PI_MCP_COMMAND` (for
+example a sandbox wrapper), `PI_MCP_MODEL` (default `deepseek/deepseek-v4.1-flash` via
+OpenRouter), `PI_MCP_TOOLS` (pi tools allowed; default none), `PI_MCP_ISOLATED` (default on: no
+extensions, skills, context files or MCP inside pi), `PI_MCP_SYSTEM_PROMPT`, timeouts and limits.
 
 ### Locations (`manor.space`)
 
@@ -368,3 +416,5 @@ Lets the scenario run for free with `{:llm :mock}`. It's essential for testing.
 - Long `:observe` maps: they are sent on every model call.
 - A GM trigger that stays true: a paid GM call every round.
 - `:on-result` events for act bridges without `:actor`.
+- Letting the model choose a session or account id for an MCP tool instead of setting it in
+  `:bridge-args`.

@@ -5,6 +5,8 @@
     runs/<id>/events.edn   one stamped event per line (append-only; the truth)
     runs/<id>/llm.edn      one model call per line (prompt, response, usage)
     runs/<id>/outbox/      files written by act bridges, if any
+    runs/<id>/mcp-<name>.log  stderr of the run's MCP servers, if any
+    runs/<id>/pi/          pi MCP server sessions and workspaces, if any
 
   The world is rebuilt by replaying events.edn, so the model is never called
   during a replay.

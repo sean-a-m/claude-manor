@@ -21,7 +21,8 @@
   Kinds:
     :final  the agent's action for the round; ends the turn
     :free   does not end the turn (notes, declining an offer)
-    :query  a read-only real-world bridge, resolved during the turn
+    :query  a real-world bridge resolved during the turn, without approval;
+            the result goes back to the agent (e.g. an MCP tool)
     :act    a real-world bridge with side effects; ends the turn and waits
             for operator approval, then runs at the next round boundary"
   (:require [clojure.string :as str]

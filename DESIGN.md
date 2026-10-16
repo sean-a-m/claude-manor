@@ -14,7 +14,7 @@ happens. Narrative is a view of that state, never a source of truth.
 | Memory | Engine-owned. Each prompt is assembled from the role brief, persona, the agent's own notes, the scenario's `observe` projection, and a fixed window of events visible to that agent. |
 | Private information | Every event has `:visible-to` (`:all`, a set of ids, `:gm`, `:system`); the default is `:gm`, so forgetting to set it can't leak. The full world never enters an agent prompt. |
 | Actions | Data: a malli argument schema, a precondition, and an effect that returns events. Each role's actions become its LLM tools automatically. Arguments are decoded (snake/camel case tolerated), checked against closed schemas, and validated in code. |
-| Real world | Only through **bridges** run by the engine. *Query* bridges (read-only) resolve during a turn; *act* bridges (side effects) wait for operator approval and run at the next round boundary. Results are recorded as events, so replays never call out. |
+| Real world | Only through **bridges** run by the engine. *Query* bridges resolve during a turn and return their result to the agent; *act* bridges wait for operator approval and run at the next round boundary. A bridge is a Clojure function or a tool on an **MCP server** (the engine is the MCP client; stdio; one server process per run, started lazily). Safety for MCP tools lives in the server; the engine controls which tools are reachable and sets identity arguments (e.g. the agent's own pi session) itself. Results are recorded as events, so replays never call out. |
 | GM | An ordinary seat with privileged tools (spawn, retire, announce, ask-human, scenario GM actions), filled by an LLM, a human, or nobody. Interrupt-driven: called only for requests, scenario triggers, or an optional periodic check-in. |
 | Space | Optional engine-level locations graph: locations plus directed routes with a travel time in rounds, which can be opened and closed. Agents have a position; `move` along a route is immediate for travel 1, otherwise the agent is in transit (skips turns) until arrival. `say`, `whisper`, movement and scenario events use `space/here` so only people present hear them. Every agent's view gets a `:location` section (here, exits, people here). |
 | Turns | Rounds made of schedule groups. A group of one commits immediately; a larger group acts simultaneously on one snapshot and is resolved in order, so conflicts are rejected. |
@@ -34,7 +34,8 @@ src/manor/
   space.clj      locations graph, positions, travel, move + GM route actions, pathfinding
   prompt.clj     builds agent and GM requests
   llm.clj        LLM protocol; OpenRouter and Mock implementations
-  bridge.clj     bridge executor (timeouts, truncation, stubs)
+  bridge.clj     bridge executor (timeouts, truncation, stubs, MCP tools)
+  mcp.clj        minimal MCP client (stdio JSON-RPC) and per-run server pool
   http.clj       JDK HTTP client helpers
   engine.clj     runs, rounds, activations, GM, operator commands, load/branch
   store.clj      run directory I/O
@@ -43,6 +44,9 @@ src/manor/
   rng.clj        deterministic rolls from seed + key
   scenarios/village.clj   full example scenario
   scenarios/treasure.clj  small example scenario
+  scenarios/quiz.clj      MCP bridge example: a private pi assistant per agent
+mcp-servers/pi/  pi as an MCP server (Node, no dependencies): one persistent pi session per caller
+config/          mcp.example.edn; local mcp.edn (gitignored) for machine-specific server settings
 dev/user.clj     REPL controls
 test/            engine, space and scenario smoke tests + a minimal `prize` scenario
 docs/            scenario authoring guide, roadmap
@@ -77,5 +81,5 @@ checklist. `src/manor/scenarios/treasure.clj` is the small example to copy;
 ## What's left
 
 See [docs/roadmap.md](docs/roadmap.md): prerequisites for generating scenarios (validator, smoke
-harness, configurable framing, loading), MCP bridges, memory, versioning, timed events, GM
+harness, configurable framing, loading), MCP follow-ups, memory, versioning, timed events, GM
 adjudication, cost controls, and known issues.

@@ -29,7 +29,12 @@ These came from the design conversation; respect them unless told otherwise.
   acceptable at most as an ad-hoc MCP bridge.
 - **Hard state determines narrative**, never the reverse.
 - **Real-world access only through bridges**, e.g. an in-sim "check the weather" calls a real
-  weather API through the engine. MCP-backed bridges are the next major feature (roadmap B1).
+  weather API through the engine. **MCP is the most important bridge kind** (done: roadmap B1).
+  The user's key use case: an agent sends a message to its own persistent pi instance through
+  the pi MCP server and gets the reply in the same turn. The user's decisions: replies are
+  instant (within the turn), no approval, safety is the MCP server's job, results go only to the
+  calling agent (sharing takes an in-game action), the GM/orchestrator deals with pi state on
+  branches later, and pi runs a cheap model (deepseek v4.1 flash) by default.
 - **Private information matters.** Never put the full world in an agent prompt. Be careful that
   bridges don't create shared side channels.
 - **The GM is an LLM by default but hands-off:** it's only called when triggered.
@@ -49,16 +54,20 @@ src/manor/
   space.clj      locations graph, positions, travel, move + GM route tools, pathfinding
   prompt.clj     builds agent/GM requests; agent-view = observe + identity + location
   llm.clj        LLM protocol; OpenRouter (JDK HTTP) and Mock (scenario policy) implementations
-  bridge.clj     bridge executor: timeout, truncation, stubs; never throws
+  bridge.clj     bridge executor: timeout, truncation, stubs, MCP tools; never throws
+  mcp.clj        minimal MCP client (stdio JSON-RPC 2.0) + per-run lazy server pool
   http.clj       JDK java.net.http helpers (don't use http-kit's client: gzip bug)
   engine.clj     runs, rounds, turns, GM, operator commands, start/load/branch
   store.clj      runs/<id>/{config.edn,events.edn,llm.edn}
   web.clj        control panel (http-kit server, SSE, hiccup)
   main.clj       CLI: clojure -M:run [scenario] [--mock] [--offline] [--port N] [--load id]
   rng.clj        deterministic rolls from seed + key
-  scenarios/     village.clj (full example), treasure.clj (small example)
+  scenarios/     village.clj (full example), treasure.clj (small example), quiz.clj (MCP/pi)
+mcp-servers/pi/server.mjs  pi as an MCP server: send_message {session, message}; Node, no deps
+config/        mcp.example.edn; mcp.edn is local and gitignored (the user's sets pi-sandbox)
 dev/user.clj     REPL helpers (start! step! auto! feed view last-prompt spawn! approve! act! ...)
-test/            engine, space and scenario smoke tests; test/manor/scenarios/prize.clj
+test/            engine, space, MCP and scenario smoke tests; test/manor/scenarios/prize.clj;
+                 test/fixtures/fake-pi.mjs (fake `pi --mode rpc` for free MCP tests)
 runs/            real runs (gitignored; the user's data; never delete). runs/smoke-llm is a real 5-round village run
 test-runs/       test and ad-hoc runs ({:test? true} / --test); always safe to delete
 ```
@@ -102,5 +111,11 @@ clj -M:dev                                    # REPL; see dev/user.clj docstring
 - With closed or empty schemas, models invent junk keys. Unknown keys are dropped silently.
 - `deepseek-v4.1-flash` with reasoning can use up `:max-tokens` (now 4000) and return no tool call.
 - http-kit's HTTP *client* failed on gzip responses from Open-Meteo. Outbound HTTP uses `manor.http`.
+- pi 1.1.0 has no MCP *server* mode; `mcp-servers/pi/server.mjs` drives `pi --mode rpc` instead
+  (prompt, wait for `agent_settled`, `get_last_assistant_text`). `--session-dir` plus
+  `--session-id` give a conversation that survives restarts.
+- On this machine `pi` itself is not sandboxed; `pii` (interactive alias) runs
+  `~/system-scripts/pi-sandbox`, which makes only `$PWD`, `~/.pi` and caches writable (everything
+  stays readable, network open). `config/mcp.edn` points the pi server at that script.
 - Actionable `:valid?` reasons ("you must be at Fields (fields) to plant") let models self-correct
   within the step budget.

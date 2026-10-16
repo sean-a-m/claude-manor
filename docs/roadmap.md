@@ -4,7 +4,8 @@ Status as of 2026-10-14. Each item says why it matters, what exists now, a propo
 which files to touch, and how to tell it's done. Proposals are suggestions; check open questions
 with the user before making big decisions.
 
-Recommended order: **A1 → A2 → A3 → A4 → A6**, then **B1** (MCP bridges), then the rest by need.
+B1 (MCP bridges) is done. Recommended order now: **A1 → A2 → A3 → A4 → A6**, then the rest by
+need (B1a lists MCP follow-ups).
 Known issues (section C) are small and can be fixed opportunistically.
 
 ---
@@ -134,29 +135,36 @@ The scenario boundary is already clean: the engine only reads the keys listed in
 
 ## B. Engine features
 
-### B1. MCP bridges (the user's stated real-world requirement)
+### B1. MCP bridges: done (2026-10-14)
 
-- **Why:** agents must be able to reach real services ("check the weather", search, etc.) through
-  the engine, never directly. The user explicitly does not want pi managing state or memory; pi
-  is acceptable at most as an ad-hoc MCP bridge.
-- **Now:** bridges are plain Clojure functions `(fn [args ctx])` in a scenario's `:bridges`.
-  Timeouts, truncation, recording and offline stubs are handled by `manor.bridge`.
-- **Approach:** the engine as an MCP *client*.
-  - Config (run option or `config/mcp.edn`): servers `{:name {:command [...] :env {...}}}` (stdio)
-    or `{:url ...}` (HTTP).
-  - A bridge spec kind `{:mcp {:server :search :tool "web_search"}}`, so scenario actions point at
-    MCP tools exactly like function bridges. Only explicitly listed tools are reachable (an
-    allowlist).
-  - Implementation: the official MCP Java SDK (`io.modelcontextprotocol.sdk/mcp`) via interop, or
-    a minimal stdio JSON-RPC client (initialize, tools/list, tools/call) if the SDK is heavy.
-    Start one server process per run, lazily, and close it in `stop-run`.
-  - Results are text or JSON content. Truncate and wrap as data (they're untrusted).
-  - Act bridges keep operator approval.
-- **Files:** `src/manor/bridge.clj`, new `src/manor/mcp.clj`, `src/manor/engine.clj` (lifecycle),
-  `deps.edn`, docs.
-- **Done when:** a scenario action calls a tool on a local MCP server (e.g. the reference
-  "everything" or "fetch" server), the result appears in the agent's turn, the call is recorded in
-  `events.edn`, and replay doesn't start the server.
+The engine is an MCP client (`manor.mcp`, stdio only). A bridge spec `{:mcp {:server :pi :tool
+"send_message"}}` calls an MCP tool; servers come from the scenario's `:mcp-servers`,
+`config/mcp.edn` and the run option `:mcp-servers`. One server process per run, started lazily and
+closed by `stop-run`. Tool costs reported in `_meta "manor/cost"` count towards the run.
+`mcp-servers/pi/server.mjs` exposes pi (`send_message {session, message}`; one persistent
+`pi --mode rpc` session per caller, sandbox command and tools configurable). The `quiz` scenario
+uses it. Tests: `test/manor/mcp_test.clj`, with a fake pi. A real quiz run (3 rounds, two
+contestants, pi through `pi-sandbox`) cost $0.003.
+
+Decisions from the user: replies come back instantly (within the turn); no approval (safety is
+the MCP server's job); results go to the calling agent only (sharing takes an in-game action);
+pi state on branches is for the GM/orchestrator to handle later; no cost limits for pi yet.
+
+### B1a. MCP follow-ups (by need)
+
+- **Streamable HTTP transport** for remote MCP servers (`{:url ...}` in a server config).
+- **Deferred replies.** All MCP calls block the agent's turn (and so the round) until the reply
+  or `:timeout-ms`. If slow tools become a problem, add a bridge mode whose reply arrives as an
+  event in a later round. The user explicitly deferred this.
+- **pi state on branch and load.** pi sessions live in `<run-dir>/pi/`, outside the event log, so
+  they can't be rewound: `load-run` resumes them as they are, and a branch starts fresh sessions
+  (new run directory). Options: copy or fork session files on branch (pi has `--fork`), or a GM
+  or orchestrator tool to reset or seed a session.
+- **Validator (A1):** check that every `:mcp` bridge names a configured server, and optionally
+  that the tool exists (`tools/list`) when a run starts.
+- **Per-server cost limits**, if pi spending needs a cap separate from `:max-cost`.
+- **More pi tools in the server**, e.g. `reset_session`, or a per-call model choice. Keep anything
+  identity-bearing set by the engine through `:bridge-args`.
 
 ### B2. Memory beyond notes
 

@@ -52,6 +52,7 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :bridges       {...}                    ; optional, real-world calls
    :mcp-servers   {...}                    ; optional, MCP servers that bridges call
    :systems       [...]                    ; optional, per-round world processes
+   :hibernate     (fn [world agent-id] {:activity .. :location ..} or nil)  ; optional, see Hibernation
    :observe       (fn [world agent-id] {...})   ; strongly recommended
    :gm-view       (fn [world] {...})       ; optional, what the GM sees
    :schedule      :round-robin             ; or :simultaneous, or (fn [world] [[ids] ...])
@@ -492,6 +493,35 @@ and are freed at the start of that round. This makes nights and long activities 
   with the activity, when it ends, and who interrupted them.
 - `(manor.world/busy world id)` is `{:activity .. :until ..}` or nil. Occupied agents still
   count as present, so they see what happens in the room, in their window when they wake.
+
+### Hibernation: agents nobody needs
+
+An agent nobody is near (the village architect on a day without clients) can be left out of play
+with no end time, and woken when someone comes near. Set `:hibernate` to
+`(fn [world agent-id] {:activity "at his drawing board" :location "architects-office"} or nil)`.
+At the start of every round, after travellers arrive and occupations end, the engine asks it about
+each agent who is free or already hibernating:
+
+- not nil, for an agent who is free: the engine moves them to `:location` (optional; an
+  `:agent/moved` that people at both ends see) and occupies them with `(b/hibernate world id
+  activity)`: an `:agent/occupied` event with `:hibernating? true` and no `:until`. They skip their
+  turns like anyone busy, and people present see what they're doing.
+- not nil, for an agent already hibernating: if the activity or the location differs, they're moved
+  and occupied again (the day goes on: the office in the morning, home in the evening); otherwise
+  nothing happens.
+- nil, for an agent who is hibernating: `(b/free world id)`. They act this round.
+
+Agents busy on their own account (`sleep`, `spend-time`), travellers, human seats and interrupted
+agents are left alone. `rouse` works on a hibernating agent as on anyone busy; the agent's view and
+the narration leave out the end time. `(b/hibernating? world id)` tells you whether someone is
+hibernating. Agents are decided one at a time, each on the world as the previous one left it.
+
+Decide in the function who counts as company, and don't count other hibernating agents, or two
+idle agents keep each other awake. Keep it narrow (Claudeworth counts the agent's place and the
+place their routine puts them, not the whole village), or one visitor wakes everyone in the area. Placing the agent where they'd be (their office in office hours)
+matters: someone woken in the wrong place doesn't know why they were woken. Moving an agent between
+areas skips the journey, so only do it when nobody is there to see (Claudeworth checks both areas).
+Waking tells the agent that someone has come near; keep that in mind for scenarios where it matters.
 
 ### Turn order: `:schedule`
 

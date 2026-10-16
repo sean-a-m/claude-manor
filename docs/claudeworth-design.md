@@ -508,14 +508,24 @@ These are estimates for the user's own long runs, not test plans: checks use sho
     from phase 1, where he can only talk and pass the time; he gets his building role in
     phase 2. The build brief is `docs/claudeworth-phase1.md`, and its follow-up
     `docs/claudeworth-phase1-fixes.md`.
-11. **The architect shouldn't stay a full-time agent** (future work, not now). He costs a model
-    call every waking half hour even when nobody comes near the village. He should hibernate
-    when no one else is interacting in the village.
+11. **The architect shouldn't stay a full-time agent** (done, 2026-10-16). He cost a model
+    call every waking half hour even when nobody came near the village. He now hibernates
+    when no one else is in the village.
 
-    One approach uses occupation, which already exists: when no other agent is in the village,
-    he is occupied ("at his drawing board") until someone arrives. A scenario system, or a hook
-    on `:agent/arrived`/`:agent/moved` into the village, frees him (`b/free`). His day-to-day
-    life would then be summarised rather than played.
+    How: the engine's `:hibernate` hook (`docs/scenario-authoring.md`, Hibernation) occupies
+    an agent with no end time and frees them when the scenario says. Claudeworth's rule: an
+    agent with a `:routine` in the world file is out of play whenever nobody else (not
+    hibernating) is at the place they're in or the place their routine puts them in, or on the
+    way to either; when they're away from the routine's area (visiting the house), anyone in the
+    area they're in counts too. So a customer at the general store doesn't wake him, and
+    villagers added later won't wake each other. His day is summarised by the routine rather than played: the routine moves him
+    (office 09:00-18:00, lodgings otherwise, asleep from 22:00), so a client arriving at the
+    office finds him at his drawing board. He's freed at the start of the round after someone
+    arrives where he is, and the client can `rouse` him. In the evening he's in his lodgings, so
+    a visitor to the closed office doesn't wake him. Any arrival wakes him, even when he's "asleep". In
+    the mock day he's called in 2 rounds (6 calls) instead of 10 (19 calls); the mock script
+    already fills his day with long pastimes, so real models, which made 26 of 82 calls with
+    nobody in the village in an earlier run, should save more. Not yet checked in a real run.
 12. **One home per fact.** Every fact about the world (places, distances, opening hours,
     bedrooms, names, setting) lives in the world file, and everything agents read is derived from
     it. The rules of play live in code, as a brief function that takes its numbers from the world;

@@ -60,7 +60,7 @@
   "Event: keep the occupation and its original deadline, ignoring an interruption."
   [world id]
   {:type :agent/resumed :actor id :visible-to (space/here world id)
-   :data (select-keys (w/busy world id) [:activity :until])})
+   :data (select-keys (w/busy world id) [:activity :until :hibernating?])})
 
 (defn releases
   "Events freeing everyone whose occupation ends by the current round."
@@ -69,6 +69,60 @@
         :let [{:keys [until]} (:busy a)]
         :when (and until (<= until (:round world)))]
     (free world (:id a))))
+
+;; ---------------------------------------------------------------------------
+;; Hibernation: an agent nobody needs is left out of play, at no model cost,
+;; until someone comes near. Each round the scenario's :hibernate function
+;; says where and how such an agent spends their time, or nil to wake them;
+;; the engine moves them there and keeps them occupied with no end of their own.
+
+(defn hibernating? [world id] (boolean (:hibernating? (w/busy world id))))
+
+(defn hibernate
+  "Event: `id` is out of play, `activity`, until the scenario wakes them.
+  Everyone present sees it, like any occupation."
+  [world id activity]
+  {:type :agent/occupied :actor id :visible-to (space/here world id)
+   :data {:activity activity :hibernating? true}})
+
+(defn- hibernation-events
+  "Events taking `id` to `location` (if they're elsewhere) and occupying them
+  with `activity` there."
+  [world id {:keys [activity location]}]
+  (let [here (space/location-of world id)
+        moved (when (and location (not= location here))
+                {:type :agent/moved :actor id :data {:from here :to location}
+                 :visible-to (into (space/here world id) (space/present world location))})]
+    (conj (if moved [moved] [])
+          (hibernate (cond-> world moved (w/apply-event moved)) id activity))))
+
+(defn- hibernation-change
+  "Events for one agent: hibernate, wake, or change place or activity."
+  [hibernate-fn world {:keys [id busy]}]
+  (let [wanted (hibernate-fn world id)]
+    (cond
+      (nil? busy) (when wanted (hibernation-events world id wanted))
+      (nil? wanted) [(free world id)]
+      (or (not= (:activity wanted) (:activity busy))
+          (and (:location wanted) (not= (:location wanted) (space/location-of world id))))
+      (hibernation-events world id wanted))))
+
+(defn hibernations
+  "Events putting agents out of play or back in, as `hibernate-fn` (the
+  scenario's :hibernate) says. Each agent is decided on the world as the
+  previous one left it. Travellers, human seats, and agents interrupted or
+  busy with an occupation of their own are left alone."
+  [hibernate-fn world]
+  (second
+   (reduce (fn [[world events] a]
+             (let [evs (hibernation-change hibernate-fn world a)]
+               [(reduce w/apply-event world evs) (into events evs)]))
+           [world []]
+           (filter #(and (not (:travel %))
+                         (not= :human (:controller %))
+                         (or (nil? (:busy %))
+                             (and (get-in % [:busy :hibernating?]) (not (get-in % [:busy :interrupted-by])))))
+                   (w/active-agents world)))))
 
 (def speech-limit
   "The length `say` and `whisper` tell models to keep to. Their schemas allow

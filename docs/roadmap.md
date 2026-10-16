@@ -6,7 +6,8 @@ with the user before making big decisions.
 
 B1 (MCP bridges) is done, and the Claudeworth Manor vertical slice (phases 0-2,
 `docs/claudeworth-design.md`) is complete and committed; its handoff is `docs/next-steps.md`.
-Deferred by the user until after that work: the architect's hibernation (design decision 11) and
+The architect's hibernation (design decision 11) is done: the engine's `:hibernate` hook and
+a `:routine` for Mr Pugh. Deferred by the user until after that work:
 a curated reference library to replace the Ashcombe extracts (decision 9); the design's section 10
 lists phase 3 (the inn, hunger, rents, hiring). For scenario generation the recommended order is
 **A1 → A2 → A3 → A4 → A6**, then the rest by need (B1a lists MCP follow-ups). Known issues

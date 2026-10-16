@@ -9,7 +9,8 @@
   A round:
     1. :round/started
     2. travellers who are due arrive, and occupied agents who are due are
-       freed; run act-bridges the operator approved
+       freed; the scenario's :hibernate puts agents out of play or wakes
+       them; run act-bridges the operator approved
     3. run world systems (ticks, possibly fed by bridges)
     4. for each schedule group: activate its agents, resolve their actions
     5. call the GM if anything triggers it
@@ -523,7 +524,9 @@
     (emit! run [{:type :round/started :data {:round round} :visible-to :all}])
     (locking (:world run)
       (emit! run (space/arrivals @(:world run)))
-      (emit! run (b/releases @(:world run))))
+      (emit! run (b/releases @(:world run)))
+      (when-let [hibernate (:hibernate (:scenario run))]
+        (emit! run (b/hibernations hibernate @(:world run)))))
     (run-approved-bridges! run)
     (run-systems! run)
     (doseq [group (schedule run @(:world run))]

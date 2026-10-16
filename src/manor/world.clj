@@ -77,7 +77,9 @@
 
 (defn busy
   "What `id` is occupied with, {:activity \"asleep\" :until 47}, or nil.
-  Occupied agents skip their turns until round :until."
+  Occupied agents skip their turns until round :until. A hibernating agent
+  ({:activity .. :hibernating? true}, see manor.builtins) has no :until: the
+  scenario wakes them."
   [world id]
   (:busy (agent world id)))
 
@@ -120,7 +122,7 @@
   (update-in world [:agents (:id data)] merge (:changes data)))
 
 (defmethod apply-event :agent/occupied [world {:keys [actor data]}]
-  (assoc-in world [:agents actor :busy] (select-keys data [:activity :until])))
+  (assoc-in world [:agents actor :busy] (select-keys data [:activity :until :hibernating?])))
 
 (defmethod apply-event :agent/interrupted [world {:keys [actor data]}]
   (assoc-in world [:agents actor :busy :interrupted-by] (:by data)))

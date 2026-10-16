@@ -10,6 +10,9 @@
   anywhere in the current area; `travel` (a turn) goes to another area.
   `sleep` and `spend-time` occupy an agent for several rounds at no model
   cost; `rouse` asks someone busy whether to stop. :architect? false leaves Mr Pugh out.
+  An agent with a :routine in the world file (Mr Pugh) hibernates whenever
+  nobody else is near: the routine says where they are and what they're doing,
+  and they make no model calls until someone comes into their area.
 
     clojure -M:dev:run claudeworth --mock --test
     clojure -M:run claudeworth --test --max-cost 0.25"
@@ -214,6 +217,51 @@
                   :journeys (journeys world here)))))
 
 ;; ---------------------------------------------------------------------------
+;; Hibernation (design decision 11): someone nobody needs, like the village
+;; architect on a day without clients, is out of play and their day is
+;; summarised by their :routine instead of played.
+
+(defn- routine-now
+  "The entry of `id`'s routine in force now, {:from :at :doing}, or nil if
+  they have none. Each entry holds from its time until the next one; before
+  the first, the last (from the night before) holds."
+  [world id]
+  (when-let [entries (seq (get-in world [:state :routines id]))]
+    (let [t (now world)]
+      (or (last (remove #(.isAfter (LocalTime/parse (:from %)) t) entries))
+          (last entries)))))
+
+(defn- company?
+  "Is anyone else in play (not hibernating) at one of `places`, or on their way there?"
+  [world id places]
+  (some #(and (not= id (:id %))
+              (not (b/hibernating? world (:id %)))
+              (contains? places (or (get-in % [:travel :to]) (:location %))))
+        (w/active-agents world)))
+
+(defn- watched
+  "The places where company keeps `id` in play, with their routine putting
+  them `at`: that place and the one they're in; or, when they're away from
+  the routine's area (visiting the house, say), that place and the whole area
+  they're in, so they don't vanish when their host steps into the next room."
+  [world id at]
+  (let [here (space/location-of world id)]
+    (if (= (area-of world here) (area-of world at))
+      (hash-set here at)
+      (into (hash-set here at) (in-area world (area-of world here))))))
+
+(defn hibernate
+  "Where `id`'s routine puts them now, {:activity :location}, as long as
+  nobody else is in the place they're in or the place it puts them in
+  (when visiting another area: anywhere in that area); else nil. So people
+  elsewhere in the village don't wake them, nobody sees them taken off, and
+  anyone arriving finds them where their routine has them."
+  [world id]
+  (when-let [{:keys [at doing]} (routine-now world id)]
+    (when-not (company? world id (watched world id at))
+      {:activity doing :location at})))
+
+;; ---------------------------------------------------------------------------
 ;; Roles. Who's who and the setting come from the world file (:meta :setting
 ;; and :roles, kept in :state at :init); the rules are written here, with
 ;; their numbers taken from the world and the actions.
@@ -280,6 +328,11 @@
            :when (and (some? hours)
                       (not (and (vector? hours) (= 2 (count hours)) (every? clock/hh-mm? hours))))]
        (str "location " (pr-str id) ": :hours must be two times like [\"09:00\" \"18:00\"], not " (pr-str hours)))
+     (for [{:keys [name routine]} agents
+           {:keys [from at doing] :as entry} routine
+           :when (not (and (clock/hh-mm? from) (by-id at) (string? doing) (not (str/blank? doing))))]
+       (str "agent " (pr-str name) ": :routine entry " (pr-str entry)
+            " needs :from (a time like \"09:00\"), :at (a location id) and :doing (what they're doing there)"))
      (when-not (string? (:setting meta)) [":meta :setting must be a paragraph about the place"])
      (for [role (distinct (map :role agents))
            :when (not (string? (get-in wf [:roles role :about])))]
@@ -287,8 +340,8 @@
 
 (defn init
   "The world file, its agents (without Mr Pugh if :architect? is false), and
-  in :state everyone's bedroom, the setting, the roles' :about text and the
-  query limit the rules quote."
+  in :state everyone's bedroom and routine, the setting, the roles' :about
+  text and the query limit the rules quote."
   [{:keys [world-file] :as opts}]
   (let [source (or world-file "worlds/claudeworth.edn")
         {wf :world-file :as loaded} (worldfile/load-world source)]
@@ -300,6 +353,8 @@
              :agents (vec agents)
              :state (merge (building/initial-state wf agents opts)
                            {:bedrooms (into {} (map (juxt (comp b/slug :name) :bedroom)) agents)
+                            :routines (into {} (for [{:keys [name routine]} agents :when (seq routine)]
+                                                 [(b/slug name) (vec (sort-by :from routine))]))
                             :setting (get-in wf [:meta :setting])
                             :roles (:roles wf)
                             :max-queries (:max-queries opts 2)})))))
@@ -433,5 +488,6 @@
    :mcp-servers building/mcp-servers
    :systems [building/construction]
    :exclude-actions #{:move}
+   :hibernate hibernate
    :observe observe
    :mock-policy mock-policy})

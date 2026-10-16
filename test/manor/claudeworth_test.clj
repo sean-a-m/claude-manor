@@ -276,7 +276,10 @@
                  (assoc-in world-file [:shop "general-store" 0 :item] "")
                  (assoc-in world-file [:meta :starting-stores] {"gold" 1})
                  (update world-file :locations #(mapv (fn [l] (dissoc l :services)) %))
-                 (assoc-in world-file [:locations 0 :services] ["architect"])]]
+                 (assoc-in world-file [:locations 0 :services] ["architect"])
+                 (assoc-in world-file [:agents 3 :routine 0 :from] "9am")
+                 (assoc-in world-file [:agents 3 :routine 0 :at] "nowhere")
+                 (assoc-in world-file [:agents 3 :routine 0 :doing] " ")]]
       (is (seq (cw/problems bad))))))
 
 (deftest walking-and-travelling
@@ -381,9 +384,16 @@
       (doseq [id ["lord-claudeworth" "lady-claudeworth" "hale" "pugh"]
               :let [{slept :round {:keys [until]} :data} (first (sleeps run id))
                     freed (first (filter #(> (:round %) slept) (by id (of-type run :agent/freed))))
-                    woke (if freed (:round freed) until)]]
+                    woke (or (:round freed) until (inc (:round world)))]]
         (is (<= slept 31) id)
         (is (= #{} (set (filter #(< slept % woke) (rounds-called run id)))) id)))
+    (testing "Mr Pugh is out of play until the earl comes to the office, and again once the village is empty"
+      (let [arrived (:round (first (moves-to run "lord-claudeworth" "architects-office")))
+            called (rounds-called run "pugh")]
+        (is (= (inc arrived) (apply min called)))
+        (is (< (count called) 6))
+        (is (= {:activity "asleep" :hibernating? true} (w/busy world "pugh")))
+        (is (= "architects-lodgings" (space/location-of world "pugh")))))
     (testing "Hale wakes at 06:30 (round 46), rouses the earl, and the earl acts at 07:00"
       (is (= 46 (:until (:data (first (sleeps run "hale"))))))
       (is (some #(and (= 46 (:round %)) (= "hale" (get-in % [:data :by]))) (by "lord-claudeworth" (of-type run :agent/interrupted))))
@@ -391,6 +401,59 @@
     (testing "the run keeps its starting world and its live map"
       (is (.exists (io/file (:dir run) "world-start.edn")))
       (is (.exists (io/file (:dir run) "map.edn"))))
+    (e/stop-run run)))
+
+(deftest hibernation
+  (let [run (start)
+        world (assoc (e/world run) :round 5)              ; 10:00, everyone at home
+        hib #(cw/hibernate % "pugh")
+        changes #(map :type (b/hibernations cw/hibernate %))]
+    (testing "alone in the village, Mr Pugh's routine says where he is: at his drawing board in office hours"
+      (is (= {:activity "at his drawing board" :location "architects-office"} (hib world))))
+    (testing "in his lodgings in the evening; the night's entry holds until breakfast"
+      (is (= "reading by the fire" (:activity (hib (assoc world :round 23)))))
+      (is (= "asleep" (:activity (hib (assoc world :round 46))))))
+    (testing "someone at his office, or on the way there, keeps him in play"
+      (is (nil? (hib (at world "hale" "architects-office"))))
+      (is (nil? (hib (assoc-in world [:agents "hale" :travel] {:from "study" :to "architects-office" :arrives 7})))))
+    (testing "and so does someone where he is, though his routine has him elsewhere"
+      (is (nil? (hib (-> world (at "pugh" "village-green") (at "hale" "village-green"))))))
+    (testing "but people elsewhere in the village don't"
+      (is (some? (hib (at world "hale" "general-store"))))
+      (is (some? (hib (assoc-in world [:agents "hale" :travel] {:from "study" :to "village-green" :arrives 7})))))
+    (testing "away from the village, anyone in the area he's visiting keeps him: he isn't spirited away from the house"
+      (is (nil? (hib (at world "pugh" "dining-room"))))
+      (is (some? (hib (-> world (at "pugh" "dining-room") (at "lord-claudeworth" "abbey-church")
+                          (at "lady-claudeworth" "abbey-church") (at "hale" "abbey-church"))))))
+    (testing "someone hibernating isn't company"
+      (let [hale-there (at world "hale" "architects-office")]
+        (is (some? (hib (w/apply-event hale-there (b/hibernate hale-there "hale" "copying plans")))))))
+    (let [lodgings (at world "pugh" "architects-lodgings")
+          evs (b/hibernations cw/hibernate lodgings)
+          out (reduce w/apply-event lodgings evs)]
+      (testing "the engine takes him to his routine's place and occupies him there, with no end of its own"
+        (is (= [:agent/moved :agent/occupied] (map :type evs)))
+        (is (= "architects-office" (space/location-of out "pugh")))
+        (is (= {:activity "at his drawing board" :hibernating? true} (w/busy out "pugh")))
+        (is (= "Pugh is at his drawing board." (narrate/describe (second evs) (narrate/names out)))))
+      (testing "and does nothing more until something changes"
+        (is (empty? (changes out))))
+      (testing "his routine moves on: home for the evening"
+        (is (= [:agent/moved :agent/occupied] (changes (assoc out :round 21)))))
+      (testing "company at the office wakes him; a customer at the store doesn't"
+        (is (= [:agent/freed] (changes (at out "hale" "architects-office"))))
+        (is (empty? (changes (at out "hale" "general-store")))))
+      (testing "rouse works on him, and the engine leaves him to his turn; his view has no end time"
+        (let [visited (at out "hale" "architects-office")
+              roused (w/apply-event visited (b/interrupt visited "pugh" "hale"))]
+          (is (empty? (changes roused)))
+          (is (= {:activity "at his drawing board" :interrupted-by "Hale"}
+                 (get-in (prompt/agent-view (:scenario run) roused "pugh") [:you :busy])))
+          (is (= "Pugh carries on (at his drawing board)." (narrate/describe (b/resume roused "pugh") (narrate/names roused)))))))
+    (testing "a human seat, a traveller, or someone busy on their own account never hibernates"
+      (is (empty? (changes (assoc-in world [:agents "pugh" :controller] :human))))
+      (is (empty? (changes (assoc-in world [:agents "pugh" :travel] {:from "study" :to "architects-office" :arrives 7}))))
+      (is (empty? (changes (w/apply-event world (b/occupy world "pugh" "lunching" 7))))))
     (e/stop-run run)))
 
 (deftest a-late-start
@@ -418,7 +481,7 @@
       (is (= 4 (:round (first (sleeps run "lord-claudeworth")))))
       (is (some #(and (= 20 (:round %)) (= "hale" (get-in % [:data :by]))) (by "lord-claudeworth" (of-type run :agent/interrupted))))
       (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
-    (testing "Mr Pugh, still in his office, walks to his lodgings and sleeps there: no forfeits"
+    (testing "Mr Pugh, alone in the village, is out of play: his routine takes him home, and to sleep at 22:00"
       (is (empty? (of-type run :action/forfeited)))
       (is (= 3 (:round (first (sleeps run "pugh")))))
       (is (= "architects-lodgings" (space/location-of (e/world run) "pugh"))))

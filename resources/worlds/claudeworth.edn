@@ -82,4 +82,9 @@
   {:name "Hale" :role :secretary :location "secretarys-room" :bedroom "secretarys-room"
    :persona "Mr Hale, the earl's private secretary: young, meticulous and discreet, and a little anxious to please."}
   {:name "Pugh" :role :architect :location "architects-office" :bedroom "architects-lodgings" :optional? true
-   :persona "Mr Pugh of Pugh & Sons, Architects, in Claudeworth village. Proud of his craft, keen for a commission from the manor, and prone to holding forth on proportion."}]}
+   :persona "Mr Pugh of Pugh & Sons, Architects, in Claudeworth village. Proud of his craft, keen for a commission from the manor, and prone to holding forth on proportion."
+   ;; his day when nobody else is in the village: he is out of play (no model calls) and here instead
+   :routine [{:from "07:30" :at "architects-lodgings" :doing "breakfasting in his lodgings"}
+             {:from "09:00" :at "architects-office" :doing "at his drawing board"}
+             {:from "18:00" :at "architects-lodgings" :doing "reading by the fire"}
+             {:from "22:00" :at "architects-lodgings" :doing "asleep"}]}]}

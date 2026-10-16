@@ -70,9 +70,10 @@ Your view is private. Others only learn what is public or what someone tells the
                        (observe world agent-id))
                 (update :you #(merge {:id agent-id :name (:name a) :role (name (:role a))} %)))
       (get-in a [:busy :interrupted-by])
-      (assoc-in [:you :busy] {:activity (get-in a [:busy :activity])
-                             :until (narrate/at (narrate/names world) (get-in a [:busy :until]))
-                             :interrupted-by (:name (w/agent world (get-in a [:busy :interrupted-by])))})
+      (assoc-in [:you :busy] (cond-> {:activity (get-in a [:busy :activity])
+                                      :interrupted-by (:name (w/agent world (get-in a [:busy :interrupted-by])))}
+                               (get-in a [:busy :until])
+                               (assoc :until (narrate/at (narrate/names world) (get-in a [:busy :until])))))
       (space/enabled? world) (assoc :location (space/view world agent-id)))))
 
 (defn- brief-text

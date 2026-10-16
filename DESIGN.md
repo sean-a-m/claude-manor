@@ -17,6 +17,9 @@ happens. Narrative is a view of that state, never a source of truth.
 | Real world | Only through **bridges** run by the engine. *Query* bridges resolve during a turn and return their result to the agent; *act* bridges wait for operator approval and run at the next round boundary. A bridge is a Clojure function or a tool on an **MCP server** (the engine is the MCP client; stdio; one server process per run, started lazily). Safety for MCP tools lives in the server; the engine controls which tools are reachable and sets identity arguments (e.g. the agent's own pi session) itself. Results are recorded as events, so replays never call out. |
 | GM | An ordinary seat with privileged tools (spawn, retire, announce, ask-human, scenario GM actions), filled by an LLM, a human, or nobody. Interrupt-driven: called only for requests, scenario triggers, or an optional periodic check-in. |
 | Space | Optional engine-level locations graph: locations plus directed routes with a travel time in rounds, which can be opened and closed. Agents have a position; `move` along a route is immediate for travel 1, otherwise the agent is in transit (skips turns) until arrival. `say`, `whisper`, movement and scenario events use `space/here` so only people present hear them. Every agent's view gets a `:location` section (here, exits, people here). |
+| Time | Optional clock from the scenario (`{:start .. :minutes-per-round ..}`), stored in the world. Prompts then show times ("Saturday 15 October 1904, 09:30") instead of round numbers. |
+| Occupation | An agent can be busy until a round (asleep, reading). Like a traveller, they skip turns at no model cost and are freed at the start of that round; people present see what they are doing. |
+| World files | A scenario's starting world can be an EDN file (`manor.worldfile`): locations with `:connects-to` (`:travel 0` routes), journeys, clock, agents, scenario sections. The file is a template; each run keeps a copy (`world-start.edn`) and the engine writes the live map back as `map.edn`. Replay never reads world files. |
 | Turns | Rounds made of schedule groups. A group of one commits immediately; a larger group acts simultaneously on one snapshot and is resolved in order, so conflicts are rejected. |
 | Humans | Operator (commands queued between rounds; approvals) and/or player (a seat with `:controller :human`; the round waits for their input). |
 | Run control | Step, step N, auto (optional delay), pause. Auto-pauses on GM `ask-human`, errors, cost limit, max rounds, scenario `:pause-when`, or an empty world. |
@@ -42,19 +45,21 @@ src/manor/
   web.clj        control panel
   main.clj       CLI entry point
   rng.clj        deterministic rolls from seed + key
+  clock.clj      optional game time: rounds <-> times
+  worldfile.clj  world files: load and check EDN starting worlds; export the live map
   scenarios/village.clj   full example scenario
   scenarios/treasure.clj  small example scenario
   scenarios/quiz.clj      MCP bridge example: a private pi assistant per agent
 mcp-servers/pi/  pi as an MCP server (Node, no dependencies): one persistent pi session per caller
 config/          mcp.example.edn; local mcp.edn (gitignored) for machine-specific server settings
 dev/user.clj     REPL controls
-test/            engine, space and scenario smoke tests + a minimal `prize` scenario
+test/            engine, space, clock, world-file, panel and scenario smoke tests + test scenarios `prize` and `hamlet`
 docs/            scenario authoring guide, roadmap
 ```
 
 ## A round
 
-1. `:round/started`; travellers who are due arrive
+1. `:round/started`; travellers who are due arrive; occupied agents who are due are freed
 2. Run act bridges the operator approved
 3. World systems tick in order (each may first call a bridge, e.g. weather)
 4. For each schedule group, agents take turns (below)

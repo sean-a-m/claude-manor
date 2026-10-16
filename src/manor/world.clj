@@ -13,7 +13,10 @@
     :all      everyone
     #{ids}    only those agents (plus the GM and the operator)
     :gm       the GM and the operator
-    :system   the operator only; never put into any prompt"
+    :system   the operator only; never put into any prompt
+
+  Engine-owned keys: :round :seq :agents :space :gm :pending-bridges
+  :pause-requests :usage, and :clock when the scenario has one (manor.clock)."
   (:refer-clojure :exclude [agent]))
 
 (defn new-world []
@@ -72,6 +75,12 @@
 (defn gm [world]
   (first (filter #(= :gm (:role %)) (vals (:agents world)))))
 
+(defn busy
+  "What `id` is occupied with, {:activity \"asleep\" :until 47}, or nil.
+  Occupied agents skip their turns until round :until."
+  [world id]
+  (:busy (agent world id)))
+
 (defn visible-to?
   "Can `viewer` (an agent id, :gm, or :operator) see `event`?"
   [event viewer]
@@ -91,7 +100,8 @@
 ;; Engine event reducers
 
 (defmethod apply-event :world/initialized [world {:keys [data]}]
-  (assoc world :state (:state data) :scenario (:scenario data) :seed (:seed data)))
+  (cond-> (assoc world :state (:state data) :scenario (:scenario data) :seed (:seed data))
+    (:clock data) (assoc :clock (:clock data))))
 
 (defmethod apply-event :round/started [world {:keys [data]}]
   (assoc world :round (:round data)))
@@ -108,6 +118,12 @@
 
 (defmethod apply-event :agent/updated [world {:keys [data]}]
   (update-in world [:agents (:id data)] merge (:changes data)))
+
+(defmethod apply-event :agent/occupied [world {:keys [actor data]}]
+  (assoc-in world [:agents actor :busy] (select-keys data [:activity :until])))
+
+(defmethod apply-event :agent/freed [world {:keys [actor]}]
+  (update-in world [:agents actor] dissoc :busy))
 
 (defmethod apply-event :agent/noted [world {:keys [actor round data]}]
   (update-in world [:agents actor :notes] conj {:round round :text (:text data)}))

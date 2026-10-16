@@ -12,6 +12,7 @@
     (approve! \"req-63\")  (deny! \"req-63\")
     (act! \"eva\" :plant {:grain 3})       ; for a seat with :controller :human
     (load! \"village-20261014-...\")  (branch! 3)
+    (export-map! \"resources/worlds/grown.edn\")  ; the live map as a world file
     (start! :village {:llm :mock :offline? true :test? true})  ; under test-runs/
     (clean-test-runs!)                ; delete everything under test-runs/"
   (:require [clojure.pprint :refer [pprint]]
@@ -20,7 +21,8 @@
             [manor.prompt :as prompt]
             [manor.store :as store]
             [manor.web :as web]
-            [manor.world :as w]))
+            [manor.world :as w]
+            [manor.worldfile :as worldfile]))
 
 (defonce ^:private current (atom nil))
 
@@ -118,3 +120,13 @@
 (defn approve! [req-id] @(e/approve! (run) req-id))
 (defn deny! [req-id] @(e/deny! (run) req-id))
 (defn act! [id action args] (e/act! (run) id action args))
+
+(defn export-map!
+  "Write the current run's live map as a world file to `path`, e.g. to keep
+  a grown house as the starting point for new runs. Only for runs started
+  from a world file (their map is also kept in <run-dir>/map.edn)."
+  [path]
+  (if-let [start (store/read-world-start (:dir (run)))]
+    (do (spit path (worldfile/->edn-string (worldfile/export (world) start)))
+        path)
+    (println "This run did not start from a world file.")))

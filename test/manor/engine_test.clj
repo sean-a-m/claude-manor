@@ -170,6 +170,78 @@
            (get-in (a/->tool (first (filter #(= :plant (:name %)) (:actions run)))) [:function :parameters])))
     (e/stop-run run)))
 
+(defn- hamlet [] (e/start-run :hamlet {:llm :mock :test? true :run-id (test-id "hamlet")}))
+
+(defn- rounds-acted
+  "Rounds in which `id` made a model call."
+  [run id]
+  (set (map :round (filter #(and (= :llm/usage (:type %)) (= id (:actor %))) (e/events run)))))
+
+(deftest occupied-agents-skip-turns
+  (let [run (rounds! (hamlet) 22)
+        world (e/world run)]
+    (testing "Ada goes to bed in round 2 (21:30) and next acts at 07:00 (round 21), at no cost in between"
+      (is (= #{1 2 21} (rounds-acted run "ada")))
+      (is (= (set (range 1 23)) (rounds-acted run "ben"))))
+    (testing "she was freed at the start of round 21, seen by those present"
+      (let [[freed] (of-type run :agent/freed)]
+        (is (= 21 (:round freed)))
+        (is (= #{"ada"} (:visible-to freed)))
+        (is (= "Ada is no longer asleep." (n/describe freed (n/names world))))))
+    (testing "and went back to sleep until the next morning"
+      (is (= {:activity "asleep" :until 69} (w/busy world "ada"))))
+    (testing "replay rebuilds occupation"
+      (is (= world (w/replay (store/read-events (:dir run))))))
+    (e/stop-run run)))
+
+(deftest occupation-is-visible-and-can-be-interrupted
+  (let [run (rounds! (hamlet) 3)
+        _ @(e/place! run "ben" "bedroom")
+        world (e/world run)
+        rouse (first (filter #(= :rouse (:name %)) (:actions run)))]
+    (testing "people present see what someone is doing"
+      (is (= "asleep" (:doing (first (:people-here (:location (prompt/agent-view (:scenario run) world "ben"))))))))
+    (testing "rousing frees them early, and the rouser is named"
+      (is (nil? (a/check rouse world "ben" {:who "ada"})))
+      (let [[freed] (a/effect-events rouse world "ben" {:who "ada"})]
+        (is (= {:activity "asleep" :by "ben"} (:data freed)))
+        (is (= #{"ada" "ben"} (:visible-to freed)))
+        (is (nil? (w/busy (w/apply-event world freed) "ada")))
+        (is (= "Ada is no longer asleep (interrupted by Ben)." (n/describe freed (n/names world))))))
+    (testing "only someone who is busy can be roused"
+      (is (= "ben is not busy" (a/check rouse world "ada" {:who "ben"}))))
+    (e/stop-run run)))
+
+(deftest prompts-with-a-clock
+  (let [run (rounds! (hamlet) 3)
+        world (e/world run)
+        evs (e/events run)
+        user-msg (:content (second (prompt/agent-messages (:scenario run) world evs "ben" {})))
+        gm-msg (:content (second (prompt/gm-messages (:scenario run) world evs ["test"] {})))
+        view (prompt/agent-view (:scenario run) world "ben")]
+    (testing "the header and event lines use the time, not rounds"
+      (is (str/starts-with? user-msg "# Saturday 15 October 1904, 22:00"))
+      (is (str/includes? user-msg "[21:00] Ada goes from Hall to Bedroom."))
+      (is (not (str/includes? user-msg "--- Round")))
+      (is (not (re-find #"\[r\d" user-msg))))
+    (testing "the view has the time and exits in minutes"
+      (is (= "Saturday 15 October 1904, 22:00" (:time view)))
+      (is (not (contains? view :round)))
+      (is (= #{0} (set (map :travel-minutes (get-in view [:location :exits]))))))
+    (testing "the GM still sees round markers, and the round number"
+      (is (str/includes? gm-msg "(round 3)"))
+      (is (str/includes? gm-msg "--- Round 2 begins ---")))
+    (e/stop-run run)))
+
+(deftest scenarios-can-exclude-actions
+  (let [sc (e/load-scenario :hamlet)
+        names (set (map :name (e/all-actions (assoc sc :exclude-actions #{:move :say}))))]
+    (is (not (names :move)))
+    (is (not (names :say)))
+    (is (names :pass))
+    (is (names :sleep))
+    (is ((set (map :name (e/all-actions sc))) :move))))
+
 (deftest argument-decoding
   (let [offer (first (filter #(= :offer (:name %)) (:actions (e/load-scenario :village))))
         accept (first (filter #(= :accept (:name %)) (:actions (e/load-scenario :village))))]

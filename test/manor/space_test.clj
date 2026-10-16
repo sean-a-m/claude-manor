@@ -113,3 +113,24 @@
       @(e/place! run "ana" "square")
       (is (= "square" (space/location-of (e/world run) "ana"))))
     (e/stop-run run)))
+
+(deftest next-door-routes
+  (let [run (e/start-run :hamlet {:llm :mock :test? true :run-id (str (gensym "space-hamlet-"))})
+        world (e/world run)]
+    (testing "travel 0 routes join an area; journeys don't"
+      (is (= #{"hall" "bedroom" "porch"} (space/area world "bedroom")))
+      (is (= #{"green" "shop"} (space/area world "shop")))
+      (is (= #{"farm"} (space/area world "farm"))))
+    (testing "paths and distances count only journeys"
+      (is (= ["porch" "green" "farm"] (space/path world "hall" "farm")))
+      (is (= 4 (space/distance world "hall" "farm")))
+      (is (= 0 (space/distance world "hall" "bedroom")))
+      (is (nil? (space/distance world "hall" "nowhere"))))
+    (testing "moving next door is immediate"
+      (let [[world [moved]] (perform run world "ben" :move {:to "porch"})]
+        (is (= :agent/moved (:type moved)))
+        (is (= "porch" (space/location-of world "ben")))))
+    (testing "the GM can open next-door routes"
+      (is (= {:from "shop" :to "farm" :travel 0}
+             (:args (a/decode-args (action run :open-route) {:from "shop" :to "farm" :travel 0})))))
+    (e/stop-run run)))

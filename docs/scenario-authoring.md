@@ -10,7 +10,8 @@ scenarios ship with the engine:
   persistent pi assistant through the pi MCP server.
 
 `test/manor/scenarios/prize.clj` is a 22-line minimal scenario used by the tests (no locations,
-simultaneous turns).
+simultaneous turns). `test/manor/scenarios/hamlet.clj` is a small test scenario loaded from a
+world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
 
 ## Mental model
 
@@ -57,6 +58,7 @@ simultaneous turns).
    :gm-triggers   [(fn [world] reason-or-nil) ...]
    :pause-when    (fn [world] reason-or-nil)
    :limits        {:max-agents 8}          ; GM spawn limit (default 10)
+   :exclude-actions #{:move}               ; built-in actions to leave out
    :defaults      {:model "..." ...}       ; overrides engine default options for this scenario
    :mock-policy   (fn [ctx] {:tool :dig :args {}})
    :offline-stubs {:bridge/name (fn [args ctx] result)}})
@@ -66,7 +68,8 @@ The engine reads no other keys.
 
 ### `:init`
 
-`(fn [opts] {:state map, :space map (optional), :agents [spec ...]})`, where `opts` are the run
+`(fn [opts] {:state map, :space map, :agents [spec ...], :clock map, :world-file map})` (only
+`:state` is required), where `opts` are the run
 options (engine defaults, merged with your `:defaults`, merged with the caller's options). Custom
 option keys pass through, e.g. the village reads `:start-date`.
 
@@ -81,6 +84,10 @@ option keys pass through, e.g. the village reads `:start-date`.
   `{:name "Iris" :role :explorer :persona "..." :location "camp" :model "..." :controller :human}`.
   Only `:name` and `:role` are required. The id is derived from the name (`"Iris"` → `"iris"`,
   with a `-2` suffix on collisions). `:location` defaults to the role's `:start-location`.
+
+- `:clock`: optional game time, `{:start "1904-10-15T08:00" :minutes-per-round 30}` (see Time).
+- `:world-file`: the world file the scenario loaded, if any (see World files). The engine saves a
+  copy as `<run-dir>/world-start.edn`.
 
 The engine always adds a GM seat (id `"gm"`, role `:gm`) before your agents. Who fills it comes
 from the `:gm` run option (`:llm`, `:human`, or `:off`).
@@ -182,7 +189,8 @@ made, not when it is executed.
 | `add-location`, `open-route`, `close-route` | gm | final | change the graph (only when it exists) |
 | `done` | gm | final | end the GM's intervention |
 
-Built-ins can't currently be removed, only overridden (see the roadmap).
+Override a built-in by defining an action with the same `:name`, or leave it out with
+`:exclude-actions #{:move :whisper}`. Don't exclude `done`: the GM needs it.
 
 ### Events and reducers
 
@@ -211,7 +219,8 @@ Event shape (returned by effects, ticks and hooks; the engine stamps `:id` and `
   ```
   Reducers must be pure and depend only on the world and the event: no clock, no rng, no I/O.
   Event types without a reducer are informational (e.g. speech).
-- Engine-owned world keys: `:round :seq :agents :space :gm :pending-bridges :pause-requests :usage`.
+- Engine-owned world keys: `:round :seq :agents :space :gm :pending-bridges :pause-requests :usage`,
+  and `:clock` when the scenario has one.
   Scenario reducers should only touch `:state`, unless deliberately using engine semantics via
   engine events.
 - Multimethods are global. Namespace your event types (`:treasure/...`) so scenarios can't collide.
@@ -226,7 +235,8 @@ Every event type an agent can see should have a description. That text *is* what
   (str (manor.narrate/who names actor) " digs at " (manor.narrate/place names (:at data)) "."))
 ```
 
-`names` resolves agent ids (`narrate/who`) and location ids (`narrate/place`). Without a method
+`names` resolves agent ids (`narrate/who`), location ids (`narrate/place`) and rounds
+(`(narrate/at names round)`: a time like "Sun 07:00" with a clock, else "round 7"). Without a method
 you get a generic `"Iris: dug {:at ...}"`. Write descriptions so they read correctly for everyone
 who can see the event.
 
@@ -234,10 +244,11 @@ who can see the event.
 
 `(fn [world agent-id] map)` returns the agent's private view, sent as JSON every turn. The engine
 adds:
-- `:round`
+- `:round`, or with a clock `:time` ("Saturday 15 October 1904, 09:30")
 - `:you {:id :name :role}`, merged with whatever you put under `:you`
 - `:location {:here .. :exits [{:to :name :travel-rounds}] :people-here [..]}` when the world
-  has locations, or `{:travelling {..}}` while in transit
+  has locations, or `{:travelling {..}}` while in transit. With a clock, exits give
+  `:travel-minutes` instead. People who are occupied have `:doing` ("asleep").
 
 Rules: include only what this agent may know: its own holdings, public facts, and things at its
 location. This is the fog of war. Never return another agent's private data. Keep it compact; it
@@ -335,7 +346,9 @@ When `:init` returns `:space`, the engine provides:
 - agent positions (`:location` on the agent; `nil` while travelling)
 - the `move` action. A route with `:travel 1` is immediate (the move is the agent's action for the
   round). `:travel n` > 1 puts the agent in transit: it skips its turns and arrives at the start
-  of round current+n.
+  of round current+n. A route with `:travel 0` joins places next door to each other (the rooms of
+  a house); `move` along it is immediate too. Places joined by `:travel 0` routes form an
+  *area*, and a scenario can offer a free action to walk anywhere in it (see `space/area`).
 - location-scoped `say`/`whisper`, departure and arrival visibility, and the `:location` view section
 - GM graph tools, operator `place!`, and spawning at a location
 
@@ -351,9 +364,75 @@ Helpers for your actions and views:
 | `(space/exits world loc)` | `[{:to id :travel n} ...]` over open routes |
 | `(space/route world from to)` | `{:travel n :open? bool}` or nil |
 | `(space/path world from to)` | quickest route by travel time, as locations after `from` |
+| `(space/distance world from to)` | total travel (rounds) of that route, or nil |
+| `(space/area world loc)` | every location reachable from `loc` over `:travel 0` routes, itself included |
 | `(space/location world loc)` | `{:id :name :desc}` |
 
 State that belongs to a location (items, prices) goes in your `:state`, keyed by location id.
+
+### World files (`manor.worldfile`)
+
+A scenario can keep its starting world in an EDN file instead of code: locations, routes, the
+clock, starting agents, and any sections of its own. Put it under `resources/worlds/` and load it
+in `:init`:
+
+```clojure
+:init (fn [opts]
+        (assoc (manor.worldfile/load-world (or (:world-file opts) "worlds/my-world.edn"))
+               :state {...}))
+```
+
+```clojure
+{:meta {:name "Hamlet" :start "1904-10-15T21:00" :minutes-per-round 30}   ; :start is optional
+ :locations [{:id "hall" :name "Hall" :desc "A small hall."
+              :connects-to ["bedroom" "porch"]      ; next door (:travel 0); either side is enough
+              :domain :house :kind :hall}           ; other keys are kept on the location
+             ...]
+ :routes [["porch" "green" 1]]                     ; journeys, as in :space
+ :agents [{:name "Ada" :role :resident :location "hall"}]
+ :shop {...}}                                       ; your own sections, from :world-file
+```
+
+- `load-world` takes a file path or a classpath resource name. It checks the file and throws a
+  list of readable problems (unknown locations, duplicate ids, bad routes, bad clock). It returns
+  `{:space :clock :agents :world-file}`. Read your own sections from `:world-file`.
+- `:domain` groups locations into areas on the control panel's map (house, village, ...).
+- The file is a **template**: nothing writes to it. The engine saves a copy as
+  `<run-dir>/world-start.edn`. Whenever the map changes, it writes the live map back in the same
+  format to `<run-dir>/map.edn` (output only). A run can start from an exported map
+  (`{:world-file "runs/<id>/map.edn"}`), and `(export-map! path)` at the REPL writes one anywhere.
+- Loading, branching and replay never read world files: the starting map is recorded as events.
+
+### Time (`manor.clock`)
+
+If `:init` returns a `:clock`, rounds have times. Round 1 starts at `:start`, and each round is
+`:minutes-per-round` later.
+
+- Prompts show the time instead of the round: the header ("# Saturday 15 October 1904, 09:30"),
+  event and note lines (`[09:30]`, or `[Sun 07:00]` on another day), and the view's `:time`.
+  Round start and end markers are left out of agent prompts; the GM still sees them.
+- Helpers: `(clock/label c round)`, `(clock/short-label c round today)`,
+  `(clock/round-at c round "07:00")` (the round when someone waiting until 07:00 acts again),
+  `(clock/rounds-for c minutes)`, `(clock/rounds-per-day c)`, `(clock/hh-mm? s)`.
+- The clock is in the world (`(:clock world)`), so actions and views can use it.
+
+### Occupation: sleep and other long activities
+
+An agent can be busy until a round. Like a traveller, they skip their turns (no model calls)
+and are freed at the start of that round. This makes nights and long activities cheap.
+
+```clojure
+:effect (fn [world actor {:keys [until]}]
+          [(manor.builtins/occupy world actor "asleep" (clock/round-at (:clock world) (:round world) until))])
+```
+
+- `(b/occupy world id activity until)` is an `:agent/occupied` event, visible to everyone present.
+  Write `activity` to read after "is": "asleep", "reading in the library". The agent's next turn
+  is in round `until`.
+- `(b/free world id by)` frees someone early (e.g. a `rouse` action). `by` is named in the
+  narration and also sees the event.
+- `(manor.world/busy world id)` is `{:activity .. :until ..}` or nil. Occupied agents still
+  count as present, so they see what happens in the room, in their window when they wake.
 
 ### Turn order: `:schedule`
 
@@ -363,7 +442,7 @@ State that belongs to a location (items, prices) goes in your `:state`, keyed by
   in spawn order afterwards; losers get a private `:action/rejected` event. Free and query actions
   still apply immediately.
 - `(fn [world] [[ids ...] ...])`: custom groups. Use `(manor.world/active-agents world)` (it
-  excludes the GM). Inactive and travelling agents are filtered out automatically.
+  excludes the GM). Inactive, travelling and occupied agents are filtered out automatically.
 
 ### GM triggers and pausing
 

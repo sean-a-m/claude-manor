@@ -2,7 +2,8 @@
   "Narrative is a view of state: each event type can describe itself as a
   line of text. Agents see these lines for the events visible to them.
   Scenarios add `(defmethod manor.narrate/describe :my/event ...)`."
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [manor.clock :as clock]))
 
 (defmulti describe
   "One line of text for `event`. `names` maps agent id -> display name."
@@ -19,6 +20,13 @@
   "Display name of a location id (names maps [:loc id] -> name)."
   [names loc-id]
   (get names [:loc loc-id] loc-id))
+
+(defn at
+  "When `round` starts: a time with a clock (\"Sun 07:00\"), else \"round N\"."
+  [names round]
+  (if-let [c (get names [:clock])]
+    (clock/short-label c round (get names [:today]))
+    (str "round " round)))
 
 (defmethod describe :default [{:keys [type actor data]} names]
   (str (when actor (str (who names actor) ": ")) (name type)
@@ -50,7 +58,14 @@
 
 (defmethod describe :agent/departed [{:keys [actor data]} names]
   (str (who names actor) " leaves " (place names (:from data)) " for " (place names (:to data))
-       " (arriving round " (:arrives data) ")."))
+       " (arriving " (at names (:arrives data)) ")."))
+
+(defmethod describe :agent/occupied [{:keys [actor data]} names]
+  (str (who names actor) " is " (:activity data) " until " (at names (:until data)) "."))
+
+(defmethod describe :agent/freed [{:keys [actor data]} names]
+  (str (who names actor) " is no longer " (:activity data)
+       (when-let [by (:by data)] (str " (interrupted by " (who names by) ")")) "."))
 
 (defmethod describe :agent/arrived [{:keys [actor data]} names]
   (str (who names actor) " arrives at " (place names (:to data)) " from " (place names (:from data)) "."))
@@ -117,7 +132,9 @@
           (or (:prompt-tokens data) 0) (or (:completion-tokens data) 0) (double (or (:cost data) 0))))
 
 (defn names
-  "Display names: agent id -> name, and [:loc id] -> location name."
+  "Display names: agent id -> name, and [:loc id] -> location name. With a
+  clock, also [:clock] and [:today] (the current round), for `at`."
   [world]
-  (merge (into {} (map (juxt key (comp :name val))) (:agents world))
-         (into {} (map (fn [[id l]] [[:loc id] (:name l)])) (get-in world [:space :locations]))))
+  (cond-> (merge (into {} (map (juxt key (comp :name val))) (:agents world))
+                 (into {} (map (fn [[id l]] [[:loc id] (:name l)])) (get-in world [:space :locations])))
+    (:clock world) (assoc [:clock] (:clock world) [:today] (:round world))))

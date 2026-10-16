@@ -8,7 +8,8 @@
 
   A round:
     1. :round/started
-    2. travellers who are due arrive; run act-bridges the operator approved
+    2. travellers who are due arrive, and occupied agents who are due are
+       freed; run act-bridges the operator approved
     3. run world systems (ticks, possibly fed by bridges)
     4. for each schedule group: activate its agents, resolve their actions
     5. call the GM if anything triggers it
@@ -17,12 +18,14 @@
             [manor.actions :as a]
             [manor.bridge :as bridge]
             [manor.builtins :as b]
+            [manor.clock :as clock]
             [manor.llm :as llm]
             [manor.mcp :as mcp]
             [manor.prompt :as prompt]
             [manor.space :as space]
             [manor.store :as store]
-            [manor.world :as w])
+            [manor.world :as w]
+            [manor.worldfile :as worldfile])
   (:import (java.util.concurrent ExecutorService Future TimeUnit)))
 
 (def default-opts
@@ -56,8 +59,12 @@
     (require ns-sym)
     @(ns-resolve ns-sym 'scenario)))
 
-(defn all-actions [scenario]
-  (a/merge-actions (b/agent-actions) (space/actions) (b/gm-actions scenario) (:actions scenario)))
+(defn all-actions
+  "Built-in and scenario actions, minus the scenario's :exclude-actions."
+  [scenario]
+  (let [excluded (set (:exclude-actions scenario))]
+    (remove #(excluded (:name %))
+            (a/merge-actions (b/agent-actions) (space/actions) (b/gm-actions scenario) (:actions scenario)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Run plumbing
@@ -103,6 +110,13 @@
   (apply swap! (:status run) f args)
   (notify! run {:kind :status :status @(:status run)}))
 
+(defn- export-map!
+  "Runs started from a world file keep their live map in <run-dir>/map.edn,
+  in the same format. Output only: nothing reads it during the run."
+  [run]
+  (when-let [start (store/read-world-start (:dir run))]
+    (store/write-text! (:dir run) "map.edn" (worldfile/->edn-string (worldfile/export @(:world run) start)))))
+
 (defn emit!
   "Stamp, apply, persist and broadcast events. The only way the world changes."
   [run events]
@@ -112,7 +126,9 @@
         (swap! (:world run) w/apply-stamped e)
         (swap! (:events run) conj e)
         (store/append-event! (:dir run) e)
-        (notify! run {:kind :event :event e})))))
+        (notify! run {:kind :event :event e})))
+    (when (some #(= "space" (namespace (:type %))) events)
+      (export-map! run))))
 
 (defn- bridge-ctx [run] {:run-id (:id run) :run-dir (str (:dir run)) :opts (:opts run) :mcp (:mcp run)})
 
@@ -311,9 +327,9 @@
 ;; Rounds
 
 (defn- schedule
-  "Groups of agents to act this round. Travellers are skipped."
+  "Groups of agents to act this round. Travellers and occupied agents are skipped."
   [run world]
-  (let [ids (mapv :id (remove :travel (w/active-agents world)))
+  (let [ids (mapv :id (remove #(or (:travel %) (:busy %)) (w/active-agents world)))
         s (or (:schedule (:scenario run)) :round-robin)]
     (cond
       (fn? s) (s world)
@@ -325,7 +341,10 @@
   action immediately; a larger group's actions are checked during the turn
   and resolved afterwards in schedule order, so conflicts are rejected."
   [run ids]
-  (let [ids (filter #(and (w/active? @(:world run) %) (not (space/in-transit? @(:world run) %))) ids)
+  (let [ids (filter #(and (w/active? @(:world run) %)
+                          (not (space/in-transit? @(:world run) %))
+                          (not (w/busy @(:world run) %)))
+                    ids)
         snapshot @(:world run)
         simultaneous? (> (count ids) 1)
         turn (fn [id]
@@ -404,7 +423,9 @@
   [run]
   (let [round (inc (:round @(:world run)))]
     (emit! run [{:type :round/started :data {:round round} :visible-to :all}])
-    (locking (:world run) (emit! run (space/arrivals @(:world run))))
+    (locking (:world run)
+      (emit! run (space/arrivals @(:world run)))
+      (emit! run (b/releases @(:world run))))
     (run-approved-bridges! run)
     (run-systems! run)
     (doseq [group (schedule run @(:world run))]
@@ -542,11 +563,19 @@
 ;; ---------------------------------------------------------------------------
 ;; Creating, loading and branching runs
 
-(defn- init! [run]
+(defn- init!
+  "Build the starting world from the scenario's :init. A :world-file in the
+  result (see manor.worldfile) is saved as <run-dir>/world-start.edn."
+  [run]
   (let [{:keys [scenario opts]} run
-        {:keys [state agents] :as init} ((:init scenario) opts)]
+        {:keys [state agents clock world-file] :as init} ((:init scenario) opts)]
+    (when-let [ps (and clock (clock/problems clock))]
+      (throw (ex-info (str "bad clock from :init: " (str/join "; " ps)) {:clock clock})))
+    (when world-file
+      (store/write-text! (:dir run) "world-start.edn" (worldfile/->edn-string world-file)))
     (emit! run [{:type :world/initialized :visible-to :gm
-                 :data {:scenario (:name scenario) :seed (:seed opts) :state state}}])
+                 :data (cond-> {:scenario (:name scenario) :seed (:seed opts) :state state}
+                         clock (assoc :clock clock))}])
     (emit! run (space/init-events (:space init)))
     (doseq [spec (cons {:name "GM" :role :gm :model (:gm-model opts) :controller (:gm opts)} agents)]
       (emit! run (b/spawn-events scenario @(:world run) (into {} (remove (comp nil? val)) spec))))))
@@ -593,6 +622,8 @@
          test? (:test? (:opts run))
          dir (store/run-dir id test?)]
      (store/write-config! dir (store/read-config (:dir run)))
+     (when-let [start (store/read-world-start (:dir run))]
+       (store/write-text! dir "world-start.edn" (worldfile/->edn-string start)))
      (doseq [e kept] (store/append-event! dir e))
      (load-run id (assoc opts :test? test?)))))
 

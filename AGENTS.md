@@ -17,6 +17,7 @@ information is enforced per event. The real world is reachable only through engi
 | `DESIGN.md` | architecture and the decisions behind it |
 | `docs/scenario-authoring.md` | the complete scenario contract: how to write a scenario |
 | `docs/roadmap.md` | what's left: prioritized tasks with approaches, plus known issues |
+| `docs/claudeworth-design.md` | design and phases for the Claudeworth Manor scenario (current work) |
 
 ## The user's requirements and preferences
 
@@ -62,11 +63,14 @@ src/manor/
   web.clj        control panel (http-kit server, SSE, hiccup)
   main.clj       CLI: clojure -M:run [scenario] [--mock] [--offline] [--port N] [--load id]
   rng.clj        deterministic rolls from seed + key
+  clock.clj      optional game time (rounds <-> times); prompts show times when a scenario has one
+  worldfile.clj  EDN world files: load + check, export live map (runs/<id>/map.edn)
   scenarios/     village.clj (full example), treasure.clj (small example), quiz.clj (MCP/pi)
 mcp-servers/pi/server.mjs  pi as an MCP server: send_message {session, message}; Node, no deps
 config/        mcp.example.edn; mcp.edn is local and gitignored (the user's sets pi-sandbox)
 dev/user.clj     REPL helpers (start! step! auto! feed view last-prompt spawn! approve! act! ...)
-test/            engine, space, MCP and scenario smoke tests; test/manor/scenarios/prize.clj;
+test/            engine, space, MCP, clock, world-file, panel and scenario smoke tests;
+                 test scenarios prize.clj and hamlet.clj (world file test/fixtures/hamlet.edn);
                  test/fixtures/fake-pi.mjs (fake `pi --mode rpc` for free MCP tests)
 runs/            real runs (gitignored; the user's data; never delete). runs/smoke-llm is a real 5-round village run
 test-runs/       test and ad-hoc runs ({:test? true} / --test); always safe to delete

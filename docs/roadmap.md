@@ -1,11 +1,14 @@
 # Roadmap and known issues
 
-Status as of 2026-10-14. Each item says why it matters, what exists now, a proposed approach,
+Status as of 2026-10-15. Each item says why it matters, what exists now, a proposed approach,
 which files to touch, and how to tell it's done. Proposals are suggestions; check open questions
 with the user before making big decisions.
 
-B1 (MCP bridges) is done. Recommended order now: **A1 → A2 → A3 → A4 → A6**, then the rest by
-need (B1a lists MCP follow-ups).
+B1 (MCP bridges) is done. Current work is the Claudeworth Manor scenario
+(`docs/claudeworth-design.md`); its phase 0 engine changes are done (clock, occupation,
+`:exclude-actions`, `:travel 0` routes, world files, grouped map). For scenario generation the
+recommended order is **A1 → A2 → A3 → A4 → A6**, then the rest by need (B1a lists MCP
+follow-ups).
 Known issues (section C) are small and can be fixed opportunistically.
 
 ---
@@ -77,11 +80,11 @@ The scenario boundary is already clean: the engine only reads the keys listed in
 - **Now:**
   - `prompt/agent-preamble`, `prompt/gm-preamble` and the "Take your turn now." line are constants.
   - Built-ins (`builtins/agent-actions`, `space/actions`, `builtins/gm-actions`) are always merged
-    in. Scenarios can override them by name but can't remove them.
+    in. Scenarios can override them by name, and remove them with `:exclude-actions` (done
+    2026-10-15).
   - The GM is always named "GM" with an empty persona.
 - **Approach:** optional scenario keys:
   - `:prompts {:agent-preamble "..." :gm-preamble "..." :turn-instruction "..."}`
-  - `:exclude-actions #{:say :whisper}` (applied in `engine/all-actions`)
   - `:gm {:name "Narrator" :persona "..."}` (used by `engine/init!`)
 
   Keep the defaults identical to today.
@@ -225,7 +228,8 @@ id). Promote to the engine only if several scenarios need the same thing.
 - Charts of chosen state values over rounds. A scenario could declare `:metrics (fn [world] {..})`,
   sampled at round end.
 - Run switcher (list `runs/`, load, branch from the UI).
-- A better map layout for more than about 12 locations.
+- A better map layout for more than about 12 locations. Partly done: worlds whose locations have a
+  `:domain` are drawn as one grid per domain. Worlds without domains still use the circle.
 - Showing a human player their own view inline, not only via the agent page link.
 
 ### B9. Snapshots
@@ -255,7 +259,8 @@ latest snapshot plus subsequent events. Only needed once logs get long.
 6. **Pausing waits for the round to finish.** `pause!` stops auto mode after the current round,
    and a waiting human seat blocks the round until `act!`. There's no mid-round abort.
 7. **Travellers can't do anything,** not even notes, while in transit. This is by design for now;
-   a scenario wanting "act while travelling" would need a change in `engine/schedule`.
+   a scenario wanting "act while travelling" would need a change in `engine/schedule`. The same
+   holds for occupied agents (asleep, busy) until they are freed or roused.
 8. **`:on-result` events from act bridges** don't get `:actor` filled in automatically (query
    bridge results do). Make them consistent.
 9. **The web panel shows one run at a time,** binds to 127.0.0.1, and has no authentication or
@@ -265,3 +270,5 @@ latest snapshot plus subsequent events. Only needed once logs get long.
     `:max-tokens` or `:reasoning` per model.
 11. **Cost tracking relies on the provider reporting `usage.cost`** (OpenRouter does); other
     providers would report 0.
+12. **The control panel's map** draws routes between grid cells as straight lines, which can
+    cross labels in a busy area. Fine for now; a real layout algorithm is B8.

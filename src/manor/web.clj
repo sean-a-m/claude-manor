@@ -8,6 +8,7 @@
             [hiccup2.core :as h]
             [jsonista.core :as json]
             [manor.actions :as a]
+            [manor.clock :as clock]
             [manor.engine :as e]
             [manor.narrate :as narrate]
             [manor.prompt :as prompt]
@@ -67,7 +68,9 @@ form.inline{display:inline}")]]
 
 (defn- event-li [event names]
   [:li {:class (vis-class (:visible-to event))}
-   [:span.vis (format "#%d r%d [%s] " (:id event) (:round event) (vis-label (:visible-to event)))]
+   [:span.vis (format "#%d r%d%s [%s] " (:id event) (:round event)
+                      (if (get names [:clock]) (str " " (narrate/at names (:round event))) "")
+                      (vis-label (:visible-to event)))]
    (narrate/describe event names)])
 
 (defn- viewer [req]
@@ -83,42 +86,114 @@ form.inline{display:inline}")]]
 ;; ---------------------------------------------------------------------------
 ;; Map
 
+(defn- clip [s n] (if (> (count s) n) (str (subs s 0 (dec n)) "…") s))
+
+(defn- people-at
+  "Names of the people at `loc`, with what they are busy with."
+  [world loc]
+  (for [id (sort (space/present world loc))
+        :let [{:keys [name busy]} (w/agent world id)]]
+    (if busy (str name " (" (:activity busy) ")") name)))
+
+(defn- travel-label [world travel]
+  (if-let [c (:clock world)]
+    (str (* travel (:minutes-per-round c)) " min")
+    (str travel " rounds")))
+
+(defn- edges
+  "Each open or closed route once: [[a b] travel open?]."
+  [world]
+  (distinct (for [[from tos] (get-in world [:space :routes])
+                  [to {:keys [travel open?]}] tos]
+              [(sort [from to]) travel open?])))
+
+(defn- circle-layout
+  "Locations on a circle (small worlds without areas)."
+  [world locs]
+  (let [n (count locs)]
+    {:width 400 :height 300
+     :pos (into {} (map-indexed (fn [i id]
+                                  (let [a (- (* 2 Math/PI (/ i n)) (/ Math/PI 2))]
+                                    [id [(+ 200 (* 110 (Math/cos a))) (+ 150 (* 110 (Math/sin a)))]]))
+                                locs))}))
+
+(defn- area-order
+  "A group's locations, neighbours near each other (breadth-first)."
+  [world ids]
+  (let [in-group (set ids)]
+    (loop [order [] seen #{} todo []]
+      (cond
+        (seq todo) (let [[x & more] todo
+                         nxt (for [{:keys [to]} (space/exits world x)
+                                   :when (and (in-group to) (not (seen to)))]
+                               to)]
+                     (recur (conj order x) (into seen nxt) (into (vec more) nxt)))
+        :else (if-let [start (first (remove seen (sort ids)))]
+                (recur order (conj seen start) [start])
+                order)))))
+
+(def ^:private cols 3)
+(def ^:private row-h 36)
+(def ^:private head-h 20)
+
+(defn- grid-layout
+  "Locations grouped by :domain, each group a labelled grid, largest first."
+  [world locs]
+  (let [groups (->> (group-by #(or (some-> (:domain (space/location world %)) name) "other") locs)
+                    (sort-by (fn [[d ids]] [(- (count ids)) d])))
+        col-w (/ 400 cols)]
+    (loop [[[domain ids] & more] groups, top 0, pos {}, labels []]
+      (if-not domain
+        {:width 400 :height (+ top 20) :pos pos :labels labels}
+        (let [order (area-order world ids)
+              rows (long (Math/ceil (/ (count order) cols)))
+              pos (into pos (map-indexed (fn [i id]
+                                           [id [(+ 12 (* col-w (mod i cols)))
+                                                (+ top head-h 10 (* row-h (quot i cols)))]])
+                                         order))]
+          (recur more (+ top head-h (* rows row-h) 6) pos
+                 (conj labels [domain (+ top 14)])))))))
+
 (defn- map-svg
-  "Locations on a circle, routes as lines (dashed when closed, labelled with
-  travel time when > 1), and who is where."
+  "Locations, routes as lines (dashed when closed; journeys labelled with
+  their length), and who is where. Worlds whose locations have a :domain
+  are drawn as one grid per domain; others on a circle."
   [world]
   (let [locs (sort (keys (get-in world [:space :locations])))
-        n (count locs)
-        [w h r] [400 300 110]
-        pos (into {} (map-indexed (fn [i id]
-                                    (let [a (- (* 2 Math/PI (/ i n)) (/ Math/PI 2))]
-                                      [id [(+ (/ w 2) (* r (Math/cos a))) (+ (/ h 2) (* r (Math/sin a)))]]))
-                                  locs))
-        edges (distinct (for [[from tos] (get-in world [:space :routes])
-                              [to {:keys [travel open?]}] tos]
-                          [(sort [from to]) travel open?]))
-        travellers (filter :travel (w/active-agents world))]
-    [:svg {:width w :height h :style "background:#111;border-radius:4px"}
-     (for [[[a b] travel open?] edges
-           :let [[x1 y1] (pos a) [x2 y2] (pos b)]]
+        grid? (some #(:domain (space/location world %)) locs)
+        {:keys [width height pos labels]} (if grid? (grid-layout world locs) (circle-layout world locs))
+        travellers (filter :travel (w/active-agents world))
+        arrives #(if-let [c (:clock world)] (clock/label c %) (str "r" %))]
+    [:svg {:width width :height height :style "background:#111;border-radius:4px"}
+     (for [[domain y] labels]
+       [:text {:x 4 :y y :fill "#999" :font-size 11} (str/upper-case domain)])
+     (for [[[a b] travel open?] (edges world)
+           :let [[x1 y1] (pos a) [x2 y2] (pos b)]
+           :when (and x1 x2)]
        [:g
-        [:line {:x1 x1 :y1 y1 :x2 x2 :y2 y2 :stroke (if open? "#557" "#733")
-                :stroke-width 2 :stroke-dasharray (if open? "" "5,4")}]
-        (when (> travel 1)
-          [:text {:x (/ (+ x1 x2) 2) :y (- (/ (+ y1 y2) 2) 4) :fill "#889" :font-size 11 :text-anchor "middle"}
-           (str travel " rounds")])])
+        [:line {:x1 x1 :y1 y1 :x2 x2 :y2 y2 :stroke (cond (not open?) "#733" (zero? travel) "#3a3f4d" :else "#557")
+                :stroke-width (if (zero? travel) 1 2) :stroke-dasharray (if open? "" "5,4")}]
+        (when (or (> travel 1) (and grid? (pos? travel)))
+          [:text {:x (/ (+ x1 x2) 2) :y (- (/ (+ y1 y2) 2) 4) :fill "#889" :font-size 10 :text-anchor "middle"}
+           (travel-label world travel)])])
      (for [id locs
            :let [[x y] (pos id)
-                 people (map #(:name (w/agent world %)) (sort (space/present world id)))]]
-       [:g
-        [:circle {:cx x :cy y :r 7 :fill "#3a6df0"}]
-        [:text {:x x :y (- y 12) :fill "#ddd" :font-size 12 :text-anchor "middle"}
-         (:name (space/location world id))]
-        (map-indexed (fn [i p] [:text {:x x :y (+ y 22 (* i 13)) :fill "#9c9" :font-size 11 :text-anchor "middle"} p])
-                     people)])
+                 people (people-at world id)]]
+       (if grid?
+         [:g
+          [:circle {:cx x :cy y :r 5 :fill "#3a6df0"}]
+          [:text {:x (+ x 9) :y (+ y 4) :fill "#ddd" :font-size 11} (clip (:name (space/location world id)) 20)]
+          (when (seq people)
+            [:text {:x (+ x 9) :y (+ y 17) :fill "#9c9" :font-size 10} (clip (str/join ", " people) 24)])]
+         [:g
+          [:circle {:cx x :cy y :r 7 :fill "#3a6df0"}]
+          [:text {:x x :y (- y 12) :fill "#ddd" :font-size 12 :text-anchor "middle"}
+           (:name (space/location world id))]
+          (map-indexed (fn [i p] [:text {:x x :y (+ y 22 (* i 13)) :fill "#9c9" :font-size 11 :text-anchor "middle"} p])
+                       people)]))
      (map-indexed (fn [i a]
-                    [:text {:x 8 :y (- h 8 (* i 13)) :fill "#fc8" :font-size 11}
-                     (str (:name a) " travelling to " (get-in a [:travel :to]) " (arrives r" (get-in a [:travel :arrives]) ")")])
+                    [:text {:x 8 :y (- height 8 (* i 13)) :fill "#fc8" :font-size 11}
+                     (str (:name a) " travelling to " (get-in a [:travel :to]) " (arrives " (arrives (get-in a [:travel :arrives])) ")")])
                   travellers)]))
 
 ;; ---------------------------------------------------------------------------
@@ -137,7 +212,9 @@ form.inline{display:inline}")]]
     (html
      [:section
       [:h2 "Run"]
-      [:div [:b (:id run)] " - round " [:b (:round world)] " - " (name state) " / " (name mode)
+      [:div [:b (:id run)] " - round " [:b (:round world)]
+       (when-let [c (:clock world)] (list " - " [:b (clock/label c (:round world))]))
+       " - " (name state) " / " (name mode)
        (when remaining (str " (" remaining " left)"))
        (format " - cost $%.4f" (double (w/total-cost world)))]
       (when (seq acting) [:div "acting: " (str/join ", " acting)])
@@ -174,7 +251,8 @@ form.inline{display:inline}")]]
           [:td (name (:status ag))]
           [:td (cond (:travel ag) (str "→ " (get-in ag [:travel :to]))
                      (:location ag) (:location ag)
-                     :else "")]
+                     :else "")
+           (when-let [b (:busy ag)] [:span.vis " (" (:activity b) ")"])]
           [:td (name (:controller ag)) " " [:span.vis (or (:model ag) "")]]
           [:td (if u (format "$%.4f" (double (:cost u))) "")]])]]
 

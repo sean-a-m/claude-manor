@@ -5,6 +5,7 @@
   full world never goes into an agent prompt."
   (:require [clojure.string :as str]
             [jsonista.core :as json]
+            [manor.clock :as clock]
             [manor.narrate :as narrate]
             [manor.space :as space]
             [manor.world :as w]))
@@ -13,18 +14,38 @@
 
 (defn ->json [x] (json/write-value-as-string x mapper))
 
+(def ^:private round-markers #{:round/started :round/ended})
+
 (defn visible-events
   "The last `n` events `viewer` can see, oldest first. Usage bookkeeping is
-  never shown to agents or the GM."
-  [events viewer n]
-  (->> events
-       (filter #(and (w/visible-to? % viewer) (not= :llm/usage (:type %))))
-       (take-last n)))
+  never shown to agents or the GM. With `hide-rounds?`, round start and end
+  markers are left out too (with a clock, every line carries its time)."
+  ([events viewer n] (visible-events events viewer n false))
+  ([events viewer n hide-rounds?]
+   (->> events
+        (filter #(and (w/visible-to? % viewer)
+                      (not= :llm/usage (:type %))
+                      (not (and hide-rounds? (round-markers (:type %))))))
+        (take-last n))))
 
-(defn- event-lines [events names]
+(defn- stamp
+  "Line prefix for something that happened in `round`: [09:30] with a clock, else [r3]."
+  [world round]
+  (if-let [c (:clock world)]
+    (str "[" (clock/short-label c round (:round world)) "]")
+    (str "[r" round "]")))
+
+(defn- event-lines [world events names]
   (if (seq events)
-    (str/join "\n" (map #(str "[r" (:round %) "] " (narrate/describe % names)) events))
+    (str/join "\n" (map #(str (stamp world (:round %)) " " (narrate/describe % names)) events))
     "(nothing yet)"))
+
+(defn- heading
+  "\"Round 3\", or with a clock \"Saturday 15 October 1904, 09:30\"."
+  [world]
+  (if-let [c (:clock world)]
+    (clock/label c (:round world))
+    (str "Round " (:round world))))
 
 (def agent-preamble
   "You are a participant in a turn-based simulation. Each round you get your current private view of the world and the recent events you witnessed.
@@ -43,7 +64,10 @@ Your view is private. Others only learn what is public or what someone tells the
   [scenario world agent-id]
   (let [a (w/agent world agent-id)
         observe (:observe scenario (fn [_ _] {}))]
-    (cond-> (-> (merge {:round (:round world)} (observe world agent-id))
+    (cond-> (-> (merge (if-let [c (:clock world)]
+                         {:time (clock/label c (:round world))}
+                         {:round (:round world)})
+                       (observe world agent-id))
                 (update :you #(merge {:id agent-id :name (:name a) :role (name (:role a))} %)))
       (space/enabled? world) (assoc :location (space/view world agent-id)))))
 
@@ -59,14 +83,16 @@ Your view is private. Others only learn what is public or what someone tells the
                     "\n\n## Who you are\nYou are " (:name a) " (id: " agent-id ")."
                     (when-not (str/blank? (:persona a)) (str " " (:persona a))))}
      {:role "user"
-      :content (str "# Round " (:round world)
+      :content (str "# " (heading world)
                     "\n\n## Your view\n```json\n" (->json view) "\n```"
                     "\n\n## Your notes\n"
                     (if (seq notes)
-                      (str/join "\n" (map #(str "- [r" (:round %) "] " (:text %)) (take-last 15 notes)))
+                      (str/join "\n" (map #(str "- " (stamp world (:round %)) " " (:text %)) (take-last 15 notes)))
                       "(none)")
                     "\n\n## Recent events you witnessed\n"
-                    (event-lines (visible-events events agent-id (or event-window 30)) (narrate/names world))
+                    (event-lines world
+                                 (visible-events events agent-id (or event-window 30) (some? (:clock world)))
+                                 (narrate/names world))
                     "\n\nTake your turn now.")}]))
 
 (def gm-preamble
@@ -78,20 +104,22 @@ You act only by calling tools. You may take a few actions; call `done` when fini
   [scenario world events reasons {:keys [event-window]}]
   (let [gm-view (or (:gm-view scenario)
                     (fn [world] (cond-> {:state (:state world)
-                                         :agents (mapv #(select-keys % [:id :name :role :status :persona :location :travel])
+                                         :agents (mapv #(select-keys % [:id :name :role :status :persona :location :travel :busy])
                                                        (w/agents-in-order world))}
                                   (space/enabled? world) (assoc :space (:space world)))))]
     [{:role "system"
       :content (str gm-preamble
                     (when-let [b (get-in scenario [:roles :gm :brief])] (str "\n\n## This world\n" b)))}
      {:role "user"
-      :content (str "# Round " (:round world) " - you were called because:\n"
+      :content (str "# " (heading world)
+                    (when (:clock world) (str " (round " (:round world) ")"))
+                    " - you were called because:\n"
                     (str/join "\n" (map #(str "- " %) reasons))
                     "\n\n## Requests addressed to you\n"
                     (if-let [inbox (seq (get-in world [:gm :inbox]))]
-                      (str/join "\n" (map #(str "- [r" (:round %) "] " (:from %) ": " (:text %)) inbox))
+                      (str/join "\n" (map #(str "- " (stamp world (:round %)) " " (:from %) ": " (:text %)) inbox))
                       "(none)")
                     "\n\n## World state\n```json\n" (->json (gm-view world)) "\n```"
                     "\n\n## Recent events\n"
-                    (event-lines (visible-events events :gm (or event-window 40)) (narrate/names world))
+                    (event-lines world (visible-events events :gm (or event-window 40)) (narrate/names world))
                     "\n\nDecide what, if anything, to do.")}]))

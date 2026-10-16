@@ -1,0 +1,19 @@
+{:meta {:name "Hamlet" :start "1904-10-15T21:00" :minutes-per-round 30}
+
+ :locations
+ [{:id "hall" :name "Hall" :domain :house :floor :ground :connects-to ["bedroom" "porch"] :desc "A small hall."}
+  {:id "bedroom" :name "Bedroom" :domain :house :floor :first :kind :bedroom}
+  {:id "porch" :name "Porch" :domain :house :floor :ground}
+  {:id "green" :name "Green" :domain :village :connects-to ["shop"]}
+  {:id "shop" :name "Shop" :domain :village}
+  {:id "farm" :name "Far farm" :domain :farm}]
+
+ :routes
+ [["porch" "green" 1]
+  ["green" "farm" 3]]
+
+ :agents
+ [{:name "Ada" :role :resident :location "hall"}
+  {:name "Ben" :role :resident :location "hall"}]
+
+ :notices ["A section the engine doesn't know about, kept as is."]}

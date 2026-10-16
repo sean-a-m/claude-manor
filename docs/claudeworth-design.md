@@ -1,7 +1,7 @@
 # Claudeworth Manor: design for the manor-building vertical slice
 
-Status: design, 2026-10-15. Nothing here is implemented yet. Decisions from the user are recorded
-in section 12.
+Status, 2026-10-15: phase 0 (the engine changes) is done; phases 1 and 2 are next. Decisions
+from the user are recorded in section 12.
 
 The long-term target is the world in `external-resources/ashcombe_spec.md` and
 `ashcombe_world.yaml`: an Edwardian great house kept at late-Victorian staffing, with an abbey and
@@ -106,7 +106,7 @@ edited copy, or `map.edn` exported from an earlier run).
           ["carriage-sweep" "abbey-gatehouse" 1]
           ["abbey-gatehouse" "village-green" 1]]
 
- :cast [{:name "Lord Claudeworth" :role :earl :location "study" :bedroom "earls-bedroom"
+ :agents [{:name "Lord Claudeworth" :role :earl :location "study" :bedroom "earls-bedroom"
          :persona "..."}
         {:name "Lady Claudeworth" :role :countess :location "drawing-room" :bedroom "countess-bedroom"
          :persona "..."}
@@ -132,14 +132,15 @@ Field rules:
 **Loading** (`manor.worldfile`, engine-level and reusable):
 
 - read the file, check it against a malli schema, then cross-check it: unique ids; every
-  `:connects-to`, route endpoint, cast location and bedroom exists; times parse
+  `:connects-to`, route endpoint and agent `:location` exists; the clock parses. The scenario
+  checks its own keys (`:bedroom`, `:hours`).
 - errors name the entry, e.g. `location "kitchen": :connects-to names unknown location "sculery"`
-- return `{:clock .. :space .. :world-file <the parsed map>}`; the scenario reads its own
-  sections (`:cast`, `:shop`, `:meta`)
+- return `{:space :clock :agents :world-file}`; the scenario reads its own sections (`:shop`,
+  `:meta`) from `:world-file`, and its own keys on agents (`:bedroom`)
 
-**Exporting:** `(manor.worldfile/export world)` turns the live world back into the same shape
-(pretty-printed EDN). A run listener writes it to `<run-dir>/map.edn` whenever the map changes.
-There's also a REPL helper `(export-map! path)`.
+**Exporting:** `(manor.worldfile/export world start)` turns the live world back into the shape of
+the starting file (`->edn-string` prints it readably). The engine writes it to
+`<run-dir>/map.edn` whenever the map changes. There's also a REPL helper `(export-map! path)`.
 
 ### 4.1 Fresh worlds and saved worlds
 
@@ -298,7 +299,7 @@ deterministic and free, and starts in milliseconds.
 
 ## 7. Roles and actions
 
-Briefs live in Clojure, beside the code whose rules they restate. Personas live in the `:cast`.
+Briefs live in Clojure, beside the code whose rules they restate. Personas live in the world file's `:agents`.
 
 | Action | Who | Kind | Where / when |
 |---|---|---|---|
@@ -332,19 +333,19 @@ The GM is hands-off: it's called only on `request-gm`.
 
 The architect sees his own purse and his clients' plans, not the household account.
 
-## 8. Engine changes (phase 0)
+## 8. Engine changes (phase 0, done)
 
-Each is small, general, and tested on its own. The village, treasure and quiz scenarios must not
-change behaviour.
+Each is small and general, with its own tests. The village, treasure and quiz scenarios behave
+exactly as before.
 
-| # | Change | Files |
+| # | Change | As built |
 |---|---|---|
-| E1 | **Occupation.** `:agent/occupied` and `:agent/freed` reducers; `schedule`/`run-group!` skip `:busy` agents; freeing at round start next to arrivals; `:people-here` shows the activity; narration. | `world.clj`, `engine.clj`, `space.clj`, `narrate.clj` |
-| E2 | **`:exclude-actions`** scenario key (roadmap A3, first part). | `engine.clj` (`all-actions`), authoring guide |
-| E3 | **Clock.** New `manor.clock`; `:init` may return `:clock`; stored by `:world/initialized`; prompt header and event prefixes; round markers hidden from agents; the panel shows the time. | new `clock.clj`, `world.clj`, `engine.clj`, `prompt.clj`, `web.clj` |
-| E4 | **`:travel 0` routes** are officially supported: tests for `path` and `view`; the GM's `open-route` accepts 0; the panel doesn't label 0 or 1. | `space.clj`, `web.clj`, tests |
-| E5 | **World files.** `manor.worldfile`: load (EDN plus a malli schema plus cross-checks) and export; copying the starting world to `<run-dir>/world-start.edn` at `start-run`; the run listener that writes `<run-dir>/map.edn`. | new `worldfile.clj`, `engine.clj` (listener hook, if needed) |
-| E6 | (optional) Map panel groups locations by `:domain` instead of one circle; at ~20 places the circle is unreadable (roadmap B8). | `web.clj` |
+| E1 | **Occupation** | `:agent/occupied` and `:agent/freed` events (`world.clj`); helpers `occupy`, `free` (early, naming who interrupted) and `releases` in `builtins.clj`; the engine frees due agents at round start, after arrivals, and skips busy agents in the schedule; `:people-here` shows `:doing`; narration ("Ada is asleep until Sun 07:00.") |
+| E2 | **`:exclude-actions`** | scenario key, applied in `engine/all-actions` |
+| E3 | **Clock** | `manor.clock` (labels, `round-at` for "until 07:00", `rounds-for`); `:init` may return `:clock`, stored by `:world/initialized`; prompts, notes and the GM inbox use times; agents' prompts leave out round markers; the view has `:time` and exits in `:travel-minutes`; `narrate/at` for descriptions; the panel shows the time |
+| E4 | **`:travel 0` routes** | tests; GM `open-route` accepts 0; new `space/area` (everything next door, for `walk`) and `space/distance` (journey length, for `travel`) |
+| E5 | **World files** | `manor.worldfile`: `load-world` (path or classpath resource; malli schema plus cross-checks with readable errors), `export` and `->edn-string`; the engine saves `world-start.edn` at start (and on branch) and rewrites `map.edn` from `emit!` whenever space events are emitted; REPL `(export-map! path)` |
+| E6 | **Grouped map** | worlds whose locations have `:domain` are drawn as one labelled grid per domain, largest first; busy people show their activity; journeys are labelled in minutes |
 
 Not needed: a "final action that calls a bridge" kind, and general timed events (roadmap B4).
 The plan/commission split and a construction system cover the slice.
@@ -352,7 +353,7 @@ The plan/commission split and a construction system cover the slice.
 ## 9. New files
 
 ```
-resources/worlds/claudeworth.edn          starting map, cast, shop
+resources/worlds/claudeworth.edn          starting map, agents, shop
 src/manor/scenarios/claudeworth.clj       the scenario (split out building.clj if it passes ~600 lines)
 src/manor/clock.clj, src/manor/worldfile.clj
 mcp-servers/architect/bb.edn
@@ -369,8 +370,10 @@ guide (clock, occupation, `:exclude-actions`, world files, travel 0), the roadma
 
 ## 10. Phases
 
-**Phase 0: engine groundwork (E1–E5).** Done when each has tests, `clojure -M:test` passes, and
-the existing scenarios replay identically.
+**Phase 0: engine groundwork (E1–E6). Done 2026-10-15.** Each change has tests (`clock_test`,
+`worldfile_test`, `web_test`, and occupation, clock and `:exclude-actions` tests in `engine_test`
+and `space_test`, using the test scenario `hamlet`), and `clojure -M:test` passes. The saved real
+village run replays identically, and its prompts are byte-for-byte unchanged.
 
 **Phase 1: living in the house.** World file, clock, `walk`/`travel`, talk, `spend-time`,
 `sleep`, `rouse`, observe, and a mock policy for a normal day: breakfast talk, the earl drives to

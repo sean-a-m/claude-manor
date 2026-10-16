@@ -10,11 +10,14 @@
 
   Moving along a route with :travel 1 is immediate (it is the agent's action
   for the round). A route with :travel n > 1 puts the agent in transit: they
-  skip turns and arrive at the start of round (current + n).
+  skip turns and arrive at the start of round (current + n). A route with
+  :travel 0 joins places with negligible distance between them (rooms of one
+  house); places joined that way form an `area`.
 
   Location matters for visibility: use `here` to make an event visible to
   everyone where it happens. The GM has no location and sees everything."
-  (:require [manor.world :as w]))
+  (:require [manor.clock :as clock]
+            [manor.world :as w]))
 
 ;; ---------------------------------------------------------------------------
 ;; Queries
@@ -55,17 +58,15 @@
         :when (:open? r)]
     {:to to :travel (:travel r)}))
 
-(defn path
-  "Quickest route (by total travel) from `from` to `to` over open routes, as
-  the list of locations after `from`. nil if unreachable."
+(defn- shortest
+  "[total-travel locations-after-from] for the quickest route over open
+  routes, or nil if unreachable."
   [world from to]
-  (loop [frontier {from [0 []]} done {}]
-    (if (empty? frontier)
-      (some-> (get done to) second)
-      (let [[loc [cost p]] (apply min-key (comp first val) frontier)
-            done (assoc done loc [cost p])]
+  (loop [frontier {from [0 []]} done #{}]
+    (when (seq frontier)
+      (let [[loc [cost p]] (apply min-key (comp first val) frontier)]
         (if (= loc to)
-          p
+          [cost p]
           (recur (reduce (fn [f {nxt :to t :travel}]
                            (let [c (+ cost t)]
                              (if (or (contains? done nxt) (<= (first (get f nxt [Long/MAX_VALUE])) c))
@@ -73,23 +74,57 @@
                                (assoc f nxt [c (conj p nxt)]))))
                          (dissoc frontier loc)
                          (exits world loc))
-                 done))))))
+                 (conj done loc)))))))
+
+(defn path
+  "Quickest route (by total travel) from `from` to `to` over open routes, as
+  the list of locations after `from`. nil if unreachable."
+  [world from to]
+  (second (shortest world from to)))
+
+(defn distance
+  "Total travel (rounds) of the quickest route from `from` to `to`, or nil."
+  [world from to]
+  (first (shortest world from to)))
 
 (defn next-step [world from to] (first (path world from to)))
 
+(defn area
+  "Every location reachable from `loc-id` over open :travel 0 routes,
+  including itself: the rooms of one house, the shops round a green."
+  [world loc-id]
+  (loop [seen #{loc-id} todo [loc-id]]
+    (if-let [[loc & more] (seq todo)]
+      (let [nxt (for [{:keys [to travel]} (exits world loc)
+                      :when (and (zero? travel) (not (seen to)))]
+                  to)]
+        (recur (into seen nxt) (into (vec more) nxt)))
+      seen)))
+
+(defn- person [world id]
+  (let [a (w/agent world id)]
+    (cond-> (select-keys a [:id :name :role])
+      (:busy a) (assoc :doing (get-in a [:busy :activity])))))
+
 (defn view
-  "The location section of an agent's observation."
+  "The location section of an agent's observation. With a clock, times
+  replace round numbers."
   [world agent-id]
   (let [a (w/agent world agent-id)
+        c (:clock world)
         loc-name #(:name (location world %))]
     (if-let [{:keys [from to arrives]} (:travel a)]
-      {:travelling {:from from :to to :to-name (loc-name to) :arrives-round arrives}}
+      {:travelling (cond-> {:from from :to to :to-name (loc-name to)}
+                     c (assoc :arrives (clock/label c arrives))
+                     (not c) (assoc :arrives-round arrives))}
       (let [loc (:location a)]
         {:here (select-keys (location world loc) [:id :name :desc])
-         :exits (mapv (fn [{:keys [to travel]}] {:to to :name (loc-name to) :travel-rounds travel})
+         :exits (mapv (fn [{:keys [to travel]}]
+                        (cond-> {:to to :name (loc-name to)}
+                          c (assoc :travel-minutes (* travel (:minutes-per-round c)))
+                          (not c) (assoc :travel-rounds travel)))
                       (exits world loc))
-         :people-here (mapv #(select-keys (w/agent world %) [:id :name :role])
-                            (sort (disj (present world loc) agent-id)))}))))
+         :people-here (mapv #(person world %) (sort (disj (present world loc) agent-id)))}))))
 
 ;; ---------------------------------------------------------------------------
 ;; Events
@@ -179,8 +214,8 @@
 
    {:name :open-route
     :roles #{:gm}
-    :doc "Open (or create) a route between two locations, both ways unless one-way is true."
-    :args [:map [:from :string] [:to :string] [:travel {:optional true} [:int {:min 1 :max 20}]]
+    :doc "Open (or create) a route between two locations, both ways unless one-way is true. travel is in rounds; 0 means next door (e.g. rooms of one house)."
+    :args [:map [:from :string] [:to :string] [:travel {:optional true} [:int {:min 0 :max 20}]]
            [:one-way {:optional true} :boolean]]
     :available? (fn [world _] (enabled? world))
     :valid? (fn [world _ {:keys [from to]}]

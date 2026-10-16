@@ -29,6 +29,35 @@
 
 (defn- active-ids [world] (set (map :id (w/active-agents world))))
 
+;; ---------------------------------------------------------------------------
+;; Occupation: an agent who is asleep or busy skips turns (no model calls)
+;; until a round, like a traveller. Scenarios occupy agents from action
+;; effects; the engine frees them at the start of that round.
+
+(defn occupy
+  "Event: `id` is busy with `activity` and next acts in round `until`.
+  `activity` reads after \"is\": \"asleep\", \"reading in the library\".
+  Everyone present sees it."
+  [world id activity until]
+  {:type :agent/occupied :actor id :visible-to (space/here world id)
+   :data {:activity activity :until until}})
+
+(defn free
+  "Event: `id` stops being busy, optionally because `by` interrupted them."
+  ([world id] (free world id nil))
+  ([world id by]
+   (let [v (space/here world id)]
+     {:type :agent/freed :actor id :visible-to (if (and by (set? v)) (conj v by) v)
+      :data (cond-> {:activity (:activity (w/busy world id))} by (assoc :by by))})))
+
+(defn releases
+  "Events freeing everyone whose occupation ends by the current round."
+  [world]
+  (for [a (w/active-agents world)
+        :let [{:keys [until]} (:busy a)]
+        :when (and until (<= until (:round world)))]
+    (free world (:id a))))
+
 (defn agent-actions []
   [{:name :pass
     :doc "Do nothing this round."

@@ -4,6 +4,8 @@
     runs/<id>/config.edn   scenario, seed, options
     runs/<id>/events.edn   one stamped event per line (append-only; the truth)
     runs/<id>/llm.edn      one model call per line (prompt, response, usage)
+    runs/<id>/world-start.edn  the world file the run started from, if any
+    runs/<id>/map.edn      the live map in world-file format (output only)
     runs/<id>/outbox/      files written by act bridges, if any
     runs/<id>/mcp-<name>.log  stderr of the run's MCP servers, if any
     runs/<id>/pi/          pi MCP server sessions and workspaces, if any
@@ -61,6 +63,21 @@
 (defn append-llm! [dir entry] (write-line! (io/file dir "llm.edn") entry))
 
 (defn read-llm [dir] (read-lines (io/file dir "llm.edn")))
+
+(defn world-start-file [dir] (io/file dir "world-start.edn"))
+
+(defn read-world-start
+  "The world file a run started from, or nil."
+  [dir]
+  (let [f (world-start-file dir)]
+    (when (.exists f) (edn/read-string (slurp f)))))
+
+(defn write-text!
+  "Write `text` to <dir>/<file-name>, replacing it."
+  [dir file-name text]
+  (let [f (io/file dir file-name)]
+    (io/make-parents f)
+    (spit f text)))
 
 (defn delete-test-runs!
   "Delete everything under test-runs/."

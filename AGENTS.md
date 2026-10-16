@@ -87,7 +87,7 @@ src/manor/
   transcript.clj readable run record: <run-dir>/transcript.md from events.edn and llm.edn
   scenarios/     village.clj (full example), treasure.clj (small example), quiz.clj (MCP/pi),
                  claudeworth.clj + building.clj (Claudeworth Manor: daily life, money, shop, plans,
-                 architect and construction; Nellie the housemaid when :housemaid? is true, whose
+                 architect and construction; Nellie the housemaid unless :housemaid? is false, whose
                  work-on jobs exercise the judge)
 resources/worlds/ world files on the classpath; claudeworth.edn is Claudeworth's fresh world
 mcp-servers/pi/server.mjs  pi as an MCP server: send_message {session, message}; Node, no deps
@@ -96,6 +96,7 @@ config/        mcp.example.edn; mcp.edn is local and gitignored (the user's sets
 dev/user.clj     REPL helpers (start! step! auto! feed view last-prompt transcript! spawn! approve! act! ...)
 test/            engine, space, items, MCP, clock, world-file, panel, transcript, Claudeworth and scenario smoke tests;
                  test scenarios prize.clj and hamlet.clj (world file test/fixtures/hamlet.edn);
+                 household.clj reuses Claudeworth mechanics with fixed household.edn / household-day.edn fixtures;
                  test/fixtures/fake-pi.mjs (fake `pi --mode rpc` for free MCP tests)
 runs/            real runs (gitignored; the user's data; never delete). runs/smoke-llm is a real 5-round village run
 test-runs/       test and ad-hoc runs ({:test? true} / --test); always safe to delete

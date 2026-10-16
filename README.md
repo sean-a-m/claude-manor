@@ -112,6 +112,7 @@ Passed to `start-run` / `start!` (defaults in `manor.engine/default-opts`):
 | `:max-cost` | `1.0` | USD; the run pauses when reached |
 | `:start` | | start the scenario's clock at this time, e.g. `"1904-10-15T21:00"` (CLI: `--start`); scenarios with a clock only. People still start where the world puts them |
 | `:build-rounds` | | override the build delay for one run, in rounds (Claudeworth; default one day per build day) |
+| `:housemaid?` / `:architect?` | `true` / `true` | Claudeworth: include Nellie and Mr Pugh; pass `false` to leave either out (REPL options) |
 | `:max-steps` / `:max-queries` | 10 / 2 | model calls and query bridges per turn (a cost guard, not game time) |
 | `:event-window` | 30 | recent events in each prompt |
 | `:gm-check-in-every` | 0 | rounds between GM check-ins (0 = only when triggered) |
@@ -123,3 +124,11 @@ Passed to `start-run` / `start!` (defaults in `manor.engine/default-opts`):
 ```sh
 clojure -M:test
 ```
+
+Mechanics tests use the test-only `:household` scenario with fixed world and mock-day data in
+`test/fixtures/household.edn` and `household-day.edn`. These preserve controlled test conditions;
+do not update them just because the bundled Claudeworth cast or demonstration day changes.
+The fixture reuses production mechanics, but explicitly defaults the maid off; work/judge tests
+turn her on. Separate scenario smoke/default tests exercise the real, evolving configuration.
+An isolation regression adds two dozen residents and reorders the production cast while the
+fixed mock day and hibernation checks continue to pass.

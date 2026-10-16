@@ -11,7 +11,7 @@
   anywhere in the current area; `travel` (a turn) goes to another area.
   `sleep` and `spend-time` occupy an agent for several rounds at no model
   cost; `rouse` asks someone busy whether to stop. :architect? false leaves Mr Pugh out,
-  and :housemaid? true brings the housemaid, Nellie, in.
+  and :housemaid? false leaves the housemaid, Nellie, out.
   An agent with a :routine in the world file (Mr Pugh) hibernates whenever
   nobody else is near: the routine says where they are and what they're doing,
   and they make no model calls until someone comes into their area.
@@ -345,18 +345,18 @@
 
 (defn- optional-agent-kept?
   "Whether an agent marked :optional? is in this run. The marker names the run
-  option that decides it: Mr Pugh (:architect?) is in unless it is false; the
-  housemaid (:housemaid?) only when it is true. Agents without a marker are
+  option that decides it: Mr Pugh (:architect?) and the housemaid (:housemaid?)
+  are in unless their option is false. Agents without a marker are
   always in."
   [opts agent]
   (case (:optional? agent)
     :architect? (not (false? (:architect? opts)))
-    :housemaid? (true? (:housemaid? opts))
+    :housemaid? (not (false? (:housemaid? opts)))
     true))
 
 (defn init
   "The world file, its agents (without Mr Pugh if :architect? is false,
-  without the housemaid unless :housemaid? is true, and without anything they
+  without the housemaid if :housemaid? is false, and without anything they
   hold), its items, and
   in :state everyone's bedroom and routine, the setting, the roles' :about
   text and the query limit the rules quote."
@@ -386,7 +386,7 @@
   ones first). Turns not listed pass. Breakfast, the earl's visit to Mr Pugh,
   the countess moving the candlesticks, visiting the abbey and buying a
   duster to give the housemaid, Mr Hale's errands and secretarial work,
-  Nellie the housemaid's round of the house (only when :housemaid? is true),
+  Nellie the housemaid's round of the house (unless :housemaid? is false),
   Mr Pugh's drawing board, bed, and Mr Hale rousing the earl at 06:30."
   {"lord-claudeworth"
    {"08:00" [[:walk {:to "dining-room"}]
@@ -496,10 +496,11 @@
   [world script]
   (if (w/agent world "nellie") script (remove #(= gift %) script)))
 
-(defn mock-policy
-  "The next call of `mock-day` for this turn. A scripted `sleep` away from
-  your bedroom goes there first, e.g. after a late :start."
-  [{:keys [world agent-id role used]}]
+(defn scripted-policy
+  "The next call of `day` (agent id -> time -> tool calls) for this turn.
+  A scripted `sleep` away from your bedroom goes there first, e.g. after a
+  late :start. Tests can supply fixed choreography independently of mock-day."
+  [day {:keys [world agent-id role used]}]
   (if (= role :gm)
     {:tool :done}
     (let [time (str (now world))
@@ -515,8 +516,8 @@
                     [:pass {}]]
                    (and (= agent-id "lord-claudeworth") (= time "18:00")
                         (space/location world (:id client-plan)))
-                   (into [[:walk {:to (:id client-plan)}]] (get-in mock-day [agent-id time]))
-                   :else (get-in mock-day [agent-id time]))
+                   (into [[:walk {:to (:id client-plan)}]] (get-in day [agent-id time]))
+                   :else (get-in day [agent-id time]))
           script (remove-absent-cast world script)
           script (mapv (fn [[tool args]]
                          [tool (if (and (#{:commission :show-plans} tool) client-plan)
@@ -525,6 +526,11 @@
           [tool args] (or (when (= :sleep tool) (way-to-bed world agent-id)) [tool args])]
       (if tool {:tool tool :args args}
           {:tool (if (:interrupted-by (w/busy world agent-id)) :carry-on :pass)}))))
+
+(defn mock-policy
+  "The bundled scenario's demonstration day."
+  [ctx]
+  (scripted-policy mock-day ctx))
 
 ;; ---------------------------------------------------------------------------
 

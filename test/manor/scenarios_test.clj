@@ -4,6 +4,8 @@
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.scenarios.claudeworth :as cw]
+            [manor.space :as space]
             [manor.store :as store]
             [manor.world :as w]))
 
@@ -23,6 +25,23 @@
             "the mock policy should only choose valid actions")
         (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
         (e/stop-run run)))))
+
+(deftest claudeworth-default-cast
+  ;; This is intentionally a bundled-content test, unlike the fixed household
+  ;; mechanics tests. Adding residents must not require editing a cast snapshot.
+  (doseq [opts [{} {:housemaid? false} {:housemaid? true}]]
+    (let [run (e/start-run :claudeworth
+                           (merge {:llm :mock :offline? true :test? true
+                                   :run-id (str (gensym "claudeworth-defaults-"))} opts))]
+      (try
+        (let [world (e/world run)]
+          (is (= (not (false? (:housemaid? opts))) (some? (w/agent world "nellie"))))
+          (doseq [agent (w/active-agents world) :when (not= :gm (:role agent))]
+            (is (= :bedroom (:kind (space/location world (get-in world [:state :bedrooms (:id agent)]))))
+                (:id agent)))
+          (is (= world (w/replay (store/read-events (:dir run))))))
+        (finally (e/stop-run run)))))
+  (is (empty? (cw/problems (:world-file (cw/init {}))))))
 
 (deftest every-action-becomes-a-tool
   ;; The mock GM never builds its tools, so a bad schema (e.g. an empty

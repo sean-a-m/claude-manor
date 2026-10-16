@@ -11,7 +11,7 @@
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
 
 (deftest transcript-of-a-mock-run
-  (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true :run-id (str (gensym "transcript-"))})]
+  (let [run (e/start-run :household {:llm :mock :offline? true :test? true :run-id (str (gensym "transcript-"))})]
     (e/auto! run 2)
     (is (= :idle (e/wait-idle run 60000)))
     (let [path (transcript/write! (:dir run))
@@ -45,7 +45,7 @@
 
 (deftest transcripts-are-written-when-a-run-stops
   (testing "a pause on :max-rounds"
-    (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true :max-rounds 3
+    (let [run (e/start-run :household {:llm :mock :offline? true :test? true :max-rounds 3
                                          :run-id (str (gensym "transcript-"))})]
       (is (nil? (written-rounds run)))
       (e/auto! run)
@@ -55,7 +55,7 @@
       (is (str/includes? (slurp (io/file (:dir run) "transcript.md")) "## 09:00 (round 3)"))
       (e/stop-run run)))
   (testing "stop-run, while auto mode waits between rounds"
-    (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true :auto-delay-ms 200
+    (let [run (e/start-run :household {:llm :mock :offline? true :test? true :auto-delay-ms 200
                                          :run-id (str (gensym "transcript-"))})]
       (e/auto! run)
       (Thread/sleep 300)
@@ -65,7 +65,7 @@
       (is (= (:round (e/world run)) (written-rounds run))))))
 
 (deftest thoughts-are-shown-when-recorded
-  (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true
+  (let [run (e/start-run :household {:llm :mock :offline? true :test? true
                                        :run-id (str (gensym "transcript-"))})]
     (e/auto! run 1)
     (is (= :idle (e/wait-idle run 60000)))

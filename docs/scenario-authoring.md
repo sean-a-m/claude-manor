@@ -516,8 +516,8 @@ carried item goes wherever its holder goes, with no events of its own.
   or carried, with results when it's over.
 - An agent you may leave out: mark the world-file agent `:optional?`, naming the run option that
   decides it. Claudeworth reads these in `:init`: Mr Pugh (`:optional? :architect?`) is in unless
-  `:architect? false`, and Nellie the housemaid (`:optional? :housemaid?`) is in only when
-  `:housemaid? true`. Leave out too the items such an agent holds.
+  `:architect? false`, and Nellie the housemaid (`:optional? :housemaid?`) is in unless
+  `:housemaid? false`. Leave out too the items such an agent holds.
 
 #### Work and the judge
 
@@ -734,6 +734,24 @@ Lets the scenario run for free with `{:llm :mock}`. It's essential for testing.
 - The judge of work on items (`role :judge`) never reaches the policy: the engine sends it to the
   scenario's `:mock-judge`, or `manor.items/mock-judge` (see Items).
 - Only choose valid actions. The scenario smoke test fails on forfeited turns.
+
+## Stable test conditions
+
+Keep mechanics tests independent of the bundled scenario's current cast, map and mock script.
+Use a small test world or fixed test-owned fixtures, with explicit defaults and choreography.
+For example, test-only `manor.scenarios.household` reuses Claudeworth's mechanics with
+`test/fixtures/household.edn` and `household-day.edn`; do not sync those fixtures when adding
+characters or changing the bundled world. Its four-person day leaves the maid out explicitly;
+work/judge tests enable her explicitly. Engine and transcript mechanics tests use it too.
+
+Select actors by identity, not position in a vector. Validation tests should start from valid
+fixtures and check the intended diagnostic, not merely that some error occurred. Exact cast,
+audience, balance and timing assertions belong in controlled fixtures. Assertions about all
+current agents should enumerate the applicable agents rather than a historical cast list.
+
+Keep separate bundled-scenario smoke tests (`test/manor/scenarios_test.clj`) for current content:
+valid initialization, valid mock actions and exact replay. A deliberate default change may
+update its configuration test, but should not require changing unrelated mechanics tests.
 
 ## Checklist for a new scenario
 

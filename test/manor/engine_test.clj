@@ -389,7 +389,7 @@
       (is (= (:state world) (:state (prompt/default-gm-view world))))
       (e/stop-run run)))
   (testing "Claudeworth's setting and the GM's own :about are left to the GM brief"
-    (let [run (e/start-run :claudeworth {:llm :mock :test? true :run-id (test-id "claudeworth")})
+    (let [run (e/start-run :household {:llm :mock :test? true :run-id (test-id "household")})
           world (e/world run)
           state (:state (prompt/default-gm-view world))
           gm-msgs (prompt/gm-messages (:scenario run) world (e/events run) ["test"] {})
@@ -432,8 +432,8 @@
 
 (defn- last-message [call] (:content (peek (:messages call))))
 
-(defn- claudeworth-run [llm-impl opts]
-  (e/start-run :claudeworth (merge {:llm-impl llm-impl :offline? true :test? true :run-id (test-id "claudeworth")}
+(defn- household-run [llm-impl opts]
+  (e/start-run :household (merge {:llm-impl llm-impl :offline? true :test? true :run-id (test-id "household")}
                                    opts)))
 
 (deftest at-most-ten-calls-per-turn
@@ -441,7 +441,7 @@
 
 (deftest free-actions-get-a-reminder-to-end-the-turn
   (let [calls (atom [])
-        run (rounds! (claudeworth-run (scripted calls (walker 3)) {}) 1)
+        run (rounds! (household-run (scripted calls (walker 3)) {}) 1)
         earl (earls-calls calls)]
     (testing "the earl walked three times, then spoke, and kept his turn"
       (is (= 4 (count earl)))
@@ -469,7 +469,7 @@
 
 (deftest the-last-call-is-announced
   (let [calls (atom [])
-        run (rounds! (claudeworth-run (scripted calls (walker 99)) {:max-steps 4}) 1)
+        run (rounds! (household-run (scripted calls (walker 99)) {:max-steps 4}) 1)
         earl (earls-calls calls)
         logged (filter #(= "lord-claudeworth" (:agent %)) (store/read-llm (:dir run)))]
     (is (= 4 (count earl)))

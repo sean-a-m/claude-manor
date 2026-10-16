@@ -16,6 +16,7 @@
             [manor.narrate :as narrate]
             [manor.scenarios.building :as building]
             [manor.scenarios.claudeworth :as cw]
+            [manor.scenarios.household :as fixture]
             [manor.space :as space]
             [manor.store :as store]
             [manor.world :as w]
@@ -24,8 +25,9 @@
 ;; All runs here use {:test? true}, so they live under test-runs/.
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
 
+;; Mechanics tests never inherit the bundled world's content or cast defaults.
 (defn- start [& [opts]]
-  (e/start-run :claudeworth (merge {:llm :mock :offline? true :test? true :run-id (str (gensym "claudeworth-"))}
+  (e/start-run :household (merge {:llm :mock :offline? true :test? true :run-id (str (gensym "claudeworth-"))}
                                    opts)))
 
 (defn- rounds! [run n]
@@ -42,11 +44,18 @@
   [run id]
   (set (map :round (by id (of-type run :llm/usage)))))
 
+(defn- update-entry
+  "Change exactly one named fixture entry; a missing target is a setup error."
+  [entries k value f]
+  (assert (= 1 (count (filter #(= value (get % k)) entries)))
+          (str "expected one fixture entry " k " = " value))
+  (mapv #(if (= value (get % k)) (f %) %) entries))
+
 (def house #{"carriage-sweep" "entrance-hall" "drawing-room" "study" "dining-room" "kitchen" "maids-room"
              "staircase" "gallery" "earls-bedroom" "countess-bedroom" "secretarys-room"})
 
 (deftest the-world
-  (let [{:keys [world-file]} (wf/load-world "worlds/claudeworth.edn")
+  (let [{:keys [world-file]} (wf/load-world fixture/world-file)
         run (start)
         world (e/world run)]
     (testing "the world file loads with no problems, the scenario's own included"
@@ -73,7 +82,7 @@
     (testing "bad bedrooms and opening hours are named"
       (let [closed-store (fn [ls] (mapv #(if (= "general-store" (:id %)) (assoc % :hours ["8am" "18:00"]) %) ls))
             ps (str/join "\n" (cw/problems (-> world-file
-                                               (assoc-in [:agents 0 :bedroom] "study")
+                                               (update :agents update-entry :name "Lord Claudeworth" #(assoc % :bedroom "study"))
                                                (update :locations closed-store))))]
         (is (str/includes? ps "agent \"Lord Claudeworth\": :bedroom \"study\" is not a bedroom"))
         (is (str/includes? ps "location \"general-store\": :hours must be two times")))
@@ -277,17 +286,24 @@
     (e/stop-run run)))
 
 (deftest building-world-file-checks
-  (let [world-file (:world-file (wf/load-world "worlds/claudeworth.edn"))]
-    (doseq [bad [(assoc-in world-file [:shop "nowhere"] [{:item "x" :price 1}])
-                 (assoc-in world-file [:shop "general-store" 0 :price] 0)
-                 (assoc-in world-file [:shop "general-store" 0 :item] "")
-                 (assoc-in world-file [:meta :starting-stores] {"gold" 1})
-                 (update world-file :locations #(mapv (fn [l] (dissoc l :services)) %))
-                 (assoc-in world-file [:locations 0 :services] ["architect"])
-                 (assoc-in world-file [:agents 3 :routine 0 :from] "9am")
-                 (assoc-in world-file [:agents 3 :routine 0 :at] "nowhere")
-                 (assoc-in world-file [:agents 3 :routine 0 :doing] " ")]]
-      (is (seq (cw/problems bad))))))
+  (let [source (wf/read-file fixture/world-file)]
+    ;; Insertion/reordering must not change which actor a validation case exercises.
+    (doseq [world-file [source (update source :agents #(vec (reverse %)))]]
+      (is (empty? (cw/problems world-file)))
+      (doseq [[bad diagnostic]
+              [[(assoc-in world-file [:shop "nowhere"] [{:item "x" :price 1}]) ":shop nowhere"]
+               [(update-in world-file [:shop "general-store"] update-entry :item "provisions" #(assoc % :price 0)) "positive integer prices"]
+               [(update-in world-file [:shop "general-store"] update-entry :item "provisions" #(assoc % :item "")) "non-empty item names"]
+               [(assoc-in world-file [:meta :starting-stores] {"gold" 1}) "starting store item gold"]
+               [(update world-file :locations #(mapv (fn [l] (dissoc l :services)) %)) "architect"]
+               [(update world-file :locations update-entry :id "architects-office" #(assoc % :services ["architect"])) ":services"]]]
+        (is (str/includes? (str/join "\n" (cw/problems bad)) diagnostic)))
+      (doseq [[field value] [[:from "9am"] [:at "nowhere"] [:doing " "]]]
+        (let [change #(assoc-in % [:routine 0 field] value)
+              bad (update world-file :agents update-entry :name "Pugh" change)
+              ps (cw/problems bad)]
+          (is (= 1 (count ps)))
+          (is (str/includes? (first ps) "agent \"Pugh\": :routine entry")))))))
 
 (deftest walking-and-travelling
   (let [run (start)
@@ -499,12 +515,12 @@
     (testing "a scripted sleep away from your bedroom goes there first: a walk, or a travel from another area"
       (let [world (assoc (e/world run) :round 3)
             ctx {:world world :agent-id "pugh" :role :architect :used []}]
-        (is (= {:tool :walk :args {:to "architects-lodgings"}} (cw/mock-policy ctx)))
+        (is (= {:tool :walk :args {:to "architects-lodgings"}} (fixture/mock-policy ctx)))
         (is (= {:tool :sleep :args {:until "07:30"}}
-               (cw/mock-policy (assoc ctx :world (assoc-in world [:agents "pugh" :location] "architects-lodgings")
+               (fixture/mock-policy (assoc ctx :world (assoc-in world [:agents "pugh" :location] "architects-lodgings")
                                       :used ["walk"]))))
         (is (= {:tool :travel :args {:to "architects-lodgings"}}
-               (cw/mock-policy (assoc ctx :world (assoc-in world [:agents "pugh" :location] "study")))))))
+               (fixture/mock-policy (assoc ctx :world (assoc-in world [:agents "pugh" :location] "study")))))))
     (testing "the scripted evening follows the clock: Hale sleeps at 22:00 and rouses the earl at 06:30"
       (rounds! run 20)
       (is (= 3 (:round (first (sleeps run "hale")))))
@@ -578,12 +594,12 @@
       (is (str/includes? (cw/rules world) "`look`, `take`, `put-down` and `give` don't end your turn")))
     (e/stop-run run))
   (testing "carried shop goods need a description and a condition"
-    (let [world-file (:world-file (wf/load-world "worlds/claudeworth.edn"))]
+    (let [world-file (:world-file (wf/load-world fixture/world-file))]
       (is (empty? (building/problems world-file)))
-      (is (str/includes? (str/join "\n" (building/problems (update-in world-file [:shop "general-store" 3] dissoc :desc)))
+      (is (str/includes? (str/join "\n" (building/problems (update-in world-file [:shop "general-store"] update-entry :item "umbrella" #(dissoc % :desc))))
                          ":shop general-store \"umbrella\": goods of :kind :item need"))))
   (testing "leaving Mr Pugh out leaves out what he holds"
-    (let [with-pugh (update (wf/read-file "worlds/claudeworth.edn") :items conj
+    (let [with-pugh (update (wf/read-file fixture/world-file) :items conj
                             {:id "set-square" :name "Set square" :holder "Pugh" :condition "true" :desc "A brass set square."})
           file-name (str (gensym "pugh-items-") ".edn")
           _ (store/write-text! store/test-runs-root file-name (wf/->edn-string with-pugh))
@@ -679,7 +695,7 @@
     (e/stop-run run)))
 
 (deftest move-the-abbey
-  (let [farther (-> (wf/read-file "worlds/claudeworth.edn")
+  (let [farther (-> (wf/read-file fixture/world-file)
                     (update :routes (fn [rs] (mapv (fn [[from to _ :as r]]
                                                      (if (some #{"abbey-gatehouse"} [from to]) [from to 3] r))
                                                    rs))))

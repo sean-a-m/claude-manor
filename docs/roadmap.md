@@ -243,7 +243,7 @@ Follow-ups, by need:
 
 The completed briefs are [Items](archived/items-brief.md) and its follow-up
 [items-followup.md](archived/items-followup.md). The follow-up added Nellie the housemaid to
-Claudeworth (run option `:housemaid? true`, off by default) and rewrote the `look` guidance. Its
+Claudeworth (now on by default; `:housemaid? false` leaves her out) and rewrote the `look` guidance. Its
 real run (10 rounds, $0.131, 169 calls) put `work-on` and the judge in front of a real model for
 the first time: six jobs, sensible partial work and low-luck mishaps, $0.0034 of judge calls, no
 forfeits. The wording alone did **not** cut looking: 54 of 169 calls (32%), against 33% before.

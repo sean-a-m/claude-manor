@@ -42,13 +42,13 @@
    :llm :openrouter                 ; :openrouter or :mock
    :model "deepseek/deepseek-v4.1-flash"
    :gm-model nil                    ; defaults to :model
-   :judge-model nil                 ; the judge of work on items (manor.items); defaults to :model
+   :judge-model nil                 ; narrow adjudicators (work and scenario queries); defaults to :model
    :gm :llm                         ; who fills the GM seat: :llm, :human or :off
    :reasoning {:effort "low"}
    :tool-choice "auto"              ; or "required"; DeepSeek's own endpoint rejects "required" with reasoning on
    :max-tokens 4000                 ; includes reasoning tokens
    :max-steps 10                    ; model calls per agent turn (a cost guard, not game time)
-   :max-queries 2                   ; query-bridge calls per agent turn
+   :max-queries 2                   ; bridge/adjudication queries per agent turn
    :gm-max-actions 4
    :event-window 30                 ; recent events shown to each agent
    :gm-check-in-every 0             ; 0 = only when triggered
@@ -84,13 +84,19 @@
 ;; Run plumbing
 
 (defn- mock-llm
-  "The mock LLM: the scenario's :mock-policy, except that judge calls (role
-  :judge) go to its :mock-judge, or else manor.items/mock-judge, so mock
-  policies needn't know about the judge."
+  "The scenario policy handles characters. Work uses :mock-judge (or the
+  default); internal adjudication queries use their registered :mock, never
+  a live provider. Character policies need not know about these calls."
   [scenario]
   (let [policy (or (:mock-policy scenario) (constantly nil))
         judge (or (:mock-judge scenario) items/mock-judge)]
-    (llm/mock (fn [ctx] (if (= :judge (:role ctx)) (judge ctx) (policy ctx))))))
+    (llm/mock (fn [ctx]
+                (case (:role ctx)
+                  :judge (judge ctx)
+                  :adjudicator (if-let [mock (get-in scenario [:adjudicators (:task ctx) :mock])]
+                                 (mock ctx)
+                                 (throw (ex-info "adjudicator needs a mock responder" {:task (:task ctx)})))
+                  (policy ctx))))))
 
 (defn- make-llm [scenario opts]
   (or (:llm-impl opts)
@@ -222,22 +228,38 @@
       (if (string? data) data (prompt/->json data)))
     "ok"))
 
+(declare ask-structured!)
+
 (defn- run-query!
-  "Run a query bridge during a turn. The result goes back to the caller and
-  is recorded as an event only the caller (and the operator) can see."
+  "Run a bridge or internal adjudication query during a turn. Only checked
+  adjudication results reach :on-result; technical failures have no effects."
   [run actor action args]
   (let [world @(:world run)]
     (if-let [reason (a/check action world actor args)]
       {:error reason}
       (let [_ (stop-interrupted! run actor action)
             world @(:world run)
-            bargs ((or (:bridge-args action) (fn [_ _ args] args)) world actor args)
-            {:keys [result error cost] :as res} (bridge/call (:scenario run) (:opts run) (bridge-ctx run)
-                                                             (:bridge action) bargs)]
+            task (:adjudicate action)
+            spec (get-in run [:scenario :adjudicators task])
+            bargs (when-not task ((or (:bridge-args action) (fn [_ _ args] args)) world actor args))
+            {:keys [result error cost] :as res}
+            (if task
+              (let [{:keys [messages tools ctx]} ((:request spec) world actor args)
+                    {:keys [verdict failure]}
+                    (ask-structured! run (str "adjudicator/" (subs (str task) 1))
+                                     {:messages messages :tools tools
+                                      :ctx (assoc ctx :role :adjudicator :task task)}
+                                     (:check spec))]
+                (if failure {:error "The enquiry failed; try again later." :failure failure} {:result verdict}))
+              (bridge/call (:scenario run) (:opts run) (bridge-ctx run) (:bridge action) bargs))]
         (locking (:world run)
-          (emit! run [{:type :bridge/called :actor actor :visible-to #{actor}
-                       :data {:bridge (:bridge action) :args bargs :result result :error error}}])
-          (record-bridge-cost! run actor (:bridge action) cost)
+          (if task
+            (when error
+              (emit! run [{:type :adjudication/failed :visible-to :system
+                           :data {:task task :caller actor :reason (:failure res)}}]))
+            (do (emit! run [{:type :bridge/called :actor actor :visible-to #{actor}
+                            :data {:bridge (:bridge action) :args bargs :result result :error error}}])
+                (record-bridge-cost! run actor (:bridge action) cost)))
           (when (and result (:on-result action))
             (emit! run (mapv #(cond-> % (not (:actor %)) (assoc :actor actor))
                              ((:on-result action) @(:world run) actor args result)))))
@@ -268,6 +290,31 @@
                :replies replies}]
     (store/append-llm! (:dir run) entry)
     (swap! (:last-calls run) assoc agent-id entry)))
+
+(defn- ask-structured!
+  "Shared narrow model-call lifecycle: checked answer, one correction attempt,
+  usage/transcript logging and safe failure. The domain owns prompts/checks."
+  [run identity {:keys [messages tools ctx label] :or {label "adjudicator"}} check]
+  (let [opts (:opts run)
+        model (or (:judge-model opts) (:model opts))]
+    (try
+      (loop [messages messages, attempt 0]
+        (let [request {:model model :messages messages :tools tools
+                       :max-tokens (:max-tokens opts) :reasoning (:reasoning opts)
+                       :tool-choice (:tool-choice opts)}
+              response (llm/complete (:llm run) (assoc request :ctx (assoc ctx :step attempt)))
+              _ (record-usage! run identity request response)
+              {:keys [verdict error replies]}
+              (try (check response)
+                   (catch Throwable t
+                     (record-call! run identity request response [])
+                     (throw t)))]
+          (record-call! run identity request response replies)
+          (cond verdict {:verdict verdict}
+                (zero? attempt) (recur (into (conj messages (:message response)) replies) 1)
+                :else {:failure (str "a second bad answer: " error)})))
+      (catch Throwable t
+        {:failure (str "the " label " call failed: " (ex-message t))}))))
 
 (defn- limit-reached
   "Why `action` can't be used again this turn, or nil: its :per-turn uses
@@ -520,26 +567,12 @@
   once more. Each call is recorded in llm.edn as agent \"judge\", and its
   usage counts towards the run's cost."
   [run world job work reach]
-  (let [{:keys [scenario opts]} run
-        {:keys [messages tools]} (items/judge-request scenario world job work reach)
-        model (or (:judge-model opts) (:model opts))]
-    (try
-      (loop [messages messages, attempt 0]
-        (let [request {:model model :messages messages :tools tools
-                       :max-tokens (:max-tokens opts) :reasoning (:reasoning opts)
-                       :tool-choice (:tool-choice opts)}
-              response (llm/complete (:llm run)
-                                     (assoc request :ctx (assoc (select-keys work [:minutes :stopped-early? :luck])
-                                                                :role :judge :step attempt :world world
-                                                                :job job :items reach)))
-              _ (record-usage! run "judge" request response)
-              {:keys [verdict error replies]} (items/judgement response reach)]
-          (record-call! run "judge" request response replies)
-          (cond verdict verdict
-                (zero? attempt) (recur (into (conj messages (:message response)) replies) 1)
-                :else {:failure (str "a second bad answer: " error)})))
-      (catch Throwable t
-        {:failure (str "the judge call failed: " (ex-message t))}))))
+  (let [request (assoc (items/judge-request (:scenario run) world job work reach)
+                       :label "judge"
+                       :ctx (assoc (select-keys work [:minutes :stopped-early? :luck])
+                                   :role :judge :world world :job job :items reach))
+        {:keys [verdict] :as result} (ask-structured! run "judge" request #(items/judgement % reach))]
+    (or verdict result)))
 
 (defn- finish-job!
   "Apply the end of one job (see manor.items/ending-jobs): dropped, ended

@@ -12,7 +12,7 @@ and Hollin Abbey. These names live in the data file and are easy to change.
 
 ## 1. The slice, and when it's done
 
-Four agents:
+The current cast (the original four plus the housemaid and shopkeeper):
 
 | Agent | Role | Starts in | Purpose in the slice |
 |---|---|---|---|
@@ -20,6 +20,8 @@ Four agents:
 | The Countess | `countess` | her bedroom | is consulted; has her own (possibly strong) opinions |
 | Mr Hale, private secretary | `secretary` | his room | is dispatched to the village to see to it |
 | Mr Pugh, architect (optional) | `architect` | architect's office (village) | consults the reference books, draws plans, gives advice, earns a fee |
+| Nellie, housemaid | `housemaid` | maid's room | works on the household's things |
+| Mr Briggs, shopkeeper | `shopkeeper` | general store | checks requested goods and quotes prices; lives above the shop |
 
 The design is done when a run supports this sequence, first with the mock policy (free,
 scripted) and then with real models:
@@ -61,7 +63,7 @@ consistent (section 6.4).
 | Who writes the map | The engine only. The file in `resources/` is the **fresh world**, the starting map, and is never modified (section 4.1). The live map is in the world and changes only by events. After each change, the engine writes the current map to `<run-dir>/map.edn` in the same format (output only; nothing reads it during the run). To continue from a grown house, start a new run with `:world-file "runs/<id>/map.edn"`. | This keeps invariants 1, 2 and 4: replay, branching and loading all work, and no external process becomes a shared side channel. |
 | Architect server | A **babashka** script in `mcp-servers/architect/` (its own `bb.edn`), started by the engine as `bb -m architect.server`. It consults a **reference library** (the Ashcombe YAML and spec), quotes prices, and drafts the room. It refuses only structurally impossible requests (section 6.5). | It's Clojure, starts in milliseconds, and has JSON and YAML built in. The architectural judgment comes from agents, not rules. |
 | Plans, then commission | `draw-plans` is a *query* (calls the server; the drafted plan is stored in state as an event). `commission` is a *final* action with no bridge. | No engine change is needed for "final action that calls a bridge", the steps match the real-world process, and the optional architect agent can do the drawing. |
-| Money | One household account. **The earl, countess and secretary** can all spend from it freely. | The user decided anyone in the family spends for now. The secretary is included, acting for the family, so that he can be dispatched. That's one line to change for more drama later. |
+| Money | One household account. **All characters** can spend from it. | Social station, instructions and relationships determine who attempts to spend; code does not enforce role-based authority. |
 | Time | One round is 30 minutes, from a clock stored in the world. Prompts show "Saturday 15 October 1904, 09:30", not round numbers. | Agents need to reason about mornings, office hours and bedtime. |
 | Briefs | **Rules in code, setting and flavour in the world file.** A brief is a function of the world: the setting (`:meta :setting`) and the role's `:about` (`:roles`) come from the world file, and the rules paragraph is written in code with its numbers (minutes per turn, the speech limit) taken from the clock and the actions. Tool descriptions are mechanics only. | One home per fact: if the abbey moved farther away, only the world file's route would change (section 12, decision 12). |
 | Moving inside a building | A **free** `walk` action to anywhere reachable without a journey; journeys use a separate **final** `travel` action. | Walking from the study to the drawing room shouldn't cost a 30-minute turn. |
@@ -95,7 +97,8 @@ edited copy, or `map.edn` exported from an earlier run).
   ;; earls-bedroom, countess-bedroom, secretarys-room (first floor, :kind :bedroom)
 
   ;; ------------------------------------------------ Claudeworth village
-  ;; village-green, general-store (:hours ["08:00" "18:00"]),
+  ;; village-green, general-store (:hours ["08:00" "18:00"], :services #{:general-store},
+  ;; :store-profile "A modest village general store ..."), store-lodgings,
   ;; architects-office (:hours ["09:00" "18:00"]), architects-lodgings (the architect's bedroom)
   ;; the inn comes in phase 3
 
@@ -116,11 +119,10 @@ edited copy, or `map.edn` exported from an earlier run).
          :persona "..."}
         {:name "Hale" :role :secretary :location "study" :bedroom "secretarys-room" :persona "..."}
         {:name "Pugh" :role :architect :location "architects-office" :bedroom "architects-lodgings"
-         :optional? :architect? :persona "..."}]
-
- :shop {"general-store" [{:item "provisions" :price 1 :desc "a week's groceries for the household"}
-                         {:item "candles" :price 1}
-                         {:item "coal" :price 2 :desc "a ton"}]}}
+         :optional? :architect? :persona "..."}
+        {:name "Briggs" :role :shopkeeper :location "general-store" :bedroom "store-lodgings"
+         :persona "..."}]}
+;; Other residents and their routines are in the actual world file; no :shop catalogue.
 ```
 
 Field rules:
@@ -139,8 +141,8 @@ Field rules:
   `:connects-to`, route endpoint and agent `:location` exists; the clock parses. The scenario
   checks its own keys (`:bedroom`, `:hours`).
 - errors name the entry, e.g. `location "kitchen": :connects-to names unknown location "sculery"`
-- return `{:space :clock :agents :world-file}`; the scenario reads its own sections (`:shop`,
-  `:meta`) from `:world-file`, and its own keys on agents (`:bedroom`)
+- return `{:space :clock :agents :world-file}`; the scenario reads its own sections (`:meta`,
+  `:roles`) from `:world-file`, and its own keys on agents/locations (`:bedroom`, `:store-profile`)
 
 **Exporting:** `(manor.worldfile/export world start)` turns the live world back into the shape of
 the starting file (`->edn-string` prints it readably). The engine writes it to
@@ -213,17 +215,32 @@ in a fraction of a second.
 
 ### 6.2 Money
 
-- `:state :household {:funds 3000 :stores {"provisions" 2}}`
-- The earl, countess and secretary see it and can spend from it.
+- `:state :household {:funds 720000 :stores {"provisions" 2}}`: £3000 in old pence.
+- All characters see it and can spend from it; social authority is left to the agents.
 - The architect has a private purse and earns a fee (10% of each commission) on plans he drew:
   an in-world reason to encourage bigger, grander works.
-- Integer pounds throughout.
+- Integer old pence throughout runtime state: £1 = 20s = 240d. `manor.money` formats amounts
+  as pounds/shillings/pence; no floats. World-file starting funds and architect MCP prices
+  remain authored in whole pounds and are converted at those boundaries. Fees round down
+  to a penny. This change intentionally invalidates old runs; no migration is maintained.
 
 ### 6.3 The store
 
-`buy {item qty}` at the general store during opening hours. It's paid from the household account,
-and the goods go to the household stores. In the slice it gives the village a second purpose and
-the secretary an errand. Eating provisions only matters once needs exist (phase 3).
+Mr Briggs keeps the general store, with a routine and lodgings above it. Ask him for goods
+with `say`; he uses `quote-goods {for item qty}`. A narrow engine-run adjudicator checks whether
+this kind of store in rural England in 1904 could plausibly stock the request, then prices it
+in old pence. Its prompt includes the actual store's `:store-profile`, name/description,
+setting/date and goods/quantity, not the full world or household wealth.
+
+A checked offer or refusal is announced to people at the counter. A quote fixes buyer, clerk,
+shop, quantity, item details and price. The customer accepts with `buy {quote-id}`: code checks
+funds, co-location, opening hours and that the quote is unspent, then deducts money, consumes
+the quote and creates portable items carried by the buyer, owned by the household. There is
+no fixed inventory, bulk counter purchasing, delivery, bargaining or clock expiry on offers.
+Availability is semantic plausibility, not a finite stock ledger. Opening hours are unchanged.
+
+The shared call/check/retry/logging runner also serves the work judge; the store does not
+borrow work-job scheduling or the architect's MCP transport. See [the store brief](archived/general-store-brief.md).
 
 ### 6.4 Building
 
@@ -318,11 +335,12 @@ map; places, journeys and opening hours reach agents through their view.
 | `spend-time {activity hours}` | all | final | anywhere |
 | `sleep {until}` | all | final | in a bedroom |
 | `rouse {who}` | all | free | same room, target occupied |
-| `buy {item qty}` | earl, countess, secretary | final | store, open hours |
+| `quote-goods {for item qty}` | shopkeeper | query | general-store service, customer present, open hours |
+| `buy {quote-id}` | all | final | original store, buyer and clerk present, open hours |
 | `consult-references {query}` | all | query | architect's office |
 | `draw-plans {...}` | architect, or a client when no architect is present | query | architect's office, open hours |
 | `show-plans {plan-id}` | all | free | anywhere; shares a plan you can see with the room |
-| `commission {plan-id}` | earl, countess, secretary | final | architect's office, open hours |
+| `commission {plan-id}` | all | final | architect's office, open hours |
 
 The briefs set up the social dynamics the rules leave out:
 
@@ -335,12 +353,13 @@ The GM is hands-off and unseen by the characters: it's called only when an agent
 **`:observe`** (private per agent):
 
 - `:time`, `:you` (bedroom)
-- `:household` (funds, stores, works in progress), for the family and secretary only
+- `:household` (funds and stores), visible to all characters; building works are shown separately
 - `:places` by area
-- `:here` details: open now? shop prices?
+- `:here` details: opening hours, general-store profile and how to ask the clerk
+- `:offers`, unspent quotes made for you or by you, with formatted prices
 - `:plans`, for the plans you drew, that were drawn for you, or that were shown to you
 
-The architect sees his own purse and his clients' plans, not the household account.
+The architect sees his own purse and his clients' plans, plus the shared household account.
 
 ## 8. Engine changes (phase 0, done)
 
@@ -496,8 +515,11 @@ These are estimates for the user's own long runs, not test plans: checks use sho
 3. **Very light rules:** the architect consults a reference library (the Ashcombe documents) and
    argues with the client. Anything structurally possible gets built. Pushback comes from the
    architect and the countess, not code.
-4. **Spending:** anyone in the family spends freely. The secretary is included, acting for the
-   family, so that he can be dispatched.
+4. **Spending:** all characters can spend from the household account, including buying goods
+   and commissioning plans. Implemented: no hardcoded spender-role list. Social station,
+   instructions and relationships determine who attempts it; affordability, quote ownership,
+   plan access, location and opening hours are still enforced. This supersedes the original
+   family-and-secretary-only restriction.
 5. **Model:** `deepseek/deepseek-v4.1-flash` everywhere for now.
 6. **Name:** scenario `:claudeworth`, Claudeworth Manor.
 7. **Babashka** runs the architect server (installed: v1.13.226).
@@ -584,7 +606,8 @@ Decisions for items (done):
 
 23. **Items are an engine module.** `manor.items` is opt-in through a scenario's `:items` key,
     like `manor.space`. Items load from the world file and export to `map.edn`; purchases create
-    carried items. Household provisions and coal remain counters, not individual objects.
+    carried items. Existing household counters remain, but new store purchases are portable
+    objects only (decision 36 supersedes the old bulk-buying path).
 24. **Conditions are free text.** A short phrase of at most 80 characters describes an item's
     state. Work changes only conditions, never names or descriptions.
 25. **A separate judge is asked when work ends.** This is a narrow engine-run model call, not
@@ -606,7 +629,8 @@ Decisions for items (done):
     store, rebuilt from the event log, never the source of truth. Neither is needed yet.
 30. **The housemaid is optional and on by default.** Nellie (`:housemaid`), with a maid's room
     off the kitchen, exists so `work-on` is somebody's job: `:housemaid? false` leaves her out.
-    She has no household money. World-file
+    She has no personal money; household spending is mechanically open to her like every
+    other character (decision 4), with social authority left to the agents. World-file
     agents that may be left out carry `:optional?`, naming the run option that decides them
     (`:architect?` for Mr Pugh, `:housemaid?` for Nellie); `:init` keeps each accordingly.
 31. **`look` is for close examination, not routine looking.** Conditions, descriptions and owners
@@ -640,3 +664,11 @@ Decisions for items (done):
     whole house): a call naming someone busy but awake interrupts them, as `rouse` does; it
     doesn't wake a sleeper. Who may properly call whom is left to the characters' station, not
     enforced. Reminders no longer count the per-turn calls. See [the turns brief](archived/turns-brief.md).
+36. **General store: clerk, adjudicated offers and pence.** Implemented: Mr Briggs obtains a
+    checked offer from a narrow adjudicator grounded in the store's own profile; the buyer
+    separately accepts it. Portable goods only, no fixed catalogue, bargaining or bulk counters.
+    Internal queries share the work judge's model-call/retry/accounting runner, not the GM seat
+    or architect MCP server. Runtime sterling is integer old pence. Old runs may be invalidated;
+    no compatibility path is maintained. Mechanics tests use a tiny independent store and
+    exercise extra/reordered/removed unrelated agents; bundled-content smoke tests cover the
+    current demonstration without a cast snapshot. See section 6 and the store brief.

@@ -7,7 +7,8 @@
    [:spend-time {:activity "filing correspondence", :hours 4}]],
   "11:30" [[:travel {:to "general-store"}]],
   "08:30" [[:spend-time {:activity "breakfasting", :hours 1}]],
-  "12:00" [[:buy {:item "coal", :qty 1}]],
+  "12:00" [[:request-goods {:item "tin of silver polish", :qty 1}]],
+  "12:30" [[:accept-offer {:item "tin of silver polish"}]],
   "06:30"
   [[:walk {:to "earls-bedroom"}]
    [:rouse {:who "lord-claudeworth"}]
@@ -26,10 +27,11 @@
 
  "lady-claudeworth"
  {"17:00" [[:travel {:to "carriage-sweep"}]],
-  "16:00" [[:travel {:to "general-store"}]],
+  "15:30" [[:travel {:to "general-store"}]],
+  "16:00" [[:request-goods {:item "feather duster", :qty 1}]],
   "14:00"
   [[:spend-time
-    {:activity "sitting quietly in the abbey church", :hours 2}]],
+    {:activity "sitting quietly in the abbey church", :hours 1.5}]],
   "08:30" [[:spend-time {:activity "breakfasting", :hours 1}]],
   "19:00"
   [[:say
@@ -44,7 +46,7 @@
    [:give {:item "feather-duster", :to "nellie"}]
    [:spend-time {:activity "writing letters", :hours 1.5}]],
   "13:30" [[:travel {:to "abbey-church"}]],
-  "16:30" [[:buy {:item "feather duster", :qty 1}]],
+  "16:30" [[:accept-offer {:item "feather duster"}]],
   "08:00"
   [[:walk {:to "dining-room"}]
    [:say

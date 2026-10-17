@@ -1,10 +1,10 @@
 (ns manor.scenarios.building
-  "Claudeworth's household, shop, plans and construction. All changes are events."
+  "Claudeworth's household money, plans and construction. All changes are events."
   (:require [clojure.edn :as edn]
             [clojure.string :as str]
             [manor.builtins :as b]
             [manor.clock :as clock]
-            [manor.items :as items]
+            [manor.money :as money]
             [manor.narrate :as n]
             [manor.space :as space]
             [manor.world :as w])
@@ -12,7 +12,6 @@
 
 (def fee-percent 10)
 (def query-record-limit 600)
-(def spenders #{:earl :countess :secretary})
 (def prices (edn/read-string (slurp "mcp-servers/architect/prices.edn")))
 (def sizes (mapv :size (:sizes prices)))
 
@@ -57,11 +56,7 @@
                                 :when (contains? (:services l) :architect)]
                             (str (:name l) " (" (:id l) ")")))))))
 
-;; Pure reducers. Records with no state changes still persist private knowledge.
-;; Goods of :kind :item become items (their :item/added events), not stores.
-(defmethod w/apply-event :claudeworth/bought [world {:keys [data]}]
-  (cond-> (update-in world [:state :household :funds] - (:price data))
-    (not= :item (:kind data)) (update-in [:state :household :stores (:item data)] (fnil + 0) (:qty data))))
+;; Pure reducers. Monetary state is always integer old pence.
 (defmethod w/apply-event :claudeworth/consulted [world _] world)
 (defmethod w/apply-event :claudeworth/prices-quoted [world _] world)
 (defmethod w/apply-event :claudeworth/draft-refused [world _] world)
@@ -79,20 +74,16 @@
 
 (defn- clip [s] (subs s 0 (min query-record-limit (count s))))
 (defn- beside [names ids] (str/join ", " (map #(n/place names %) ids)))
-(defmethod n/describe :claudeworth/bought [{:keys [actor data]} names]
-  (str (n/who names actor) " buys " (:qty data) " " (:item data) " for £" (:price data)
-       " at the " (n/place names (:location data))
-       (if (= :item (:kind data)) "." ", for the household stores.")))
 (defmethod n/describe :claudeworth/consulted [{:keys [actor data]} names]
   (str (n/who names actor) " consults the reference books about " (:query data) ": "
        (clip (str/join "; " (map #(str (:title %) ": " (:text %)) (:matches data))))))
 (defmethod n/describe :claudeworth/prices-quoted [{:keys [actor data]} names]
-  (str (n/who names actor) " receives the price list: " (clip (pr-str (:sizes data)))))
+  (str (n/who names actor) " receives the price list (prices in pounds): " (clip (pr-str (:sizes data)))))
 (defmethod n/describe :claudeworth/draft-refused [{:keys [data]} _]
   (str "The draft could not be stored: " (:reason data)))
 (defmethod n/describe :claudeworth/plans-drawn [{:keys [actor data]} names]
   (str (n/who names actor) " has plans drawn for " (get-in data [:plan :name])
-       " (" (get-in data [:plan :id]) "), £" (get-in data [:plan :price]) "."))
+       " (" (get-in data [:plan :id]) "), " (money/display (get-in data [:plan :price])) "."))
 (defmethod n/describe :claudeworth/plans-shown [{:keys [actor data]} names]
   (str (n/who names actor) " spreads out the plans for " (:plan-id data) " for the room to see."))
 (defmethod n/describe :claudeworth/commissioned [{:keys [data]} names]
@@ -180,45 +171,16 @@
     [{:type :claudeworth/draft-refused :visible-to #{actor} :data {:reason reason}}]
     (let [client (get args :for actor)
           p (merge (select-keys (:plan result) [:id :name :floor :desc :connects-to])
-                   (select-keys result [:price :build-days])
+                   {:price (money/pounds->pence (:price result)) :build-days (:build-days result)}
                    {:size (:size args) :drawn-by actor :for client :holders (set [actor client])})
           p (update p :floor floor-key)]
       [{:type :claudeworth/plans-drawn :visible-to (set [actor client]) :data {:plan p}}])))
-
-(defn new-item
-  "The fields of an item bought from shop entry `good` (:kind :item) by
-  `buyer`: carried by them, owned by the household."
-  [good buyer]
-  {:name (str (str/upper-case (subs (:item good) 0 1)) (subs (:item good) 1))
-   :desc (:desc good) :condition (:condition good)
-   :holder buyer :owner "household"})
 
 (defn- held-reason [world actor id]
   (when-not (contains? (:holders (plan world id)) actor) "you have not seen those plans; ask to have them shown to you"))
 
 (def actions
-  [{:name :buy :kind :final :roles spenders
-    :doc "Buy goods at a shop during its open hours. Paid from household funds; goods go to household stores, except those marked `carried`, which are handed to you. See here for items and prices."
-    :args [:map [:item :string] [:qty [:int {:min 1 :max 20}]]]
-    :valid? (fn [world actor {:keys [item qty]}]
-              (let [loc (here world actor) goods (get-in world [:state :shop (:id loc)])
-                    good (first (filter #(= item (:item %)) goods))]
-                (cond
-                  (empty? goods) "go to a shop first; see places for shops"
-                  (closed world loc) (closed world loc)
-                  (nil? good) (str "the " (:name loc) " sells: " (str/join ", " (map #(str (:item %) " (£" (:price %) ")") goods)))
-                  (> (* qty (:price good)) (funds world))
-                  (str qty " " item " costs £" (* qty (:price good)) "; the household has £" (funds world)))))
-    :effect (fn [world actor {:keys [item qty]}]
-              (let [loc (space/location-of world actor)
-                    good (first (filter #(= item (:item %)) (get-in world [:state :shop loc])))
-                    bought {:type :claudeworth/bought :visible-to (space/here world actor)
-                            :data (cond-> {:location loc :item item :qty qty :price (* qty (:price good))}
-                                    (= :item (:kind good)) (assoc :kind :item))}]
-                (if (= :item (:kind good))
-                  (into [bought] (items/added-events world (repeat qty (new-item good actor)) (space/here world actor)))
-                  [bought])))}
-   {:name :consult-references :kind :query :roles :all
+  [{:name :consult-references :kind :query :roles :all
     :doc "Search reference books at an open architect's office. The result is private and remembered next turn."
     :args [:map [:query [:string {:min 2 :max 200}]]]
     :valid? (fn [world actor _] (office-reason world actor))
@@ -226,13 +188,13 @@
     :on-result (fn [_ actor args result]
                  [{:type :claudeworth/consulted :visible-to #{actor} :data (assoc result :query (:query args))}])}
    {:name :price-list :kind :query :roles :all
-    :doc "Ask for the price list at an open architect's office. The result is private and remembered next turn."
+    :doc "Ask for the price list at an open architect's office. All prices in this bridge result are whole pounds (£), not pence. The result is private and remembered next turn."
     :args [:map] :valid? (fn [world actor _] (office-reason world actor))
     :bridge :architect/prices :bridge-args (fn [_ _ _] {})
     :on-result (fn [_ actor result-args result]
                  [{:type :claudeworth/prices-quoted :visible-to #{actor} :data result}])}
    {:name :draw-plans :kind :query :roles :all
-    :doc "Draft and price a room at an open architect's office. If an architect is here, only that agent can draw, naming a client with for; ask him with say. With no architect here, the clerk draws for you. Use house room ids from places for connects-to. Plans are stored, not commissioned."
+    :doc "Draft and price a room at an open architect's office. If an architect is here, only that agent can draw, naming a client with for; ask him with say. With no architect here, the clerk draws for you. Use house room ids from places for connects-to. Bridge prices are whole pounds (£); stored plans show formatted sterling. Plans are stored, not commissioned."
     :args [:map [:for {:optional true} :string] [:name [:string {:min 1 :max 60}]] [:floor :string]
            [:desc [:string {:min 1 :max 600}]] [:connects-to [:vector {:min 1 :max 4} :string]]
            [:size (into [:enum] sizes)]]
@@ -246,7 +208,7 @@
     :effect (fn [world actor {:keys [plan-id]}]
               [{:type :claudeworth/plans-shown :visible-to (space/here world actor)
                 :data {:plan-id plan-id :to (vec (sort (space/here world actor)))}}])}
-   {:name :commission :kind :final :roles spenders
+   {:name :commission :kind :final :roles :all
     :doc "Commission a plan you hold at an open architect's office, paid from household funds. Only one room is built at a time: while any room is being built, a commission is refused until it is finished (see building for the completion time)."
     :args [:map [:plan-id :string]]
     :valid? (fn [world actor {:keys [plan-id]}]
@@ -257,8 +219,8 @@
                          ". Only one room is built at a time: commission the "
                          (:name (plan world plan-id)) " then."))
                   (when (> (:price (plan world plan-id)) (funds world))
-                    (str "the " (:name (plan world plan-id)) " would cost £" (:price (plan world plan-id))
-                         "; the household has £" (funds world)))))
+                    (str "the " (:name (plan world plan-id)) " would cost " (money/display (:price (plan world plan-id)))
+                         "; the household has " (money/display (funds world))))))
     :effect (fn [world actor {:keys [plan-id]}]
               (let [p (plan world plan-id) price (:price p)
                     delay (or (get-in world [:state :build-rounds]) (* (clock/rounds-per-day (:clock world)) (:build-days p)))
@@ -287,47 +249,36 @@
                    (get-in world [:state :works])))})
 
 (defn observe [world id]
-  (let [role (:role (w/agent world id)) works (get-in world [:state :works])
-        goods (get-in world [:state :shop (space/location-of world id)])]
-    (cond-> {}
-      (spenders role) (assoc :household (get-in world [:state :household]))
-      (= role :architect) (assoc :you {:purse (get-in world [:state :purses id] 0)})
-      (seq goods) (assoc :here {:sells (mapv #(cond-> (select-keys % [:item :price])
-                                                (= :item (:kind %)) (assoc :carried true))
-                                             goods)})
+  (let [role (:role (w/agent world id)) works (get-in world [:state :works])]
+    (cond-> {:household (update (get-in world [:state :household]) :funds money/display)}
+      (= role :architect) (assoc :you {:purse (money/display (get-in world [:state :purses id] 0))})
       (seq works) (assoc :building (mapv (fn [work] {:name (:name work)
                                                     :beside (mapv #(loc-name world %) (:connects-to work))
                                                     :finish (clock/short-label (:clock world) (:due work) (:round world))}) works))
       true (assoc :plans (vec (for [p (sort-by :id (vals (get-in world [:state :plans])))
                                    :when (contains? (:holders p) id)]
-                               (assoc (select-keys p [:id :name :size :floor :price :connects-to])
+                               (assoc (select-keys p [:id :name :size :floor :connects-to])
+                                      :price (money/display (:price p))
                                       :status (cond (some #(= (:id p) (:plan-id %)) works) "being built"
                                                     (:built? p) "built" :else "drawn"))))))))
 
 (defn initial-state [wf agents opts]
-  {:household {:funds (get-in wf [:meta :starting-funds]) :stores (or (get-in wf [:meta :starting-stores]) {})}
-   :shop (:shop wf) :purses (into {} (for [a agents :when (= :architect (:role a))] [(b/slug (:name a)) 0]))
+  {:money-unit :old-pence
+   :household {:funds (money/pounds->pence (get-in wf [:meta :starting-funds]))
+               :stores (or (get-in wf [:meta :starting-stores]) {})}
+   :purses (into {} (for [a agents :when (= :architect (:role a))] [(b/slug (:name a)) 0]))
    :plans {} :works [] :build-rounds (:build-rounds opts)})
 
-(defn problems [{:keys [locations shop meta]}]
-  (let [by-id (into {} (map (juxt :id identity)) locations)
-        sold (set (map :item (mapcat val shop)))]
-    (concat
-     (for [[id _] shop :when (not (:hours (by-id id)))] (str ":shop " id " must be a location with :hours"))
-     (for [[id goods] shop good goods
-           :when (not (and (short-text? (:item good) Integer/MAX_VALUE)
-                           (integer? (:price good)) (pos? (:price good))))]
-       (str ":shop " id " needs non-empty item names and positive integer prices"))
-     (for [item (keys (:starting-stores meta)) :when (not (sold item))]
-       (str "starting store item " item " must be sold in a shop"))
-     (for [[id goods] shop good goods
-           :when (and (= :item (:kind good))
-                      (not (and (short-text? (:item good) items/max-name) (short-text? (:desc good) items/max-desc)
-                                (short-text? (:condition good) items/max-condition))))]
-       (str ":shop " id " " (pr-str (:item good)) ": goods of :kind :item need a name of at most " items/max-name
-            " characters, a :desc (at most " items/max-desc ") and a :condition (at most " items/max-condition ")"))
-     (for [loc locations :when (and (contains? loc :services)
+(defn problems [{:keys [locations meta]}]
+  (concat
+   (when-not (and (integer? (:starting-funds meta)) (<= 0 (:starting-funds meta)))
+     [":meta :starting-funds must be non-negative integer pounds"])
+   (when-not (and (map? (:starting-stores meta {}))
+                  (every? (fn [[item qty]] (and (short-text? item 60) (integer? qty) (<= 0 qty)))
+                          (:starting-stores meta)))
+     [":meta :starting-stores must map non-empty item names to non-negative integer quantities"])
+   (for [loc locations :when (and (contains? loc :services)
                                   (not (and (set? (:services loc)) (every? keyword? (:services loc)))))]
-       (str "location " (:id loc) ": :services must be a set of keywords"))
-     (when-not (some #(and (set? (:services %)) (contains? (:services %) :architect) (:hours %)) locations)
-       ["at least one architect service needs :hours"]))))
+     (str "location " (:id loc) ": :services must be a set of keywords"))
+   (when-not (some #(and (set? (:services %)) (contains? (:services %) :architect) (:hours %)) locations)
+     ["at least one architect service needs :hours"])))

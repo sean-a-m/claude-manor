@@ -15,7 +15,11 @@ example), `quiz` (each contestant has a private, persistent pi assistant reached
 `claudeworth` (an Edwardian household and the village architect: half-hour turns, sleep and
 pastimes, a shop, items to carry, inspect, put away and work on, plans and rooms built over a delay; the
 architect is a babashka MCP server; its world is `resources/worlds/claudeworth.edn`). Work on items
-changes their condition when it ends, through a separate judge model call.
+changes their condition when it ends, through a separate judge model call. At the general store,
+Mr Briggs checks requested portable goods with an adjudicator and offers a firm quote; the buyer
+accepts with `buy {quote-id}`. There is no fixed catalogue or bulk delivery. Claudeworth money
+uses old pence internally (£1 = 240d), shown as pounds, shillings and pence. Start a fresh run:
+old Claudeworth runs are not compatible with this store/currency change.
 
 ## MCP bridges
 
@@ -107,7 +111,7 @@ Passed to `start-run` / `start!` (defaults in `manor.engine/default-opts`):
 | Option | Default | |
 |---|---|---|
 | `:llm` | `:openrouter` | or `:mock` (uses the scenario's mock policy) |
-| `:model` / `:gm-model` / `:judge-model` | `deepseek/deepseek-v4.1-flash` | per-agent `:model` overrides; `:gm-model` and `:judge-model` (the judge of work on items) default to `:model` |
+| `:model` / `:gm-model` / `:judge-model` | `deepseek/deepseek-v4.1-flash` | per-agent `:model` overrides; `:gm-model` and `:judge-model` (work and shop adjudicators) default to `:model` |
 | `:gm` | `:llm` | who holds the GM seat: `:llm`, `:human`, `:off` |
 | `:tool-choice` | `"auto"` | or `"required"` (CLI: `--tool-choice required`) to force a tool call on every reply. Not known to help: in a 4-round real run with `"auto"`, every reply called a tool. DeepSeek's own endpoint rejects `"required"` while reasoning is on. Under `"auto"`, a reply without a tool call is nudged once, then the turn ends |
 | `:offline?` | `false` | use the scenario's bridge stubs |
@@ -116,7 +120,7 @@ Passed to `start-run` / `start!` (defaults in `manor.engine/default-opts`):
 | `:start` | | start the scenario's clock at this time, e.g. `"1904-10-15T21:00"` (CLI: `--start`); scenarios with a clock only. People still start where the world puts them |
 | `:build-rounds` | | override the build delay for one run, in rounds (Claudeworth; default one day per build day) |
 | `:housemaid?` / `:architect?` | `true` / `true` | Claudeworth: include Nellie and Mr Pugh; pass `false` to leave either out (REPL options) |
-| `:max-steps` / `:max-queries` | 10 / 2 | model calls and query bridges per turn (a cost guard, not game time) |
+| `:max-steps` / `:max-queries` | 10 / 2 | model calls and bridge/adjudication queries per turn (a cost guard, not game time) |
 | `:event-window` | 30 | recent events in each prompt |
 | `:gm-check-in-every` | 0 | rounds between GM check-ins (0 = only when triggered) |
 | `:reasoning` / `:max-tokens` | `{:effort "low"}` / 4000 | passed to OpenRouter |

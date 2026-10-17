@@ -50,6 +50,7 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :roles         {...}                    ; required, see below
    :actions       [...]                    ; scenario actions, see below
    :bridges       {...}                    ; optional, real-world calls
+   :adjudicators  {...}                    ; optional, narrow internal model queries (see below)
    :mcp-servers   {...}                    ; optional, MCP servers that bridges call
    :systems       [...]                    ; optional, per-round world processes
    :items         {:judge-brief (fn [world] "...")}   ; optional, turns on items (see Items)
@@ -142,7 +143,7 @@ Each action is a map. Each role's actions become that role's LLM tools.
 |---|---|---|---|
 | `:final` | yes | immediately (sequential turns) or after the group (simultaneous) | the normal action |
 | `:free` | no | immediately | notes, declining, small side moves |
-| `:query` | no | immediately; calls a bridge, and the result comes back within the turn | needs `:bridge`; limited by `:max-queries` per turn; no approval |
+| `:query` | no | immediately; bridge or internal adjudication result comes back within the turn | either `:bridge` or `:adjudicate`; limited by `:max-queries` per turn; no approval |
 | `:act` | yes | creates a pending request; runs after operator approval at the next round start | needs `:bridge` |
 
 **Per-turn limits:** `:per-turn n` caps how often an action can be used in one turn; it suits
@@ -168,6 +169,57 @@ Query and act actions also take:
 For query actions the bridge result is returned to the model as JSON. `:effect` is not used.
 For act actions, set `:actor` explicitly on `:on-result` events. `:valid?` runs when the request is
 made, not when it is executed.
+
+#### Internal adjudication queries
+
+A query can use `:adjudicate :your/task` **instead of** `:bridge`. Register its adapter in the
+scenario:
+
+```clojure
+:adjudicators
+{:your/task
+ {:request (fn [world actor args] {:messages [...] :tools [...] :ctx {...}})
+  :check   (fn [response] {:verdict checked-data :replies [...]}) ; or {:error reason :replies [...]}
+  :mock    (fn [ctx] {:tool :answer :args {...}})}}
+```
+
+These are narrow engine-run LLM calls, not the GM and not real-world bridges. Build only the
+context needed for that judgement; never dump the world or unrelated private state. Treat
+agent-authored strings as untrusted data. `:ctx` is local mock context, not a model message.
+The engine adds `:role :adjudicator`, `:task` and `:step` (attempt 0 or 1) to that context.
+
+The engine uses `:judge-model` (falling back to `:model`), with the run's reasoning, token and
+tool-choice options. It asks once more after an invalid answer, using the checker's replies.
+`manor.adjudication/answer` implements first-tool-call selection and replies; domain code
+supplies the tool name and raw-argument checker. The work judge uses the same runner/parser,
+but keeps its own prompts, domain checks and round-start scheduling.
+
+Only a checked `:verdict` reaches the action's `:on-result` and the caller's JSON tool reply.
+The callback returns events with `:actor` filled in automatically. Record everything that must
+persist as events here; replay never calls the model. A valid negative answer is a verdict too.
+Repeated invalid output or provider failure runs no callback: the caller gets a neutral error,
+and an operator-only `:adjudication/failed` event records the task/caller/reason. There is no
+arbitrary model-to-world patch.
+
+Every returned model response and its usage are logged under `adjudicator/<namespace>/<task-name>` and
+count toward the normal run cost cap. One action invocation uses one query slot even if the
+adjudicator needs a correction. In mock runs the registered `:mock` handles these calls,
+separately from character `:mock-policy`; supply a responder for every task used offline.
+
+Claudeworth's `manor.scenarios.shop` is an example. Every appraisal receives the actual
+location's `:store-profile` (required, non-blank, at most 2000 characters), name/description,
+setting/date and goods/quantity. It refuses unsuitable stock before pricing. The checked
+response creates a buyer-bound quote; `buy {quote-id}` separately debits money and creates
+portable items. No fixed inventory, bulk counters, delivery or bargaining. Amounts are integer
+old pence; world-file starting funds and architect bridge prices remain authored in pounds.
+All Claudeworth characters can buy and commission from the shared household account and
+see its balance. There is no spender-role allowlist: authority to spend is a social decision
+for the agents, not an engine permission. Buyer-bound quotes, affordability, plan access,
+co-location and opening-hours checks still apply. The GM is not a character and does not
+receive these actions.
+Old Claudeworth runs are intentionally unsupported after this contract change.
+
+#### Replies and arguments
 
 An accepted free action replies `"ok"`, or, if it has a `:reply`, whatever that returns: a string
 as is, anything else as JSON. `:reply` is called with the world after the action's effect (if it
@@ -812,6 +864,8 @@ Lets the scenario run for free with `{:llm :mock}`. It's essential for testing.
 - For the GM (`role :gm`) return `{:tool :done}` unless testing GM behaviour.
 - The judge of work on items (`role :judge`) never reaches the policy: the engine sends it to the
   scenario's `:mock-judge`, or `manor.items/mock-judge` (see Items).
+- Internal adjudication calls (`role :adjudicator`) go to the task's registered `:mock`,
+  not this policy (see Internal adjudication queries).
 - Only choose valid actions. The scenario smoke test fails on forfeited turns.
 
 ## Stable test conditions
@@ -820,7 +874,7 @@ Keep mechanics tests independent of the bundled scenario's current cast, map and
 Use a small test world or fixed test-owned fixtures, with explicit defaults and choreography.
 For example, test-only `manor.scenarios.household` reuses Claudeworth's mechanics with
 `test/fixtures/household.edn` and `household-day.edn`; do not sync those fixtures when adding
-characters or changing the bundled world. Its four-person day leaves the maid out explicitly;
+characters or changing the bundled world. Its fixed day leaves the maid out explicitly;
 work/judge tests enable her explicitly. Engine and transcript mechanics tests use it too.
 
 Select actors by identity, not position in a vector. Validation tests should start from valid

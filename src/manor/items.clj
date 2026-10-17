@@ -40,6 +40,7 @@
             [malli.error :as me]
             [malli.json-schema :as mjs]
             [manor.actions :as a]
+            [manor.adjudication :as adjudication]
             [manor.builtins :as b]
             [manor.clock :as clock]
             [manor.narrate :as n]
@@ -738,22 +739,7 @@
   each tool call, or a reminder if it made none). Only the first `judge`
   call counts."
   [response reach]
-  (let [calls (:tool-calls response)
-        counted (first (filter #(= "judge" (:name %)) calls))
-        {:keys [error] :as v} (if counted
-                                (verdict (:arguments counted) reach)
-                                {:error "no judge call"})
-        reply (fn [{:keys [id] :as call}]
-                {:role "tool" :tool_call_id id
-                 :content (cond (not= "judge" (:name call)) (str "error: there is no tool called " (:name call) "; call judge")
-                                (not= call counted) "ignored: only your first judge call counts"
-                                error (str "error: " error ". Call judge again with a corrected answer.")
-                                :else "ok")})]
-    (cond-> {:replies (if (seq calls)
-                        (mapv reply calls)
-                        [{:role "user" :content "You must answer by calling the judge tool."}])}
-      error (assoc :error error)
-      (not error) (assoc :verdict v))))
+  (adjudication/answer "judge" response #(verdict % reach)))
 
 (defn mock-judge
   "The judge in mock runs, a mock policy for calls with role :judge: every

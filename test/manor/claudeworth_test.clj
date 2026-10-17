@@ -13,6 +13,7 @@
             [manor.prompt :as prompt]
             [manor.llm :as llm]
             [manor.mcp :as mcp]
+            [manor.money :as money]
             [manor.narrate :as narrate]
             [manor.scenarios.building :as building]
             [manor.scenarios.claudeworth :as cw]
@@ -63,7 +64,7 @@
       (is (empty? (cw/problems world-file))))
     (testing "everyone's bedroom is a bedroom"
       (is (= {"lord-claudeworth" "earls-bedroom" "lady-claudeworth" "countess-bedroom"
-              "hale" "secretarys-room" "pugh" "architects-lodgings"}
+              "hale" "secretarys-room" "pugh" "architects-lodgings" "briggs" "maids-room"}
              (get-in world [:state :bedrooms])))
       (is (every? #(= :bedroom (:kind (space/location world %))) (vals (get-in world [:state :bedrooms])))))
     (testing "the house and the village are areas; journeys join them"
@@ -121,16 +122,6 @@
         clerk (update office :agents dissoc "pugh")
         shop (at world "hale" "general-store")
         check (fn [world actor tool args] (a/check (action run tool) world actor args))]
-    (testing "shop moves money and stores, and gives useful refusals"
-      (let [[bought] (perform run shop "hale" :buy {:item "coal" :qty 3})]
-        (is (= 2994 (get-in bought [:state :household :funds])))
-        (is (= 3 (get-in bought [:state :household :stores "coal"]))))
-      (is (= "the General store sells: provisions (£1), candles (£1), coal (£2), umbrella (£1), walking stick (£1), feather duster (£1), tin of silver polish (£1), novel (£1), bunch of chrysanthemums (£1)"
-             (check shop "hale" :buy {:item "diamonds" :qty 1})))
-      (is (= "the General store is closed; it is open 08:00-18:00"
-             (check (assoc shop :round 21) "hale" :buy {:item "coal" :qty 1})))
-      (is (= "3 coal costs £6; the household has £4"
-             (check (assoc-in shop [:state :household :funds] 4) "hale" :buy {:item "coal" :qty 3}))))
     (testing "office, hours, architect, client, floor and connections"
       (is (str/includes? (check world "lord-claudeworth" :draw-plans draft) "go to an architect's office"))
       (is (str/includes? (check (assoc office :round 1) "pugh" :draw-plans draft) "is closed"))
@@ -153,15 +144,15 @@
             completed (reduce w/apply-event (assoc commissioned :round due) ((:tick building/construction) (assoc commissioned :round due) {}))
             [second-world [second-event]] (perform run completed "lord-claudeworth" :commission {:plan-id "library"})]
         (is (= 51 due))
-        (is (= 120 (get-in commissioned [:state :purses "pugh"])))
+        (is (= (money/pounds->pence 120) (get-in commissioned [:state :purses "pugh"])))
         (is (= "library-2" (get-in second-event [:data :room])))
-        (is (= 600 (get-in second-world [:state :household :funds])))
+        (is (= (money/pounds->pence 600) (get-in second-world [:state :household :funds])))
         (is (str/includes? (check commissioned "lord-claudeworth" :commission {:plan-id "library"}) "already being built"))
-        (is (str/includes? (check (assoc-in world [:state :household :funds] 900) "lord-claudeworth" :commission {:plan-id "library"}) "would cost £1200; the household has £900"))
+        (is (str/includes? (check (assoc-in world [:state :household :funds] (money/pounds->pence 900)) "lord-claudeworth" :commission {:plan-id "library"}) "would cost £1200; the household has £900"))
         (is (str/includes? (check world "hale" :show-plans {:plan-id "library"}) "not seen those plans"))
-        (is (not-any? #(= :commission (:name %)) (a/for-role (:actions run) :architect)))
-        (is (not (contains? (cw/observe world "pugh") :household)))
-        (is (= 0 (get-in (cw/observe world "pugh") [:you :purse])))
+        (is (some #(= :commission (:name %)) (a/for-role (:actions run) :architect)))
+        (is (contains? (cw/observe world "pugh") :household))
+        (is (= "0d" (get-in (cw/observe world "pugh") [:you :purse])))
         (is (empty? (:plans (cw/observe world "hale"))))
         (is (not (str/includes? (narrate/describe event (narrate/names world)) "fee")))
         (let [shared (at world "hale" "architects-office")
@@ -222,10 +213,10 @@
       (let [event (first (of-type run :claudeworth/commissioned))
             due (get-in event [:data :due])]
         (is (some? event) (pr-str opts))
-        (is (= 1200 (get-in event [:data :price])))
+        (is (= (money/pounds->pence 1200) (get-in event [:data :price])))
         (is (= 13 due))
-        (is (= 1800 (get-in (e/world run) [:state :household :funds])))
-        (is (= (if (false? (:architect? opts)) {} {"pugh" 120}) (get-in (e/world run) [:state :purses])))
+        (is (= (money/pounds->pence 1800) (get-in (e/world run) [:state :household :funds])))
+        (is (= (if (false? (:architect? opts)) {} {"pugh" (money/pounds->pence 120)}) (get-in (e/world run) [:state :purses])))
         (is (nil? (space/location (e/world run) "library")))
         (rounds! run 5)
         (is (nil? (space/location (e/world run) "library")))
@@ -238,7 +229,7 @@
           (is (some #(and (= "library" (get-in % [:data :from])) (= "study" (get-in % [:data :to]))
                           (zero? (get-in % [:data :travel])) (= :gm (:visible-to %))) (of-type run :space/route-opened)))
           (is (some #(= "library" (:id %)) (:locations (edn/read-string (slurp (io/file (:dir run) "map.edn"))))))
-          (is (= 1798 (get-in world [:state :household :funds]))))
+          (is (= (- (money/pounds->pence 1800) 18) (get-in world [:state :household :funds]))))
         (rounds! run 34)
         (is (seq (moves-to run "lord-claudeworth" "library")))
         (is (empty? (of-type run :action/forfeited)))
@@ -291,10 +282,9 @@
     (doseq [world-file [source (update source :agents #(vec (reverse %)))]]
       (is (empty? (cw/problems world-file)))
       (doseq [[bad diagnostic]
-              [[(assoc-in world-file [:shop "nowhere"] [{:item "x" :price 1}]) ":shop nowhere"]
-               [(update-in world-file [:shop "general-store"] update-entry :item "provisions" #(assoc % :price 0)) "positive integer prices"]
-               [(update-in world-file [:shop "general-store"] update-entry :item "provisions" #(assoc % :item "")) "non-empty item names"]
-               [(assoc-in world-file [:meta :starting-stores] {"gold" 1}) "starting store item gold"]
+              [[(update world-file :locations update-entry :id "general-store" #(dissoc % :store-profile)) ":store-profile"]
+               [(assoc-in world-file [:meta :starting-funds] -1) "starting-funds"]
+               [(assoc-in world-file [:meta :starting-stores] {"gold" -1}) "starting-stores"]
                [(update world-file :locations #(mapv (fn [l] (dissoc l :services)) %)) "architect"]
                [(update world-file :locations update-entry :id "architects-office" #(assoc % :services ["architect"])) ":services"]]]
         (is (str/includes? (str/join "\n" (cw/problems bad)) diagnostic)))
@@ -446,8 +436,8 @@
       (is (= world (w/replay (store/read-events (:dir run))))))
     (testing "the countess buys a feather duster on her way home, and keeps it while there is no maid"
       (let [bought (first (by "lady-claudeworth" (of-type run :claudeworth/bought)))]
-        (is (= {:item "feather duster" :kind :item :qty 1 :price 1 :location "general-store"}
-               (:data bought)))
+        (is (= {:item "feather duster" :qty 1 :price 18 :location "general-store"}
+               (select-keys (:data bought) [:item :qty :price :location])))
         (is (= "16:30" (clock/short-label (:clock world) (:round bought) (:round bought))))
         (is (= "lady-claudeworth" (:holder (items/item world "feather-duster"))))
         (is (empty? (of-type run :item/given)))
@@ -612,24 +602,11 @@
       (doseq [[loc word] [["entrance-hall" "stag"] ["drawing-room" "piano"] ["dining-room" "portrait"]
                           ["carriage-sweep" "motor car"] ["study" "ledgers"]]]
         (is (not (str/includes? (str/lower-case (:desc (space/location world loc))) word)) loc)))
-    (testing "Hale's view: what he carries, and the shop's carried goods marked"
+    (testing "Hale's view lists what he carries, and the shop says to ask its clerk"
       (is (= [{:id "pocket-notebook" :name "Pocket notebook" :condition "half full"}]
              (get-in (prompt/agent-view (:scenario run) world "hale") [:you :carrying])))
-      (is (= {:item "umbrella" :price 1 :carried true}
-             (first (filter #(= "umbrella" (:item %)) (get-in (cw/observe shop "hale") [:here :sells]))))))
-    (testing "buying carried goods hands the buyer new items owned by the household; stores are unchanged"
-      (let [[bought evs] (perform run shop "hale" :buy {:item "feather duster" :qty 2})
-            names (narrate/names bought)]
-        (is (= [:claudeworth/bought :item/added :item/added] (map :type evs)))
-        (is (= ["feather-duster" "feather-duster-2"] (map :id (items/items-where bought #(= "Feather duster" (:name %))))))
-        (is (every? #(= {:holder "hale" :owner "household" :condition "new, the feathers fluffy"}
-                        (select-keys % [:holder :owner :condition]))
-                    (map #(items/item bought %) ["feather-duster" "feather-duster-2"])))
-        (is (= 2998 (get-in bought [:state :household :funds])))
-        (is (= (get-in shop [:state :household :stores]) (get-in bought [:state :household :stores])))
-        (is (every? #(= #{"hale"} (:visible-to %)) evs))
-        (is (= "Hale buys 2 feather duster for £2 at the General store." (narrate/describe (first evs) names)))
-        (is (= "Hale now has a feather duster." (narrate/describe (second evs) names)))))
+      (is (str/includes? (get-in (cw/observe shop "hale") [:here :service]) "shopkeeper"))
+      (is (not (contains? (:here (cw/observe shop "hale")) :sells))))
     (testing "look in the drawing room: its detail, the furniture, and the earl's watch"
       (let [room (-> world (at "hale" "drawing-room") (at "lord-claudeworth" "drawing-room"))
             seen (items/look room "hale")]
@@ -646,11 +623,6 @@
       (is (str/includes? (cw/rules world) "`look` shows them in detail, with their descriptions, conditions and owners"))
       (is (str/includes? (cw/rules world) "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn")))
     (e/stop-run run))
-  (testing "carried shop goods need a description and a condition"
-    (let [world-file (:world-file (wf/load-world fixture/world-file))]
-      (is (empty? (building/problems world-file)))
-      (is (str/includes? (str/join "\n" (building/problems (update-in world-file [:shop "general-store"] update-entry :item "umbrella" #(dissoc % :desc))))
-                         ":shop general-store \"umbrella\": goods of :kind :item need"))))
   (testing "leaving Mr Pugh out leaves out what he holds"
     (let [with-pugh (update (wf/read-file fixture/world-file) :items conj
                             {:id "set-square" :name "Set square" :holder "Pugh" :condition "true" :desc "A brass set square."})
@@ -670,12 +642,12 @@
         world (e/world run)
         evs (e/events run)
         calls (store/read-llm (:dir run))]
-    (testing "Nellie is in the run, with her own room and none of the household's money"
+    (testing "Nellie is in the run, with her own room and access to the household account"
       (is (some? (w/agent world "nellie")))
       (is (= :housemaid (:role (w/agent world "nellie"))))
       (is (= "maids-room" (get-in world [:state :bedrooms "nellie"])))
       (is (= "maids-room" (space/location-of world "nellie")))
-      (is (not (contains? (cw/observe world "nellie") :household))))
+      (is (contains? (cw/observe world "nellie") :household)))
     (testing "the day is free of forfeits and bad replies, and replay gives the same world"
       (is (= 47 (:round world)))
       (is (empty? (of-type run :action/forfeited)))
@@ -733,7 +705,7 @@
         (is (str/includes? system (get-in world [:state :roles :architect :about])))
         (is (str/includes? system "Each turn is half an hour of game time"))
         (is (str/includes? system "at most 1000 characters"))
-        (is (str/includes? system "only the family and the secretary can `commission`"))))
+        (is (str/includes? system "any character can `commission`"))))
     (testing "opening hours appear only in the view, from :hours"
       (doseq [id ["lord-claudeworth" "lady-claudeworth" "hale" "pugh"]
               :let [system (:content (first (prompt/agent-messages (:scenario run) world (e/events run) id {})))]]

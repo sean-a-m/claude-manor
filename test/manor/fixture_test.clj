@@ -3,6 +3,7 @@
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.engine :as e]
             [manor.items :as items]
+            [manor.money :as money]
             [manor.scenarios.claudeworth :as cw]
             [manor.scenarios.household :as fixture]
             [manor.store :as store]
@@ -41,11 +42,11 @@
                                     (w/active-agents (e/world live))))))
             (is (some? (w/agent (e/world live) "nellie")))
             (is (nil? (w/agent (e/world live) "pugh")))
-            (is (= 12 (get-in (e/world live) [:state :household :funds]))))
+            (is (= (money/pounds->pence 12) (get-in (e/world live) [:state :household :funds]))))
           (testing "the mechanics fixture keeps its own cast, defaults, map and funds"
-            (is (= #{"gm" "lord-claudeworth" "lady-claudeworth" "hale" "pugh"}
+            (is (= #{"gm" "lord-claudeworth" "lady-claudeworth" "hale" "pugh" "briggs"}
                    (set (keys (:agents (e/world fixed))))))
-            (is (= 3000 (get-in (e/world fixed) [:state :household :funds])))
+            (is (= (money/pounds->pence 3000) (get-in (e/world fixed) [:state :household :funds])))
             (is (= (read-file fixture/world-file) (store/read-world-start (:dir fixed)))))
           (testing "hibernation still tests an explicitly empty house"
             (let [world (reduce (fn [world id]

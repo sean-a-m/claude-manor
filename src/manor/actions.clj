@@ -25,13 +25,16 @@
      ;; :query and :act actions only
      :bridge      :open-meteo/daily
      :bridge-args (fn [world actor args]) => bridge args
-     :on-result   (fn [world actor args result]) => [events]}
+     :on-result   (fn [world actor args result]) => [events]
+
+     ;; :query only: internal adjudication instead of :bridge
+     :adjudicate  :shop/appraise}           ; key in scenario :adjudicators
 
   Kinds:
     :final  the agent's action for the round; ends the turn
     :free   does not end the turn (notes, declining an offer)
-    :query  a real-world bridge resolved during the turn, without approval;
-            the result goes back to the agent (e.g. an MCP tool)
+    :query  a bridge or internal adjudication resolved during the turn, without
+            approval; the result goes back to the agent
     :act    a real-world bridge with side effects; ends the turn and waits
             for operator approval, then runs at the next round boundary"
   (:require [clojure.string :as str]

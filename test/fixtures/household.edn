@@ -4,7 +4,7 @@
 {:meta {:name "Claudeworth Manor"
         :start "1904-10-15T08:00"
         :minutes-per-round 30
-        :starting-funds 3000
+        :starting-funds 3000 ; whole pounds here; runtime money is old pence
         :starting-stores {"provisions" 2}
         :setting "Claudeworth Manor is a modest Edwardian country house, the seat of the Earls of Claudeworth, whose fortune has lately been restored. Claudeworth village lies nearby, a sloping green with a general store and the offices of Pugh & Sons, Architects. Hollin Abbey is nearby too, where the monks keep to themselves."}
 
@@ -47,7 +47,9 @@
    :connects-to ["general-store" "architects-office"]
    :desc "A sloping green with a pump, an old market cross and geese. The shops face it."}
   {:id "general-store" :name "General store" :domain :village :kind :shop :hours ["08:00" "18:00"]
-   :desc "Groceries, candles, coal and gossip, sold over one long counter."
+   :services #{:general-store}
+   :store-profile "A modest village general store in rural England, 1904. Everyday household necessities: groceries in small packages, dry goods, haberdashery, stationery, and simple domestic tools. These examples describe its scope, not an exhaustive inventory. Not a department store or specialist dealer. Only portable goods sold over the counter; no bulk deliveries or special orders."
+   :desc "Groceries, candles, household necessities and gossip, sold over one long counter by Mr Briggs."
    :detail "Shelves to the ceiling of tins, jars and bolts of cloth, sacks of flour and meal along the floor, and a smell of paraffin and cheese. The bell over the door announces every customer, and the counter is where the village's news changes hands."}
   {:id "architects-office" :name "Architect's office" :domain :village :kind :office :hours ["09:00" "18:00"]
    :services #{:architect}
@@ -63,23 +65,6 @@
   {:id "abbey-church" :name "Abbey church" :domain :abbey :kind :church
    :desc "Hollin Abbey's church, cool and quiet. The monks keep to themselves."}]
 
- ;; goods with :kind :item are things to carry: buying one hands the buyer a new item (see :items)
- :shop {"general-store" [{:item "provisions" :price 1 :desc "a week's groceries for the household"}
-                          {:item "candles" :price 1}
-                          {:item "coal" :price 2 :desc "a ton"}
-                          {:item "umbrella" :price 1 :kind :item :condition "new, neatly furled"
-                           :desc "A black silk umbrella with a malacca handle."}
-                          {:item "walking stick" :price 1 :kind :item :condition "new"
-                           :desc "An ash walking stick with a brass ferrule."}
-                          {:item "feather duster" :price 1 :kind :item :condition "new, the feathers fluffy"
-                           :desc "A duster of grey ostrich feathers on a turned wooden handle."}
-                          {:item "tin of silver polish" :price 1 :kind :item :condition "unopened"
-                           :desc "A small round tin of plate powder, with instructions on the lid."}
-                          {:item "novel" :price 1 :kind :item :condition "new, the pages still uncut"
-                           :desc "A new novel in green cloth: a romance of the Scottish borders."}
-                          {:item "bunch of chrysanthemums" :price 1 :kind :item :condition "freshly cut"
-                           :desc "A bunch of bronze and white chrysanthemums, tied with raffia."}]}
-
  ;; journeys: [from to rounds], two-way; one round is half an hour
  :routes [["carriage-sweep" "village-green" 1]
           ["carriage-sweep" "abbey-gatehouse" 1]
@@ -92,6 +77,7 @@
   :secretary {:about "You are Mr Hale, private secretary to the Earl of Claudeworth (my lord; the countess is my lady). You serve his lordship: correspondence, errands and arrangements, often in the village, and you report back to him. You work in the study."}
   :housemaid {:about "You are Nellie, the housemaid at Claudeworth Manor, in service to the family (my lord and my lady; the secretary is Mr Hale). Your day is housework: dusting and sweeping the drawing room, polishing the silver, blacking the kitchen range and laying the fires, and doing whatever the countess asks. You have no money and spend none: the household buys what you need."}
   :architect {:about "You are Mr Pugh of Pugh & Sons, Architects, in Claudeworth village. You keep the architect's office and live in the lodgings above it. You consult your reference books, draw plans for clients and earn your living from commissions. Your firm builds one room at a time: you will not begin a new room while one is being built, and you refuse politely, saying when you can start. You are proud of your craft and keen for the manor's custom: advise on proportion, but respect the client's wishes. Address the earl as my lord and the countess as my lady."}
+  :shopkeeper {:about "You are Mr Briggs, proprietor of the village general store. Serve customers at the counter: listen to what they want, use quote-goods with the customer's id, goods and quantity to check availability and price, then let them accept with buy. Never promise goods or invent a price without checking. There is no fixed catalogue, no bargaining, bulk deliveries or credit. Address the earl as my lord and the countess as my lady."}
   :gm {:about "A quiet period household: the family, their secretary and the village architect going about their days."}}
 
  ;; things in the world; :holder and an agent :owner are agent names (see manor.items)
@@ -116,6 +102,9 @@
    :persona "Mr Hale, the earl's private secretary: young, meticulous and discreet, and a little anxious to please."}
   {:name "Nellie" :role :housemaid :location "maids-room" :bedroom "maids-room" :optional? :housemaid?
    :persona "Nellie, the housemaid: young, quick, and up from the village. She knows every room of the house and takes a proper pride in the silver, though the family seldom notice."}
+  {:name "Briggs" :role :shopkeeper :location "general-store" :bedroom "maids-room"
+   :persona "Mr Briggs, the shopkeeper: a practical, friendly village tradesman, proud of his useful little store."
+}
   {:name "Pugh" :role :architect :location "architects-office" :bedroom "architects-lodgings" :optional? :architect?
    :persona "Mr Pugh of Pugh & Sons, Architects, in Claudeworth village. Proud of his craft, keen for a commission from the manor, and prone to holding forth on proportion."
    ;; his day when nobody else is in the village: he is out of play (no model calls) and here instead

@@ -72,6 +72,8 @@ src/manor/
   builtins.clj   pass/carry-on/note/say/whisper/pray + GM spawn/retire/announce/ask-human/done
   space.clj      locations graph, positions, travel, move + GM route tools, pathfinding
   items.clj      items, carrying, look, work-on jobs, judge requests and checked condition changes
+  adjudication.clj  shared checked-tool-response parser (work judge and scenario adjudication queries)
+  money.clj      Claudeworth sterling: integer old pence, pounds/shillings/pence formatting
   prompt.clj     builds agent/GM requests; agent-view = observe + identity + location
   llm.clj        LLM protocol; OpenRouter (JDK HTTP) and Mock (scenario policy) implementations
   bridge.clj     bridge executor: timeout, truncation, stubs, MCP tools; never throws
@@ -87,7 +89,9 @@ src/manor/
   transcript.clj readable run record: <run-dir>/transcript.md from events.edn and llm.edn
   scenarios/     village.clj (full example), treasure.clj (small example), quiz.clj (MCP/pi),
                  claudeworth.clj + building.clj (Claudeworth Manor: daily life, money, shop, plans,
-                 architect and construction; Nellie the housemaid unless :housemaid? is false, whose
+                 architect and construction; shop.clj adds Mr Briggs, store-profile-grounded
+                 adjudication and portable purchases via firm quotes; runtime money is old pence;
+                 Nellie the housemaid unless :housemaid? is false, whose
                  work-on jobs exercise the judge)
 resources/worlds/ world files on the classpath; claudeworth.edn is Claudeworth's fresh world
 mcp-servers/pi/server.mjs  pi as an MCP server: send_message {session, message}; Node, no deps

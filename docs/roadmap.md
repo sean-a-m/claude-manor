@@ -231,6 +231,13 @@ condition changes when work ends, using the time actually worked. Claudeworth ha
 items, shop purchases and a mock day that uses them. Resources and prices remain the scenario's
 job (`:state` keyed by location id).
 
+Claudeworth's general store now has a shopkeeper and adjudicated, buyer-accepted quotes rather
+than a fixed inventory. New purchases create portable items only; bulk purchasing and delivery
+are deferred. Internal appraisal queries share the work judge's bounded LLM-call machinery.
+Sterling uses integer old pence. Store mechanics tests own a tiny cast; full bundled mock-day
+coverage checks the current content. See [the store brief](archived/general-store-brief.md) and
+Claudeworth design decision 36. Old-run compatibility is intentionally not maintained.
+
 Follow-ups, by need:
 
 - Items getting dirty or wearing out over time: a GM job later, not automatic decay yet.
@@ -346,9 +353,15 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
     file risks breaking things. Find what depends on the exact cast and make it safe. Known
     places:
     - the mock day, keyed by agent id, with calls naming other agents;
-    - `building/spenders`, a fixed list of roles;
+    - ~~`building/spenders`, a fixed list of roles~~ — removed: all characters can buy and
+      commission from the household account; social authority is left to the agents;
     - Pugh's hibernation, which depends on who else is around;
     - tests that assume exactly who is in the house.
+
+    Store follow-up: the new clerk has no optional-character flag. Store mechanics use a
+    small test-owned world and explicitly cover extra/reordered/removed unrelated agents and
+    multiple routine-driven villagers. The bundled store smoke test has no exact cast snapshot.
+    The broader optional-character cleanup and old mock-script coupling above remain open.
 
     Done when a character can be added to or removed from the world file with no code change,
     and the tests prove it.

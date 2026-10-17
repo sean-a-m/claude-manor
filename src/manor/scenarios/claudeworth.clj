@@ -24,6 +24,7 @@
             [manor.items :as items]
             [manor.narrate :as narrate]
             [manor.scenarios.building :as building]
+            [manor.scenarios.shop :as shop]
             [manor.space :as space]
             [manor.world :as w]
             [manor.worldfile :as worldfile])
@@ -263,7 +264,8 @@
   [world id]
   (let [here (space/location-of world id)
         hours (:hours (space/location world here))]
-    (cond-> (update (building/observe world id) :you assoc :bedroom (bedroom-of world id))
+    (cond-> (-> (merge-with merge (building/observe world id) (shop/observe world id))
+                (update :you assoc :bedroom (bedroom-of world id)))
       hours (update :here merge {:open (str/join "-" hours) :open-now? (open-now? world hours)})
       true (assoc :places (places world))
       here (assoc :walkable (vec (sort (walkable world here)))
@@ -339,10 +341,10 @@
          "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn; `work-on` spends time doing something to things here or that you carry, or to the room itself (use its id), and its results show when you finish. "
          "If you are waiting on someone or nothing needs doing, `pass` is the way to wait a turn; you act again next turn. "
          "Opening hours are shown in your view where a place has them. "
-         "The family and secretary spend freely from the household account (`household` in your view), and can `buy` at an open shop. "
+         "Purchases and commissions are paid from the household account (`household` in your view). There is no engine-enforced spending restriction by role: whether you should spend depends on your station, instructions and relationships. At an open general store, ask the shopkeeper with `say` for portable goods and a quantity; there is no fixed catalogue. The shopkeeper checks availability and quotes a firm price. Accept an offer made for you with `buy {quote-id}`, from `offers` in your view. Payment is separate from asking; no bargaining, bulk counters or delivery. Prices are old sterling: £1 = 20 shillings = 240 pence (12d = 1s). "
          "Building is arranged at the architect's office while it is open, not at the house: talk at home is for deciding what you want. "
-         "At the office you can search reference books (`consult-references`), ask for the `price-list` and have plans drawn (`draw-plans`); only the family and the secretary can `commission` a plan they hold. `show-plans` shares plans with everyone present, anywhere. "
-         "A reference lookup, the price list and each draft all count towards your " max-queries " queries a turn, even if asked for at once; once you reach " max-queries ", take your action and query again next turn. "
+         "At the office you can search reference books (`consult-references`), ask for the `price-list` and have plans drawn (`draw-plans`); any character can `commission` a plan they hold, but should judge whether they have the social authority to do so. `show-plans` shares plans with everyone present, anywhere. "
+         "A reference lookup, the price list, each draft and each shop quote all count towards your " max-queries " queries a turn, even if asked for at once; once you reach " max-queries ", take your action and query again next turn. "
          "Only one room is built at a time: `commission` is refused while a room is being built (see `building` for the work in hand and when it finishes), so the next room must wait until the present one is finished. "
          "Commissioning pays from the household; the room appears at the completion time in `building`. The architect earns "
          building/fee-percent "% on commissions for plans he drew.")))
@@ -367,6 +369,7 @@
    :secretary {:brief agent-brief}
    :housemaid {:brief agent-brief}
    :architect {:brief agent-brief}
+   :shopkeeper {:brief agent-brief}
    :gm {:brief gm-brief}})
 
 ;; ---------------------------------------------------------------------------
@@ -379,6 +382,7 @@
   (let [by-id (into {} (map (juxt :id identity)) locations)]
     (concat
      (building/problems wf)
+     (shop/problems wf)
      (for [{:keys [name bedroom]} agents
            :when (not= :bedroom (:kind (by-id bedroom)))]
        (str "agent " (pr-str name) ": :bedroom " (pr-str bedroom)
@@ -430,6 +434,7 @@
                                                  [(b/slug name) (vec (sort-by :from routine))]))
                             :setting (get-in wf [:meta :setting])
                             :roles (:roles wf)
+                            :quotes {}
                             :max-queries (:max-queries opts 2)})))))
 
 ;; ---------------------------------------------------------------------------
@@ -470,9 +475,10 @@
              [:call {:text "Nellie! The candlesticks are in the drawing room when you have a moment." :to "nellie"}]
              [:spend-time {:activity "going over the household accounts" :hours 4}]]
     "13:30" [[:travel {:to "abbey-church"}]]
-    "14:00" [[:spend-time {:activity "sitting quietly in the abbey church" :hours 2}]]
-    "16:00" [[:travel {:to "general-store"}]]
-    "16:30" [[:buy {:item "feather duster" :qty 1}]]
+    "14:00" [[:spend-time {:activity "sitting quietly in the abbey church" :hours 1.5}]]
+    "15:30" [[:travel {:to "general-store"}]]
+    "16:00" [[:request-goods {:item "feather duster" :qty 1}]]
+    "16:30" [[:accept-offer {:item "feather duster"}]]
     "17:00" [[:travel {:to "carriage-sweep"}]]
     "17:30" [[:walk {:to "drawing-room"}] [:give {:item "feather-duster" :to "nellie"}]
              [:spend-time {:activity "writing letters" :hours 1.5}]]
@@ -486,7 +492,8 @@
     "08:30" [[:spend-time {:activity "breakfasting" :hours 1}]]
     "09:30" [[:walk {:to "study"}] [:spend-time {:activity "writing letters" :hours 2}]]
     "11:30" [[:travel {:to "general-store"}]]
-    "12:00" [[:buy {:item "coal" :qty 1}]]
+    "12:00" [[:request-goods {:item "tin of silver polish" :qty 1}]]
+    "12:30" [[:accept-offer {:item "tin of silver polish"}]]
     "13:00" [[:travel {:to "carriage-sweep"}]]
     "13:30" [[:walk {:to "dining-room"}] [:spend-time {:activity "lunching" :hours 0.5}]]
     "14:00" [[:walk {:to "study"}] [:spend-time {:activity "filing correspondence" :hours 4}]]
@@ -554,8 +561,10 @@
   A scripted `sleep` away from your bedroom goes there first, e.g. after a
   late :start. Tests can supply fixed choreography independently of mock-day."
   [day {:keys [world agent-id role used]}]
-  (if (= role :gm)
-    {:tool :done}
+  (cond
+    (= role :gm) {:tool :done}
+    (= role :shopkeeper) (shop/scripted-clerk day (str (now world)) world agent-id used)
+    :else
     (let [time (str (now world))
           architect (building/architect-here world agent-id)
           client-plan (first (sort-by :id (filter #(= "lord-claudeworth" (:for %)) (vals (get-in world [:state :plans])))))
@@ -575,6 +584,7 @@
           script (mapv (fn [[tool args]]
                          [tool (if (and (#{:commission :show-plans} tool) client-plan)
                                  (assoc args :plan-id (:id client-plan)) args)]) script)
+          script (mapv (fn [[tool args]] (shop/scripted-customer world agent-id tool args)) script)
           [tool args] (get script (scripted-done script used))
           [tool args] (or (when (= :sleep tool) (way-to-bed world agent-id)) [tool args])]
       (if tool {:tool tool :args args}
@@ -589,10 +599,11 @@
 
 (def scenario
   {:name :claudeworth
-   :doc "Claudeworth Manor, 1904: a family, a secretary and the village architect, living from day to day."
+   :doc "Claudeworth Manor, 1904: a household, a village architect and a general-store keeper, living from day to day."
    :init init
    :roles roles
-   :actions (into actions building/actions)
+   :actions (into (into actions building/actions) shop/actions)
+   :adjudicators shop/adjudicators
    :bridges building/bridges
    :offline-stubs building/offline-stubs
    :mcp-servers building/mcp-servers

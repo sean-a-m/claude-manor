@@ -35,6 +35,9 @@
 (defmethod describe :round/started [{:keys [data]} _] (str "--- Round " (:round data) " begins ---"))
 (defmethod describe :round/ended [{:keys [data]} _] (str "--- Round " (:round data) " ends ---"))
 
+(defmethod describe :adjudication/failed [{:keys [data]} _]
+  (str "Adjudication " (:task data) " for " (:caller data) " failed: " (:reason data)))
+
 (defmethod describe :world/initialized [{:keys [data]} _]
   (str "The world is created (scenario " (name (:scenario data)) ", seed " (:seed data) ")."))
 

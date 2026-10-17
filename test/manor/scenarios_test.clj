@@ -39,6 +39,11 @@
           (is (= (not (false? (:housemaid? opts))) (some? (w/agent world "nellie"))))
           (doseq [agent (w/active-agents world) :when (not= :gm (:role agent))]
             (is (= :bedroom (:kind (space/location world (get-in world [:state :bedrooms (:id agent)]))))
+                (:id agent))
+            (is (contains? (cw/observe world (:id agent)) :household) (:id agent))
+            (is (= #{:buy :commission}
+                   (set (keep #(when (#{:buy :commission} (:name %)) (:name %))
+                              (a/for-role (:actions run) (:role agent)))))
                 (:id agent)))
           (is (= world (w/replay (store/read-events (:dir run))))))
         (finally (e/stop-run run)))))
@@ -51,12 +56,15 @@
         in (fn [world id] (:in (items/item world id)))]
     (try
       (let [world (e/world run)]
-        (testing "the cabinet, the sideboard and the dresser, and what's in them"
-          (is (= {"china-cabinet" :open "sideboard" :closed "kitchen-dresser" :open}
+        (testing "the household containers and what's in them"
+          (is (= {"china-cabinet" :open "sideboard" :closed "kitchen-dresser" :open "sugar-jar" :open}
                  (into {} (map (juxt :id :container)) (items/items-where world :container))))
           (is (= ["meissen-harlequin" "meissen-pug" "meissen-shepherdess"] (map :id (items/contents world "china-cabinet"))))
           (is (= ["canteen-of-cutlery" "silver-candlesticks" "table-linen"] (map :id (items/contents world "sideboard"))))
-          (is (= ["blacking-brushes" "kettle" "saucepans"] (map :id (items/contents world "kitchen-dresser"))))))
+          (is (= ["blacking-brushes" "kettle" "saucepans"] (map :id (items/contents world "kitchen-dresser"))))
+          (is (= "kitchen" (:place (items/item world "sugar-jar"))))
+          (is (= "empty" (:condition (items/item world "sugar-jar"))))
+          (is (empty? (items/contents world "sugar-jar")))))
       (e/auto! run 12)
       (is (= :idle (e/wait-idle run 120000)))
       (let [world (e/world run)
@@ -72,6 +80,34 @@
           (is (= [:item/taken :item/put-in :item/taken :item/put-in]
                  (map :type (filter #(and (= "nellie" (:actor %)) (#{:item/taken :item/put-in} (:type %)))
                                     (e/events run))))))
+        (is (= world (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))
+
+(deftest claudeworth-store-demonstration
+  ;; Content integration only: no exact cast, call counts, prices or NPC ids.
+  (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true
+                                    :run-id (str (gensym "claudeworth-store-day-"))})]
+    (try
+      (let [world (e/world run)
+            clerks (filter #(= :shopkeeper (:role %)) (w/active-agents world))]
+        (is (seq clerks))
+        (doseq [clerk clerks]
+          (is (contains? (:services (space/location world (:location clerk))) :general-store))))
+      (e/auto! run 47)
+      (is (= :idle (e/wait-idle run 120000)))
+      (let [world (e/world run) events (e/events run)
+            bought (filter #(= :claudeworth/bought (:type %)) events)
+            quoted (into {} (for [e events :when (= :claudeworth/goods-quoted (:type e))]
+                              [(get-in e [:data :id]) (:data e)]))]
+        (is (= 47 (:round world)))
+        (is (seq bought))
+        (doseq [purchase bought
+                :let [offer (get quoted (get-in purchase [:data :quote-id]))]]
+          (is (= (:actor purchase) (:buyer offer)))
+          (is (= (get-in purchase [:data :price]) (:price offer))))
+        (is (not-any? #(#{:action/forfeited :adjudication/failed} (:type %)) events))
+        (is (not-any? #(re-find #"^(error:|rejected:)" (:content % ""))
+                      (mapcat :replies (store/read-llm (:dir run)))))
         (is (= world (w/replay (store/read-events (:dir run))))))
       (finally (e/stop-run run)))))
 

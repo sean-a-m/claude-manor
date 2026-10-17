@@ -240,8 +240,19 @@ smoke/replay checks. Claudeworth now also has a cook, scullery maid, pantry shel
 quarters and a butcher reusing the profile-grounded shop service (design decision 38).
 See [the store brief](archived/general-store-brief.md) and Claudeworth design decision 36. Old-run compatibility is intentionally not maintained.
 
+Consumables: done (Claudeworth design decision 39). A purchase is one parcel with its amount in
+its condition; items may be `:consumable?`; the work judge may use them up and make at most two
+things from them.
+
 Follow-ups, by need:
 
+- **Meals aren't linked to items.** Food served at table and eaten during a meal occupation
+  ("dining on the rib of beef") is never used up, because a meal is an occupation, not work on
+  items, so leftovers can stay in the world. Candidates: a deterministic `use-up`/`eat` action
+  for consumables in reach, and a nightly steward pass (a narrow judge call) that retires spent
+  consumables and rewrites what's left of the rest.
+- The shop appraiser's `consumable` flag isn't yet seen against a real model; check its choices
+  in the next real run with purchases.
 - Items getting dirty or wearing out over time: a GM job later, not automatic decay yet.
 - Room conditions: `work-on` accepts the id of the worker's place (done), but places have no
   `:condition`, so work on the room changes nothing and a room-only job skips the judge. Next:

@@ -242,7 +242,8 @@ setting/date and goods/quantity, not the full world or household wealth.
 A checked offer or refusal is announced to people at the counter. A quote fixes buyer, clerk,
 shop, quantity, item details and price. The customer accepts with `buy {quote-id}`: code checks
 funds, co-location, opening hours and that the quote is unspent, then deducts money, consumes
-the quote and creates portable items carried by the buyer, owned by the household. There is
+the quote and creates one portable parcel carried by the buyer, owned by the household, with the
+amount bought leading its condition (decision 39). There is
 no fixed inventory, bulk counter purchasing, delivery, bargaining or clock expiry on offers.
 Availability is semantic plausibility, not a finite stock ledger. Opening hours are unchanged.
 
@@ -616,7 +617,8 @@ Decisions for items (done):
     carried items. Existing household counters remain, but new store purchases are portable
     objects only (decision 36 supersedes the old bulk-buying path).
 24. **Conditions are free text.** A short phrase of at most 80 characters describes an item's
-    state. Work changes only conditions, never names or descriptions.
+    state. Work changes only conditions, never names or descriptions (but it may use up
+    consumable items and make new ones from them: decision 39).
 25. **A separate judge is asked when work ends.** This is a narrow engine-run model call, not
     the GM or a bridge, and characters never hear of it. It sees the job, the worker, the items'
     current conditions and the time actually worked, including an early stop after `rouse`.
@@ -694,6 +696,25 @@ Decisions for items (done):
     existing `:shopkeeper` role and `:general-store` counter service: his own `:store-profile`
     limits the trade to meat, rather than introducing a new purchasing mechanic. Like Briggs
     and Pugh, he follows a routine without model calls when nobody needs him. The kitchen staff
-    use existing item/work tools; no food production, hunger or consumption rules are added.
-    These new characters and rooms are not added to the mechanics fixtures or content-specific
-    assertions. Existing cast-option, container and shopping checks now use fixed test households.
+    use existing item/work tools; no hunger rules are added. (Since decision 39, work can use up
+    food and fuel and make things from them.) These new characters and rooms are not added to
+    the mechanics fixtures or content-specific assertions. Existing cast-option, container and
+    shopping checks now use fixed test households.
+39. **Consumables: one parcel per purchase, used up by work.** Done. A real run
+    (`runs/claudeworth-20261017-172705`) showed two gaps. Buying 20 × 1 lb of flour made twenty
+    unlabelled items (twenty events in the window, 54 `put-in` calls to shelve the groceries, the
+    cast reading "19 flour" as nineteen stone); now a purchase is one item that keeps the goods'
+    name, with the amount leading its condition ("20 × 1 lb; fresh, dry"). The amount isn't in the
+    name because names never change, while the judge rewrites the condition as it's used ("about
+    17 lb left"); room views list names only, so a parcel shows once and `look` gives the amount.
+    And a rib of beef roasted, carved, served and boiled for stock stayed in the world for good.
+    Now items may be `:consumable?` (the shop's appraiser says which goods are), and the work
+    judge may use them up and make at most two things from them (bones and trimmings, then
+    stock in the saucepan), checked by the engine and recorded in `:item/work-done`. Only
+    consumable items can be used up or made into something; everything else keeps its nature
+    (decision 24 still holds for them). A container is used up only with its contents. Made items
+    are consumable, owned like the first thing used up, and go in a container the judge names,
+    else to the worker if they carried that thing, else at the job's place. Used-up items' names
+    stay in the world so older lines still read. Still open: food eaten at table during a meal
+    ("dining on the rib of beef") isn't linked to items, so leftovers remain unless someone works
+    on them (roadmap B7).

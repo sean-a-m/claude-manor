@@ -213,7 +213,11 @@ Claudeworth's `manor.scenarios.shop` is an example. Every appraisal receives the
 location's `:store-profile` (required, non-blank, at most 2000 characters), name/description,
 setting/date and goods/quantity. It refuses unsuitable stock before pricing. The checked
 response creates a buyer-bound quote; `buy {quote-id}` separately debits money and creates
-portable items. No fixed inventory, bulk counters, delivery or bargaining. Amounts are integer
+one portable item, a parcel of the whole quantity: its condition starts with the amount bought
+("20 × 1 lb; fresh, dry"), where work can later say what's left, and it is `:consumable?` when
+the appraiser says the goods are used up in use (food, fuel, soap; not tools or crockery). The
+appraiser's `unit` (at most 30 characters) and `condition` (at most 40) are short so the parcel's
+condition always fits. No fixed inventory, bulk counters, delivery or bargaining. Amounts are integer
 old pence; world-file starting funds and architect bridge prices remain authored in pounds.
 All Claudeworth characters can buy and commission from the shared household account and
 see its balance. There is no spender-role allowlist: authority to spend is a social decision
@@ -527,12 +531,15 @@ An item:
  ;; :in "sideboard"         ;   or :in (the id of a container item)
  :owner "household"         ; optional: an agent id or any label; shown, not enforced
  :fixed? true               ; optional: furniture, can't be taken
+ :consumable? true          ; optional: food, fuel, soap: work may use it up (see Work and the judge)
  :container :open}          ; optional: it holds things (see Containers)
 ```
 
 Ids are kebab-case and unique; at most 60 characters of name. No other keys are allowed. A
 carried item goes wherever its holder goes, and things in a container go wherever it goes, with
-no events of their own.
+no events of their own. Only work can remove an item (by using it up); its name stays in the
+world under `:items-gone` (id -> name), so older lines that mention it still read, and
+`fresh-id` never gives its id out again.
 
 - **Starting items** come from `:init` (`:items`, a vector, holders and owners as ids), or from a
   world file's `:items` (see World files). The engine checks them and adds each with an
@@ -558,13 +565,15 @@ no events of their own.
 
 - **New items** (a purchase, say): `(items/added world fields visible-to)` is an `:item/added`
   event for an item with a fresh id from its name (`umbrella`, `umbrella-2`); `fields` are the
-  item's keys without `:id`, and invalid ones throw. `(items/added-events world [fields ...]
-  visible-to)` makes several, each with its own id. Don't build item maps or events by hand.
+  item's keys without `:id`, and invalid ones throw. `(items/added world fields visible-to
+  :amount "20 × 1 lb")` adds the amount to the event, read after the name. `(items/added-events
+  world [fields ...] visible-to)` makes several, each with its own id. Don't build item maps or
+  events by hand.
 - **Events** (reducers in `manor.items`; narration looks up the item's name):
 
   | Event | Data | Visible to | Reads |
   |---|---|---|---|
-  | `:item/added` | `{:item {...}}` | the GM at the start; the room when bought | "Hale now has an umbrella." |
+  | `:item/added` | `{:item {...}}`, plus `:amount` if given | the GM at the start; the room when bought | "Hale now has an umbrella." / "Mrs Finch now has plain household flour (20 × 1 lb)." |
   | `:item/taken` | `{:item :from-place}`, plus `:from-item` out of a container | everyone here | "Lady Claudeworth picks up the silver candlesticks." / "Nellie takes the kettle from the kitchen dresser." |
   | `:item/put-down` | `{:item :place}` | everyone here | "Hale puts down the feather duster." |
   | `:item/put-in` | `{:item :into}` | everyone here | "Nellie puts the silver candlesticks in the sideboard." |
@@ -682,27 +691,41 @@ a clock) spends time doing something to things:
   its place and no item is in reach), it's `:item/work-done` with no changes and a neutral
   summary ("Nellie finishes sweeping the hall."), and no call. Otherwise the engine asks **the judge**
   and emits `:item/work-done`, seen by the worker and the people at the place:
-  `{:job :actor :place :doing :minutes :stopped-early? :luck :summary :changes [{:item :from :to}]}`.
-  Its reducer sets each `:to` condition and removes the job. Jobs are applied one after another,
+  `{:job :actor :place :doing :minutes :stopped-early? :luck :summary :changes [{:item :from :to}]}`,
+  plus `:used-up [{:item :name}]` and `:made [item ...]` (complete new items) when there are some.
+  Its reducer sets each `:to` condition, removes the used-up items (keeping their names under
+  `:items-gone`), adds the made ones and removes the job. Jobs are applied one after another,
   so a later job's judge sees an earlier one's result, and on the same item the last applied wins.
   It reads "Hale finishes dusting the china cabinet. The glass is clean. (China cabinet: clean,
   one figure chipped)." ("leaves off" when stopped early; the summary is left out when it only
-  repeats the opening).
+  repeats the opening), followed by "Used up: Rib of beef. Made: Beef stock in the saucepan;
+  Beef bones." when something was.
+- **Consumables.** Work may use up items marked `:consumable?` (food eaten or cooked into
+  something else, fuel burnt, an ingredient used up) and make at most two things from them
+  (`items/max-made`): bones and trimmings from a carved joint, stock from the bones. A made item
+  gets a fresh id, is `:consumable?`, is owned like the first item used up, and is put in the
+  container the judge names (`in`), else carried by the worker if they carried that first item,
+  else at the job's place. Something partly used isn't used up: the judge rewrites its condition
+  ("about 17 lb left"). Everything else keeps its nature, as before.
 - **The judge** is a narrow model call, not the GM and not a bridge; characters never hear of it.
   `manor.items/judge-request` builds it from only: the scenario's `:judge-brief` (`(fn [world]
   text)` under `:items`, optional; Claudeworth gives its setting paragraph), the time, the
   worker's name and persona, the place's name, what they were doing, the minutes worked and
   whether they stopped early, a luck roll (1-100, 50 ordinary, from `manor.rng` with the key
   `[:judge job-id]`), and each item in reach with its id, name, description and condition (and `in`
-  when its container is in reach too). It has
-  one required tool, `judge {changes: [{item, condition}], summary}`. The engine sends it through
+  when its container is in reach too, `consumable: true` and `container: true` when they are). It has
+  one required tool, `judge {changes: [{item, condition}], used-up: [id], made: [{name, desc,
+  condition, in}], summary}`. The engine sends it through
   the run's LLM with the model `:judge-model` (a run option; nil means `:model`) and the run's
   `:reasoning` and `:max-tokens`, without holding the world lock. Each call is in `llm.edn` as
   agent `"judge"` and its usage is an `:llm/usage` event, so it counts towards `:max-cost`;
   replay uses the recorded events and never calls it.
 - **Checks on the answer:** only items in reach; conditions 1-80 characters; a summary of 1-300
-  characters; other keys (a `desc`, a `name`) are dropped, so only conditions ever change, and
-  unchanged conditions are left out. A bad answer is sent back with the reason and asked once
+  characters; other keys (a `desc`, a `name`) are dropped, so an existing item's condition is all
+  that ever changes, and unchanged conditions are left out, as are changes to items used up.
+  `used-up` names only consumable, unfixed items in reach, and a container only with everything
+  in it; `made` has at most 2 entries (name 1-60, desc 1-400, condition 1-80 characters), only
+  with something used up, and an `in` must be a container in reach that isn't used up. A bad answer is sent back with the reason and asked once
   more. A second bad answer, or an exception, gives `:item/work-done` with no changes and a
   neutral summary ("Hale finishes dusting the china cabinet."), plus an `:item/judge-failed`
   event (`:visible-to :system`) with the reason. The run isn't paused.
@@ -711,7 +734,9 @@ a clock) spends time doing something to things:
   the work is over), so `:mock-policy` never sees the judge. Its context has `:world :job :items`
   (in reach) `:minutes :stopped-early? :luck :step`, and it returns `{:tool :judge :args {..}}`.
 
-Fungible stores (provisions, coal) are better kept as counters in your `:state`.
+Stores of provisions can be consumable items, a parcel each, whose condition the judge rewrites as
+they are used (Claudeworth's purchases), or counters in your `:state` when nothing should handle
+them as things.
 
 ### World files (`manor.worldfile`)
 

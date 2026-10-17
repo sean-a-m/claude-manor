@@ -283,9 +283,12 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   walked or looked; agents searched room by room for each other, and counted their per-turn call
   budget. Rounds run one agent after another, so time per round grows with the number of calls;
   the aim is about 200 agents.
-- **Stage 1 (fewer wasted calls):** see [the turns brief](turns-brief.md): last seen in the
-  view, `walk` replying with the new place, `call` across the area, reminders that don't count
-  calls.
+- **Stage 1 (fewer wasted calls): done.** See [the turns brief](archived/turns-brief.md): last
+  seen in the view, `walk` replying with the new place, `call` across the area, reminders that
+  don't count calls. Over the same 10 rounds, calls fell from 163 to 116, walk-or-look-only calls
+  from 64% to 33%, `look` from 54 to 8, and call counting in thoughts from 21 to 0. Follow-ups:
+  `last-seen` is empty at the start, so the first turn still searches; Nellie walks room to room
+  looking for work; `call` hasn't yet been seen answered.
 - **Stage 2 (simultaneous rounds and conversations), not started:** every free agent plans in
   parallel on one snapshot, engine code resolves the plans in a fixed order, and only agents
   whose situation changed get a short follow-up call; conversations happen as exchanges within a

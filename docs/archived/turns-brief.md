@@ -1,5 +1,7 @@
 # Turns, stage 1: fewer wasted calls
 
+**Status: done** (`5194e55`, and the findings below).
+
 Instructions for cutting the calls agents waste walking and searching. Read `AGENTS.md` first.
 The user agreed this on 2026-10-17, after the analysis of the full-day run
 (`runs/claudeworth-20261016-194011`): 45% of agent calls only walked or looked, agents searched
@@ -14,7 +16,7 @@ brief. A researcher is writing `docs/turn-resolution-research.md` for it.
 - [x] T3 `call` across the area (Claudeworth)
 - [x] T4 reminders stop counting calls
 - [x] T5 docs, mock day and tests
-- [ ] T6 one short real run, measured against the full-day run
+- [x] T6 one short real run, measured against the full-day run (below)
 
 ## Decisions
 
@@ -46,3 +48,39 @@ One run in the foreground: `:test? true`, the housemaid in, 10 rounds from 09:00
 34 `look`, 2 forfeits from searching). Report: calls per agent turn, the share of calls that
 only walk or look, `look` calls, `call` uses and whether the person called came, forfeits, and
 thoughts that count calls or search for people.
+
+## T6 findings
+
+`test-runs/turns-stage1-real` (since deleted): Nellie in, 10 rounds from 09:00,
+**$0.105**, **116 calls** (110 by characters, 6 by the judge), **362 s**. The closest earlier run
+is the housemaid run (`old-test-runs/items-maid-real`, same start and length):
+
+| | housemaid run | stage 1 |
+|---|---|---|
+| calls | 163 | 116 |
+| calls per character turn | 3.79 | 2.68 |
+| calls that only walk or look | 64% | 33% |
+| `look` | 54 | 8 |
+| thoughts counting calls | 21 | 0 |
+| thoughts searching for people | 38 | 3 |
+| forfeits | 0 (the containers run had 2) | 0 |
+| cost | $0.131 | $0.105 |
+
+- **Bad replies:** one "speak once per turn" rejection, and one "Pugh draws the plans here; ask
+  him".
+- **`call`:** used once, by the earl in the last round ("My lady, Hale — dinner is laid"). The run
+  ended before anyone could answer. Nobody called a servant.
+- **`last-seen`:** empty at the start, because nobody has parted from anyone yet. The earl
+  noticed ("My view doesn't show last-seen"), and Hale's first turn still searched the house,
+  with five walks to find the earl. After that, nobody searched for people.
+- **Most of the remaining walking is Nellie looking for work,** room by room. Rooms with nothing
+  listed give her nothing to aim at.
+- **The silver, without a hint:** Nellie opened the sideboard at 10:00 and polished the
+  candlesticks and the canteen of cutlery inside it. She also opened it later, and lifted the
+  ring mark on its top.
+
+Possible follow-ups (not built):
+
+- seed `last-seen` at the start, for example with where the household was at breakfast;
+- give rooms something a servant can see needs doing;
+- check that `call` gets a response, which needs a run that reaches it earlier.

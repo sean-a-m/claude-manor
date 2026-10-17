@@ -237,7 +237,8 @@ Follow-ups, by need:
 - Room conditions: `work-on` accepts the id of the worker's place (done), but places have no
   `:condition`, so work on the room changes nothing and a room-only job skips the judge. Next:
   an optional location `:condition`, the room passed to the judge as one more thing, shown by
-  `look`. Only worth it alongside some way for rooms to get dirty again.
+  `look`. Only worth it alongside some way for rooms to get dirty again. Plan:
+  [room-conditions-brief.md](room-conditions-brief.md).
 - Containers: done (see [the containers brief](archived/containers-brief.md)). Follow-ups:
   locked containers, and perhaps needing to `open` before taking (today a guessed id inside a
   closed container can be taken); carried containers (a basket) aren't forbidden but are

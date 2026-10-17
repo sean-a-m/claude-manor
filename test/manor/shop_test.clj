@@ -24,7 +24,7 @@
 (def purchase {:for "customer" :item "packet of needles" :qty 2})
 (def available {:available true :item "packet of needles" :unit "a paper packet of ten needles"
                 :desc "Ten steel sewing needles in a folded paper packet." :condition "new"
-                :unit-price-pence 3})
+                :consumable false :unit-price-pence 3})
 
 (defn policy [{:keys [world agent-id used]}]
   (cond
@@ -97,10 +97,11 @@
           (is (= 594 (get-in after [:state :household :funds])))
           (is (= {"untouched" 7} (get-in after [:state :household :stores])))
           (is (empty? (get-in after [:state :quotes])))
-          (is (= ["packet-of-needles" "packet-of-needles-2"]
-                 (map :id (items/items-where after #(= "customer" (:holder %))))))
-          (is (every? #(= {:owner "household" :holder "customer" :condition "new"}
-                          (select-keys % [:owner :holder :condition])) (items/items-where after #(= "customer" (:holder %)))))
+          (testing "one parcel for the whole quantity, the amount leading its condition"
+            (is (= [{:id "packet-of-needles" :name "packet of needles" :owner "household" :holder "customer"
+                     :condition "2 × a paper packet of ten needles; new"
+                     :desc "Ten steel sewing needles in a folded paper packet."}]
+                   (items/items-where after #(= "customer" (:holder %))))))
           (is (str/includes? (shop/buy-reason after "customer" {:quote-id (:id offer)}) "unspent quote"))
           (is (= after (w/replay (store/read-events (:dir run)))))
           (is (not-any? #(= :action/forfeited (:type %)) (e/events run)))
@@ -140,6 +141,9 @@
                (assoc available :unit-price-pence 0) (assoc available :unit-price-pence -1)
                (assoc available :unit-price-pence 1.5) (assoc available :unit-price-pence (inc shop/max-unit-price))
                (assoc available :item (apply str (repeat 61 "x")))
+               (assoc available :unit (apply str (repeat (inc shop/max-unit) "x")))
+               (assoc available :condition (apply str (repeat (inc shop/max-goods-condition) "x")))
+               (dissoc available :consumable)
                {:available false} {:available false :reason " "}]]
     (is (:error (shop/check (response bad))) (pr-str bad)))
   (let [verdict (:verdict (shop/check (response (assoc available :holder "clerk" :owner "clerk" :id "stolen"
@@ -156,6 +160,45 @@
     (is (str/starts-with? (get-in answer [:replies 2 :content]) "ignored:")))
   (doseq [args [(assoc purchase :qty 0) (assoc purchase :qty 21) (assoc purchase :item "")]]
     (is (:error (a/decode-args (action :quote-goods) args)))))
+
+(defn- bought
+  "The world after the customer accepts `result` for `qty` of it, and the purchase events."
+  [world result qty]
+  (let [offered (reduce w/apply-event world
+                        (map #(assoc % :actor "clerk")
+                             (shop/offer-events world "clerk" {:for "customer" :item (:item result) :qty qty} result)))
+        evs (map #(assoc % :actor "customer")
+                 (shop/buy-events offered "customer" {:quote-id (:id (first (vals (get-in offered [:state :quotes]))))}))]
+    [(reduce w/apply-event offered evs) evs]))
+
+(deftest a-purchase-is-one-parcel
+  (let [run (start)
+        flour {:available true :item "Plain household flour" :unit "1 lb"
+               :desc "Fine white flour in a blue paper bag." :condition "fresh, dry, unbleached"
+               :consumable true :unit-price-pence 2}]
+    (try
+      (let [[after evs] (bought (e/world run) flour 20)
+            names (n/names after)]
+        (testing "one item for twenty pounds, the amount in its condition, consumable"
+          (is (= [:claudeworth/bought :item/added] (map :type evs)))
+          (is (= [{:id "plain-household-flour" :name "Plain household flour" :holder "customer" :owner "household"
+                   :desc "Fine white flour in a blue paper bag." :condition "20 × 1 lb; fresh, dry, unbleached"
+                   :consumable? true}]
+                 (items/held-by after "customer"))))
+        (testing "both lines give the amount"
+          (is (= "Customer buys Plain household flour (20 × 1 lb) for 3s 4d at the Counter." (n/describe (first evs) names)))
+          (is (= "Customer now has plain household flour (20 × 1 lb)." (n/describe (second evs) names))))
+        (testing "a single unit is just the unit; lasting goods aren't consumable"
+          (let [[after] (bought (e/world run) available 1)]
+            (is (= [["a paper packet of ten needles; new" nil]]
+                   (map (juxt :condition :consumable?) (items/held-by after "customer")))))))
+      (testing "the longest unit and condition the appraiser may give still fit an item's condition"
+        (let [longest (assoc flour :unit (apply str (repeat shop/max-unit "u"))
+                             :condition (apply str (repeat shop/max-goods-condition "c")) :unit-price-pence 1)
+              [after] (bought (e/world run) longest shop/max-quantity)
+              [it] (items/held-by after "customer")]
+          (is (<= (count (:condition it)) items/max-condition))))
+      (finally (e/stop-run run)))))
 
 (deftest refusals-and-failures-never-charge-or-create-goods
   ;; These test the contract, not the model's historical knowledge.
@@ -223,7 +266,7 @@
       (try
         (rounds! run 2)
         (is (= 594 (get-in (e/world run) [:state :household :funds])))
-        (is (= 2 (count (items/items-where (e/world run) #(= "customer" (:holder %))))))
+        (is (= 1 (count (items/items-where (e/world run) #(= "customer" (:holder %))))))
         (is (not-any? #(= :action/forfeited (:type %)) (e/events run)))
         (finally (e/stop-run run))))))
 
@@ -235,7 +278,7 @@
         (rounds! run 2)
         (let [world (e/world run)]
           (is (= 594 (get-in world [:state :household :funds])) (name role))
-          (is (= 2 (count (items/items-where world #(= "customer" (:holder %))))))
+          (is (= 1 (count (items/items-where world #(= "customer" (:holder %))))))
           (is (= world (w/replay (e/events run)))))
         (finally (e/stop-run run)))))
   (is (empty? (a/for-role shop/actions :gm))))

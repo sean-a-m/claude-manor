@@ -16,6 +16,10 @@
 
 (def max-unit-price 240000) ; £1000: bound untrusted arithmetic, not a price list
 (def max-quantity 20)
+;; A parcel's condition is "<amount>; <condition>": "20 × " + unit + "; " + condition
+;; stays within items/max-condition (5 + 30 + 2 + 40 = 77).
+(def max-unit 30)
+(def max-goods-condition 40)
 
 (defn- text-schema [limit] [:string {:min 1 :max limit}])
 
@@ -24,9 +28,10 @@
    [:available :boolean]
    [:reason {:optional true} (text-schema 300)]
    [:item {:optional true} (text-schema items/max-name)]
-   [:unit {:optional true} (text-schema 60)]
+   [:unit {:optional true} (text-schema max-unit)]
    [:desc {:optional true} (text-schema items/max-desc)]
-   [:condition {:optional true} (text-schema items/max-condition)]
+   [:condition {:optional true} (text-schema max-goods-condition)]
+   [:consumable {:optional true} :boolean]
    [:unit-price-pence {:optional true} [:int {:min 1 :max max-unit-price}]]])
 
 (def instructions
@@ -40,8 +45,11 @@
        "A tin, packet, bunch or loaf can be one item; an abstract week's supplies or a ton of coal cannot. "
        "Do not make an unsuitable request available at an enormous price. Do not silently substitute a different object. "
        "For unavailable goods give available=false and a brief in-world reason. "
-       "For available goods give available=true, item, unit (what each of the requested quantity buys), desc, condition, "
-       "and unit-price-pence. Keep the requested meaning and quantity. Describe the physical item, not invented game powers. "
+       "For available goods give available=true, item, unit (a short measure for each of the requested quantity, such as 1 lb, 1 loaf, 1 tin, 1 dozen), "
+       "desc, condition (a short phrase), consumable, and unit-price-pence. "
+       "consumable is true for goods used up in use (food, drink, fuel, candles, soap, polish, matches) "
+       "and false for things that last (tools, crockery, cloth, furniture). "
+       "Keep the requested meaning and quantity. Describe the physical item, not invented game powers. "
        "Price realistically in integer old pence: 12d=1 shilling; 240d=£1. For example 1s 6d=18 pence. "
        "Whole pennies only; no bargaining. Never decide affordability or charge money."))
 
@@ -62,7 +70,7 @@
 
 (defn- checked-args [raw]
   (let [{:keys [args error]} (a/decode-args {:args appraisal-schema} raw)
-        fields (if (:available args) [:item :unit :desc :condition :unit-price-pence] [:reason])]
+        fields (if (:available args) [:item :unit :desc :condition :consumable :unit-price-pence] [:reason])]
     (cond
       error {:error error}
       (some #(or (nil? (get args %)) (and (string? (get args %)) (str/blank? (get args %)))) fields)
@@ -79,7 +87,7 @@
   {:tool :appraise
    :args {:available true :item (:item request) :unit "one"
           :desc (str "An ordinary " (:item request) " from the village shop.")
-          :condition "new" :unit-price-pence 18}})
+          :condition "new" :consumable false :unit-price-pence 18}})
 
 (def adjudicators {:shop/appraise {:request request :check check :mock mock-appraisal}})
 
@@ -113,9 +121,14 @@
 (defmethod n/describe :claudeworth/goods-refused [{:keys [actor data]} names]
   (str (n/who names actor) " cannot offer " (:item data) " to " (n/who names (:buyer data)) ": " (:reason data)))
 
+(defn amount
+  "What a purchase of `qty` of `unit` comes to: \"1 tin\", or \"20 × 1 lb\"."
+  [qty unit]
+  (if (= 1 qty) unit (str qty " × " unit)))
+
 (defmethod n/describe :claudeworth/bought [{:keys [actor data]} names]
-  (str (n/who names actor) " buys " (:qty data) " " (:item data) " for " (money/display (:price data))
-       " at the " (n/place names (:location data)) "."))
+  (str (n/who names actor) " buys " (:item data) " (" (amount (:qty data) (:unit data)) ") for "
+       (money/display (:price data)) " at the " (n/place names (:location data)) "."))
 
 (defn offer-events [world clerk {:keys [for item qty] :as args} result]
   ;; Recheck against the current world before recording an offer.
@@ -123,7 +136,7 @@
     (let [audience (space/here world clerk)]
       (if (:available result)
         [{:type :claudeworth/goods-quoted :visible-to audience
-          :data (merge (select-keys result [:item :unit :desc :condition :unit-price-pence])
+          :data (merge (select-keys result [:item :unit :desc :condition :consumable :unit-price-pence])
                        {:id (str "quote-" (inc (:seq world))) :buyer for :clerk clerk
                         :location (space/location-of world clerk) :qty qty
                         :price (* qty (:unit-price-pence result))})}]
@@ -143,14 +156,19 @@
                   (str "this costs " (money/display (:price quote)) "; the household has "
                        (money/display (get-in world [:state :household :funds]))))))))
 
-(defn buy-events [world buyer {:keys [quote-id]}]
+(defn buy-events
+  "The purchase, and one parcel of the goods for the buyer: the amount
+  bought leads its condition, where work can later say what's left."
+  [world buyer {:keys [quote-id]}]
   (let [quote (get-in world [:state :quotes quote-id])
         audience (space/here world buyer)
-        item {:name (:item quote) :desc (:desc quote) :condition (:condition quote)
-              :holder buyer :owner "household"}]
-    (into [{:type :claudeworth/bought :visible-to audience
-            :data (assoc (select-keys quote [:location :item :unit :qty :price]) :quote-id quote-id)}]
-          (items/added-events world (repeat (:qty quote) item) audience))))
+        bought (amount (:qty quote) (:unit quote))
+        item (cond-> {:name (:item quote) :desc (:desc quote) :condition (str bought "; " (:condition quote))
+                      :holder buyer :owner "household"}
+               (:consumable quote) (assoc :consumable? true))]
+    [{:type :claudeworth/bought :visible-to audience
+      :data (assoc (select-keys quote [:location :item :unit :qty :price]) :quote-id quote-id)}
+     (items/added world item audience :amount bought)]))
 
 (def actions
   [{:name :quote-goods :kind :query :roles #{:shopkeeper}

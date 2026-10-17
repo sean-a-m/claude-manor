@@ -518,12 +518,12 @@
             (and (< grain 4) (>= coins (* 3 import-price)))
             (if (= here "lisbon") {:tool :import-grain :args {:qty 4}} (go-toward world agent-id "lisbon"))
             (not= here "market") (go-toward world agent-id "market")
-            (zero? (mod round 3)) {:tool :say :args {:text "Fresh grain at my stall, fair prices!"}}
+            (and (zero? (mod round 3)) (not (used "say"))) {:tool :say :args {:text "Fresh grain at my stall, fair prices!"}}
             :else {:tool :pass})
 
       :mayor
       (cond (and (= round 1) (not (used "check-forecast"))) {:tool :check-forecast}
-            (= round 1) {:tool :say :args {:text "Welcome, everyone. The forecast is in; plan your planting."}}
+            (and (= round 1) (not (used "say"))) {:tool :say :args {:text "Welcome, everyone. The forecast is in; plan your planting."}}
             (= round 2) {:tool :set-tax :args {:percent 10}}
             (= round 3) {:tool :send-letter :args {:text "To the governor: our village is small but growing."}}
             (and (= round 4) (not (used "pray"))) {:tool :pray :args {:text "We could use another farmer."}}

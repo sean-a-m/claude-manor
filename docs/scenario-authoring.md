@@ -131,6 +131,8 @@ Each action is a map. Each role's actions become that role's LLM tools.
  :available? (fn [world actor] bool) ; optional: leave the tool out of this turn
  :valid?  (fn [world actor args] nil-or-reason-string)
  :effect  (fn [world actor args] [events])
+ :per-turn  1                        ; optional: at most this many accepted uses per turn
+ :limit-key :speech                  ; optional: actions with the same key share :per-turn
  :reply   (fn [world actor args] data)}   ; :free only, optional: the tool result instead of "ok"
 ```
 
@@ -142,6 +144,15 @@ Each action is a map. Each role's actions become that role's LLM tools.
 | `:free` | no | immediately | notes, declining, small side moves |
 | `:query` | no | immediately; calls a bridge, and the result comes back within the turn | needs `:bridge`; limited by `:max-queries` per turn; no approval |
 | `:act` | yes | creates a pending request; runs after operator approval at the next round start | needs `:bridge` |
+
+**Per-turn limits:** `:per-turn n` caps how often an action can be used in one turn; it suits
+free and query actions (a turn has only one final action anyway). Only accepted uses count: a call
+rejected by `:valid?` or with bad arguments leaves the limit untouched. Actions with the same
+`:limit-key` (by default each action's own `:name`) share one count. Once it's spent, a further
+call gets `rejected: you can use say or whisper only once per turn; take your turn-ending action
+now, and use them again next turn`. The tool description ends with "Once per turn." or "At most n
+times per turn."; say in the `:doc` which other actions share the limit. The count is turn state,
+not world state, so it leaves no events and replay is unaffected.
 
 Every model call in a turn counts towards `:max-steps` (default 10): free and query actions, and
 retries after an error or rejection. A turn with no turn-ending action by then is forfeited. To
@@ -207,8 +218,8 @@ it isn't an event, so anything that must be remembered or replayed belongs in `:
 | `pass` | all | final | does nothing |
 | `carry-on` | all | final | only offered to an interrupted agent: keep the occupation and ignore the interruption |
 | `note` | all | free | private note, shown to the agent every round (last 15); told 400 characters, accepts 500 |
-| `say` | all | final | heard by everyone in the same place (everyone, without locations); told 1000 characters, accepts 1500 |
-| `whisper` | all | final | private to one agent; requires being together if both have locations; same limits |
+| `say` | all | free | heard by everyone in the same place (everyone, without locations); told 1000 characters, accepts 1500; once per turn, shared with `whisper` (`:limit-key :speech`) |
+| `whisper` | all | free | private to one agent; requires being together if both have locations; same limits, and shares `say`'s once per turn |
 | `pray` | all | free | a private, diegetic way to reach the GM: its `:gm/requested` event fills the GM's inbox and triggers the GM this round |
 | `move` | all | final | follow a route (see Locations); only offered when the agent has a location |
 | `look`, `take`, `put-down`, `give` | all | free | only when the scenario has `:items` (see Items) |
@@ -729,7 +740,8 @@ Lets the scenario run for free with `{:llm :mock}`. It's essential for testing.
 ```
 
 - `step` is the model-call index within this turn. `used` is the tool names already called this
-  turn: after a free or query call, return a turn-ending action next.
+  turn: after a free or query call, return a turn-ending action next. `say` and `whisper` are
+  free and once per turn, so guard them with `(not (used "say"))` and pass afterwards.
 - For the GM (`role :gm`) return `{:tool :done}` unless testing GM behaviour.
 - The judge of work on items (`role :judge`) never reaches the policy: the engine sends it to the
   scenario's `:mock-judge`, or `manor.items/mock-judge` (see Items).

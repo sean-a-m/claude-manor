@@ -93,7 +93,7 @@
 (def actions
   [;; overrides the built-in, which everyone sees: here only people present notice
    {:name :pass
-    :doc "Do nothing this turn."
+    :doc "Do nothing (more) this turn."
     :effect (fn [world actor _] [{:type :agent/passed :visible-to (space/here world actor)}])}
 
    {:name :walk
@@ -278,7 +278,7 @@
          "`travel` goes to another area: use a place id from `places`, or an area name. It takes your turn; `journeys` "
          "in your view shows how long each journey takes, and a longer one leaves you travelling until you arrive. "
          "You're only heard by people in the same place (`say`: a few sentences, at most " b/speech-limit
-         " characters); `whisper` is private. "
+         " characters); `whisper` is private. You can speak once a turn, with `say` or `whisper`, and it doesn't end your turn: speak, then take your action. "
          "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). You get no turns while asleep or busy, unless someone uses `rouse` to interrupt you. On that turn, `carry-on` ignores them; any other accepted action means you stop. "
          "Use `spend-time` for longer pastimes (half an hour to " max-pastime-hours " hours). `note` keeps private notes. "
          "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows them in detail, with their descriptions, conditions and owners, along with the room and what the people here carry, so use it to examine something closely, not routinely on arrival. "

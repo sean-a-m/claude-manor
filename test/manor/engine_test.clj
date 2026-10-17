@@ -419,14 +419,15 @@
          :usage {:prompt-tokens 10 :completion-tokens 5 :cost 0.001}}))))
 
 (defn- walker
-  "The earl walks back and forth `walks` times, then says good morning;
-  everyone else passes."
+  "The earl walks back and forth `walks` times, says good morning and
+  passes; everyone else passes."
   [walks]
   (fn [{:keys [agent-id role step]}]
     (cond (= role :gm) ["done" {}]
           (not= "lord-claudeworth" agent-id) ["pass" {}]
           (< step walks) ["walk" {:to (if (even? step) "dining-room" "earls-bedroom")}]
-          :else ["say" {:text "Good morning."}])))
+          (= step walks) ["say" {:text "Good morning."}]
+          :else ["pass" {}])))
 
 (defn- earls-calls [calls] (filterv #(= "lord-claudeworth" (:agent %)) @calls))
 
@@ -443,8 +444,8 @@
   (let [calls (atom [])
         run (rounds! (household-run (scripted calls (walker 3)) {}) 1)
         earl (earls-calls calls)]
-    (testing "the earl walked three times, then spoke, and kept his turn"
-      (is (= 4 (count earl)))
+    (testing "the earl walked three times, spoke, passed, and kept his turn"
+      (is (= 5 (count earl)))
       (is (= 1 (count (filter #(= "lord-claudeworth" (:actor %)) (of-type run :agent/said)))))
       (is (empty? (of-type run :action/forfeited))))
     (testing "after two calls he was reminded, once, naming his turn-ending actions"
@@ -452,15 +453,15 @@
       (let [reminder (last-message (earl 2))]
         (is (str/includes? reminder "free tools, queries and rejected calls don't end it"))
         (is (str/includes? reminder "one of your 10 calls this turn (2 used)"))
-        (is (str/includes? reminder "turn-ending action: `say`, `commission`, `travel`, `buy`, `pass`, `work-on`, `sleep`, `spend-time` or `whisper`."))
+        (is (str/includes? reminder "turn-ending action: `commission`, `travel`, `buy`, `pass`, `work-on`, `sleep` or `spend-time`."))
         (is (str/includes? reminder "`pass` is a fine way to wait"))
         (is (not (str/includes? reminder "`walk`"))))
       (is (= 1 (count (filter #(and (= "user" (:role %)) (str/includes? (:content %) "turn isn't over"))
                               (:messages (earl 3)))))))
     (testing "the last call's replies are recorded"
       (let [logged (filter #(= "lord-claudeworth" (:agent %)) (store/read-llm (:dir run)))]
-        (is (= 4 (count logged)))
-        (is (= [{:role "tool" :tool_call_id "c3" :content "done"}] (:replies (last logged))))
+        (is (= 5 (count logged)))
+        (is (= [{:role "tool" :tool_call_id "c4" :content "done"}] (:replies (last logged))))
         (testing "and every call's replies are what the next call was sent"
           (is (= (:replies (first logged)) (drop (inc (count (:messages (first logged)))) (:messages (second logged))))))))
     (testing "replay is unaffected"
@@ -480,4 +481,38 @@
     (testing "a turn of free actions only is still forfeited, and its last replies are logged"
       (is (= ["lord-claudeworth"] (map :actor (of-type run :action/forfeited))))
       (is (= [{:role "tool" :tool_call_id "c3" :content "ok"}] (:replies (last logged)))))
+    (e/stop-run run)))
+
+(defn- chatterbox
+  "The earl whispers to nobody, says good morning, tries to whisper and say
+  again, then passes; everyone else passes."
+  [{:keys [agent-id role step]}]
+  (cond (= role :gm) ["done" {}]
+        (not= "lord-claudeworth" agent-id) ["pass" {}]
+        :else (get [["whisper" {:to "nobody" :text "psst"}]
+                    ["say" {:text "Good morning."}]
+                    ["whisper" {:to "hale" :text "psst"}]
+                    ["say" {:text "Good morning again."}]]
+                   step ["pass" {}])))
+
+(deftest speaking-once-per-turn
+  (testing "say and whisper are free, once per turn, and share the limit"
+    (let [tools (into {} (map (juxt :name a/->tool)) (b/agent-actions))]
+      (doseq [[k other] [[:say "whisper"] [:whisper "say"]]]
+        (is (str/ends-with? (get-in tools [k :function :description])
+                            (str "Shares its limit with " other ". Free: does not end your turn. Once per turn."))))
+      (is (= :speech (a/limit-key (first (filter #(= :say (:name %)) (b/agent-actions))))))
+      (is (str/ends-with? (get-in (a/->tool {:name :x :kind :free :per-turn 2 :doc "X."}) [:function :description])
+                          "At most 2 times per turn."))))
+  (let [run (rounds! (household-run (scripted (atom []) chatterbox) {}) 2)
+        logged (filter #(= "lord-claudeworth" (:agent %)) (store/read-llm (:dir run)))
+        replies (map (comp :content first :replies) logged)
+        spent "rejected: you can use say or whisper only once per turn; take your turn-ending action now, and use them again next turn"]
+    (testing "a rejected whisper doesn't use up the turn's speech; a second say or whisper is refused"
+      (is (= ["rejected: no active participant with id nobody" "ok" spent spent "done"] (take 5 replies))))
+    (testing "he spoke once a round, kept his turns, and whispered nothing"
+      (is (= [1 2] (map :round (filter #(= "lord-claudeworth" (:actor %)) (of-type run :agent/said)))))
+      (is (empty? (of-type run :agent/whispered)))
+      (is (= 2 (count (filter #(= "lord-claudeworth" (:actor %)) (of-type run :agent/passed)))))
+      (is (empty? (of-type run :action/forfeited))))
     (e/stop-run run)))

@@ -25,7 +25,7 @@
       (is (str/includes? md "- **lord-claudeworth** walk {\"to\":\"dining-room\"} _($0.0000)_\n  - engine: ok\n- **lord-claudeworth** say"))
       (is (str/includes? md "## 08:30 (round 2)"))
       (testing "a turn's last call shows its replies"
-        (is (re-find #"- \*\*lord-claudeworth\*\* say .*\n  - engine: done\n" md))
+        (is (re-find #"- \*\*lord-claudeworth\*\* pass .*\n  - engine: done\n" md))
         (is (not (str/includes? md "didn't record replies")))))
     (testing "runs logged before replies were recorded read them from the next call"
       (let [f (io/file (:dir run) "llm.edn")
@@ -33,7 +33,7 @@
         (spit f (apply str (map #(str (pr-str %) "\n") old-style)))
         (let [md (transcript/render (:dir run))]
           (is (str/includes? md "_($0.0000)_\n  - engine: ok\n- **lord-claudeworth** say"))
-          (is (not (re-find #"- \*\*lord-claudeworth\*\* say .*\n  - engine: done\n" md)))
+          (is (not (re-find #"- \*\*lord-claudeworth\*\* pass .*\n  - engine: done\n" md)))
           (is (str/includes? md "(this run didn't record replies to a turn's last call)")))))
     (e/stop-run run)))
 

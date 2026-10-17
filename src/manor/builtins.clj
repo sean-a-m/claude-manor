@@ -146,7 +146,7 @@
     :effect (fn [world actor _] [(resume world actor)])}
 
    {:name :pass
-    :doc "Wait here and do nothing this round: a fine choice when you want to see what others do, or there is nothing to do yet. It ends your turn, but you take your turn again next round."
+    :doc "Wait here and do nothing (more) this round: a fine choice when you want to see what others do, or there is nothing to do yet. It ends your turn, but you take your turn again next round."
     :effect (fn [_ _ _] [{:type :agent/passed :visible-to :all}])}
 
    {:name :note
@@ -158,16 +158,18 @@
               [{:type :agent/noted :data {:text text} :visible-to #{actor}}])}
 
    {:name :say
+    :kind :free :per-turn 1 :limit-key :speech
     :doc (str "Say something out loud to everyone in the same place: a few sentences, at most "
-              speech-limit " characters.")
+              speech-limit " characters. Shares its limit with whisper.")
     :args [:map [:text speech]]
     :effect (fn [world actor {:keys [text]}]
               [{:type :agent/said :data {:text text :at (space/location-of world actor)}
                 :visible-to (space/here world actor)}])}
 
    {:name :whisper
+    :kind :free :per-turn 1 :limit-key :speech
     :doc (str "Say something privately to one other participant in the same place (use their id): "
-              "a few sentences, at most " speech-limit " characters.")
+              "a few sentences, at most " speech-limit " characters. Shares its limit with say.")
     :args [:map [:to :string] [:text speech]]
     :valid? (fn [world actor {:keys [to]}]
               (cond (= to actor) "you cannot whisper to yourself"

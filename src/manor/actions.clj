@@ -12,6 +12,10 @@
      :available? (fn [world actor]) => bool ; optional: offer the tool only when true
      :valid?  (fn [world actor args]) => nil or a reason string
      :effect  (fn [world actor args]) => [events]
+     :per-turn  1                           ; optional: accepted uses per turn
+     :limit-key :speech                     ; optional: actions with the same key
+                                            ; share one :per-turn limit (default:
+                                            ; the action's own :name)
 
      ;; :free actions only, optional
      :reply   (fn [world actor args]) => data ; the tool result instead of \"ok\":
@@ -40,6 +44,12 @@
 (defn kind [action] (or (:kind action) :final))
 
 (defn ends-turn? [action] (#{:final :act} (kind action)))
+
+(defn limit-key
+  "The key an action's :per-turn uses are counted under. Actions with the
+  same :limit-key share one limit."
+  [action]
+  (or (:limit-key action) (:name action)))
 
 (defn args-schema [action] (or (:args action) [:map]))
 
@@ -85,10 +95,14 @@
                                       (m/-update-properties s dissoc :max)
                                       s)))))
 
+(defn- per-turn-hint [action]
+  (when-let [n (:per-turn action)]
+    (if (= 1 n) " Once per turn." (str " At most " n " times per turn."))))
+
 (defn ->tool [action]
   {:type "function"
    :function {:name (name (:name action))
-              :description (str (:doc action) " " (kind-hint (kind action)))
+              :description (str (:doc action) " " (kind-hint (kind action)) (per-turn-hint action))
               :parameters (mjs/transform (tool-schema (args-schema action)))}})
 
 ;; ---------------------------------------------------------------------------

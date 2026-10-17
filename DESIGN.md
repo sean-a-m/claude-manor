@@ -71,7 +71,10 @@ docs/            scenario authoring guide, roadmap
 
 The agent gets a fresh prompt and its role's tools, then loops for up to `:max-steps` model calls:
 
-- **free** tools (e.g. `note`, `decline`) apply immediately and the turn continues
+- **free** tools (e.g. `note`, `decline`, `say`) apply immediately and the turn continues
+- an action with `:per-turn` can be used only that many times per turn, counting accepted uses;
+  actions with the same `:limit-key` share the limit, so `say` and `whisper` together allow one
+  utterance per turn
 - **query** tools call a bridge; the result goes back to the model (up to `:max-queries` per turn)
 - a **final** or **act** tool ends the turn if valid; if rejected, the model is told why and can retry
 - no valid action by the end of the loop means the turn is forfeited; an agent with no

@@ -268,6 +268,23 @@
     (store/append-llm! (:dir run) entry)
     (swap! (:last-calls run) assoc agent-id entry)))
 
+(defn- limit-reached
+  "Why `action` can't be used again this turn, or nil: its :per-turn uses
+  (counted under its limit key, in the turn state's :uses) are spent."
+  [by-name st action]
+  (let [k (a/limit-key action)
+        n (:per-turn action)]
+    (when (and n (>= (get-in st [:uses k] 0) n))
+      (let [sharing (sort (keep #(when (= k (a/limit-key %)) (name (:name %))) (vals by-name)))]
+        (str "you can use " (str/join " or " sharing) " only "
+             (if (= 1 n) "once" (str n " times")) " per turn; take your turn-ending action now, and use "
+             (if (next sharing) "them" "it") " again next turn")))))
+
+(defn- use-up
+  "The turn state after an accepted use of an action with a :per-turn limit."
+  [st action]
+  (cond-> st (:per-turn action) (update-in [:uses (a/limit-key action)] (fnil inc 0))))
+
 (defn- handle-call
   "Process one tool call within a turn. `commit` either applies a turn-ending
   action now (sequential turns, GM) or only checks it and defers it
@@ -279,14 +296,18 @@
       (:done? st) (reply st "ignored: your turn is already over")
       (nil? action) (reply st (str "error: there is no tool called " name))
       :else
-      (let [{:keys [args error]} (a/decode-args action arguments)]
-        (if error
-          (reply st (str "error: " error))
+      (let [{:keys [args error]} (a/decode-args action arguments)
+            spent (when-not error (limit-reached by-name st action))]
+        (cond
+          error (reply st (str "error: " error))
+          spent (reply st (str "rejected: " spent))
+          :else
           (case (a/kind action)
             :free
             (let [{:keys [rejected world]} (resolve! run agent-id action args)]
               (-> st
                   (update :used conj name)
+                  (cond-> (not rejected) (use-up action))
                   (reply (if rejected
                            (str "rejected: " rejected)
                            (free-reply action world agent-id args)))))
@@ -298,6 +319,7 @@
                 (-> st
                     (update :queries inc)
                     (update :used conj name)
+                    (cond-> (not error) (use-up action))
                     (reply (if error (str "error: " error) (prompt/->json result))))))
 
             (:final :act)
@@ -305,6 +327,7 @@
               (if rejected
                 (reply st (str "rejected: " rejected))
                 (let [st (-> st
+                             (use-up action)
                              (update :finals conj {:action action :args args})
                              (update :used conj name)
                              (reply (if (= :act (a/kind action))

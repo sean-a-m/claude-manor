@@ -47,7 +47,7 @@ consistent (section 6.4).
 |---|---|
 | A map that changes at runtime | `:space/location-added` and `:space/route-opened` are ordinary events, so a new room is just more events. Replay and branching keep working. |
 | Trips to the village | routes with a travel time in rounds; `:agent/moved`, `:agent/departed`, `:agent/arrived` |
-| Talking | `say` (heard by everyone in the room), `whisper`; round-robin turns, so each agent sees what the previous agent did this round |
+| Talking | `say` (heard by everyone in the room), `whisper`: free, one of them per turn (decision 33); round-robin turns, so each agent sees what the previous agent did this round |
 | An external MCP server | query bridges with `{:mcp {:server .. :tool ..}}`, arguments chosen by the engine (`:bridge-args`), results recorded through `:on-result` |
 | Delayed effects | a scenario `:system` that runs every round (enough for construction) |
 | Money, stores, plans | scenario `:state` with reducers, as in the village |
@@ -620,3 +620,9 @@ Decisions for items (done):
     Validation cases select agents by name and check the intended diagnostic, including after
     reordering. Separate bundled-content tests cover current defaults and smoke/replay behaviour;
     an isolation regression expands and reverses the production cast without changing the fixture.
+33. **Speaking doesn't end the turn.** Done, for every scenario: `say` and `whisper` are free
+    actions sharing one use per turn (`:per-turn 1`, `:limit-key :speech`), so a character can
+    walk in, speak and then work, travel or pass. A second utterance in the same turn is rejected
+    with a reason; a rejected one doesn't use up the turn's speech. Speaking turns now need a
+    turn-ending action too (often `pass`, reworded to "do nothing (more)"), which costs an extra
+    model call unless the model makes both calls in one response.

@@ -38,8 +38,10 @@ See "MCP bridges" in [docs/scenario-authoring.md](docs/scenario-authoring.md).
 - Node.js and pi for the pi MCP server (the `quiz` scenario and the tests)
 - Babashka for the architect MCP server (the `claudeworth` scenario and its tests). The server is
   started lazily per run; without babashka, run Claudeworth with `--offline` for the stub.
-- An OpenRouter key in `OPENROUTER_API_KEY`. If that's unset, the key stored by pi in
-  `~/.pi/agent/auth.json` is used.
+- An OpenRouter key in `MANOR_OPENROUTER_API_KEY` for real runs. Manor reads no other key: it
+  doesn't fall back to `OPENROUTER_API_KEY` or pi's `~/.pi/agent/auth.json`, so its runs can have
+  their own guardrails and budget. Mock runs need no key. The pi MCP server runs `pi`, which
+  uses pi's own credentials.
 
 ## Quick start
 

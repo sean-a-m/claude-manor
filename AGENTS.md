@@ -112,8 +112,9 @@ clj -M:dev                                    # REPL; see dev/user.clj docstring
 ```
 
 - **Verify with mock and offline runs first** (free, deterministic). A mock run of a whole day takes
-  seconds. Real runs use the user's OpenRouter key: from `OPENROUTER_API_KEY`, or else read from
-  `~/.pi/agent/auth.json`. Never print the key.
+  seconds. Real runs use the user's manor-only OpenRouter key from
+  `MANOR_OPENROUTER_API_KEY` (no fallback to pi's key; the pi MCP server uses pi's own). Never
+  print the key.
 - **Real runs are short by default:** at most about 8–12 rounds (4–6 minutes at roughly 27 seconds
   a round) with `:max-rounds` and `:max-cost` 0.20, run in the foreground; report what it cost and
   read its transcript. Most problems show up in a few rounds. To test something that happens

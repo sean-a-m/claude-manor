@@ -14,8 +14,7 @@
   are recorded (llm.edn, the transcript) and never sent back: `:message` is
   what the engine sends. The run option `:reasoning` is the provider's own
   deliberation setting."
-  (:require [clojure.java.io :as io]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
             [jsonista.core :as json]
             [manor.http :as http]))
 
@@ -26,13 +25,11 @@
 ;; OpenRouter (OpenAI-compatible chat completions)
 
 (defn api-key
-  "OPENROUTER_API_KEY, falling back to the key stored by pi in
-  ~/.pi/agent/auth.json so an existing setup works without extra config."
+  "MANOR_OPENROUTER_API_KEY: manor's own OpenRouter key, kept apart from pi's
+  so it can carry its own guardrails and budget. There is deliberately no
+  fallback to another key."
   []
-  (or (not-empty (System/getenv "OPENROUTER_API_KEY"))
-      (let [f (io/file (System/getProperty "user.home") ".pi" "agent" "auth.json")]
-        (when (.exists f)
-          (get-in (json/read-value f) ["openrouter" "key"])))))
+  (not-empty (System/getenv "MANOR_OPENROUTER_API_KEY")))
 
 (defn- parse-response
   "Read one chat-completions response. Any private thoughts the model returns
@@ -92,7 +89,7 @@
 (defn openrouter []
   (let [key (api-key)]
     (when (str/blank? key)
-      (throw (ex-info "No OpenRouter key: set OPENROUTER_API_KEY" {})))
+      (throw (ex-info "No OpenRouter key: set MANOR_OPENROUTER_API_KEY" {})))
     (->OpenRouter key "https://openrouter.ai/api/v1" 180000)))
 
 ;; ---------------------------------------------------------------------------

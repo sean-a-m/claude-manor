@@ -12,7 +12,7 @@ and Hollin Abbey. These names live in the data file and are easy to change.
 
 ## 1. The slice, and when it's done
 
-The current cast (the original four plus the housemaid and shopkeeper):
+The current cast:
 
 | Agent | Role | Starts in | Purpose in the slice |
 |---|---|---|---|
@@ -22,6 +22,13 @@ The current cast (the original four plus the housemaid and shopkeeper):
 | Mr Pugh, architect (optional) | `architect` | architect's office (village) | consults the reference books, draws plans, gives advice, earns a fee |
 | Nellie, housemaid | `housemaid` | maid's room | works on the household's things |
 | Mr Briggs, shopkeeper | `shopkeeper` | general store | checks requested goods and quotes prices; lives above the shop |
+| Mrs Finch, cook | `cook` | kitchen | runs the kitchen, plans meals and arranges provisions |
+| Daisy, scullery maid | `scullery-maid` | scullery | assists the cook with washing up, cleaning and preparation |
+| Mr Hobbs, butcher | `shopkeeper` | butcher's shop | quotes meat purchases using his own shop profile; lives above the shop |
+
+The pantry opens off the kitchen and has fixed, open container shelves. A scullery also opens
+from the kitchen. Mrs Finch and Daisy have bedrooms off a servants' landing at the back of the
+first-floor gallery; Nellie keeps her existing room off the kitchen.
 
 The design is done when a run supports this sequence, first with the mock policy (free,
 scripted) and then with real models:
@@ -642,8 +649,10 @@ Decisions for items (done):
     scenario uses fixed world and mock-day fixtures, with explicit cast defaults, while reusing
     Claudeworth's mechanics. The bundled world and demonstration script can grow independently.
     Validation cases select agents by name and check the intended diagnostic, including after
-    reordering. Separate bundled-content tests cover current defaults and smoke/replay behaviour;
-    an isolation regression expands and reverses the production cast without changing the fixture.
+    reordering. Exact container contents and choreography use the test-only `:household-containers`
+    world and day, frozen independently of the bundled content. Bundled scenarios get generic
+    offline smoke/replay checks, not cast, room or item snapshots. An isolation regression expands
+    and reverses the production cast without changing the fixture.
 33. **Speaking doesn't end the turn.** Done, for every scenario: `say` and `whisper` are free
     actions sharing one use per turn (`:per-turn 1`, `:limit-key :speech`), so a character can
     walk in, speak and then work, travel or pass. A second utterance in the same turn is rejected
@@ -679,3 +688,12 @@ Decisions for items (done):
     (`sleep` now marks the occupation `:asleep?`). Claudeworth's rules mention it next to the
     speech sentence, and the demonstration day has the countess draw the earl into one at
     breakfast. See [the converse brief](archived/converse-brief.md).
+38. **Expand the household and village as content, not test conditions.** Added Mrs Finch the
+    cook and Daisy the scullery maid, a kitchen pantry with open container shelves, a scullery,
+    upstairs servants' quarters and Mr Hobbs's butcher's shop with lodgings. The butcher uses the
+    existing `:shopkeeper` role and `:general-store` counter service: his own `:store-profile`
+    limits the trade to meat, rather than introducing a new purchasing mechanic. Like Briggs
+    and Pugh, he follows a routine without model calls when nobody needs him. The kitchen staff
+    use existing item/work tools; no food production, hunger or consumption rules are added.
+    These new characters and rooms are not added to the mechanics fixtures or content-specific
+    assertions. Existing cast-option, container and shopping checks now use fixed test households.

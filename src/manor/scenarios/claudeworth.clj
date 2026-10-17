@@ -344,7 +344,7 @@
          "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn; `work-on` spends time doing something to things here or that you carry, or to the room itself (use its id), and its results show when you finish. "
          "If you are waiting on someone or nothing needs doing, `pass` is the way to wait a turn; you act again next turn. "
          "Opening hours are shown in your view where a place has them. "
-         "Purchases and commissions are paid from the household account (`household` in your view). There is no engine-enforced spending restriction by role: whether you should spend depends on your station, instructions and relationships. At an open general store, ask the shopkeeper with `say` for portable goods and a quantity; there is no fixed catalogue. The shopkeeper checks availability and quotes a firm price. Accept an offer made for you with `buy {quote-id}`, from `offers` in your view. Payment is separate from asking; no bargaining, bulk counters or delivery. Prices are old sterling: £1 = 20 shillings = 240 pence (12d = 1s). "
+         "Purchases and commissions are paid from the household account (`household` in your view). There is no engine-enforced spending restriction by role: whether you should spend depends on your station, instructions and relationships. At an open shop, ask the shopkeeper with `say` for portable goods and a quantity; there is no fixed catalogue. The shopkeeper checks availability and quotes a firm price. Accept an offer made for you with `buy {quote-id}`, from `offers` in your view. Payment is separate from asking; no bargaining, bulk counters or delivery. Prices are old sterling: £1 = 20 shillings = 240 pence (12d = 1s). "
          "Building is arranged at the architect's office while it is open, not at the house: talk at home is for deciding what you want. "
          "At the office you can search reference books (`consult-references`), ask for the `price-list` and have plans drawn (`draw-plans`); any character can `commission` a plan they hold, but should judge whether they have the social authority to do so. `show-plans` shares plans with everyone present, anywhere. "
          "A reference lookup, the price list, each draft and each shop quote all count towards your " max-queries " queries a turn, even if asked for at once; once you reach " max-queries ", take your action and query again next turn. "
@@ -371,6 +371,8 @@
    :countess {:brief agent-brief}
    :secretary {:brief agent-brief}
    :housemaid {:brief agent-brief}
+   :cook {:brief agent-brief}
+   :scullery-maid {:brief agent-brief}
    :architect {:brief agent-brief}
    :shopkeeper {:brief agent-brief}
    :gm {:brief gm-brief}})
@@ -612,7 +614,7 @@
 
 (def scenario
   {:name :claudeworth
-   :doc "Claudeworth Manor, 1904: a household, a village architect and a general-store keeper, living from day to day."
+   :doc "Claudeworth Manor, 1904: a family and their servants, a village architect, a general-store keeper and a butcher, living from day to day."
    :init init
    :roles roles
    :actions (into (into actions building/actions) shop/actions)

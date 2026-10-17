@@ -6,7 +6,7 @@
         :minutes-per-round 30
         :starting-funds 3000 ; whole pounds here; runtime money is old pence
         :starting-stores {"provisions" 2}
-        :setting "Claudeworth Manor is a modest Edwardian country house, the seat of the Earls of Claudeworth, whose fortune has lately been restored. Claudeworth village lies nearby, a sloping green with a general store and the offices of Pugh & Sons, Architects. Hollin Abbey is nearby too, where the monks keep to themselves."}
+        :setting "Claudeworth Manor is a modest Edwardian country house, the seat of the Earls of Claudeworth, whose fortune has lately been restored. Claudeworth village lies nearby, a sloping green with a general store, a butcher's shop and the offices of Pugh & Sons, Architects. Hollin Abbey is nearby too, where the monks keep to themselves."}
 
  :locations
  [;; ------------------------------------------------ the manor (small to begin with)
@@ -15,7 +15,7 @@
    :desc "A gravel turning circle before the front door."}
   {:id "entrance-hall" :name "Entrance hall" :domain :house :floor :ground :kind :hall
    :connects-to ["drawing-room" "study" "dining-room" "kitchen" "staircase"]
-   :desc "A modest hall with a fireplace. Every door in the house seems to open off it."}
+   :desc "A modest hall with a fireplace. Doors lead to the principal rooms and the kitchen, with the bedrooms upstairs."}
   {:id "drawing-room" :name "Drawing room" :domain :house :floor :ground :kind :sitting-room
    :desc "A pleasant room with chintz chairs, though four guests would crowd it."
    :detail "Faded rose wallpaper, a white marble chimneypiece and two tall windows onto the lawn. The chintz is worn thin on the arms of the best chair, and the carpet has been turned to hide a scorch mark by the fender."}
@@ -25,15 +25,19 @@
   {:id "dining-room" :name "Dining room" :domain :house :floor :ground :kind :dining-room
    :desc "A mahogany table for eight, laid for breakfast."}
   {:id "kitchen" :name "Kitchen" :domain :house :floor :ground :kind :kitchen
-   :connects-to ["maids-room"]
-   :desc "A cold kitchen. There is no cook."}
+   :connects-to ["maids-room" "pantry" "scullery"]
+   :desc "An old kitchen with a cast-iron range, a broad worktable and a dresser. Mrs Finch, the cook, runs it; the pantry and scullery open off it."}
+  {:id "pantry" :name "Pantry" :domain :house :floor :ground :kind :pantry
+   :desc "A cool pantry off the kitchen, with wooden shelves for the household's provisions and a small window shaded from the sun."}
+  {:id "scullery" :name "Scullery" :domain :house :floor :ground :kind :scullery
+   :desc "A plain workroom off the kitchen, with a deep stone sink, a draining board and room for washing pots and peeling vegetables."}
   {:id "maids-room" :name "Maid's room" :domain :house :floor :ground :kind :bedroom
    :desc "A small room off the kitchen: a narrow bed, a chest of drawers and a window on the yard."}
   {:id "staircase" :name "Staircase" :domain :house :floor :ground :kind :stair
    :connects-to ["gallery"]
    :desc "A narrow oak staircase, creaking on the fourth step."}
   {:id "gallery" :name "First-floor gallery" :domain :house :floor :first :kind :landing
-   :connects-to ["earls-bedroom" "countess-bedroom" "secretarys-room"]
+   :connects-to ["earls-bedroom" "countess-bedroom" "secretarys-room" "servants-landing"]
    :desc "A short landing hung with watercolours, the bedroom doors opening off it."}
   {:id "earls-bedroom" :name "Earl's bedroom" :domain :house :floor :first :kind :bedroom
    :desc "A large bed with heavy curtains, a washstand and a dressing room no bigger than a cupboard."}
@@ -42,9 +46,17 @@
   {:id "secretarys-room" :name "Secretary's room" :domain :house :floor :first :kind :bedroom
    :desc "A small, plain room under the eaves with a narrow bed and a deal table piled with papers."}
 
+  {:id "servants-landing" :name "Servants' landing" :domain :house :floor :first :kind :landing
+   :connects-to ["cooks-room" "scullery-maids-room"]
+   :desc "A narrow passage at the back of the first floor, reached from the gallery. The servants' bedrooms are plain and out of sight of the principal rooms."}
+  {:id "cooks-room" :name "Cook's room" :domain :house :floor :first :kind :bedroom
+   :desc "Mrs Finch's small but comfortable room in the servants' quarters: an iron bed, a washstand and a chair by the window."}
+  {:id "scullery-maids-room" :name "Scullery maid's room" :domain :house :floor :first :kind :bedroom
+   :desc "Daisy's little room in the servants' quarters, with a narrow bed, a peg for her apron and a chest for her clothes."}
+
   ;; ------------------------------------------------ Claudeworth village
   {:id "village-green" :name "Village green" :domain :village :kind :green
-   :connects-to ["general-store" "architects-office"]
+   :connects-to ["general-store" "butchers-shop" "architects-office"]
    :desc "A sloping green with a pump, an old market cross and geese. The shops face it."}
   {:id "general-store" :name "General store" :domain :village :kind :shop :hours ["08:00" "18:00"]
    :services #{:general-store}
@@ -54,6 +66,15 @@
    :detail "Shelves to the ceiling of tins, jars and bolts of cloth, sacks of flour and meal along the floor, and a smell of paraffin and cheese. The bell over the door announces every customer, and the counter is where the village's news changes hands."}
   {:id "store-lodgings" :name "Shopkeeper's lodgings" :domain :village :kind :bedroom
    :desc "A snug room above the general store, with a brass bed and a kettle by the grate."}
+  {:id "butchers-shop" :name "Butcher's shop" :domain :village :kind :shop :hours ["08:00" "18:00"]
+   ;; :general-store enables the existing counter-and-quote service; the profile defines the trade.
+   :services #{:general-store}
+   :store-profile "A small village butcher's shop in rural England, 1904. Fresh beef, mutton, lamb and pork in ordinary household cuts, offal, sausages, bacon and bones for stock, wrapped for customers to carry away. These examples describe the trade, not an exhaustive inventory. No general groceries, household tools, live animals, whole carcasses, bulk deliveries, credit or special orders. Only portable purchases handed over the counter."
+   :connects-to ["butchers-lodgings"]
+   :desc "Hobbs, Butcher: a small shop facing the green, with a scrubbed counter and joints hanging from hooks behind it."
+   :detail "White tiles, a heavy chopping block, brass scales and a roll of wrapping paper. Mr Hobbs cuts and weighs meat at the counter; a cool back room keeps the day's stock out of the sun."}
+  {:id "butchers-lodgings" :name "Butcher's lodgings" :domain :village :kind :bedroom
+   :desc "Mr Hobbs's rooms above the butcher's shop, with a plain bed and a sitting room overlooking the green."}
   {:id "architects-office" :name "Architect's office" :domain :village :kind :office :hours ["09:00" "18:00"]
    :services #{:architect}
    :connects-to ["architects-lodgings"]
@@ -79,9 +100,11 @@
   :countess {:about "You are the Countess of Claudeworth; the household calls you my lady. You run the household, you have firm views on what the house needs and how it should look, and you expect to be consulted on any alteration to it."}
   :secretary {:about "You are Mr Hale, private secretary to the Earl of Claudeworth (my lord; the countess is my lady). You serve his lordship: correspondence, errands and arrangements, often in the village, and you report back to him. You work in the study."}
   :housemaid {:about "You are Nellie, the housemaid at Claudeworth Manor, in service to the family (my lord and my lady; the secretary is Mr Hale). Your day is housework: dusting and sweeping the drawing room, polishing the silver, blacking the kitchen range and laying the fires, and doing whatever the countess asks. You have no money and spend none: the household buys what you need."}
+  :cook {:about "You are the cook at Claudeworth Manor, in service to the earl and countess (my lord and my lady). You run the kitchen: plan meals, tend the range, prepare food and keep track of provisions in the pantry. The scullery maid assists you with washing up, cleaning and preparation; the housemaid looks after the other rooms. Consult the countess about meals and household spending, and obtain needed ingredients from the village tradespeople through checked quotes and buy. Use work-on for kitchen work and the condition of existing things; never claim ingredients, purchases or finished dishes have appeared unless the engine records them."}
+  :scullery-maid {:about "You are the scullery maid at Claudeworth Manor, junior to the cook and in service to the family (my lord and my lady). Help the cook: wash pots and utensils, scrub the scullery and kitchen, prepare vegetables when asked, and put things away. Ask the cook what needs doing and report when it is done. Use work-on for work on existing things, and take, give and put-in to handle them. Village errands and household spending should follow your instructions, not your own whims."}
   :architect {:about "You are Mr Pugh of Pugh & Sons, Architects, in Claudeworth village. You keep the architect's office and live in the lodgings above it. You consult your reference books, draw plans for clients and earn your living from commissions. Your firm builds one room at a time: you will not begin a new room while one is being built, and you refuse politely, saying when you can start. You are proud of your craft and keen for the manor's custom: advise on proportion, but respect the client's wishes. Address the earl as my lord and the countess as my lady."}
-  :shopkeeper {:about "You are Mr Briggs, proprietor of the village general store. Serve customers at the counter: listen to what they want, use quote-goods with the customer's id, goods and quantity to check availability and price, then let them accept with buy. Never promise goods or invent a price without checking. There is no fixed catalogue, no bargaining, bulk deliveries or credit. Address the earl as my lord and the countess as my lady."}
-  :gm {:about "A quiet period household: the family, their secretary and the village architect going about their days."}}
+  :shopkeeper {:about "You are a village shopkeeper; your persona identifies your trade and premises. Serve customers at the counter: listen to what they want, use quote-goods with the customer's id, goods and quantity to check availability and price, then let them accept with buy. Never promise goods or invent a price without checking. There is no fixed catalogue, no bargaining, bulk deliveries or credit. Address the earl as my lord and the countess as my lady."}
+  :gm {:about "A quiet period household: the family, their secretary and servants, and the village tradespeople going about their days."}}
 
  ;; things in the world; :holder and an agent :owner are agent names (see manor.items).
  ;; A :container holds things :in it: :open shows them to the room, :closed only to `open`.
@@ -100,6 +123,8 @@
   {:id "table-linen" :name "Table linen" :in "sideboard" :owner "household" :condition "starched and folded" :desc "Damask tablecloths and napkins woven with the Claudeworth arms."}
   {:id "kitchen-range" :name "Kitchen range" :place "kitchen" :owner "household" :fixed? true :condition "cold and unlit" :desc "A black cast-iron range with two ovens and a boiler."}
   {:id "kitchen-dresser" :name "Kitchen dresser" :place "kitchen" :owner "household" :fixed? true :container :open :condition "scrubbed" :desc "A tall deal dresser with open shelves above a broad worktop."}
+  {:id "pantry-shelves" :name "Pantry shelves" :place "pantry" :owner "household" :fixed? true :container :open :condition "clean, empty"
+   :desc "Stout wooden shelves fixed along the pantry wall, ready for jars, packets and other provisions."}
   {:id "sugar-jar" :name "Sugar jar" :place "kitchen" :owner "household" :container :open :condition "empty"
    :desc "An empty white earthenware sugar jar on the kitchen worktop, its lid beside it. Not a grain of sugar remains inside."}
   {:id "kettle" :name "Kettle" :in "kitchen-dresser" :owner "household" :condition "cold, the spout furred" :desc "A big copper kettle with a swing handle."}
@@ -118,6 +143,15 @@
    :persona "Mr Hale, the earl's private secretary: young, meticulous and discreet, and a little anxious to please."}
   {:name "Nellie" :role :housemaid :location "maids-room" :bedroom "maids-room" :optional? :housemaid?
    :persona "Nellie, the housemaid: young, quick, and up from the village. She knows every room of the house and takes a proper pride in the silver, though the family seldom notice."}
+  {:name "Mrs Finch" :role :cook :location "kitchen" :bedroom "cooks-room"
+   :persona "Mrs Finch, the cook: an experienced woman in her forties, orderly, outspoken below stairs and properly respectful above. She takes pride in economical, well-cooked meals and expects Daisy to keep the pots clean. She has only recently joined the household and must inspect the kitchen and pantry, find out the countess's wishes and arrange whatever provisions are needed."}
+  {:name "Daisy" :role :scullery-maid :location "scullery" :bedroom "scullery-maids-room"
+   :persona "Daisy, the scullery maid: sixteen, willing and a little shy, newly in service from the village. Mrs Finch is her immediate superior; Nellie knows the household better than she does. She means to keep the scullery spotless and learn kitchen work, but needs clear instructions."}
+  {:name "Hobbs" :role :shopkeeper :location "butchers-shop" :bedroom "butchers-lodgings"
+   :persona "Mr Hobbs, the village butcher: a genial but businesslike tradesman with strong opinions about a good joint and making economical use of a carcass. He keeps the butcher's shop on the green and lives above it. Advise customers about suitable cuts, but check availability and price with quote-goods before offering anything; meat is his trade, not general groceries."
+   :routine [{:from "07:00" :at "butchers-shop" :doing "preparing the counter and serving at his butcher's shop"}
+             {:from "18:00" :at "butchers-lodgings" :doing "having supper above the shop"}
+             {:from "22:00" :at "butchers-lodgings" :doing "asleep"}]}
   {:name "Briggs" :role :shopkeeper :location "general-store" :bedroom "store-lodgings"
    :persona "Mr Briggs, the shopkeeper: a practical, friendly village tradesman, proud of his useful little store."
    :routine [{:from "07:00" :at "general-store" :doing "tending his shop"}

@@ -234,9 +234,11 @@ job (`:state` keyed by location id).
 Claudeworth's general store now has a shopkeeper and adjudicated, buyer-accepted quotes rather
 than a fixed inventory. New purchases create portable items only; bulk purchasing and delivery
 are deferred. Internal appraisal queries share the work judge's bounded LLM-call machinery.
-Sterling uses integer old pence. Store mechanics tests own a tiny cast; full bundled mock-day
-coverage checks the current content. See [the store brief](archived/general-store-brief.md) and
-Claudeworth design decision 36. Old-run compatibility is intentionally not maintained.
+Sterling uses integer old pence. Store mechanics tests own a tiny cast; household choreography
+and exact container contents use fixed test-owned worlds and scripts. Bundled content gets generic
+smoke/replay checks. Claudeworth now also has a cook, scullery maid, pantry shelves, servants'
+quarters and a butcher reusing the profile-grounded shop service (design decision 38).
+See [the store brief](archived/general-store-brief.md) and Claudeworth design decision 36. Old-run compatibility is intentionally not maintained.
 
 Follow-ups, by need:
 

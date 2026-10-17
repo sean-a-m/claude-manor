@@ -27,13 +27,12 @@
         (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
         (e/stop-run run)))))
 
-(deftest claudeworth-default-cast
-  ;; This is intentionally a bundled-content test, unlike the fixed household
-  ;; mechanics tests. Adding residents must not require editing a cast snapshot.
+(deftest household-cast-options
+  ;; Character options and permissions use fixed test content, not the live cast.
   (doseq [opts [{} {:housemaid? false} {:housemaid? true}]]
-    (let [run (e/start-run :claudeworth
-                           (merge {:llm :mock :offline? true :test? true
-                                   :run-id (str (gensym "claudeworth-defaults-"))} opts))]
+    (let [run (e/start-run :household
+                           (merge {:llm :mock :offline? true :test? true :housemaid? true
+                                   :run-id (str (gensym "household-defaults-"))} opts))]
       (try
         (let [world (e/world run)]
           (is (= (not (false? (:housemaid? opts))) (some? (w/agent world "nellie"))))
@@ -47,12 +46,12 @@
                 (:id agent)))
           (is (= world (w/replay (store/read-events (:dir run))))))
         (finally (e/stop-run run)))))
-  (is (empty? (cw/problems (:world-file (cw/init {}))))))
+  (is (empty? (cw/problems (:world-file (cw/init {:world-file "test/fixtures/household.edn"}))))))
 
-(deftest claudeworth-containers
-  ;; Bundled content: the house's containers, and the mock morning that uses them.
-  (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true
-                                       :run-id (str (gensym "claudeworth-containers-"))})
+(deftest household-containers
+  ;; Exact contents and choreography belong to a frozen test-owned world.
+  (let [run (e/start-run :household-containers {:llm :mock :offline? true :test? true
+                                       :run-id (str (gensym "household-containers-"))})
         in (fn [world id] (:in (items/item world id)))]
     (try
       (let [world (e/world run)]
@@ -83,10 +82,10 @@
         (is (= world (w/replay (store/read-events (:dir run))))))
       (finally (e/stop-run run)))))
 
-(deftest claudeworth-store-demonstration
-  ;; Content integration only: no exact cast, call counts, prices or NPC ids.
-  (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true
-                                    :run-id (str (gensym "claudeworth-store-day-"))})]
+(deftest household-store-demonstration
+  ;; Purchase choreography uses the test household; bundled content only gets smoke checks.
+  (let [run (e/start-run :household {:llm :mock :offline? true :test? true
+                                    :run-id (str (gensym "household-store-day-"))})]
     (try
       (let [world (e/world run)
             clerks (filter #(= :shopkeeper (:role %)) (w/active-agents world))]

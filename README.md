@@ -12,11 +12,14 @@ in code; the engine owns all state, private information, and access to the real 
 
 Bundled scenarios: `village` (economy, weather bridge, locations, GM), `treasure` (small
 example), `quiz` (each contestant has a private, persistent pi assistant reached over MCP) and
-`claudeworth` (an Edwardian household and the village architect: half-hour turns, sleep and
-pastimes, a shop, items to carry, inspect, put away and work on, plans and rooms built over a delay; the
-architect is a babashka MCP server; its world is `resources/worlds/claudeworth.edn`). Work on items
-changes their condition when it ends, through a separate judge model call. At the general store,
-Mr Briggs checks requested portable goods with an adjudicator and offers a firm quote; the buyer
+`claudeworth` (an Edwardian household with a housemaid, cook and scullery maid, plus a village
+architect, general store and butcher: half-hour turns, sleep and pastimes, items to carry, inspect,
+put away and work on, plans and rooms built over a delay; the architect is a babashka MCP server;
+its world is `resources/worlds/claudeworth.edn`). Work on items
+changes their condition when it ends, through a separate judge model call. The kitchen has a pantry
+with container shelves and a scullery; the cook and scullery maid sleep in the upstairs servants'
+quarters. Mr Briggs at the general store and Mr Hobbs at the butcher's check requested portable
+goods with an adjudicator grounded in their own shop's profile and offer a firm quote; the buyer
 accepts with `buy {quote-id}`. There is no fixed catalogue or bulk delivery. Claudeworth money
 uses old pence internally (£1 = 240d), shown as pounds, shillings and pence. Start a fresh run:
 old Claudeworth runs are not compatible with this store/currency change.
@@ -135,7 +138,9 @@ clojure -M:test
 Mechanics tests use the test-only `:household` scenario with fixed world and mock-day data in
 `test/fixtures/household.edn` and `household-day.edn`. These preserve controlled test conditions;
 do not update them just because the bundled Claudeworth cast or demonstration day changes.
-The fixture reuses production mechanics, but explicitly defaults the maid off; work/judge tests
-turn her on. Separate scenario smoke/default tests exercise the real, evolving configuration.
+The test-only `:household-containers` uses its own frozen `household-containers*.edn` world and day.
+Bundled scenarios get generic offline smoke/replay checks, not cast or room snapshots.
+The household fixture reuses production mechanics, but explicitly defaults the maid off;
+work/judge tests turn her on.
 An isolation regression adds two dozen residents and reorders the production cast while the
 fixed mock day and hibernation checks continue to pass.

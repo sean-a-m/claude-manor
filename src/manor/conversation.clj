@@ -1,7 +1,7 @@
 (ns manor.conversation
   "Conversations within a turn. `converse` draws up to three people in the
   same place into an exchange: the initiator opens, then everyone speaks in
-  turn, the initiator first, for up to three passes, and the initiator has
+  turn, the initiator first, for up to two passes, and the initiator has
   the last word. The initiator may end it at any of their turns; the others
   may stay silent or leave. It uses nobody's turn, and it doesn't touch
   anyone's occupation: someone busy talks while they work.
@@ -20,7 +20,7 @@
 
 (def max-others "People the initiator can draw in." 3)
 
-(def passes "Full passes of speaking turns, before the initiator's last word." 3)
+(def passes "Full passes of speaking turns, before the initiator's last word." 2)
 
 (def line-limit
   "The length models are told to keep a line to. The schema allows up to

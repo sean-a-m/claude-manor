@@ -797,7 +797,7 @@ on with it. It uses nobody else's turn either.
   their work ends when it was going to. An interrupted member stays interrupted and decides on
   their own turn. `manor.conversation/check` gives the reasons.
 - **Order:** the initiator opens with `text`, then everyone speaks in turn, the initiator first
-  (then `with`'s order, or spawn order), for up to 3 passes, then the initiator has a last word.
+  (then `with`'s order, or spawn order), for up to 2 passes, then the initiator has a last word.
   Each speaking turn is one short model call (at most 3 with retries) with its own prompt (the
   agent's usual view, notes and recent events, plus who is in the conversation and where it has
   got to) and its own tools: members get `reply {text}`, `stay-silent` and `leave`; the

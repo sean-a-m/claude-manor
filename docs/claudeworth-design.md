@@ -641,7 +641,7 @@ Decisions for items (done):
     doesn't wake a sleeper. Who may properly call whom is left to the characters' station, not
     enforced. Reminders no longer count the per-turn calls. See [the turns brief](archived/turns-brief.md).
 36. **Conversations within a turn.** Done, for every scenario: `converse` draws up to 3 people in
-    the same place into a round-robin exchange inside the initiator's turn (3 passes, the
+    the same place into a round-robin exchange inside the initiator's turn (2 passes, the
     initiator first, and a last word), so an answer no longer waits a round. It is free and uses
     nobody's turn; someone busy talks without stopping their work; sleepers can't be drawn in
     (`sleep` now marks the occupation `:asleep?`). Claudeworth's rules mention it next to the

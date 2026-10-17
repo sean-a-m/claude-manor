@@ -46,8 +46,9 @@ one after another.
 4. **Who:** `with` is a list of ids. Leaving it out means everyone here who can be drawn in, if
    there are no more than 3; with more, the action is rejected and asks for up to 3 names.
 5. **Turn order:** round-robin, the initiator first, then the members in the order given (or the
-   spawn order, when `with` is left out). Three full passes; the initiator's opening line is
-   their first turn of pass 1. After pass 3 the initiator has a **final word**.
+   spawn order, when `with` is left out). Two full passes (three until the first real run; see
+   the findings); the initiator's opening line is their first turn of pass 1. After the last
+   pass the initiator has a **final word**.
 6. **A speaking turn offers one tool to end it, plus `note`:**
    - members: `reply {text}`, `stay-silent`, `leave`;
    - the initiator: `reply {text}`, `end-conversation`; for the final word, `reply` or
@@ -127,7 +128,7 @@ conversation preamble instead of "Each round you take exactly ONE turn-ending ac
 a conversation, outside your own turn; answer by calling exactly one of `reply`, `stay-silent` or
 `leave`; talking doesn't use up your turn or stop what you're busy with"), the same view, notes
 and recent events as a turn (the lines so far are among the events), and a closing block: who is
-in it, who started it, pass n of 3 (or the final word), and, for a busy member, "you are busy:
+in it, who started it, pass n of 2 (or the final word), and, for a busy member, "you are busy:
 polishing the silver until 11:00; talking doesn't stop it".
 
 ### Mock, transcript, llm.edn
@@ -146,7 +147,7 @@ polishing the silver until 11:00; talking doesn't stop it".
 
 In `engine_test` (a test scenario with a small map) unless noted:
 
-- a three-member conversation runs 3 passes and the final word, in order; the initiator then
+- a three-member conversation runs both passes and the final word, in order; the initiator then
   takes a turn-ending action in the same turn;
 - the initiator ends it early; every member leaves; a silent pass ends it;
 - eligibility: not here, asleep, hibernating, human seat, yourself, more than 3, a duplicate;

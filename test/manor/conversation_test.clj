@@ -71,11 +71,10 @@
 (deftest a-full-conversation
   (let [run (round! (household (earl-opens {} chatty)))
         world (e/world run)]
-    (testing "the initiator opens, everyone speaks in turn for three passes, and the initiator has the last word"
+    (testing "the initiator opens, everyone speaks in turn for two passes, and the initiator has the last word"
       (is (= [["lord-claudeworth" "Shall we build?"]
               ["lady-claudeworth" "lady-claudeworth 1"] ["hale" "hale 1"]
               ["lord-claudeworth" "lord-claudeworth 2"] ["lady-claudeworth" "lady-claudeworth 2"] ["hale" "hale 2"]
-              ["lord-claudeworth" "lord-claudeworth 3"] ["lady-claudeworth" "lady-claudeworth 3"] ["hale" "hale 3"]
               ["lord-claudeworth" "lord-claudeworth has the last word"]]
              (lines run)))
       (is (= :finished (ending run))))
@@ -97,7 +96,7 @@
         (is (empty? (of-type run :action/forfeited)))))
     (testing "speaking turns are labelled in llm.edn and the transcript"
       (let [calls (filter :conversation (store/read-llm (:dir run)))]
-        (is (= 9 (count calls)))
+        (is (= 6 (count calls)))
         (is (= {:pass :last-word} (select-keys (:conversation (last calls)) [:pass])))
         (is (= #{"reply" "end-conversation" "note"} (set (:tools (last calls)))))
         (is (= #{"reply" "stay-silent" "leave" "note"} (set (:tools (first calls))))))
@@ -123,7 +122,7 @@
       (is (str/includes? (user hale-first) "Lady Claudeworth (Dining room) says: \"lady-claudeworth 1\""))
       (is (str/includes? (system hale-first) "A line written as plain text, outside a tool call, isn't heard."))
       (is (str/includes? (system hale-first) "`stay-silent` or `leave` rather than repeat it"))
-      (is (str/ends-with? (user hale-first) "Pass 1 of 3. Your turn: call `reply` with your line, or `stay-silent` or `leave`.")))
+      (is (str/ends-with? (user hale-first) "Pass 1 of 2. Your turn: call `reply` with your line, or `stay-silent` or `leave`.")))
     (testing "the initiator is told it's their last word"
       (is (str/includes? (system earl-last) "when it's over, you carry on with your turn"))
       (is (str/includes? (system earl-last) "`end-conversation` rather than repeat it"))
@@ -156,7 +155,7 @@
   (testing "a member who answers with no valid action is silent"
     (let [run (round! (household (earl-opens {} (fn [{:keys [agent-id] :as ctx}]
                                                    (if (= "hale" agent-id) {:tool :walk :args {:to "study"}} (chatty ctx))))))]
-      (is (= ["hale" "hale" "hale"] (map :actor (of-type run :conversation/silent))))
+      (is (= ["hale" "hale"] (map :actor (of-type run :conversation/silent))))
       (is (= "dining-room" (:location (w/agent (e/world run) "hale"))))
       (is (= :finished (ending run)))
       (e/stop-run run)))
@@ -226,8 +225,8 @@
           [start end] (map :id [(first (of-type run :conversation/started)) (first (of-type run :conversation/ended))])
           during (filter #(< start (:id %) end) evs)]
       (testing "both spoke in it"
-        (is (= 3 (count (filter #(= "hale" (first %)) (lines run)))))
-        (is (= 3 (count (filter #(= "lady-claudeworth" (first %)) (lines run))))))
+        (is (= 2 (count (filter #(= "hale" (first %)) (lines run)))))
+        (is (= 2 (count (filter #(= "lady-claudeworth" (first %)) (lines run))))))
       (testing "Hale is still writing letters until round 5"
         (is (= {:activity "writing letters" :until 5} (w/busy (e/world run) "hale"))))
       (testing "the countess's interruption wasn't ended by talking; she decided on her own turn"

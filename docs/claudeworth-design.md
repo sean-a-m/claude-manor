@@ -678,4 +678,4 @@ Decisions for items (done):
     nobody's turn; someone busy talks without stopping their work; sleepers can't be drawn in
     (`sleep` now marks the occupation `:asleep?`). Claudeworth's rules mention it next to the
     speech sentence, and the demonstration day has the countess draw the earl into one at
-    breakfast. See [the converse brief](converse-brief.md).
+    breakfast. See [the converse brief](archived/converse-brief.md).

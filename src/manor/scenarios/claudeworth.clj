@@ -21,6 +21,8 @@
   (:require [clojure.string :as str]
             [manor.builtins :as b]
             [manor.clock :as clock]
+            [manor.items :as items]
+            [manor.narrate :as narrate]
             [manor.scenarios.building :as building]
             [manor.space :as space]
             [manor.world :as w]
@@ -29,6 +31,7 @@
 
 (def max-pastime-hours 4)
 (def max-sleep-hours 12)
+(def max-call 300)
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers
@@ -79,6 +82,41 @@
 
 (defn- walkable [world loc] (disj (space/area world loc) loc))
 
+(defn arrival
+  "What `walk` replies about the place `id` has walked into: what their view
+  would show of it (the place, its opening hours, who is there and what they
+  are doing or carrying, and the things there), so they needn't `look`."
+  [world id]
+  (let [here (space/location-of world id)
+        hours (:hours (space/location world here))
+        loc (:location (items/add-to-view {:location (space/view world id)} world id))]
+    (cond-> (select-keys loc [:here :people-here])
+      hours (update :here merge {:open (str/join "-" hours) :open-now? (open-now? world hours)}))))
+
+(defn- hearers
+  "Everyone within walking distance of `id`'s place, and `id`."
+  [world id]
+  (conj (set (mapcat #(space/present world %) (space/area world (space/location-of world id)))) id))
+
+(defn- answers-calls?
+  "Would a call stop `id` to answer: are they busy but awake, and not yet interrupted?"
+  [world id]
+  (let [busy (w/busy world id)]
+    (and busy (not= "asleep" (:activity busy)) (not (:hibernating? busy)) (not (:interrupted-by busy)))))
+
+(defn- call-events
+  "The call, heard by everyone within walking distance; and if it names
+  someone who hears it and is busy but awake, their interruption."
+  [world actor {:keys [text to]}]
+  (let [heard-by (hearers world actor)]
+    (cond-> [{:type :claudeworth/called :data (cond-> {:text text :at (space/location-of world actor)} to (assoc :to to))
+              :visible-to heard-by}]
+      (and to (heard-by to) (answers-calls? world to)) (conj (b/interrupt world to actor)))))
+
+(defmethod narrate/describe :claudeworth/called [{:keys [actor data]} names]
+  (str (narrate/who names actor) " calls" (when-let [to (:to data)] (str " for " (narrate/who names to)))
+       " from the " (str/lower-case (narrate/place names (:at data))) ": \"" (:text data) "\""))
+
 (defn- destination
   "Where `travel` to `to` goes: the place itself, or for an area name the
   nearest place of that area. nil if neither."
@@ -98,7 +136,7 @@
 
    {:name :walk
     :kind :free
-    :doc "Walk to any place listed under `walkable` in your view (use its id). You arrive at once, so you can act there this turn."
+    :doc "Walk to any place listed under `walkable` in your view (use its id). You arrive at once, so you can act there this turn; the reply shows the place, who is there and what is there."
     :args [:map [:to :string]]
     :valid? (fn [world actor {:keys [to]}]
               (let [here (space/location-of world actor)]
@@ -111,7 +149,20 @@
                       (str (loc-name world to) " is not within walking distance of here; use travel"))))
     :effect (fn [world actor {:keys [to]}]
               [{:type :agent/moved :data {:from (space/location-of world actor) :to to}
-                :visible-to (into (space/here world actor) (space/present world to))}])}
+                :visible-to (into (space/here world actor) (space/present world to))}])
+    :reply (fn [world actor _] (arrival world actor))}
+
+   {:name :call
+    :kind :free :per-turn 1 :limit-key :speech
+    :doc (str "Call out, so that everyone within walking distance (the whole house, say) hears you wherever they are: "
+              "a short call, at most " max-call " characters. Name someone with to (their id) to call for them; "
+              "if they hear you and are busy, but not asleep, they may stop to answer. Shares its limit with say and whisper.")
+    :args [:map [:text [:string {:min 1 :max max-call}]] [:to {:optional true} :string]]
+    :valid? (fn [world actor {:keys [to]}]
+              (cond (nil? (space/location-of world actor)) "you can't call out while travelling"
+                    (= to actor) "you can't call for yourself"
+                    (and to (not (some #(= to (:id %)) (w/active-agents world)))) (str "no one has the id " to)))
+    :effect call-events}
 
    {:name :travel
     :kind :final
@@ -274,11 +325,12 @@
   (let [turn (duration (:minutes-per-round (:clock world)))
         max-queries (get-in world [:state :max-queries] 2)]
     (str "Each turn is " turn " of game time, and you take one turn-ending action per turn. "
-         "`walk` takes you at once to any place under `walkable` in your view, and doesn't end your turn: walk, then act there. "
+         "`walk` takes you at once to any place under `walkable` in your view, and doesn't end your turn: walk, then act there. Its reply shows the place, who is there and what is there, so you needn't `look` on arriving. "
          "`travel` goes to another area: use a place id from `places`, or an area name. It takes your turn; `journeys` "
          "in your view shows how long each journey takes, and a longer one leaves you travelling until you arrive. "
          "You're only heard by people in the same place (`say`: a few sentences, at most " b/speech-limit
-         " characters); `whisper` is private. You can speak once a turn, with `say` or `whisper`, and it doesn't end your turn: speak, then take your action. "
+         " characters); `whisper` is private. `call` is heard everywhere within walking distance, so you can summon someone instead of searching the house room by room; whether it's proper for you to call someone depends on who you both are. `last-seen` in your view says where you last saw each person. "
+         "You can speak once a turn, with `say`, `whisper` or `call`, and it doesn't end your turn: speak, then take your action. "
          "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). You get no turns while asleep or busy, unless someone uses `rouse` to interrupt you. On that turn, `carry-on` ignores them; any other accepted action means you stop. "
          "Use `spend-time` for longer pastimes (half an hour to " max-pastime-hours " hours). `note` keeps private notes. "
          "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows them in detail, with their descriptions, conditions and owners, along with the room and what the people here carry, so use it to examine something closely, not routinely on arrival. "
@@ -415,6 +467,7 @@
     "08:30" [[:spend-time {:activity "breakfasting" :hours 1}]]
     "09:30" [[:open {:container "sideboard"}] [:take {:item "silver-candlesticks"}] [:walk {:to "drawing-room"}]
              [:put-down {:item "silver-candlesticks"}] [:look {}]
+             [:call {:text "Nellie! The candlesticks are in the drawing room when you have a moment." :to "nellie"}]
              [:spend-time {:activity "going over the household accounts" :hours 4}]]
     "13:30" [[:travel {:to "abbey-church"}]]
     "14:00" [[:spend-time {:activity "sitting quietly in the abbey church" :hours 2}]]
@@ -489,16 +542,12 @@
     (when (and bed (not= here bed))
       [(if (contains? (space/area world here) bed) :walk :travel) {:to bed}])))
 
-(def ^:private gift
-  "The countess's scripted gift of the new duster to the housemaid; dropped
-  when the housemaid is left out (see :housemaid?)."
-  [:give {:item "feather-duster" :to "nellie"}])
-
 (defn- remove-absent-cast
   "Scripted calls that need someone left out of the run are dropped: the
-  countess's gift when there is no housemaid."
+  countess's gift to the housemaid, and her call for her, when there is no
+  housemaid (see :housemaid?)."
   [world script]
-  (if (w/agent world "nellie") script (remove #(= gift %) script)))
+  (remove (fn [[tool {:keys [to]}]] (and (#{:give :call} tool) to (not (w/agent world to)))) script))
 
 (defn scripted-policy
   "The next call of `day` (agent id -> time -> tool calls) for this turn.

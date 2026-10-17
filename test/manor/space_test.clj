@@ -134,3 +134,52 @@
       (is (= {:from "shop" :to "farm" :travel 0}
              (:args (a/decode-args (action run :open-route) {:from "shop" :to "farm" :travel 0})))))
     (e/stop-run run)))
+
+;; ---------------------------------------------------------------------------
+;; Last seen
+
+(defn- seen [world id] (get-in (prompt/agent-view (e/load-scenario :hamlet) world id) [:location :last-seen]))
+
+(deftest last-seen
+  (let [run (e/start-run :hamlet {:llm :mock :test? true :run-id (str (gensym "space-seen-"))})
+        world (assoc (e/world run) :round 1)          ; Ada and Ben in the hall, 21:00
+        [parted] (perform run world "ada" :move {:to "bedroom"})]
+    (testing "nothing while they're together"
+      (is (nil? (seen world "ada")))
+      (is (nil? (seen world "ben"))))
+    (testing "when Ada goes upstairs, Ben saw her go, and she remembers where she left him"
+      (is (= [{:id "ada" :name "Ada" :place "Hall" :at "21:00" :went "Bedroom"}] (seen parted "ben")))
+      (is (= [{:id "ben" :name "Ben" :place "Hall" :at "21:00"}] (seen parted "ada"))))
+    (testing "together again, neither is listed; the record stays for next time"
+      (let [[met] (perform run (assoc parted :round 2) "ben" :move {:to "bedroom"})]
+        (is (nil? (seen met "ada")))
+        (is (= "hall" (get-in met [:seen "ada" "ben" :place])))))
+    (testing "a journey: the people left behind see where they set off for"
+      (let [at-green (-> world
+                         (w/apply-event {:type :agent/placed :data {:id "ada" :to "green"}})
+                         (w/apply-event {:type :agent/placed :data {:id "ben" :to "green"}})
+                         (assoc :round 3))
+            [gone] (perform run at-green "ben" :move {:to "farm"})]
+        (is (space/in-transit? gone "ben"))
+        (is (= [{:id "ben" :name "Ben" :place "Green" :at "22:00" :went "Far farm"}] (seen gone "ada")))
+        (is (= ["Green"] (map :place (seen gone "ben"))) "shown while travelling too")))
+    (testing "the operator placing someone elsewhere: seen, but not where they went"
+      (let [placed (w/apply-event world {:type :agent/placed :data {:id "ben" :to "shop"}})]
+        (is (= [{:id "ben" :name "Ben" :place "Hall" :at "21:00"}] (seen placed "ada")))))
+    (testing "most recent first, and the retired are left out"
+      (let [[w1] (perform run parted "ben" :move {:to "porch"})
+            w2 (w/apply-event w1 {:type :agent/retired :data {:id "ada" :reason "moved away"}})]
+        (is (= ["ada"] (map :id (seen w1 "ben"))))
+        (is (nil? (seen w2 "ben")))))
+    (e/stop-run run))
+  (testing "without a clock, the round"
+    (let [run (village)
+          world (e/world run)
+          [a b] (take 2 (map :id (w/active-agents world)))
+          here (space/location-of world a)
+          other (some #(when (and (not= here %) (<= (:travel (space/route world here %)) 1)) %)
+                      (keys (get-in world [:space :routes here])))
+          world (w/apply-event world {:type :agent/placed :data {:id b :to here}})
+          [moved] (perform run world a :move {:to other})]
+      (is (= (:round world) (:round (first (get-in (prompt/agent-view (:scenario run) moved b) [:location :last-seen])))))
+      (e/stop-run run))))

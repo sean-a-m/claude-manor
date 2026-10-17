@@ -634,3 +634,9 @@ Decisions for items (done):
     things away. Nellie's brief gives no hint where the silver is kept, to see whether she finds
     it. Nobody is told where things belong: agents decide. See
     [the containers brief](archived/containers-brief.md).
+35. **Finding people and walking (turns stage 1).** `walk` replies with the new place (who and
+    what is there, opening hours), so `look` is for detail only. Each agent's view has
+    `last-seen`, kept by the engine from partings. `call` raises the voice across the area (the
+    whole house): a call naming someone busy but awake interrupts them, as `rouse` does; it
+    doesn't wake a sleeper. Who may properly call whom is left to the characters' station, not
+    enforced. Reminders no longer count the per-turn calls. See [the turns brief](turns-brief.md).

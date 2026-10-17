@@ -316,6 +316,10 @@ adds:
 - `:location {:here .. :exits [{:to :name :travel-rounds}] :people-here [..]}` when the world
   has locations, or `{:travelling {..}}` while in transit. With a clock, exits give
   `:travel-minutes` instead. People who are occupied have `:doing` ("asleep").
+  It also has `:last-seen [{:id :name :place :at :went}]` once the agent has parted from
+  someone: for each active person not with them now, where and when they last saw them (`:round`
+  instead of `:at` without a clock), most recent first, and `:went` (a place name) if they saw
+  them go. See Space.
 
 Rules: include only what this agent may know: its own holdings, public facts, and things at its
 location. This is the fog of war. Never return another agent's private data. Keep it compact; it
@@ -422,6 +426,11 @@ When `:init` returns `:space`, the engine provides:
   *area*, and a scenario can offer a free action to walk anywhere in it (see `space/area`).
 - location-scoped `say`/`whisper`, departure and arrival visibility, and the `:location` view section
 - GM graph tools, operator `place!`, and spawning at a location
+- **last seen:** when two people part (one of them moves, sets off on a journey or is placed
+  elsewhere), the movement reducers record it under `(:seen world)`: `{observer {other {:place
+  :round :went}}}`, `:went` only for the one who stayed. Arriving records nothing, since the
+  people there are under `:people-here`. `(space/last-seen world id)` is what the view shows.
+  Every list is shown in full; with many agents it may need a cap later.
 
 Helpers for your actions and views:
 
@@ -438,6 +447,7 @@ Helpers for your actions and views:
 | `(space/distance world from to)` | total travel (rounds) of that route, or nil |
 | `(space/area world loc)` | every location reachable from `loc` over `:travel 0` routes, itself included |
 | `(space/location world loc)` | `{:id :name :desc}` |
+| `(space/last-seen world id)` | where `id` last saw each active person not with them, most recent first |
 
 State that belongs to a location (prices, opening rules) goes in your `:state`, keyed by location
 id. Objects people can pick up and carry are items (next section).

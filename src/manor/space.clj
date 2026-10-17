@@ -15,7 +15,14 @@
   house); places joined that way form an `area`.
 
   Location matters for visibility: use `here` to make an event visible to
-  everyone where it happens. The GM has no location and sees everything."
+  everyone where it happens. The GM has no location and sees everything.
+
+  People remember where they last saw each other. When two people part (one
+  of them moves, sets off or is placed elsewhere), the movement reducers
+  record it:
+    :seen {\"ada\" {\"ben\" {:place \"hall\" :round 4 :went \"porch\"}}}
+  Ada saw Ben in the hall in round 4, going to the porch (:went only for
+  the one who stayed). `last-seen` reads it for views."
   (:require [manor.clock :as clock]
             [manor.world :as w]))
 
@@ -106,6 +113,23 @@
     (cond-> (select-keys a [:id :name :role])
       (:busy a) (assoc :doing (get-in a [:busy :activity])))))
 
+(defn last-seen
+  "Where `agent-id` last saw each active person who isn't with them now, most
+  recent first: [{:id :name :place (a place name) :at (a time, or :round)
+  :went (a place name, if they saw them go)}]."
+  [world agent-id]
+  (let [c (:clock world)
+        with-me (present world (location-of world agent-id))
+        loc-name #(:name (location world %) %)]
+    (->> (get-in world [:seen agent-id])
+         (filter (fn [[id _]] (and (w/active? world id) (not (with-me id)))))
+         (sort-by (fn [[id {:keys [round]}]] [(- round) (:name (w/agent world id))]))
+         (mapv (fn [[id {:keys [place round went]}]]
+                 (cond-> {:id id :name (:name (w/agent world id)) :place (loc-name place)}
+                   c (assoc :at (clock/short-label c round (:round world)))
+                   (not c) (assoc :round round)
+                   went (assoc :went (loc-name went))))))))
+
 (defn view
   "The location section of an agent's observation. With a clock, times
   replace round numbers."
@@ -113,18 +137,20 @@
   (let [a (w/agent world agent-id)
         c (:clock world)
         loc-name #(:name (location world %))]
-    (if-let [{:keys [from to arrives]} (:travel a)]
-      {:travelling (cond-> {:from from :to to :to-name (loc-name to)}
-                     c (assoc :arrives (clock/label c arrives))
-                     (not c) (assoc :arrives-round arrives))}
-      (let [loc (:location a)]
-        {:here (select-keys (location world loc) [:id :name :desc])
-         :exits (mapv (fn [{:keys [to travel]}]
-                        (cond-> {:to to :name (loc-name to)}
-                          c (assoc :travel-minutes (* travel (:minutes-per-round c)))
-                          (not c) (assoc :travel-rounds travel)))
-                      (exits world loc))
-         :people-here (mapv #(person world %) (sort (disj (present world loc) agent-id)))}))))
+    (cond->
+      (if-let [{:keys [from to arrives]} (:travel a)]
+        {:travelling (cond-> {:from from :to to :to-name (loc-name to)}
+                       c (assoc :arrives (clock/label c arrives))
+                       (not c) (assoc :arrives-round arrives))}
+        (let [loc (:location a)]
+          {:here (select-keys (location world loc) [:id :name :desc])
+           :exits (mapv (fn [{:keys [to travel]}]
+                          (cond-> {:to to :name (loc-name to)}
+                            c (assoc :travel-minutes (* travel (:minutes-per-round c)))
+                            (not c) (assoc :travel-rounds travel)))
+                        (exits world loc))
+           :people-here (mapv #(person world %) (sort (disj (present world loc) agent-id)))}))
+      (seq (last-seen world agent-id)) (assoc :last-seen (last-seen world agent-id)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Events
@@ -162,14 +188,29 @@
     (cond-> (close world from to)
       (not one-way?) (close to from))))
 
+(defn- parted
+  "The world after `mover` leaves `from` for `to` (nil if unseen): each
+  person there remembers seeing them go there, and they remember each person
+  they left. Call it before the move is applied."
+  [world mover from to]
+  (reduce (fn [world p]
+            (-> world
+                (assoc-in [:seen p mover] (cond-> {:place from :round (:round world)} to (assoc :went to)))
+                (assoc-in [:seen mover p] {:place from :round (:round world)})))
+          world
+          (disj (present world from) mover)))
+
 (defmethod w/apply-event :agent/moved [world {:keys [actor data]}]
-  (assoc-in world [:agents actor :location] (:to data)))
+  (-> (parted world actor (:from data) (:to data))
+      (assoc-in [:agents actor :location] (:to data))))
 
 (defmethod w/apply-event :agent/placed [world {:keys [data]}]
-  (update-in world [:agents (:id data)] #(-> % (assoc :location (:to data)) (dissoc :travel))))
+  (-> (parted world (:id data) (location-of world (:id data)) nil)
+      (update-in [:agents (:id data)] #(-> % (assoc :location (:to data)) (dissoc :travel)))))
 
 (defmethod w/apply-event :agent/departed [world {:keys [actor data]}]
-  (update-in world [:agents actor] assoc :location nil :travel (select-keys data [:from :to :arrives])))
+  (-> (parted world actor (:from data) (:to data))
+      (update-in [:agents actor] assoc :location nil :travel (select-keys data [:from :to :arrives]))))
 
 (defmethod w/apply-event :agent/arrived [world {:keys [actor data]}]
   (update-in world [:agents actor] #(-> % (assoc :location (:to data)) (dissoc :travel))))

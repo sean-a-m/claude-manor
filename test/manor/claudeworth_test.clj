@@ -344,6 +344,59 @@
       (is (= ["abbey" "house"] (map :to (:journeys (prompt/agent-view (:scenario run) world "pugh"))))))
     (e/stop-run run)))
 
+(deftest walking-shows-the-new-place
+  (let [run (start)
+        world (-> (e/world run) (assoc :round 9) (at "lady-claudeworth" "dining-room"))   ; 12:00
+        [arrived] (perform run world "hale" :walk {:to "dining-room"})
+        reply (cw/arrival arrived "hale")]
+    (testing "the place, who is there and what they carry, and the things there"
+      (is (= "Dining room" (get-in reply [:here :name])))
+      (is (= ["family-portrait" "silver-candlesticks"] (map :id (get-in reply [:here :items]))))
+      (is (= [{:id "lady-claudeworth" :name "Lady Claudeworth" :role :countess}] (:people-here reply))))
+    (testing "nobody there is said outright"
+      (let [[alone] (perform run world "hale" :walk {:to "kitchen"})]
+        (is (= [] (:people-here (cw/arrival alone "hale"))))))
+    (testing "opening hours where the place has them"
+      (let [[shop] (perform run (at world "hale" "village-green") "hale" :walk {:to "general-store"})]
+        (is (= {:open "08:00-18:00" :open-now? true} (select-keys (:here (cw/arrival shop "hale")) [:open :open-now?])))))
+    (testing "it's walk's reply"
+      (is (= reply ((:reply (action run :walk)) arrived "hale" {:to "dining-room"}))))
+    (e/stop-run run)))
+
+(deftest calling-out
+  (let [run (start)
+        world (assoc (e/world run) :round 1)              ; 08:00, everyone in their bedrooms; Pugh at the office
+        busy (w/apply-event world (b/occupy world "hale" "copying letters" 5))
+        call (action run :call)]
+    (testing "free, and it shares the one utterance a turn with say and whisper"
+      (is (= :free (a/kind call)))
+      (is (= :speech (a/limit-key call))))
+    (testing "everyone within walking distance hears it, wherever they are; not the village"
+      (let [[_ [e]] (perform run world "lord-claudeworth" :call {:text "Is anyone about?"})]
+        (is (= #{"lord-claudeworth" "lady-claudeworth" "hale"} (:visible-to e)))
+        (is (= "Lord Claudeworth calls from the earl's bedroom: \"Is anyone about?\""
+               (narrate/describe e (narrate/names world))))))
+    (testing "naming someone busy but awake interrupts them, as rouse would"
+      (let [[called [e interrupted]] (perform run busy "lord-claudeworth" :call {:text "Hale!" :to "hale"})]
+        (is (= "Lord Claudeworth calls for Hale from the earl's bedroom: \"Hale!\"" (narrate/describe e (narrate/names world))))
+        (is (= :agent/interrupted (:type interrupted)))
+        (is (= "lord-claudeworth" (:interrupted-by (w/busy called "hale"))))))
+    (testing "but it doesn't wake a sleeper, or reach someone out of earshot"
+      (let [asleep (w/apply-event world (b/occupy world "hale" "asleep" 5))
+            away (w/apply-event (at world "hale" "village-green") (b/occupy world "hale" "shopping" 5))]
+        (doseq [w [asleep away]]
+          (is (= 1 (count (second (perform run w "lord-claudeworth" :call {:text "Hale!" :to "hale"}))))))
+        (is (not (contains? (:visible-to (first (second (perform run away "lord-claudeworth" :call {:text "Hale!" :to "hale"}))))
+                            "hale")))))
+    (testing "refusals"
+      (is (= "no one has the id nobody" (a/check call world "hale" {:text "Hello?" :to "nobody"})))
+      (is (= "you can't call for yourself" (a/check call world "hale" {:text "Hale!" :to "hale"}))))
+    (testing "the rules explain it, and last-seen"
+      (is (str/includes? (cw/rules world) "`call` is heard everywhere within walking distance"))
+      (is (str/includes? (cw/rules world) "`last-seen` in your view"))
+      (is (str/includes? (cw/rules world) "with `say`, `whisper` or `call`")))
+    (e/stop-run run)))
+
 (deftest sleeping-pastimes-and-rousing
   (let [run (start)
         world (assoc (e/world run) :round 1)]

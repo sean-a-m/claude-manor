@@ -452,7 +452,7 @@
       (is (not= "user" (:role (peek (:messages (earl 1))))))
       (let [reminder (last-message (earl 2))]
         (is (str/includes? reminder "free tools, queries and rejected calls don't end it"))
-        (is (str/includes? reminder "one of your 10 calls this turn (2 used)"))
+        (is (not (re-find #"\d+ calls|used\)" reminder)) "it doesn't count calls")
         (is (str/includes? reminder "turn-ending action: `commission`, `travel`, `buy`, `pass`, `work-on`, `sleep` or `spend-time`."))
         (is (str/includes? reminder "`pass` is a fine way to wait"))
         (is (not (str/includes? reminder "`walk`"))))
@@ -480,7 +480,8 @@
       (is (str/includes? (last-message (earl 3)) "`pass` is a fine way to wait")))
     (testing "a turn of free actions only is still forfeited, and its last replies are logged"
       (is (= ["lord-claudeworth"] (map :actor (of-type run :action/forfeited))))
-      (is (= [{:role "tool" :tool_call_id "c3" :content "ok"}] (:replies (last logged)))))
+      (is (= ["c3"] (map :tool_call_id (:replies (last logged)))))
+      (is (str/starts-with? (:content (first (:replies (last logged)))) "{\n  \"here\"") "walk's reply"))
     (e/stop-run run)))
 
 (defn- chatterbox
@@ -507,7 +508,7 @@
   (let [run (rounds! (household-run (scripted (atom []) chatterbox) {}) 2)
         logged (filter #(= "lord-claudeworth" (:agent %)) (store/read-llm (:dir run)))
         replies (map (comp :content first :replies) logged)
-        spent "rejected: you can use say or whisper only once per turn; take your turn-ending action now, and use them again next turn"]
+        spent "rejected: you can use call or say or whisper only once per turn; take your turn-ending action now, and use them again next turn"]
     (testing "a rejected whisper doesn't use up the turn's speech; a second say or whisper is refused"
       (is (= ["rejected: no active participant with id nobody" "ok" spent spent "done"] (take 5 replies))))
     (testing "he spoke once a round, kept his turns, and whispered nothing"

@@ -277,6 +277,21 @@ name, so an agent the GM spawned (who may carry items), or a name that got a `-2
 round-trip through it. `map.edn` stays an output for reading; nothing resumes from it (the user
 confirmed on 2026-10-16 that runs are never started fresh from exported world data for now).
 
+### B10. Turn simulation
+
+- **Why:** in the full-day run (`runs/claudeworth-20261016-194011`) 45% of agent calls only
+  walked or looked; agents searched room by room for each other, and counted their per-turn call
+  budget. Rounds run one agent after another, so time per round grows with the number of calls;
+  the aim is about 200 agents.
+- **Stage 1 (fewer wasted calls):** see [the turns brief](turns-brief.md): last seen in the
+  view, `walk` replying with the new place, `call` across the area, reminders that don't count
+  calls.
+- **Stage 2 (simultaneous rounds and conversations), not started:** every free agent plans in
+  parallel on one snapshot, engine code resolves the plans in a fixed order, and only agents
+  whose situation changed get a short follow-up call; conversations happen as exchanges within a
+  round. The research is in [turn-resolution-research.md](turn-resolution-research.md), with its
+  recommended design and open questions. The user wants to see how far stage 1 goes first.
+
 ---
 
 ## C. Known issues and small fixes
@@ -312,3 +327,9 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
     providers would report 0.
 12. **The control panel's map** draws routes between grid cells as straight lines, which can
     cross labels in a busy area. Fine for now; a real layout algorithm is B8.
+13. **Remove the optional-cast paths.** Nellie the housemaid should always be in Claudeworth; the
+    user doesn't want a "no housemaid" path. Remove `:housemaid?` (the `:optional?` marker, the
+    `:init` filtering, `remove-absent-cast` in the mock day, the household fixture's
+    `:housemaid? false` default and the tests that use it) and update the docs. Ask the user
+    whether the architect's `:architect? false` path (the "clerk path", where the earl draws plans
+    himself) goes too.

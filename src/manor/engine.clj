@@ -362,9 +362,8 @@
       (str "This is your last call this turn. Finish now with one turn-ending action ("
            (or-list final-names) "), or you lose your turn." wait)
       (= calls-made early-reminder-at)
-      (str "Your turn isn't over: free tools, queries and rejected calls don't end it, but each uses one of your "
-           max-steps " calls this turn (" calls-made " used). When you're ready, finish with one turn-ending action: "
-           (or-list final-names) "." wait))))
+      (str "Your turn isn't over: free tools, queries and rejected calls don't end it. "
+           "When you're ready, finish with one turn-ending action: " (or-list final-names) "." wait))))
 
 (defn- handle-response
   "The turn state after one model response, with :replies (the messages to

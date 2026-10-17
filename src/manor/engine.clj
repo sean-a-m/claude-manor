@@ -366,6 +366,14 @@
       (str "Your turn isn't over: free tools, queries and rejected calls don't end it. "
            "When you're ready, finish with one turn-ending action: " (or-list final-names) "." wait))))
 
+(defn- nudge
+  "The reply to a response without tool calls. One cut off by `:max-tokens`
+  (usually all reasoning) is told to think briefly."
+  [response]
+  (if (= "length" (:finish-reason response))
+    "You ran out of room while thinking, before calling a tool. Think briefly, then call one of the tools."
+    "You must respond by calling one of the tools."))
+
 (defn- handle-response
   "The turn state after one model response, with :replies (the messages to
   send back). A response without tool calls is told to call one; a second
@@ -376,7 +384,16 @@
       (seq calls) (reduce (partial handle-call run agent-id by-name call-opts) (assoc st :replies []) calls)
       (:nudged st) (assoc st :replies [] :done? true)
       :else (assoc st :nudged true
-                   :replies [{:role "user" :content "You must respond by calling one of the tools."}]))))
+                   :replies [{:role "user" :content (nudge response)}]))))
+
+(defn- conj-reply
+  "Add the model's reply to the conversation, unless it has neither content
+  nor tool calls (e.g. all reasoning, cut off by `:max-tokens`): providers
+  reject such an assistant message (DeepSeek: HTTP 400)."
+  [messages {:keys [content tool_calls] :as message}]
+  (if (or (not (str/blank? content)) (seq tool_calls))
+    (conj messages message)
+    messages))
 
 (defn- add-reminder
   "Append `text` to the replies as a user message, merged into one already
@@ -420,7 +437,7 @@
               replies (cond-> (:replies st')
                         remind? (add-reminder (turn-reminder (inc step) max-steps final-names)))]
           (record-call! run agent-id request response replies)
-          (recur (into (conj messages (:message response)) replies)
+          (recur (into (conj-reply messages (:message response)) replies)
                  (inc step) (dissoc st' :replies)))))))
 
 (defn- activate-human
@@ -536,7 +553,7 @@
               {:keys [verdict error replies]} (items/judgement response reach)]
           (record-call! run "judge" request response replies)
           (cond verdict verdict
-                (zero? attempt) (recur (into (conj messages (:message response)) replies) 1)
+                (zero? attempt) (recur (into (conj-reply messages (:message response)) replies) 1)
                 :else {:failure (str "a second bad answer: " error)})))
       (catch Throwable t
         {:failure (str "the judge call failed: " (ex-message t))}))))

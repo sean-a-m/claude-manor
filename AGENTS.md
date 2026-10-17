@@ -160,6 +160,8 @@ clj -M:dev                                    # REPL; see dev/user.clj docstring
 - Models rewrite kebab-case parameter names as snake_case. The decoder normalises them; keep it.
 - With closed or empty schemas, models invent junk keys. Unknown keys are dropped silently.
 - `deepseek-v4.1-flash` with reasoning can use up `:max-tokens` (now 4000) and return no tool call.
+  That reply has no content either; the engine doesn't send it back (DeepSeek answers such a
+  message with HTTP 400) and its nudge says to think briefly.
 - DeepSeek's own endpoint rejects `tool_choice: "required"` while reasoning is on, and OpenRouter
   won't route such requests there. Hence `:tool-choice` defaults to `"auto"`; in a 4-round real run
   every reply still called a tool (`old-test-runs/claudeworth-tool-choice-auto-deepseek`).

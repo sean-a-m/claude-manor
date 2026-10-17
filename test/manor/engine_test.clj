@@ -437,6 +437,32 @@
   (e/start-run :household (merge {:llm-impl llm-impl :offline? true :test? true :run-id (test-id "household")}
                                    opts)))
 
+(deftest empty-reply-is-not-sent-back
+  ;; A reply that is all reasoning, cut off by :max-tokens, has neither content
+  ;; nor tool calls; sending it back made DeepSeek answer HTTP 400.
+  (let [calls (atom [])
+        base (scripted calls (walker 0))
+        cut-off (reify llm/LLM
+                  (complete [_ {:keys [messages ctx] :as request}]
+                    (if (and (= "lord-claudeworth" (:agent-id ctx)) (zero? (:step ctx)))
+                      (do (swap! calls conj {:agent (:agent-id ctx) :step 0 :messages messages})
+                          {:message {:role "assistant" :content nil}
+                           :content nil :tool-calls [] :finish-reason "length"
+                           :usage {:prompt-tokens 10 :completion-tokens 4000 :cost 0.001}})
+                      (llm/complete base request))))
+        run (rounds! (household-run cut-off {}) 1)
+        retry (second (earls-calls calls))]
+    (testing "the retry carries no empty assistant message"
+      (is (not-any? #(and (= "assistant" (:role %)) (nil? (:content %)) (empty? (:tool_calls %)))
+                    (:messages retry))))
+    (testing "the nudge says why"
+      (is (str/includes? (last-message retry) "ran out of room while thinking")))
+    (testing "the turn went on and the run didn't pause"
+      (is (= 1 (:step retry)))
+      (is (empty? (filter #(= "lord-claudeworth" (:actor %)) (of-type run :action/forfeited))))
+      (is (empty? (of-type run :run/pause-requested))))
+    (e/stop-run run)))
+
 (deftest at-most-ten-calls-per-turn
   (is (= 10 (:max-steps e/default-opts))))
 

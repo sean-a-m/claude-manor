@@ -70,6 +70,7 @@ src/manor/
   narrate.clj    describe multimethod: event -> text agents read
   actions.clj    action specs -> tools; arg decoding (kebab normalisation, unknown keys dropped)
   builtins.clj   pass/carry-on/note/say/whisper/pray + GM spawn/retire/announce/ask-human/done
+  conversation.clj converse: conversations within a turn (rules, speaking-turn tools, events)
   space.clj      locations graph, positions, travel, move + GM route tools, pathfinding
   items.clj      items, carrying, look, work-on jobs, judge requests and checked condition changes
   prompt.clj     builds agent/GM requests; agent-view = observe + identity + location
@@ -94,7 +95,7 @@ mcp-servers/pi/server.mjs  pi as an MCP server: send_message {session, message};
 mcp-servers/architect/  the architect MCP server: babashka, stateless, reference/price/draft tools
 config/        mcp.example.edn; mcp.edn is local and gitignored (the user's sets pi-sandbox)
 dev/user.clj     REPL helpers (start! step! auto! feed view last-prompt transcript! spawn! approve! act! ...)
-test/            engine, space, items, MCP, clock, world-file, panel, transcript, Claudeworth and scenario smoke tests;
+test/            engine, conversation, space, items, MCP, clock, world-file, panel, transcript, Claudeworth and scenario smoke tests;
                  test scenarios prize.clj and hamlet.clj (world file test/fixtures/hamlet.edn);
                  household.clj reuses Claudeworth mechanics with fixed household.edn / household-day.edn fixtures;
                  test/fixtures/fake-pi.mjs (fake `pi --mode rpc` for free MCP tests)

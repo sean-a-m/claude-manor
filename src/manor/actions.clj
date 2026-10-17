@@ -33,7 +33,9 @@
     :query  a real-world bridge resolved during the turn, without approval;
             the result goes back to the agent (e.g. an MCP tool)
     :act    a real-world bridge with side effects; ends the turn and waits
-            for operator approval, then runs at the next round boundary"
+            for operator approval, then runs at the next round boundary
+    :converse  a conversation the engine runs within the turn, with others
+            present taking turns to speak (manor.conversation); free"
   (:require [clojure.string :as str]
             [jsonista.core :as json]
             [malli.core :as m]
@@ -83,7 +85,8 @@
   {:final "Ends your turn."
    :free  "Free: does not end your turn."
    :query "Query: returns information and does not end your turn (limited per turn)."
-   :act   "Real-world action: ends your turn and needs operator approval before it happens."})
+   :act   "Real-world action: ends your turn and needs operator approval before it happens."
+   :converse "Free: does not end your turn; the others answer before it returns."})
 
 (defn- tool-schema
   "The arguments schema as models see it. A string with an :advised-max

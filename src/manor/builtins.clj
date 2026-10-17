@@ -37,10 +37,18 @@
 (defn occupy
   "Event: `id` is busy with `activity` and next acts in round `until`.
   `activity` reads after \"is\": \"asleep\", \"reading in the library\".
-  Everyone present sees it."
-  [world id activity until]
-  {:type :agent/occupied :actor id :visible-to (space/here world id)
-   :data {:activity activity :until until}})
+  With `{:asleep? true}` they are asleep, which matters to anyone who would
+  talk to them (manor.conversation). Everyone present sees it."
+  ([world id activity until] (occupy world id activity until nil))
+  ([world id activity until {:keys [asleep?]}]
+   {:type :agent/occupied :actor id :visible-to (space/here world id)
+    :data (cond-> {:activity activity :until until} asleep? (assoc :asleep? true))}))
+
+(defn asleep?
+  "Is `id` asleep (occupied with :asleep?) and not roused?"
+  [world id]
+  (let [busy (w/busy world id)]
+    (boolean (and (:asleep? busy) (not (:interrupted-by busy))))))
 
 (defn free
   "Event: `id` stops being busy, optionally because `by` interrupted them."

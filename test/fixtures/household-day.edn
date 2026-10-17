@@ -47,8 +47,9 @@
   "16:30" [[:buy {:item "feather duster", :qty 1}]],
   "08:00"
   [[:walk {:to "dining-room"}]
-   [:say
-    {:text
+   [:converse
+    {:with ["lord-claudeworth"],
+     :text
      "Enlarge it? Then I expect to be consulted on every room, Claudeworth."}]],
   "19:30"
   [[:walk {:to "dining-room"}]

@@ -46,11 +46,13 @@
 
 (defn- call-lines
   "Markdown lines for one model call."
-  [{:keys [agent thoughts response finish-reason usage] :as call} next-call forfeited?]
+  [{:keys [agent thoughts response finish-reason usage conversation] :as call} next-call forfeited?]
   (let [tcs (:tool_calls response)
         text (not-empty (str/trim (str (:content response))))]
     (concat
      [(str "- **" agent "** "
+           (when-let [{:keys [id pass]} conversation]
+             (str "_(" id ", " (if (= :last-word pass) "last word" (str "pass " pass)) ")_ "))
            (if (seq tcs)
              (str/join "; " (for [{{n :name args :arguments} :function} tcs] (str n " " args)))
              "_(no tool call)_")

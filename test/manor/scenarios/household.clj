@@ -12,8 +12,15 @@
 (defn mock-policy [ctx]
   (cw/scripted-policy mock-day ctx))
 
+(defn mock-conversation
+  "At breakfast the earl answers the countess once, and she ends it."
+  [{:keys [agent-id conversation]}]
+  (when (and (= "lord-claudeworth" agent-id) (= 1 (:pass conversation)))
+    {:tool :reply :args {:text "Every room, my dear. I would not dream of choosing a wallpaper without you."}}))
+
 (def scenario
   (assoc cw/scenario
          :name :household
          :defaults {:world-file world-file :architect? true :housemaid? false}
-         :mock-policy mock-policy))
+         :mock-policy mock-policy
+         :mock-conversation mock-conversation))

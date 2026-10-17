@@ -26,9 +26,11 @@
             [manor.bridge :as bridge]
             [manor.builtins :as b]
             [manor.clock :as clock]
+            [manor.conversation :as conversation]
             [manor.items :as items]
             [manor.llm :as llm]
             [manor.mcp :as mcp]
+            [manor.narrate :as narrate]
             [manor.prompt :as prompt]
             [manor.space :as space]
             [manor.store :as store]
@@ -77,18 +79,31 @@
   [scenario]
   (let [excluded (set (:exclude-actions scenario))]
     (remove #(excluded (:name %))
-            (a/merge-actions (b/agent-actions) (space/actions) (when (:items scenario) (items/actions))
+            (a/merge-actions (b/agent-actions) [conversation/converse] (space/actions)
+                             (when (:items scenario) (items/actions))
                              (b/gm-actions scenario) (:actions scenario)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Run plumbing
 
+(defn- conversation-mock
+  "`policy`, with speaking turns (ctx :conversation) sent to the scenario's
+  :mock-conversation, or else manor.conversation/mock-default."
+  [scenario policy]
+  (let [converse (:mock-conversation scenario (constantly nil))]
+    (fn [ctx]
+      (if (:conversation ctx)
+        (or (converse ctx) (conversation/mock-default ctx))
+        (policy ctx)))))
+
 (defn- mock-llm
   "The mock LLM: the scenario's :mock-policy, except that judge calls (role
-  :judge) go to its :mock-judge, or else manor.items/mock-judge, so mock
-  policies needn't know about the judge."
+  :judge) go to its :mock-judge, or else manor.items/mock-judge, and
+  speaking turns in a conversation to its :mock-conversation, falling back
+  to manor.conversation/mock-default, so mock policies needn't know about
+  either."
   [scenario]
-  (let [policy (or (:mock-policy scenario) (constantly nil))
+  (let [policy (conversation-mock scenario (or (:mock-policy scenario) (constantly nil)))
         judge (or (:mock-judge scenario) items/mock-judge)]
     (llm/mock (fn [ctx] (if (= :judge (:role ctx)) (judge ctx) (policy ctx))))))
 
@@ -203,15 +218,18 @@
 
 (defn- resolve!
   "Check and apply an action against the current world, atomically.
-  Returns {:ok true :world world-after} or {:rejected reason}."
-  [run actor action args]
-  (locking (:world run)
-    (let [world @(:world run)]
-      (if-let [reason (a/check action world actor args)]
-        {:rejected reason}
-        (do (stop-interrupted! run actor action)
-            (emit! run (action-events action @(:world run) actor args))
-            {:ok true :world @(:world run)})))))
+  Returns {:ok true :world world-after} or {:rejected reason}. With
+  `keep-occupation?` (a speaking turn in a conversation) an interrupted
+  occupation goes on: the agent still decides on their own turn."
+  ([run actor action args] (resolve! run actor action args false))
+  ([run actor action args keep-occupation?]
+   (locking (:world run)
+     (let [world @(:world run)]
+       (if-let [reason (a/check action world actor args)]
+         {:rejected reason}
+         (do (when-not keep-occupation? (stop-interrupted! run actor action))
+             (emit! run (action-events action @(:world run) actor args))
+             {:ok true :world @(:world run)}))))))
 
 (defn- free-reply
   "The tool result for an accepted free action: its :reply (a string as is,
@@ -254,20 +272,23 @@
   "Log a model call to llm.edn. `replies` are the messages the engine added
   after the response (tool replies and any reminder), so a turn's last call
   has its replies too. The character's private :thoughts, if the model
-  returned any, are kept here only; they're never sent back to the model."
-  [run agent-id request response replies]
-  (let [entry {:agent agent-id
-               :round (:round @(:world run))
-               :model (:model request)
-               :messages (:messages request)
-               :tools (mapv #(get-in % [:function :name]) (:tools request))
-               :response (:message response)
-               :thoughts (:thoughts response)
-               :finish-reason (:finish-reason response)
-               :usage (:usage response)
-               :replies replies}]
-    (store/append-llm! (:dir run) entry)
-    (swap! (:last-calls run) assoc agent-id entry)))
+  returned any, are kept here only; they're never sent back to the model.
+  `extra` is merged into the entry, e.g. a speaking turn's :conversation."
+  ([run agent-id request response replies] (record-call! run agent-id request response replies nil))
+  ([run agent-id request response replies extra]
+   (let [entry (merge {:agent agent-id
+                       :round (:round @(:world run))
+                       :model (:model request)
+                       :messages (:messages request)
+                       :tools (mapv #(get-in % [:function :name]) (:tools request))
+                       :response (:message response)
+                       :thoughts (:thoughts response)
+                       :finish-reason (:finish-reason response)
+                       :usage (:usage response)
+                       :replies replies}
+                      extra)]
+     (store/append-llm! (:dir run) entry)
+     (swap! (:last-calls run) assoc agent-id entry))))
 
 (defn- limit-reached
   "Why `action` can't be used again this turn, or nil: its :per-turn uses
@@ -286,11 +307,13 @@
   [st action]
   (cond-> st (:per-turn action) (update-in [:uses (a/limit-key action)] (fnil inc 0))))
 
+(declare run-conversation!)
+
 (defn- handle-call
   "Process one tool call within a turn. `commit` either applies a turn-ending
   action now (sequential turns, GM) or only checks it and defers it
   (simultaneous groups). Returns the updated turn state."
-  [run agent-id by-name {:keys [commit max-finals max-queries]} st {:keys [id name arguments]}]
+  [run agent-id by-name {:keys [commit max-finals max-queries keep-occupation?]} st {:keys [id name arguments]}]
   (let [reply (fn [st text] (update st :replies conj {:role "tool" :tool_call_id id :content text}))
         action (get by-name name)]
     (cond
@@ -305,13 +328,20 @@
           :else
           (case (a/kind action)
             :free
-            (let [{:keys [rejected world]} (resolve! run agent-id action args)]
+            (let [{:keys [rejected world]} (resolve! run agent-id action args keep-occupation?)]
               (-> st
                   (update :used conj name)
                   (cond-> (not rejected) (use-up action))
                   (reply (if rejected
                            (str "rejected: " rejected)
                            (free-reply action world agent-id args)))))
+
+            :converse
+            (let [{:keys [rejected summary]} (run-conversation! run agent-id action args)]
+              (-> st
+                  (update :used conj name)
+                  (cond-> (not rejected) (use-up action))
+                  (reply (if rejected (str "rejected: " rejected) summary))))
 
             :query
             (if (>= (:queries st) max-queries)
@@ -404,47 +434,184 @@
           (= "user" (:role lst)) (conj (pop replies) (update lst :content str " " text))
           :else (conj replies {:role "user" :content text}))))
 
-(defn- activate-llm [run snapshot agent-id {:keys [role reasons max-finals commit]}]
-  (let [{:keys [scenario opts]} run
-        gm? (= role :gm)
-        actions (a/available (a/for-role (:actions run) role) snapshot agent-id)
+(defn- run-calls
+  "The model calls of one turn (or speaking turn), until it's done or
+  `max-steps` calls are made. `messages` start the conversation with the
+  model, `actions` are its tools, `remind` (fn [turn-state calls-made]) may
+  add a reminder after a call, `ctx` goes to the LLM with each call and
+  `log` into each llm.edn entry. Returns the turn state."
+  [run agent-id {:keys [model messages actions max-steps call-opts remind ctx log]}]
+  (let [{:keys [opts]} run
         by-name (a/by-name actions)
-        tools (mapv a/->tool actions)
-        final-names (map (comp name :name) (filter a/ends-turn? actions))
-        agent (w/agent snapshot agent-id)
-        model (or (:model agent) (when gm? (:gm-model opts)) (:model opts))
-        base (if gm?
-               (prompt/gm-messages scenario snapshot @(:events run) reasons opts)
-               (prompt/agent-messages scenario snapshot @(:events run) agent-id opts))
-        max-steps (if gm? (+ 2 (:gm-max-actions opts)) (:max-steps opts))
-        call-opts {:commit commit :max-finals max-finals :max-queries (:max-queries opts)}]
-    (loop [messages base, step 0, st {:finals [] :queries 0 :used [] :nudged false}]
+        tools (mapv a/->tool actions)]
+    (loop [messages messages, step 0, st {:finals [] :queries 0 :used [] :nudged false}]
       (if (or (:done? st) (>= step max-steps))
         st
         (let [request {:model model :messages messages :tools tools
                        :max-tokens (:max-tokens opts) :reasoning (:reasoning opts)
                        :tool-choice (:tool-choice opts)}
               response (llm/complete (:llm run)
-                                     (assoc request :ctx {:world @(:world run) :agent-id agent-id :role role
-                                                          :step step :used (:used st) :reasons reasons}))
+                                     (assoc request :ctx (merge {:world @(:world run) :agent-id agent-id
+                                                                 :step step :used (:used st)}
+                                                                ctx)))
               _ (record-usage! run agent-id request response)
               st' (try (handle-response run agent-id by-name call-opts st response)
                        (catch Throwable t
-                         (record-call! run agent-id request response [])
+                         (record-call! run agent-id request response [] log)
                          (throw t)))
-              ;; the GM's turn has no forfeit, so only participants are reminded
-              remind? (and (not gm?) (not (:done? st')) (empty? (:finals st')))
               replies (cond-> (:replies st')
-                        remind? (add-reminder (turn-reminder (inc step) max-steps final-names)))]
-          (record-call! run agent-id request response replies)
+                        (not (:done? st')) (add-reminder (remind st' (inc step))))]
+          (record-call! run agent-id request response replies log)
           (recur (into (conj-reply messages (:message response)) replies)
                  (inc step) (dissoc st' :replies)))))))
+
+(defn- turn-actions
+  "The actions `agent-id` has on this turn. A conversation isn't offered
+  in a simultaneous group, where the others are in their own turns, nor to
+  a human seat."
+  [run world agent-id {:keys [role simultaneous?]}]
+  (cond->> (a/available (a/for-role (:actions run) role) world agent-id)
+    (or simultaneous? (= :human (:controller (w/agent world agent-id))))
+    (remove #(= :converse (a/kind %)))))
+
+(defn- activate-llm [run snapshot agent-id {:keys [role reasons max-finals commit] :as turn}]
+  (let [{:keys [scenario opts]} run
+        gm? (= role :gm)
+        actions (turn-actions run snapshot agent-id turn)
+        final-names (map (comp name :name) (filter a/ends-turn? actions))
+        agent (w/agent snapshot agent-id)
+        max-steps (if gm? (+ 2 (:gm-max-actions opts)) (:max-steps opts))]
+    (run-calls run agent-id
+               {:model (or (:model agent) (when gm? (:gm-model opts)) (:model opts))
+                :messages (if gm?
+                            (prompt/gm-messages scenario snapshot @(:events run) reasons opts)
+                            (prompt/agent-messages scenario snapshot @(:events run) agent-id opts))
+                :actions actions
+                :max-steps max-steps
+                :call-opts {:commit commit :max-finals max-finals :max-queries (:max-queries opts)}
+                ;; the GM's turn has no forfeit, so only participants are reminded
+                :remind (fn [st calls-made]
+                          (when (and (not gm?) (empty? (:finals st)))
+                            (turn-reminder calls-made max-steps final-names)))
+                :ctx {:role role :reasons reasons}})))
+
+(def ^:private speaking-turn-steps
+  "Model calls a speaking turn may make: a nudge or a rejected line leaves
+  room to try again."
+  3)
+
+(defn- speaking-reminder
+  "The reminder before a speaking turn's last call."
+  [actions st calls-made]
+  (when (and (empty? (:finals st)) (= calls-made (dec speaking-turn-steps)))
+    (str "This is your last call for this line. Answer now with "
+         (or-list (map (comp name :name) (filter a/ends-turn? actions))) ".")))
+
+(defn- speaking-turn!
+  "One member's turn to speak in conversation `conv`. `turn` is {:pass
+  :final? :in} (see manor.prompt/conversation-messages). Returns :spoke,
+  :silent, :left or :ended, or :failed if the call failed (the run is then
+  asked to pause). A member who takes no action is silent; an initiator who
+  takes none ends it. Nobody's occupation is touched."
+  [run conv speaker turn]
+  (let [{:keys [scenario opts]} run
+        world @(:world run)
+        actions (cond-> (conversation/speaking-actions conv speaker)
+                  (action-named run :note) (conj (action-named run :note)))
+        initiator? (= speaker (:initiator conv))]
+    (set-status! run update :acting conj speaker)
+    (try
+      (let [st (run-calls run speaker
+                          {:model (or (:model (w/agent world speaker)) (:model opts))
+                           :messages (prompt/conversation-messages scenario world @(:events run) speaker opts conv turn)
+                           :actions actions
+                           :max-steps speaking-turn-steps
+                           :call-opts {:commit (fn [action args] (resolve! run speaker action args true))
+                                       :max-finals 1 :max-queries 0 :keep-occupation? true}
+                           :remind (partial speaking-reminder actions)
+                           :ctx {:role (:role (w/agent world speaker))
+                                 :conversation (assoc (select-keys conv [:id :initiator :members])
+                                                      :pass (:pass turn) :final? (boolean (:final? turn)))}
+                           :log {:conversation {:id (:id conv) :pass (if (:final? turn) :last-word (:pass turn))}}})
+            outcome (conversation/outcome (some-> (first (:finals st)) :action :name name))]
+        (cond
+          (and initiator? (= :silent outcome)) :ended
+          (and (= :silent outcome) (empty? (:finals st)))
+          (do (emit! run [(conversation/silent @(:world run) speaker conv)]) :silent)
+          :else outcome))
+      (catch Throwable t
+        (emit! run [{:type :run/pause-requested :visible-to :system
+                     :data {:reason (str "error during " speaker "'s line in " (:id conv) ": " (ex-message t))}}])
+        :failed)
+      (finally
+        (set-status! run update :acting disj speaker)))))
+
+(defn- cost-reached? [run]
+  (let [max-cost (:max-cost (:opts run))]
+    (boolean (and max-cost (>= (w/total-cost @(:world run)) max-cost)))))
+
+(defn- converse!
+  "Run the speaking turns of `conv` after the initiator's opening line, and
+  return how it ended (a key of manor.conversation/endings): up to
+  `conversation/passes` passes, the initiator first (who opened pass 1
+  already), then the initiator's last word. It ends early when the
+  initiator ends it, when everyone else has left, when nobody else speaks
+  in a pass, at the cost limit, or when a call fails."
+  [run {:keys [initiator members] :as conv}]
+  (loop [pass 1, queue (vec (rest members)), in members, answered? false]
+    (cond
+      (cost-reached? run) :cost-limit
+      (empty? queue)
+      (cond (not answered?) :silence
+            (< pass conversation/passes) (recur (inc pass) in in false)
+            :else (case (speaking-turn! run conv initiator {:pass pass :final? true :in in})
+                    :failed :error
+                    :ended :ended
+                    :finished))
+      :else
+      (let [speaker (first queue)
+            outcome (speaking-turn! run conv speaker {:pass pass :in in})
+            in' (if (= :left outcome) (vec (remove #{speaker} in)) in)]
+        (case outcome
+          :failed :error
+          :ended :ended
+          (if (= [initiator] in')
+            :everyone-left
+            (recur pass (subvec queue 1) in' (or answered? (and (not= speaker initiator) (= :spoke outcome))))))))))
+
+(defn- conversation-summary
+  "The initiator's tool reply: the conversation's lines and how it ended."
+  [run {:keys [id]} ending]
+  (let [names (narrate/names @(:world run))
+        lines (remove #(#{:conversation/started :conversation/ended} (:type %))
+                      (conversation/of @(:events run) id))]
+    (str "The conversation is over: " (conversation/endings ending) ".\n"
+         (str/join "\n" (map #(narrate/describe % names) lines))
+         "\nCarry on with your turn.")))
+
+(defn- run-conversation!
+  "Start and run a conversation for `actor`'s `converse` call. Returns
+  {:rejected reason} or {:summary text}, the tool reply."
+  [run actor action {:keys [with text] :as args}]
+  (let [world @(:world run)]
+    (if-let [reason (a/check action world actor args)]
+      {:rejected reason}
+      (let [_ (stop-interrupted! run actor action)
+            world @(:world run)
+            conv {:id (conversation/new-id world) :initiator actor
+                  :members (conversation/members world actor with)}]
+        (locking (:world run)
+          (emit! run [(conversation/started @(:world run) actor conv)])
+          (emit! run [(conversation/said @(:world run) actor conv text)]))
+        (let [ending (converse! run conv)]
+          (emit! run [(conversation/ended @(:world run) conv ending)])
+          {:summary (conversation-summary run conv ending)})))))
 
 (defn- activate-human
   "A human holds this seat: wait for `act!` input. Free and query actions
   are applied and the wait continues; a turn-ending action finishes."
   [run agent-id {:keys [role max-finals commit]}]
-  (let [by-name (a/by-name (a/available (a/for-role (:actions run) role) @(:world run) agent-id))
+  (let [by-name (a/by-name (turn-actions run @(:world run) agent-id {:role role}))
         call-opts {:commit commit :max-finals max-finals :max-queries (:max-queries (:opts run))}]
     (loop [st {:finals [] :queries 0 :used []} feedback nil]
       (let [p (promise)]
@@ -520,7 +687,8 @@
                                   {:rejected r}
                                   (stop-interrupted! run id action)))
                               (fn [action args] (resolve! run id action args)))]
-                 {:role (:role (w/agent snapshot id)) :max-finals 1 :commit commit}))
+                 {:role (:role (w/agent snapshot id)) :max-finals 1 :commit commit
+                  :simultaneous? simultaneous?}))
         results (if simultaneous?
                   (mapv deref (mapv #(future (activate run snapshot % (turn %))) ids))
                   (mapv #(activate run snapshot % (turn %)) ids))]

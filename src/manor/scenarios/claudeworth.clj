@@ -21,6 +21,7 @@
   (:require [clojure.string :as str]
             [manor.builtins :as b]
             [manor.clock :as clock]
+            [manor.conversation :as conversation]
             [manor.items :as items]
             [manor.narrate :as narrate]
             [manor.scenarios.building :as building]
@@ -207,7 +208,7 @@
                       (> (- (clock/round-at c round until) round) (clock/rounds-for c (* max-sleep-hours 60)))
                       (str until " is more than " max-sleep-hours " hours away; sleep until an earlier time"))))
     :effect (fn [world actor {:keys [until]}]
-              [(b/occupy world actor "asleep" (clock/round-at (:clock world) (:round world) until))])}
+              [(b/occupy world actor "asleep" (clock/round-at (:clock world) (:round world) until) {:asleep? true})])}
 
    {:name :spend-time
     :doc (str "Spend from half an hour to " max-pastime-hours " hours on a pastime here. activity is a short phrase, "
@@ -331,6 +332,8 @@
          "You're only heard by people in the same place (`say`: a few sentences, at most " b/speech-limit
          " characters); `whisper` is private. `call` is heard everywhere within walking distance, so you can summon someone instead of searching the house room by room; whether it's proper for you to call someone depends on who you both are. `last-seen` in your view says where you last saw each person. "
          "You can speak once a turn, with `say`, `whisper` or `call`, and it doesn't end your turn: speak, then take your action. "
+         "To talk something over with people here, `converse` draws up to " conversation/max-others " of them into a conversation within your turn: "
+         "you each speak in turn, up to " conversation/passes " times, so nobody waits a turn for each answer, and then you carry on with your turn. "
          "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). You get no turns while asleep or busy, unless someone uses `rouse` to interrupt you. On that turn, `carry-on` ignores them; any other accepted action means you stop. "
          "Use `spend-time` for longer pastimes (half an hour to " max-pastime-hours " hours). `note` keeps private notes. "
          "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows them in detail, with their descriptions, conditions and owners, along with the room and what the people here carry, so use it to examine something closely, not routinely on arrival. "
@@ -437,7 +440,8 @@
 
 (def mock-day
   "Agent id -> time of day -> the tool calls of that turn, in order (free
-  ones first). Turns not listed pass. Breakfast, the earl's visit to Mr Pugh,
+  ones first). Turns not listed pass. Breakfast (where the countess draws the
+  earl into a conversation, see `mock-conversation`), the earl's visit to Mr Pugh,
   the countess moving the candlesticks, visiting the abbey and buying a
   duster to give the housemaid, Mr Hale's errands and secretarial work,
   Nellie the housemaid's round of the house (unless :housemaid? is false),
@@ -463,7 +467,8 @@
 
    "lady-claudeworth"
    {"08:00" [[:walk {:to "dining-room"}]
-             [:say {:text "Enlarge it? Then I expect to be consulted on every room, Claudeworth."}]]
+             [:converse {:with ["lord-claudeworth"]
+                         :text "Enlarge it? Then I expect to be consulted on every room, Claudeworth."}]]
     "08:30" [[:spend-time {:activity "breakfasting" :hours 1}]]
     "09:30" [[:open {:container "sideboard"}] [:take {:item "silver-candlesticks"}] [:walk {:to "drawing-room"}]
              [:put-down {:item "silver-candlesticks"}] [:look {}]
@@ -585,6 +590,14 @@
   [ctx]
   (scripted-policy mock-day ctx))
 
+(defn mock-conversation
+  "Speaking turns of the demonstration day: at breakfast the earl answers the
+  countess once, and she ends it. Other turns take the default (the
+  initiator ends it, the others stay silent)."
+  [{:keys [agent-id conversation]}]
+  (when (and (= "lord-claudeworth" agent-id) (= 1 (:pass conversation)))
+    {:tool :reply :args {:text "Every room, my dear. I would not dream of choosing a wallpaper without you."}}))
+
 ;; ---------------------------------------------------------------------------
 
 (def scenario
@@ -601,4 +614,5 @@
    :exclude-actions #{:move}
    :hibernate hibernate
    :observe observe
-   :mock-policy mock-policy})
+   :mock-policy mock-policy
+   :mock-conversation mock-conversation})

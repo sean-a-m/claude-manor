@@ -64,6 +64,7 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :defaults      {:model "..." ...}       ; overrides engine default options for this scenario
    :mock-policy   (fn [ctx] {:tool :dig :args {}})
    :mock-judge    (fn [ctx] {:tool :judge :args {..}})  ; optional, the judge in mock runs (see Items)
+   :mock-conversation (fn [ctx] {:tool :reply :args {..}})  ; optional, speaking turns in mock runs (see Conversations)
    :offline-stubs {:bridge/name (fn [args ctx] result)}})
 ```
 
@@ -127,7 +128,7 @@ Each action is a map. Each role's actions become that role's LLM tools.
  :doc     "Dig for the treasure where you are."
  :args    [:map [:depth [:int {:min 1 :max 3}]]]   ; malli schema, default [:map]
  :roles   #{:explorer}               ; or :all (every non-GM role, the default)
- :kind    :final                     ; :final (default) | :free | :query | :act
+ :kind    :final                     ; :final (default) | :free | :query | :act (| :converse, built in)
  :available? (fn [world actor] bool) ; optional: leave the tool out of this turn
  :valid?  (fn [world actor args] nil-or-reason-string)
  :effect  (fn [world actor args] [events])
@@ -144,6 +145,7 @@ Each action is a map. Each role's actions become that role's LLM tools.
 | `:free` | no | immediately | notes, declining, small side moves |
 | `:query` | no | immediately; calls a bridge, and the result comes back within the turn | needs `:bridge`; limited by `:max-queries` per turn; no approval |
 | `:act` | yes | creates a pending request; runs after operator approval at the next round start | needs `:bridge` |
+| `:converse` | no | immediately; the engine runs a conversation within the turn | only the built-in `converse` (see Conversations) |
 
 **Per-turn limits:** `:per-turn n` caps how often an action can be used in one turn; it suits
 free and query actions (a turn has only one final action anyway). Only accepted uses count: a call
@@ -220,6 +222,7 @@ it isn't an event, so anything that must be remembered or replayed belongs in `:
 | `note` | all | free | private note, shown to the agent every round (last 15); told 400 characters, accepts 500 |
 | `say` | all | free | heard by everyone in the same place (everyone, without locations); told 1000 characters, accepts 1500; once per turn, shared with `whisper` (`:limit-key :speech`) |
 | `whisper` | all | free | private to one agent; requires being together if both have locations; same limits, and shares `say`'s once per turn |
+| `converse` | all | converse (free) | draws up to 3 people here into a conversation within the turn (see Conversations); once per turn and per round; not offered in a simultaneous group or to a human seat |
 | `pray` | all | free | a private, diegetic way to reach the GM: its `:gm/requested` event fills the GM's inbox and triggers the GM this round |
 | `move` | all | final | follow a route (see Locations); only offered when the agent has a location |
 | `look`, `take`, `put-down`, `give` | all | free | only when the scenario has `:items` (see Items) |
@@ -730,8 +733,10 @@ and are freed at the start of that round. This makes nights and long activities 
 ```
 
 - `(b/occupy world id activity until)` is an `:agent/occupied` event, visible to everyone present.
-  Its `:busy` keeps `:activity :until :hibernating? :job` from the event data (`work-on` adds the
-  `:job`; see Items).
+  Its `:busy` keeps `:activity :until :asleep? :hibernating? :job` from the event data (`work-on`
+  adds the `:job`; see Items). For sleep, pass `{:asleep? true}` as a fifth argument:
+  `(b/asleep? world id)` is then true until they're roused, and nobody can draw them into a
+  conversation. The activity text alone ("asleep") means nothing to the engine.
   Write `activity` to read after "is": "asleep", "reading in the library". The agent's next turn
   is in round `until`.
 - `(b/free world id by)` frees someone early (e.g. a `rouse` action). `by` is named in the
@@ -778,6 +783,39 @@ matters: someone woken in the wrong place doesn't know why they were woken. Movi
 areas skips the journey, so only do it when nobody is there to see (Claudeworth checks both areas).
 Waking tells the agent that someone has come near; keep that in mind for scenarios where it matters.
 
+### Conversations (`manor.conversation`)
+
+Every scenario has the built-in `converse {with?, text}`, so back-and-forth talk doesn't take a
+round per answer. It's free: the conversation runs inside the initiator's turn, who then carries
+on with it. It uses nobody else's turn either.
+
+- **Who:** up to 3 others in the initiator's place (`with`, a list of ids; a single id string is
+  accepted), or, with `with` left out, everyone here who can talk, if that's at most 3. Not
+  people asleep (`b/asleep?`), hibernating, travelling, elsewhere, or in a human seat. Someone
+  busy but awake can talk, and the conversation doesn't touch their occupation: no interrupt, and
+  their work ends when it was going to. An interrupted member stays interrupted and decides on
+  their own turn. `manor.conversation/check` gives the reasons.
+- **Order:** the initiator opens with `text`, then everyone speaks in turn, the initiator first
+  (then `with`'s order, or spawn order), for up to 3 passes, then the initiator has a last word.
+  Each speaking turn is one short model call (at most 3 with retries) with its own prompt (the
+  agent's usual view, notes and recent events, plus who is in the conversation and where it has
+  got to) and its own tools: members get `reply {text}`, `stay-silent` and `leave`; the
+  initiator gets `reply` and `end-conversation`; everyone also has `note`. These tools exist only
+  in speaking turns and can't be overridden. Lines are told 400 characters and accept 1500.
+- **Ending:** the initiator ends it, everyone else leaves, nobody else speaks in a pass, the
+  passes and the last word are done, the run reaches `:max-cost` (checked before each call), or
+  a call fails (the run is asked to pause). It never carries over into another round.
+- **Events,** each with `:conversation` (the id, `"conv-<n>"`) in its data and visible to everyone
+  present: `:conversation/started {:members :at}`, each line an ordinary `:agent/said`, then
+  `:conversation/silent`, `:conversation/left` and `:conversation/ended {:reason}`. Bystanders hear
+  every line. The started event records the round in the initiator's `:conversed-round`, which
+  limits them to one conversation a round. Nothing else is world state.
+- The initiator's tool reply is the conversation's lines and how it ended. Speaking turns are
+  logged in `llm.edn` with `:conversation {:id :pass}` (`:pass :last-word` for the last word),
+  which the transcript shows next to the agent.
+- It isn't offered in a simultaneous group, where the others are in their own turns, or to a human
+  seat. Leave it out with `:exclude-actions #{:converse}`.
+
 ### Turn order: `:schedule`
 
 - `:round-robin` (default): one agent at a time in spawn order; each sees the previous agents'
@@ -812,6 +850,10 @@ Lets the scenario run for free with `{:llm :mock}`. It's essential for testing.
 - For the GM (`role :gm`) return `{:tool :done}` unless testing GM behaviour.
 - The judge of work on items (`role :judge`) never reaches the policy: the engine sends it to the
   scenario's `:mock-judge`, or `manor.items/mock-judge` (see Items).
+- Nor do speaking turns in a conversation (the context has `:conversation {:id :initiator
+  :members :pass :final?}`): they go to the scenario's `:mock-conversation`, and when that is
+  missing or returns nil, to `manor.conversation/mock-default` (the initiator ends it, the others
+  stay silent).
 - Only choose valid actions. The scenario smoke test fails on forfeited turns.
 
 ## Stable test conditions

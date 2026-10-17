@@ -47,7 +47,7 @@ consistent (section 6.4).
 |---|---|
 | A map that changes at runtime | `:space/location-added` and `:space/route-opened` are ordinary events, so a new room is just more events. Replay and branching keep working. |
 | Trips to the village | routes with a travel time in rounds; `:agent/moved`, `:agent/departed`, `:agent/arrived` |
-| Talking | `say` (heard by everyone in the room), `whisper`: free, one of them per turn (decision 33); round-robin turns, so each agent sees what the previous agent did this round |
+| Talking | `say` (heard by everyone in the room), `whisper`: free, one of them per turn (decision 33); round-robin turns, so each agent sees what the previous agent did this round; `converse` for an exchange within a turn (decision 36) |
 | An external MCP server | query bridges with `{:mcp {:server .. :tool ..}}`, arguments chosen by the engine (`:bridge-args`), results recorded through `:on-result` |
 | Delayed effects | a scenario `:system` that runs every round (enough for construction) |
 | Money, stores, plans | scenario `:state` with reducers, as in the village |
@@ -640,3 +640,10 @@ Decisions for items (done):
     whole house): a call naming someone busy but awake interrupts them, as `rouse` does; it
     doesn't wake a sleeper. Who may properly call whom is left to the characters' station, not
     enforced. Reminders no longer count the per-turn calls. See [the turns brief](archived/turns-brief.md).
+36. **Conversations within a turn.** Done, for every scenario: `converse` draws up to 3 people in
+    the same place into a round-robin exchange inside the initiator's turn (3 passes, the
+    initiator first, and a last word), so an answer no longer waits a round. It is free and uses
+    nobody's turn; someone busy talks without stopping their work; sleepers can't be drawn in
+    (`sleep` now marks the occupation `:asleep?`). Claudeworth's rules mention it next to the
+    speech sentence, and the demonstration day has the countess draw the earl into one at
+    breakfast. See [the converse brief](converse-brief.md).

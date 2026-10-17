@@ -195,7 +195,7 @@
         (is (= #{"ada"} (:visible-to freed)))
         (is (= "Ada is no longer asleep." (n/describe freed (n/names world))))))
     (testing "and went back to sleep until the next morning"
-      (is (= {:activity "asleep" :until 69} (w/busy world "ada"))))
+      (is (= {:activity "asleep" :until 69 :asleep? true} (w/busy world "ada"))))
     (testing "replay rebuilds occupation"
       (is (= world (w/replay (store/read-events (:dir run))))))
     (e/stop-run run)))

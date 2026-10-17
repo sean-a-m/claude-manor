@@ -6,6 +6,7 @@
   (:require [clojure.string :as str]
             [jsonista.core :as json]
             [manor.clock :as clock]
+            [manor.conversation :as conversation]
             [manor.items :as items]
             [manor.narrate :as narrate]
             [manor.space :as space]
@@ -85,14 +86,16 @@ Your view is private. Others only learn what is public or what someone tells the
   [brief & args]
   (if (fn? brief) (apply brief args) brief))
 
-(defn agent-messages
-  [scenario world events agent-id {:keys [event-window]}]
+(defn- agent-request
+  "An agent's request: `preamble`, their role and who they are, then their
+  view, notes and recent events, and `closing`."
+  [scenario world events agent-id {:keys [event-window]} preamble closing]
   (let [a (w/agent world agent-id)
         role (get-in scenario [:roles (:role a)])
         view (agent-view scenario world agent-id)
         notes (:notes a)]
     [{:role "system"
-      :content (str agent-preamble
+      :content (str preamble
                     "\n\n## Your role\n" (brief-text (:brief role) world agent-id)
                     "\n\n## Who you are\nYou are " (:name a) " (id: " agent-id ")."
                     (when-not (str/blank? (:persona a)) (str " " (:persona a))))}
@@ -107,7 +110,67 @@ Your view is private. Others only learn what is public or what someone tells the
                     (event-lines world
                                  (visible-events events agent-id (or event-window 30) (some? (:clock world)))
                                  (narrate/names world))
-                    "\n\nTake your turn now.")}]))
+                    "\n\n" closing)}]))
+
+(defn agent-messages
+  [scenario world events agent-id opts]
+  (agent-request scenario world events agent-id opts agent-preamble "Take your turn now."))
+
+(defn- conversation-preamble [initiator?]
+  (str "You are a participant in a turn-based simulation, and you are in a conversation. "
+       (if initiator?
+         "You started it during your turn: when it's over, you carry on with your turn."
+         "This is not your own turn: talking here doesn't use it up, and doesn't stop anything you are busy with.")
+       "
+
+How to answer:
+- Call exactly ONE of "
+       (if initiator?
+         "`reply` (say your line) or `end-conversation` (end it now)."
+         "`reply` (say your line), `stay-silent` (say nothing this time) or `leave` (drop out of the conversation; you stay where you are and still hear it).")
+       "
+- `note` is free, if you want to remember something.
+- Keep each line to a few sentences, at most " conversation/line-limit " characters, spoken as your character to the people in the conversation.
+
+Your view is private. Others only learn what is public or what someone tells them. Stay in character and pursue your goals."))
+
+(defn- and-list [xs]
+  (if (next xs) (str (str/join ", " (butlast xs)) " and " (last xs)) (first xs)))
+
+(defn- conversation-closing
+  "Who is in the conversation, where it has got to, and whose line it is."
+  [world agent-id {:keys [initiator members]} {:keys [pass final? in]}]
+  (let [names (narrate/names world)
+        nm #(narrate/who names %)
+        you? (= agent-id initiator)
+        others (remove #{agent-id} in)
+        gone (remove (set in) members)
+        busy (w/busy world agent-id)]
+    (str "## The conversation\n"
+         (if you? "You started a conversation here with " (str (nm initiator) " started a conversation here with "))
+         (and-list (map #(if (= % agent-id) "you" (nm %)) (rest members))) ". "
+         "Everyone speaks in turn, " (if you? "you" (nm initiator)) " first, up to " conversation/passes
+         " times, and " (if you? "you have" (str (nm initiator) " has")) " the last word. "
+         (when (seq gone) (str (and-list (map nm gone)) (if (next gone) " have" " has") " left it. "))
+         (when (seq others) (str "Still in it with you: " (and-list (map nm others)) ". "))
+         "The lines so far are the latest of the recent events above."
+         (when (and busy (not (:interrupted-by busy)))
+           (str "\n\nYou are busy " (:activity busy)
+                (when-let [u (:until busy)] (str " until " (narrate/at names u)))
+                "; talking doesn't stop it."))
+         "\n\n"
+         (cond final? "This is your last word: say a closing line with `reply`, or `end-conversation` to end it without one."
+               you? (str "Pass " pass " of " conversation/passes ". Your turn to speak: `reply`, or `end-conversation` to end it now.")
+               :else (str "Pass " pass " of " conversation/passes ". Your turn to speak.")))))
+
+(defn conversation-messages
+  "The request for `agent-id`'s speaking turn in conversation `conv`
+  ({:id :initiator :members}). `turn` is {:pass :final? :in}, `:in` the
+  members still in it."
+  [scenario world events agent-id opts conv turn]
+  (agent-request scenario world events agent-id opts
+                 (conversation-preamble (= agent-id (:initiator conv)))
+                 (conversation-closing world agent-id conv turn)))
 
 (def gm-preamble
   "You are the game master of a turn-based simulation. The engine enforces the rules and runs the world; you step in only when called, and you should intervene lightly. You see everything, including private information. Never reveal one participant's private information to another.

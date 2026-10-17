@@ -357,8 +357,12 @@
       (is (nil? (check world "ada" {:items ["clock" "umbrella"] :doing "dusting"})))
       (is (nil? (check world "ben" {:items ["pipe" "clock"] :doing "cleaning"})))
       (is (= "Ben is holding the Pipe" (check world "ada" {:items ["clock" "pipe"] :doing "cleaning"})))
-      (is (= "basket is neither here nor carried by you; items here: clock (Grandfather clock), umbrella (Umbrella); you carry: nothing"
+      (is (= "basket is neither here nor carried by you; this place: hall (Hall); items here: clock (Grandfather clock), umbrella (Umbrella); you carry: nothing"
              (check world "ada" {:items ["basket"] :doing "mending"})))
+      (testing "the place you're in is fine too, alone or with items; another place isn't"
+        (is (nil? (check world "ada" {:items ["hall"] :doing "sweeping the hall"})))
+        (is (nil? (check world "ada" {:items ["hall" "clock"] :doing "dusting"})))
+        (is (str/starts-with? (check world "ada" {:items ["porch"] :doing "sweeping"}) "porch is neither here nor carried by you")))
       (is (str/starts-with? (check world "ada" {:items ["teapot"] :doing "mending"}) "teapot is neither here nor carried by you"))
       (is (= "there is no game time to work in" (check (dissoc world :clock) "ada" {:items ["clock"] :doing "dusting"})))
       (let [[travelling] (perform run (at world "ada" "green") "ada" :move {:to "farm"})]
@@ -619,6 +623,33 @@
       (is (= #{"ben"} (:visible-to ended)) "Ada took it to the porch, so only Ben is in the hall")
       (is (= "Ben leaves off drying the umbrella before getting anywhere." (n/describe ended (n/names (e/world run)))))
       (is (= "dry" (condition run "umbrella")))
+      (e/stop-run run))))
+
+(deftest work-on-the-room
+  (testing "the room with items: only the items go to the judge"
+    (let [judged (atom [])
+          run (rounds! (start {:llm-impl (llm/mock (scripted {"ben" {1 [(work ["hall" "clock"] "sweeping the hall and dusting the clock" 1)]}}
+                                                             :judged judged))})
+                       3)
+          [done] (of-type run :item/work-done)]
+      (is (= ["clock"] (map :id (:items (first @judged)))))
+      (is (= [{:item "clock" :from "ticking loudly" :to "just seen to"}] (get-in done [:data :changes])))
+      (e/stop-run run)))
+  (testing "the room alone: done with a neutral summary and no judge call"
+    (let [judged (atom [])
+          run (rounds! (start {:llm-impl (llm/mock (scripted {"ben" {1 [(work ["hall"] "sweeping the hall" 1)]}}
+                                                             :judged judged))})
+                       3)
+          [done] (of-type run :item/work-done)
+          world (e/world run)]
+      (is (empty? @judged))
+      (is (empty? (judge-calls run)))
+      (is (empty? (of-type run :item/work-ended)))
+      (is (= {:minutes 60 :stopped-early? false :summary "Ben finishes sweeping the hall." :changes []}
+             (select-keys (:data done) [:minutes :stopped-early? :summary :changes])))
+      (is (= "Ben finishes sweeping the hall." (n/describe done (n/names world))))
+      (is (empty? (items/jobs world)))
+      (is (= world (w/replay (store/read-events (:dir run)))))
       (e/stop-run run))))
 
 (deftest overlapping-jobs

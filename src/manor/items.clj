@@ -429,16 +429,25 @@
       (seq people) (assoc :people (mapv #(look-person world %) people)))))
 
 (defn- work-reason
-  "Why `actor` can't work on the item `id`, or nil: it must lie here (in a
-  container or not) or be carried by them."
+  "Why `actor` can't work on `id`, or nil: it must be an item lying here (in
+  a container or not) or carried by them, or the place they're in."
   [world actor id]
   (let [it (item world id)
-        holder (:holder it)]
+        holder (:holder it)
+        here (space/location-of world actor)]
     (cond
       (= actor holder) nil
       (and holder (space/together? world actor holder)) (str (:name (w/agent world holder)) " is holding the " (:name it))
-      (not (and it (reachable? world actor it)))
-      (str id " is neither here nor carried by you; " (here-list world actor) "; " (carried-list world actor)))))
+      (and it (reachable? world actor it)) nil
+      (= id here) nil
+      :else
+      (str id " is neither here nor carried by you; this place: " here " (" (:name (space/location world here)) "); "
+           (here-list world actor) "; " (carried-list world actor)))))
+
+(defn place-worked?
+  "Did `job` name its place among its items: work on the room itself?"
+  [{:keys [items place]}]
+  (boolean (some #{place} items)))
 
 (defn- work-on-reason [world actor {ids :items}]
   (cond (nil? (:clock world)) "there is no game time to work in"
@@ -518,6 +527,7 @@
     :kind :final
     :doc (str "Spend time working on things here or that you carry (item ids, at most " max-work-items "; "
               "working on a container includes what's in it). "
+              "To work on the room itself (sweeping, airing, laying the fire), include this place's id. "
               "doing is a short phrase that reads after \"is\", e.g. \"dusting the shelves\". "
               "hours is how long you'll spend (half an hour to " max-work-hours ", default half an hour); "
               "if the job needs longer, only part of it gets done. "

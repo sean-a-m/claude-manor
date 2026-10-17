@@ -595,8 +595,11 @@ supports or tests them (a basket's contents don't show in `carrying`).
 a clock) spends time doing something to things:
 
 - `items`: 1-6 item ids, each lying where you are (in a container or not) or carried by you
-  (fixed items are fine);
-  duplicates are dropped. `doing`: 3-120 characters, reading after "is" ("dusting the china
+  (fixed items are fine), or the id of the place you're in, for work on the room itself
+  (sweeping, airing); duplicates are dropped. A rejected id gets a reason that lists this place's
+  id, the items here and what you carry.
+  Places have no condition yet, so the room's id is kept in the job's `:items` but never goes to
+  the judge (`items/place-worked?` says whether a job named its place). `doing`: 3-120 characters, reading after "is" ("dusting the china
   cabinet"). `hours`: optional, 0.5 to 4, default 0.5; rounds as `clock/rounds-for` gives them,
   at least one.
 - Its effect is a job, `:item/work-begun` (visible to the GM; data: the job), and an occupation
@@ -617,9 +620,11 @@ a clock) spends time doing something to things:
   `carry-on` keeps the occupation and its job, so the work runs to its end.
 - For a stopped or finished job, the items **in reach** are the job's items still lying at the
   job's place (in a container or not), or carried by the worker, each followed by everything
-  inside it. If none are, or no time was worked, the job ends with
+  inside it. If none are and the job didn't name its place, or no time was worked, the job ends with
   `:item/work-ended`, seen by the worker and the people at the place ("Hale leaves off dusting the
-  china cabinet before getting anywhere."), and no call. Otherwise the engine asks **the judge**
+  china cabinet before getting anywhere."), and no call. If only the room is left (the job named
+  its place and no item is in reach), it's `:item/work-done` with no changes and a neutral
+  summary ("Nellie finishes sweeping the hall."), and no call. Otherwise the engine asks **the judge**
   and emits `:item/work-done`, seen by the worker and the people at the place:
   `{:job :actor :place :doing :minutes :stopped-early? :luck :summary :changes [{:item :from :to}]}`.
   Its reducer sets each `:to` condition and removes the job. Jobs are applied one after another,

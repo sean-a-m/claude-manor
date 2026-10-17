@@ -336,7 +336,7 @@
          "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows them in detail, with their descriptions, conditions and owners, along with the room and what the people here carry, so use it to examine something closely, not routinely on arrival. "
          "Some things hold others: what's in an open one is listed under its `contents`, and one marked `closed` shows what's inside only when you `open` it. "
          "You can `take` things out of either, and `put-in` puts something into one. "
-         "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn; `work-on` spends time doing something to things here or that you carry, and its results show when you finish. "
+         "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn; `work-on` spends time doing something to things here or that you carry, or to the room itself (use its id), and its results show when you finish. "
          "If you are waiting on someone or nothing needs doing, `pass` is the way to wait a turn; you act again next turn. "
          "Opening hours are shown in your view where a place has them. "
          "The family and secretary spend freely from the household account (`household` in your view), and can `buy` at an open shop. "
@@ -507,7 +507,7 @@
              [:take {:item "blacking-brushes"}]
              [:work-on {:items ["kitchen-range" "blacking-brushes"] :doing "blacking the kitchen range" :hours 2}]]
     "13:30" [[:put-in {:item "blacking-brushes" :container "kitchen-dresser"}] [:walk {:to "entrance-hall"}]
-             [:work-on {:items ["stags-head"] :doing "dusting the hall and the stag's head" :hours 1}]]
+             [:work-on {:items ["entrance-hall" "stags-head"] :doing "dusting the hall and the stag's head" :hours 1}]]
     "14:30" [[:walk {:to "drawing-room"}]]
     "18:00" [[:work-on {:items ["china-cabinet"] :doing "dusting the china cabinet and the glass with her new duster" :hours 1}]]
     "21:30" [[:walk {:to "maids-room"}] [:sleep {:until "06:30"}]]}

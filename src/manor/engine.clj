@@ -540,16 +540,19 @@
 
 (defn- finish-job!
   "Apply the end of one job (see manor.items/ending-jobs): dropped, ended
-  with nothing in reach or no time worked, or judged. The model call is made
-  outside the world lock; the result is built from the world as it is then,
-  so a later job's judge sees this one's result."
+  with nothing in reach or no time worked, or judged. Work on the room
+  alone has nothing to judge: it's done, with a neutral summary and no call.
+  The model call is made outside the world lock; the result is built from
+  the world as it is then, so a later job's judge sees this one's result."
   [run {:keys [job outcome minutes] :as work}]
   (let [world @(:world run)
         reach (items/in-reach world job)]
     (cond
       (= :dropped outcome) (emit! run [(items/work-ended world job :retired)])
-      (empty? reach) (emit! run [(items/work-ended world job :nothing-in-reach)])
+      (and (empty? reach) (not (items/place-worked? job)))
+      (emit! run [(items/work-ended world job :nothing-in-reach)])
       (zero? minutes) (emit! run [(items/work-ended world job :no-time)])
+      (empty? reach) (emit! run [(items/work-done world job work nil)])
       :else
       (let [{:keys [failure] :as verdict} (ask-judge run world job work reach)]
         (locking (:world run)

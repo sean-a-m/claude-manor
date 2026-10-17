@@ -1,5 +1,7 @@
 # Containers: build brief
 
+**Status: done** (C1 `2e7237b`, C2 `c0b4d35`, C3 below).
+
 Self-contained instructions for adding **containers** to `manor.items` and to Claudeworth: items
 that hold other items, such as shelves, cabinets and a sideboard. Read `AGENTS.md` first
 (invariants, run directories, cost rules). For how items work now, read the Items section of
@@ -18,7 +20,32 @@ that hold other items, such as shelves, cabinets and a sideboard. Read `AGENTS.m
   shelves are a kitchen dresser; the bundled-content test is `claudeworth-containers` in
   `scenarios_test.clj`; Nellie's mock day also takes the blacking brushes off the dresser for the
   range and puts them back.
-- [ ] C3 one short real run, and the report
+- [x] C3 one short real run, and the report (below)
+
+### C3 real-run findings
+
+`test-runs/containers-real` (since deleted): `:housemaid?` on, from 09:00, 10 rounds,
+**$0.140**, **156 calls**, ended by `:max-rounds`.
+
+- **Containers worked without confusion.** There were no container-related `error:` or
+  `rejected:` replies. Nellie took the blacking brushes from the kitchen dresser, worked the range
+  with them, and later chose to put them back, unprompted ("The brushes are dirty; I might put
+  them back"): "Nellie takes the blacking brushes from the kitchen dresser."
+- **Nobody used `open`** (0 calls), and **Nellie never found the candlesticks.** Her only mention
+  of the silver ("or polish the silver, lay fires") came at 11:00, and she chose the piano
+  instead. Then low luck rolls (2, 17, 28, 33) kept her repairing her own mishaps on the piano
+  until the run ended. So the hint question (decision 10) is still open: this run doesn't show
+  whether she'd think to open the sideboard. Hale's `look` in the dining room showed the
+  sideboard as `closed: true`; he noted it and moved on.
+- **The judge on a container:** one call, "dusting the china cabinet and wiping the glass, and
+  dusting the Meissen" (luck 49, $0.00049). It saw three items with `in`, and changed the cabinet
+  to "dusted, glass wiped clear" and each figure to "dusted, clean". This is sensible, and the
+  conditions were well within the limits.
+- **Other numbers:** 34 `look` calls (22% of all calls), 1 `take`, 1 `put-in`, 9 judge calls.
+- **Problems not caused by containers:** 2 forfeits (the earl and Hale spent their 10 calls
+  walking and looking for people, and then their last call wasn't turn-ending), 4 "say once per
+  turn" rejections, 3 bad `connects-to` types in `draw-plans`, 2 "client must be present", and
+  3 "query limit reached".
 
 Tick each phase here as it's committed, so a paused build can restart from this file.
 

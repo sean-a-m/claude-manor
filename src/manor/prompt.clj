@@ -129,8 +129,12 @@ How to answer:
          "`reply` (say your line) or `end-conversation` (end it now)."
          "`reply` (say your line), `stay-silent` (say nothing this time) or `leave` (drop out of the conversation; you stay where you are and still hear it).")
        "
+- Your line goes in `reply`'s text. A line written as plain text, outside a tool call, isn't heard.
 - `note` is free, if you want to remember something.
 - Keep each line to a few sentences, at most " conversation/line-limit " characters, spoken as your character to the people in the conversation.
+- Say something new, or don't speak: when the matter is settled, "
+       (if initiator? "`end-conversation`" "`stay-silent` or `leave`")
+       " rather than repeat it or say goodbye again.
 
 Your view is private. Others only learn what is public or what someone tells them. Stay in character and pursue your goals."))
 
@@ -159,9 +163,9 @@ Your view is private. Others only learn what is public or what someone tells the
                 (when-let [u (:until busy)] (str " until " (narrate/at names u)))
                 "; talking doesn't stop it."))
          "\n\n"
-         (cond final? "This is your last word: say a closing line with `reply`, or `end-conversation` to end it without one."
-               you? (str "Pass " pass " of " conversation/passes ". Your turn to speak: `reply`, or `end-conversation` to end it now.")
-               :else (str "Pass " pass " of " conversation/passes ". Your turn to speak.")))))
+         (cond final? "This is your last word: call `reply` with a closing line, or `end-conversation` to end it without one."
+               you? (str "Pass " pass " of " conversation/passes ". Your turn: call `reply` with your line, or `end-conversation` to end it now.")
+               :else (str "Pass " pass " of " conversation/passes ". Your turn: call `reply` with your line, or `stay-silent` or `leave`.")))))
 
 (defn conversation-messages
   "The request for `agent-id`'s speaking turn in conversation `conv`

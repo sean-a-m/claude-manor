@@ -121,10 +121,13 @@
       (is (str/includes? (system hale-first) "at most 400 characters"))
       (is (str/includes? (user hale-first) "Lord Claudeworth started a conversation here with Lady Claudeworth and you."))
       (is (str/includes? (user hale-first) "Lady Claudeworth (Dining room) says: \"lady-claudeworth 1\""))
-      (is (str/ends-with? (user hale-first) "Pass 1 of 3. Your turn to speak.")))
+      (is (str/includes? (system hale-first) "A line written as plain text, outside a tool call, isn't heard."))
+      (is (str/includes? (system hale-first) "`stay-silent` or `leave` rather than repeat it"))
+      (is (str/ends-with? (user hale-first) "Pass 1 of 3. Your turn: call `reply` with your line, or `stay-silent` or `leave`.")))
     (testing "the initiator is told it's their last word"
       (is (str/includes? (system earl-last) "when it's over, you carry on with your turn"))
-      (is (str/ends-with? (user earl-last) "This is your last word: say a closing line with `reply`, or `end-conversation` to end it without one.")))
+      (is (str/includes? (system earl-last) "`end-conversation` rather than repeat it"))
+      (is (str/ends-with? (user earl-last) "This is your last word: call `reply` with a closing line, or `end-conversation` to end it without one.")))
     (e/stop-run run)))
 
 (deftest ways-a-conversation-ends
@@ -256,6 +259,17 @@
                           "Free: does not end your turn; the others answer before it returns. Once per turn."))
       (is (str/includes? (get-in tool [:function :description]) "at most 400 characters"))
       (is (not (str/includes? (prompt-json tool) "1500")))))
+  (testing "speaking-turn tools say they end the line, not the turn"
+    (doseq [tool (map a/->tool (conversation/speaking-actions {:id "c" :initiator "a"} "b"))]
+      (is (str/ends-with? (get-in tool [:function :description])
+                          "Ends your part in this round of the conversation, not your own turn."))))
+  (testing "quotation marks around a whole line are dropped"
+    (let [reply (first (conversation/speaking-actions {:id "c" :initiator "a"} "b"))
+          text #(get-in (first (a/effect-events reply {:agents {}} "b" {:text %})) [:data :text])]
+      (is (= "My lady, it shall be so." (text "\"\"My lady, it shall be so.\"\"")))
+      (is (= "My lady." (text "“My lady.”")))
+      (is (= "He said \"no\" twice." (text "He said \"no\" twice.")))
+      (is (= "\"Yes,\" I said, \"now.\"" (text "\"Yes,\" I said, \"now.\"")))))
   (testing "with may be a single id"
     (is (= {:args {:with ["hale"] :text "Hello."}}
            (a/decode-args conversation/converse "{\"with\": \"hale\", \"text\": \"Hello.\"}"))))

@@ -1,6 +1,6 @@
 # Converse: conversations within a turn
 
-**Status: built (V1-V7); the real run (V8) is below.** Read `AGENTS.md` first.
+**Status: done** (V1-V8); the real run's findings and the fixes made after it are at the end. Read `AGENTS.md` first.
 
 The user agreed the decisions below on 2026-10-17. They follow an investigation of the last real
 Claudeworth run (`runs/claudeworth-20261017-120559`). With one utterance per agent per round, the
@@ -20,7 +20,7 @@ one after another.
 - [x] V5 mock, transcript and llm.edn labels
 - [x] V6 tests
 - [x] V7 docs and Claudeworth's rules
-- [ ] V8 one short real run, measured against the run above
+- [x] V8 one short real run, measured against the run above
 
 ## Decisions
 
@@ -178,3 +178,45 @@ conversations started per round and by whom, lines per conversation and how they
 count, speech-limit rejections, rejected and error tool replies, cost, and wall time per round.
 Read the lines for whether members answer each other or talk past each other, and for turn
 hoarding.
+
+### Findings (2026-10-17)
+
+`old-test-runs/converse-real-1`: Claudeworth from 08:00, 8 rounds, $0.088, 546 seconds (68 a
+round). Compared with the first 8 rounds of `runs/claudeworth-20261017-120559`:
+
+| | converse run | baseline |
+|---|---|---|
+| model calls | 247 (130 of them speaking turns) | 97 |
+| cost | $0.088 | $0.033 |
+| `pass` | 9 | 16 |
+| utterances | 93 (85 in conversations) | 20 |
+| speech-limit rejections | 0 | 1 |
+| forfeits | 0 | 0 |
+
+- **12 conversations:** 4 of two people, 7 of three, 1 of four. The countess started 6, the earl
+  3, Hale 2, Nellie 1. 8 ran their full length, 3 were ended by the initiator, 1 by silence;
+  members stayed silent twice and never left. The only rejected `converse` was sensible (Pugh
+  was still out of play at his drawing board when the countess walked in).
+- **What it gained:** real negotiation within a round. At the office the countess had the
+  morning room turned to the east, then had the fireplace and door swing fixed; the earl
+  commissioned the drawing room early, she challenged it, and they worked out that only £600
+  was left. Before, each answer waited half an hour.
+- **Problems:**
+  - 48 speaking-turn calls wrote the line as plain text, with no tool call, and needed a nudge.
+  - 14 speaking-turn thoughts took `reply` to end the agent's own turn: the tool description
+    said "Ends your turn.", the usual hint for a final action.
+  - Later passes repeated what was settled, with several goodbyes, and running the full length
+    was the norm.
+  - Lines averaged 325 characters; 25 of 85 were over the 400 advised (the longest 635).
+  - Pugh wrapped some lines in quotation marks.
+- **Fixed after the run (mock tests only, not yet seen in a real run):**
+  - Speaking-turn tools have their own hint ("Ends your part in this round of the conversation,
+    not your own turn.", through a new optional `:hint` on actions).
+  - The preamble says a line written as plain text isn't heard, and to stay silent, leave or end
+    it rather than repeat what is settled. The closing names `reply`.
+  - Quotation marks around a whole line are dropped.
+- **Open:**
+  - Cost and time: about 2.7 times the calls, and rounds 2.5 times as long.
+  - Whether to take a plain-text answer as the line instead of nudging.
+  - Whether 3 passes is too many.
+  - Turn hoarding: conversations in most rounds, half of them the countess's.

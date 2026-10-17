@@ -134,6 +134,7 @@ Each action is a map. Each role's actions become that role's LLM tools.
  :effect  (fn [world actor args] [events])
  :per-turn  1                        ; optional: at most this many accepted uses per turn
  :limit-key :speech                  ; optional: actions with the same key share :per-turn
+ :hint    "..."                      ; optional: replaces the kind's hint ("Ends your turn.") in the tool description
  :reply   (fn [world actor args] data)}   ; :free only, optional: the tool result instead of "ok"
 ```
 

@@ -16,6 +16,8 @@
      :limit-key :speech                     ; optional: actions with the same key
                                             ; share one :per-turn limit (default:
                                             ; the action's own :name)
+     :hint    \"Ends your line.\"            ; optional: replaces the kind's hint
+                                            ; in the tool description
 
      ;; :free actions only, optional
      :reply   (fn [world actor args]) => data ; the tool result instead of \"ok\":
@@ -105,7 +107,7 @@
 (defn ->tool [action]
   {:type "function"
    :function {:name (name (:name action))
-              :description (str (:doc action) " " (kind-hint (kind action)) (per-turn-hint action))
+              :description (str (:doc action) " " (or (:hint action) (kind-hint (kind action))) (per-turn-hint action))
               :parameters (mjs/transform (tool-schema (args-schema action)))}})
 
 ;; ---------------------------------------------------------------------------

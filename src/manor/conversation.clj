@@ -166,8 +166,24 @@
           [:text line]]
    :valid? check})
 
+(def ^:private speaking-hint
+  "Each speaking-turn tool ends the line, which models otherwise read, from
+  the usual hint, as ending their own turn."
+  "Ends your part in this round of the conversation, not your own turn.")
+
 (defn- speaking-turn-action [conv spec effect]
-  (assoc spec :kind :final :effect (fn [world actor args] [(effect world actor conv args)])))
+  (assoc spec :kind :final :hint speaking-hint
+         :effect (fn [world actor args] [(effect world actor conv args)])))
+
+(defn- unquote-line
+  "`text` without quotation marks around the whole of it, which models
+  sometimes add to a line; left as it is if there are quotes inside too
+  (\"Yes,\" she said, \"now.\")."
+  [text]
+  (let [t (str/trim text)]
+    (if-let [[_ inner] (re-matches #"(?s)[\"“]+(.*?)[\"”]+" t)]
+      (if (or (str/blank? inner) (re-find #"[\"“”]" inner)) t inner)
+      t)))
 
 (defn speaking-actions
   "The tools of `speaker`'s speaking turn in `conv` ({:id :initiator}),
@@ -178,10 +194,10 @@
                                           :doc (str "Say your line to the conversation: a few sentences, at most "
                                                     line-limit " characters.")
                                           :args [:map [:text line]]}
-                                    (fn [world actor conv {:keys [text]}] (said world actor conv text)))]
+                                    (fn [world actor conv {:keys [text]}] (said world actor conv (unquote-line text))))]
     (if (= speaker initiator)
       [reply
-       {:name :end-conversation :kind :final
+       {:name :end-conversation :kind :final :hint speaking-hint
         :doc "End the conversation now, without another word."}]
       [reply
        (speaking-turn-action conv {:name :stay-silent :doc "Say nothing this time; you stay in the conversation."}

@@ -301,6 +301,9 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   from 64% to 33%, `look` from 54 to 8, and call counting in thoughts from 21 to 0. Follow-ups:
   `last-seen` is empty at the start, so the first turn still searches; Nellie walks room to room
   looking for work; `call` hasn't yet been seen answered.
+- **Conversations within a turn: done.** `converse`, separately from stage 2 and for today's
+  one-after-another rounds; see [the converse brief](converse-brief.md). It doesn't work in
+  simultaneous groups, which stage 2 would have to address.
 - **Stage 2 (simultaneous rounds and conversations), not started:** every free agent plans in
   parallel on one snapshot, engine code resolves the plans in a fixed order, and only agents
   whose situation changed get a short follow-up call; conversations happen as exchanges within a

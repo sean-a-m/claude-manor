@@ -16,6 +16,8 @@
      :limit-key :speech                     ; optional: actions with the same key
                                             ; share one :per-turn limit (default:
                                             ; the action's own :name)
+     :hint    \"Ends your line.\"            ; optional: replaces the kind's hint
+                                            ; in the tool description
 
      ;; :free actions only, optional
      :reply   (fn [world actor args]) => data ; the tool result instead of \"ok\":
@@ -36,7 +38,9 @@
     :query  a bridge or internal adjudication resolved during the turn, without
             approval; the result goes back to the agent
     :act    a real-world bridge with side effects; ends the turn and waits
-            for operator approval, then runs at the next round boundary"
+            for operator approval, then runs at the next round boundary
+    :converse  a conversation the engine runs within the turn, with others
+            present taking turns to speak (manor.conversation); free"
   (:require [clojure.string :as str]
             [jsonista.core :as json]
             [malli.core :as m]
@@ -86,7 +90,8 @@
   {:final "Ends your turn."
    :free  "Free: does not end your turn."
    :query "Query: returns information and does not end your turn (limited per turn)."
-   :act   "Real-world action: ends your turn and needs operator approval before it happens."})
+   :act   "Real-world action: ends your turn and needs operator approval before it happens."
+   :converse "Free: does not end your turn; the others answer before it returns."})
 
 (defn- tool-schema
   "The arguments schema as models see it. A string with an :advised-max
@@ -105,7 +110,7 @@
 (defn ->tool [action]
   {:type "function"
    :function {:name (name (:name action))
-              :description (str (:doc action) " " (kind-hint (kind action)) (per-turn-hint action))
+              :description (str (:doc action) " " (or (:hint action) (kind-hint (kind action))) (per-turn-hint action))
               :parameters (mjs/transform (tool-schema (args-schema action)))}})
 
 ;; ---------------------------------------------------------------------------

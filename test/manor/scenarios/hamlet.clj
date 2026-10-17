@@ -22,7 +22,7 @@
                     "go to a bedroom first"
                     (not (clock/hh-mm? until)) "until must be a time like 07:00"))
     :effect (fn [world actor {:keys [until]}]
-              [(b/occupy world actor "asleep" (clock/round-at (:clock world) (:round world) until))])}
+              [(b/occupy world actor "asleep" (clock/round-at (:clock world) (:round world) until) {:asleep? true})])}
 
    {:name :rouse
     :kind :free

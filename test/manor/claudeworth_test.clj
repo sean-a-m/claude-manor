@@ -398,8 +398,8 @@
       (is (re-find #"more than 12 hours" (a/check (action run :sleep) world "hale" {:until "07:00"})))
       (is (re-find #"time of day" (a/check (action run :sleep) world "hale" {:until "seven"})))
       (let [[world' [slept]] (perform run world "hale" :sleep {:until "12:00"})]
-        (is (= {:activity "asleep" :until 9} (:data slept)))
-        (is (= {:activity "asleep" :until 9} (w/busy world' "hale")))))
+        (is (= {:activity "asleep" :until 9 :asleep? true} (:data slept)))
+        (is (= {:activity "asleep" :until 9 :asleep? true} (w/busy world' "hale")))))
     (testing "spend-time occupies the right number of rounds"
       (let [{:keys [args]} (a/decode-args (action run :spend-time) "{\"activity\": \"writing letters\", \"hours\": 1.5}")
             [world' _] (perform run world "hale" :spend-time args)]
@@ -434,6 +434,17 @@
       (is (empty? (of-type run :action/forfeited)))
       (is (not-any? #(re-find #"^(error:|rejected:)" (:content % "")) (mapcat :replies calls)))
       (is (= world (w/replay (store/read-events (:dir run))))))
+    (testing "at breakfast the countess draws the earl into a conversation; he answers and she ends it"
+      (let [[started] (of-type run :conversation/started)
+            id (get-in started [:data :conversation])
+            in-it (filter #(= id (get-in % [:data :conversation])) evs)]
+        (is (= ["lady-claudeworth" "lord-claudeworth"] (get-in started [:data :members])))
+        (is (= 1 (:round started)))
+        (is (= [["lady-claudeworth" "Enlarge it? Then I expect to be consulted on every room, Claudeworth."]
+                ["lord-claudeworth" "Every room, my dear. I would not dream of choosing a wallpaper without you."]]
+               (for [e in-it :when (= :agent/said (:type e))] [(:actor e) (get-in e [:data :text])])))
+        (is (= :ended (get-in (last in-it) [:data :reason])))
+        (is (= 1 (count (of-type run :conversation/started))))))
     (testing "the countess buys a feather duster on her way home, and keeps it while there is no maid"
       (let [bought (first (by "lady-claudeworth" (of-type run :claudeworth/bought)))]
         (is (= {:item "feather duster" :qty 1 :price 18 :location "general-store"}

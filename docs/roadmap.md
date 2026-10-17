@@ -330,9 +330,20 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
     providers would report 0.
 12. **The control panel's map** draws routes between grid cells as straight lines, which can
     cross labels in a busy area. Fine for now; a real layout algorithm is B8.
-13. **Remove the optional-cast paths.** Nellie the housemaid should always be in Claudeworth; the
-    user doesn't want a "no housemaid" path. Remove `:housemaid?` (the `:optional?` marker, the
-    `:init` filtering, `remove-absent-cast` in the mock day, the household fixture's
-    `:housemaid? false` default and the tests that use it) and update the docs. Ask the user
-    whether the architect's `:architect? false` path (the "clerk path", where the earl draws plans
-    himself) goes too.
+13. **No optional characters, and cast changes that don't break things.** Nellie and Mr Pugh are
+    always in Claudeworth. Remove `:housemaid?` and `:architect?`: the `:optional?` marker, the
+    `:init` filtering (which also drops the items an absent agent holds), `remove-absent-cast` in
+    the mock day, the household fixture's defaults, the tests that use them, and the docs. The
+    architect is required, so the "clerk path" (the earl drawing plans himself when there's no
+    architect) goes too.
+
+    The bigger concern is that adding or removing a character like the housemaid in the world
+    file risks breaking things. Find what depends on the exact cast and make it safe. Known
+    places:
+    - the mock day, keyed by agent id, with calls naming other agents;
+    - `building/spenders`, a fixed list of roles;
+    - Pugh's hibernation, which depends on who else is around;
+    - tests that assume exactly who is in the house.
+
+    Done when a character can be added to or removed from the world file with no code change,
+    and the tests prove it.

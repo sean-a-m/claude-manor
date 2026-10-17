@@ -99,7 +99,8 @@ test/            engine, space, items, MCP, clock, world-file, panel, transcript
                  household.clj reuses Claudeworth mechanics with fixed household.edn / household-day.edn fixtures;
                  test/fixtures/fake-pi.mjs (fake `pi --mode rpc` for free MCP tests)
 runs/            real runs (gitignored; the user's data; never delete). runs/smoke-llm is a real 5-round village run
-test-runs/       test and ad-hoc runs ({:test? true} / --test); always safe to delete
+test-runs/       test and ad-hoc runs ({:test? true} / --test); mock runs are safe to delete
+old-test-runs/   kept real-model test runs (gitignored); never delete
 ```
 
 ## Working on it
@@ -135,6 +136,11 @@ clj -M:dev                                    # REPL; see dev/user.clj docstring
   it under `test-runs/`. That directory is always safe to delete wholesale (`rm -rf test-runs/`,
   `(clean-test-runs!)` at the REPL, or `manor.store/delete-test-runs!`). The test suite uses it and
   cleans it up. `start-run` refuses to reuse an existing run directory.
+- **Keep every real-model run.** A run that called a real model costs money and is evidence the
+  user may want to read. When it finishes, move its directory from `test-runs/` to
+  `old-test-runs/<descriptive-name>` (`mv test-runs/<id> old-test-runs/<name>`), say where it is
+  in your report, and never delete it. Don't clean `test-runs/` while one is still there. Only
+  mock and test-suite runs are disposable.
 
 ## Invariants: don't break these
 

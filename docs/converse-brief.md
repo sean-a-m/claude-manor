@@ -216,8 +216,32 @@ round). Compared with the first 8 rounds of `runs/claudeworth-20261017-120559`:
   - The preamble says a line written as plain text isn't heard, and to stay silent, leave or end
     it rather than repeat what is settled. The closing names `reply`.
   - Quotation marks around a whole line are dropped.
-- **Open:**
-  - Cost and time: about 2.7 times the calls, and rounds 2.5 times as long.
-  - Whether to take a plain-text answer as the line instead of nudging.
-  - Whether 3 passes is too many.
-  - Turn hoarding: conversations in most rounds, half of them the countess's.
+- **After the run, the user cut the passes from 3 to 2.**
+
+### Second run, with the fixes and 2 passes
+
+`old-test-runs/converse-real-2`: the same settings, $0.068, 463 seconds (58 a round).
+
+| | run 2 | run 1 |
+|---|---|---|
+| model calls | 212 (53 of them speaking turns) | 247 (130) |
+| cost | $0.068 | $0.088 |
+| lines in conversations | 40 | 85 |
+| speaking turns with no tool call | 17 of 53 | 53 of 130 |
+| thoughts reading `reply` as ending the turn | 1 | 14 |
+| lines over 400 characters | 7 of 40 (longest 490) | 25 of 85 (635) |
+| `pass` | 14 | 9 |
+
+- **10 conversations:** 8 of two people, 1 of three, 1 of four. Hale started 4, the earl 3,
+  the countess 2, Nellie 1. 5 ran their full length, 4 were ended by the initiator, 1 by
+  silence. They were shorter and repeated themselves much less. The family settled five plans
+  and a budget, commissioning only the morning room at the countess's insistence, in a few
+  rounds.
+- **Still open:**
+  - A third of speaking turns write the line as plain text and need a second call. The text is
+    the line itself, so taking it as the `reply` would save those calls.
+  - The calls of normal turns rose (159, against 117 in run 1), mostly Hale walking room to
+    room looking for the earl; his one forfeited turn (round 2) was ten such calls, including a
+    `converse` with Nellie to ask where the earl was. That is the old search problem, not
+    conversations.
+  - Turn hoarding wasn't seen: no one started conversations round after round.

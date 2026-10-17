@@ -1,0 +1,216 @@
+(ns manor.consumables-test
+  "Consumables (manor.items): items marked :consumable? that the judge may
+  use up when work ends, and the things it makes from them, in a variant of
+  the hamlet world with a kitchen's worth of things in the hall. Checks on
+  the judge's answer, the :item/work-done event and its reducer, narration,
+  a mock run, replay and the exported map."
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
+            [clojure.test :refer [deftest is testing use-fixtures]]
+            [jsonista.core :as json]
+            [manor.engine :as e]
+            [manor.items :as items]
+            [manor.llm :as llm]
+            [manor.narrate :as n]
+            [manor.prompt :as prompt]
+            [manor.scenarios.hamlet :as hamlet]
+            [manor.store :as store]
+            [manor.transcript :as transcript]
+            [manor.world :as w]
+            [manor.worldfile :as wf]))
+
+;; All runs here use {:test? true}, so they live under test-runs/.
+(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+
+(def consumables
+  "In the hall: a roasted rib of beef (Ada's), an open saucepan, a paper bag
+  holding a bun, and a fixed woodpile; Ben carries an apple."
+  [{:id "beef" :name "Rib of beef" :place "hall" :owner "Ada" :consumable? true :condition "roasted, on the board" :desc "A roasted rib of beef."}
+   {:id "saucepan" :name "Saucepan" :place "hall" :container :open :condition "clean" :desc "A copper saucepan."}
+   {:id "bag" :name "Paper bag" :place "hall" :container :open :consumable? true :condition "crumpled" :desc "A baker's paper bag."}
+   {:id "bun" :name "Bun" :in "bag" :consumable? true :condition "fresh" :desc "A currant bun."}
+   {:id "woodpile" :name "Woodpile" :place "hall" :fixed? true :consumable? true :condition "stacked" :desc "Split logs by the hearth."}
+   {:id "apple" :name "Apple" :holder "Ben" :consumable? true :condition "ripe" :desc "A red apple."}])
+
+(def world-file
+  (update (wf/read-file "test/fixtures/hamlet.edn") :items into consumables))
+
+(defn- file-of
+  "`wf` written under test-runs/, as a path."
+  [wf]
+  (let [file-name (str (gensym "consumables-") ".edn")]
+    (store/write-text! store/test-runs-root file-name (wf/->edn-string wf))
+    (str (io/file store/test-runs-root file-name))))
+
+(defn- start [& [opts]]
+  (e/start-run :hamlet (merge {:llm :mock :test? true :run-id (str (gensym "consumables-"))
+                               :world-file (file-of world-file)}
+                              opts)))
+
+(defn- rounds! [run n]
+  (e/auto! run n)
+  (is (= :idle (e/wait-idle run 60000)))
+  run)
+
+(defn- of-type [run t] (filter #(= t (:type %)) (e/events run)))
+
+(def job {:id "job-9" :actor "ben" :items ["beef" "saucepan" "bag" "woodpile" "apple" "clock"]
+          :doing "making stock" :place "hall" :started 1 :due 3})
+
+(defn- judge-says [args]
+  {:tool-calls [{:id "j1" :name "judge" :arguments (json/write-value-as-string args)}]})
+
+(def stock {:name "Beef stock" :desc "A rich brown stock." :condition "simmering" :in "saucepan"})
+(def bones {:name "Beef bones" :desc "The rib bones, picked clean." :condition "picked clean"})
+
+;; ---------------------------------------------------------------------------
+;; The judge's answer
+
+(deftest the-judge-sees-what-is-consumable
+  (let [run (start)
+        world (e/world run)
+        user (:content (second (:messages (items/judge-request (:scenario run) world job {:minutes 60 :luck 50}
+                                                               (items/in-reach world job)))))
+        judged (json/read-value (second (re-find #"(?s)```json\n(.*)\n```" user)) json/keyword-keys-object-mapper)
+        system (:content (first (:messages (items/judge-request (:scenario run) world job {:minutes 60} []))))]
+    (is (= {"beef" [true nil] "saucepan" [nil true] "bag" [true true] "bun" [true nil] "clock" [nil nil]}
+           (select-keys (into {} (map (juxt :id (juxt :consumable :container))) judged)
+                        ["beef" "saucepan" "bag" "bun" "clock"])))
+    (is (str/includes? system "Only things marked `consumable` can be used up"))
+    (is (str/includes? system "Something partly used is not used up"))
+    (is (str/includes? system "An item's nature can't change"))
+    (e/stop-run run)))
+
+(deftest checking-used-up-and-made
+  (let [run (start)
+        world (e/world run)
+        reach (items/in-reach world job)
+        judge #(items/judgement (judge-says %) reach)
+        error #(:error (judge (assoc % :summary "Done.")))]
+    (testing "a good answer: what's used up, and what's made from it; a change to a used-up item is dropped"
+      (is (= {:summary "The beef went into stock." :changes [{:item "saucepan" :from "clean" :to "greasy"}]
+              :used-up ["beef"] :made [stock bones]}
+             (:verdict (judge {:changes [{:item "saucepan" :condition "greasy"} {:item "beef" :condition "carved"}]
+                               :used_up ["beef" "beef"] :made [stock bones] :summary "The beef went into stock."})))))
+    (testing "using up without making anything is fine"
+      (is (= {:summary "Eaten." :changes [] :used-up ["apple"]} (:verdict (judge {:used-up ["apple"] :summary "Eaten."})))))
+    (testing "only consumable, unfixed items in reach may be used up"
+      (is (= "you may use up only consumable items among these: beef, bag, bun, apple; not saucepan"
+             (error {:used-up ["beef" "saucepan"]})))
+      (is (= "you may use up only consumable items among these: beef, bag, bun, apple; not umbrella"
+             (error {:used-up ["umbrella"]})))
+      (is (str/ends-with? (error {:used-up ["woodpile"]}) "; not woodpile")))
+    (testing "a container is used up only with everything in it"
+      (is (= "the Paper bag (bag) still holds bun: use those up too, or don't use it up" (error {:used-up ["bag"]})))
+      (is (= ["bag" "bun"] (get-in (judge {:used-up ["bag" "bun"] :summary "Done."}) [:verdict :used-up]))))
+    (testing "nothing is made without something used up"
+      (is (str/starts-with? (error {:made [bones]}) "things are made only from consumable items the work used up")))
+    (testing "at most two things made"
+      (is (str/includes? (error {:used-up ["beef"] :made [stock bones bones]}) "made has 3 items")))
+    (testing "in names a container in reach that isn't used up"
+      (is (= "in must be the id of a container among these: saucepan, bag; not clock"
+             (error {:used-up ["beef"] :made [(assoc stock :in "clock")]})))
+      (is (= "in must be the id of a container among these: saucepan; not bag"
+             (error {:used-up ["beef" "bag" "bun"] :made [(assoc stock :in "bag")]})))
+      (is (str/ends-with? (error {:used-up ["beef"] :made [(assoc stock :in "cellar")]}) "; not cellar")))
+    (testing "made things need a name, a description and a condition within the limits"
+      (is (error {:used-up ["beef"] :made [(dissoc bones :desc)]}))
+      (is (error {:used-up ["beef"] :made [(assoc bones :name (apply str (repeat 61 "x")))]})))
+    (testing "the reason goes back to the judge"
+      (is (= "error: the Paper bag (bag) still holds bun: use those up too, or don't use it up. Call judge again with a corrected answer."
+             (:content (first (:replies (judge {:used-up ["bag"] :summary "x"})))))))
+    (e/stop-run run)))
+
+;; ---------------------------------------------------------------------------
+;; The event, its reducer and its narration
+
+(deftest work-done-uses-up-and-makes
+  (let [run (start)
+        world (e/world run)
+        reach (items/in-reach world job)
+        verdict-of #(:verdict (items/judgement (judge-says %) reach))
+        done (items/work-done world job {:minutes 60 :stopped-early? false :luck 50}
+                              (verdict-of {:used-up ["beef"] :made [stock bones] :summary "Ben made stock of the beef."}))
+        after (w/apply-event world done)]
+    (testing "the data names what was used up and holds the new items"
+      (is (= [{:item "beef" :name "Rib of beef"}] (get-in done [:data :used-up])))
+      (is (= [{:id "beef-stock" :name "Beef stock" :desc "A rich brown stock." :condition "simmering"
+               :consumable? true :owner "ada" :in "saucepan"}
+              {:id "beef-bones" :name "Beef bones" :desc "The rib bones, picked clean." :condition "picked clean"
+               :consumable? true :owner "ada" :place "hall"}]
+             (get-in done [:data :made]))
+          "owned like the beef; the stock in the saucepan, the bones where the work was"))
+    (testing "the reducer removes the used-up item and adds the made ones"
+      (is (nil? (items/item after "beef")))
+      (is (= ["beef-stock"] (map :id (items/contents after "saucepan"))))
+      (is (= "hall" (:place (items/item after "beef-bones")))))
+    (testing "a used-up item keeps its name for older lines, and its id isn't given out again"
+      (is (= "Ada picks up the rib of beef."
+             (n/describe {:type :item/taken :actor "ada" :data {:item "beef" :from-place "hall"}} (n/names after))))
+      (is (not= "beef" (items/fresh-id after "Beef"))))
+    (testing "narration lists what was used up and made"
+      (is (= "Ben finishes making stock. Ben made stock of the beef. Used up: Rib of beef. Made: Beef stock in the saucepan; Beef bones."
+             (n/describe done (n/names after)))))
+    (testing "the used-up item leaves the views; the made ones appear"
+      (let [ben (prompt/agent-view (:scenario run) after "ben")]
+        (is (not-any? #(= "beef" (:id %)) (get-in ben [:location :here :items])))
+        (is (some #(= [{:id "beef-stock" :name "Beef stock"}] (:contents %)) (get-in ben [:location :here :items])))
+        (is (not-any? #(= "beef" (:id %)) (:items (prompt/default-gm-view after))))))
+    (testing "made from something the worker carried: the worker holds it"
+      (let [d (items/work-done world job {:minutes 30 :luck 50}
+                               (verdict-of {:used-up ["apple"] :made [{:name "Apple core" :desc "A core." :condition "brown"}]
+                                            :summary "Ben ate the apple."}))]
+        (is (= {:holder "ben" :consumable? true} (select-keys (first (get-in d [:data :made])) [:holder :consumable? :place])))
+        (is (= ["apple-core" "pipe"] (map :id (items/held-by (w/apply-event world d) "ben"))))))
+    (testing "two made with one name get their own ids"
+      (let [d (items/work-done world job {:minutes 30 :luck 50}
+                               (verdict-of {:used-up ["beef"] :made [bones bones] :summary "x"}))]
+        (is (= ["beef-bones" "beef-bones-2"] (map :id (get-in d [:data :made]))))))
+    (testing "an old-shaped event, without used-up or made, still applies"
+      (is (= (items/all (w/apply-event world (update done :data dissoc :used-up :made)))
+             (items/all world))))
+    (e/stop-run run)))
+
+;; ---------------------------------------------------------------------------
+;; A short mock run: Ben makes stock of the beef in the saucepan; Ada goes to bed.
+
+(defn- judge [{:keys [items]}]
+  {:tool :judge
+   :args (if (some #(= "beef" (:id %)) items)
+           {:used-up ["beef"] :made [stock] :changes [{:item "saucepan" :condition "full of stock"}]
+            :summary "Ben boiled the beef down to stock."}
+           {:summary "Nothing to do."})})
+
+(defn- policy [{:keys [world agent-id role step] :as ctx}]
+  (cond
+    (= :judge role) (judge ctx)
+    (not= agent-id "ben") (hamlet/mock-policy ctx)
+    :else (get-in {1 [{:tool :work-on :args {:items ["beef" "saucepan"] :doing "making stock" :hours 1}}]}
+                  [(:round world) step]
+                  {:tool :pass})))
+
+(deftest a-run-that-uses-things-up
+  (let [run (rounds! (start {:llm-impl (llm/mock policy)}) 4)
+        world (e/world run)
+        [done] (of-type run :item/work-done)]
+    (testing "the beef became stock in the saucepan"
+      (is (nil? (items/item world "beef")))
+      (is (= [{:id "beef-stock" :in "saucepan" :owner "ada" :consumable? true}]
+             (map #(select-keys % [:id :in :owner :consumable?]) (items/contents world "saucepan"))))
+      (is (= "full of stock" (:condition (items/item world "saucepan")))))
+    (testing "Ben saw it; Ada, upstairs, didn't"
+      (is (= #{"ben"} (:visible-to done))))
+    (testing "replay gives the same world"
+      (is (= world (w/replay (store/read-events (:dir run))))))
+    (testing "the transcript has the line"
+      (is (str/includes? (transcript/render (:dir run)) "Used up: Rib of beef. Made: Beef stock in the saucepan.")))
+    (testing "the exported map has the stock and not the beef, and starts a run with the same items"
+      (let [path (str (io/file (:dir run) "map.edn"))
+            by-id (into {} (map (juxt :id identity)) (:items (wf/read-file path)))]
+        (is (not (contains? by-id "beef")))
+        (is (= {:in "saucepan" :consumable? true} (select-keys (by-id "beef-stock") [:in :consumable?])))
+        (is (str/includes? (slurp path) "{:id \"beef-stock\" :name \"Beef stock\" :in \"saucepan\" :owner \"Ada\" :consumable? true"))
+        (let [r2 (start {:world-file path})]
+          (is (= (items/all world) (items/all (e/world r2))))
+          (e/stop-run r2))))
+    (e/stop-run run)))

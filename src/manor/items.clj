@@ -13,12 +13,16 @@
                               ;; :in \"sideboard\"      ;   or :in (the id of a container item)
                               :owner \"household\"      ; optional: an agent id or any label; not enforced
                               :fixed? true            ; optional: furniture, can't be taken
+                              :consumable? true       ; optional: food, fuel, soap: work may use it up
                               :container :open}}      ; optional: holds things; :open shows them to
                                                       ;   the room, :closed only to `open`
+    :items-gone {\"beef-stock\" \"Beef stock\"}       ; id -> name of every item used up
 
   A carried item goes wherever its holder goes, and things in a container go
   wherever it goes, with no events. The world has :items once the first item
-  is added, so worlds without items are unchanged.
+  is added, so worlds without items are unchanged. Used-up items keep their
+  names under :items-gone, so older lines still read, and their ids are never
+  given out again.
 
   Work on items (`work-on`, worlds with a clock only) is a job:
     :item-jobs {\"job-41\" {:id \"job-41\" :actor \"hale\" :items [\"china-cabinet\"]
@@ -28,7 +32,8 @@
   Nothing changes until the work is over: at the start of the round it
   ends, the engine asks a judge (a narrow model call, never seen by the
   characters) what the time worked did to the items still in reach, checks
-  the answer and records it as :item/work-done.
+  the answer and records it as :item/work-done: new conditions, consumable
+  items used up, and at most two things made from them.
 
   Code outside this namespace never reads (:items world) directly: it uses
   the accessors below, and only the reducers here write items. That keeps
@@ -54,6 +59,7 @@
 (def max-summary 300)
 (def max-work-items 6)
 (def max-work-hours 4)
+(def max-made 2)
 (def default-work-hours 0.5)
 
 (def Item
@@ -69,6 +75,7 @@
    [:in {:optional true} :string]
    [:owner {:optional true} :string]
    [:fixed? {:optional true} :boolean]
+   [:consumable? {:optional true} :boolean]
    [:container {:optional true} [:enum :open :closed]]])
 
 ;; ---------------------------------------------------------------------------
@@ -103,9 +110,11 @@
 (defn job [world id] (get-in world [:item-jobs id]))
 
 (defn names
-  "Item id -> name, as [:item id] keys for manor.narrate/names."
+  "Item id -> name, as [:item id] keys for manor.narrate/names, used-up
+  items included."
   [world]
-  (into {} (map (fn [it] [[:item (:id it)] (:name it)])) (all world)))
+  (into {} (map (fn [[id item-name]] [[:item id] item-name]))
+        (concat (:items-gone world) (map (juxt :id :name) (all world)))))
 
 (defn- by-name [items] (sort-by (juxt :name :id) items))
 
@@ -203,21 +212,31 @@
     {:type :item/added :data {:item it} :visible-to :gm}))
 
 (defn fresh-id
-  "An unused item id from `item-name`: \"umbrella\", then \"umbrella-2\"."
+  "An item id from `item-name` that no item has or had: \"umbrella\", then
+  \"umbrella-2\"."
   [world item-name]
-  (let [base (b/slug item-name)]
-    (first (remove #(item world %) (cons base (map #(str base "-" %) (iterate inc 2)))))))
+  (let [base (b/slug item-name)
+        taken? #(or (item world %) (contains? (:items-gone world) %))]
+    (first (remove taken? (cons base (map #(str base "-" %) (iterate inc 2)))))))
 
-(defn added
-  "An :item/added event for a new item with a fresh id. `fields` are the
-  item's keys without :id; throws if they don't make a valid item."
-  [world fields visible-to]
+(defn- new-item
+  "`fields` (an item's keys without :id) with a fresh id; throws if they
+  don't make a valid item."
+  [world fields]
   (let [it (assoc fields :id (fresh-id world (:name fields)))]
     (when-let [ps (seq (problems [it] {:places (set (keys (get-in world [:space :locations])))
                                       :holders (set (keys (:agents world)))
                                       :existing (:items world)}))]
       (throw (ex-info (str "bad new item: " (str/join "; " ps)) {:item it})))
-    {:type :item/added :data {:item it} :visible-to visible-to}))
+    it))
+
+(defn added
+  "An :item/added event for a new item with a fresh id. `fields` are the
+  item's keys without :id; throws if they don't make a valid item. An
+  `:amount` (\"20 × 1 lb\") is shown after the name when the line is read."
+  [world fields visible-to & {:keys [amount]}]
+  {:type :item/added :visible-to visible-to
+   :data (cond-> {:item (new-item world fields)} amount (assoc :amount amount))})
 
 (defn added-events
   "`added` events for several new items, each with its own fresh id."
@@ -246,11 +265,15 @@
 (defmethod w/apply-event :item/work-begun [world {:keys [data]}]
   (assoc-in world [:item-jobs (:id data)] data))
 
+(defn- used-up [world {id :item item-name :name}]
+  (-> world (update :items dissoc id) (assoc-in [:items-gone id] item-name)))
+
 (defmethod w/apply-event :item/work-done [world {:keys [data]}]
-  (-> (reduce (fn [world {:keys [item to]}] (assoc-in world [:items item :condition] to))
-              world
-              (:changes data))
-      (update :item-jobs dissoc (:job data))))
+  (as-> world world
+    (reduce (fn [world {:keys [item to]}] (assoc-in world [:items item :condition] to)) world (:changes data))
+    (reduce used-up world (:used-up data))
+    (reduce (fn [world it] (assoc-in world [:items (:id it)] it)) world (:made data))
+    (update world :item-jobs dissoc (:job data))))
 
 (defmethod w/apply-event :item/work-ended [world {:keys [data]}]
   (update world :item-jobs dissoc (:job data)))
@@ -258,19 +281,23 @@
 ;; ---------------------------------------------------------------------------
 ;; Narration: names are looked up when the line is written.
 
+(defn- lower-first [s] (str (str/lower-case (subs s 0 1)) (subs s 1)))
+
 (defn- the [names id]
-  (let [s (get names [:item id] id)]
-    (str "the " (str/lower-case (subs s 0 1)) (subs s 1))))
+  (str "the " (lower-first (get names [:item id] id))))
 
 (defn- a-or-an [s]
-  (str (if (re-find #"(?i)^[aeiou]" s) "an " "a ") (str/lower-case (subs s 0 1)) (subs s 1)))
+  (str (if (re-find #"(?i)^[aeiou]" s) "an " "a ") (lower-first s)))
 
 (defmethod n/describe :item/added [{:keys [data]} names]
-  (let [{:keys [holder place in] item-name :name} (:item data)]
+  (let [{:keys [holder place in] item-name :name} (:item data)
+        {:keys [amount]} data
+        named (str item-name (when amount (str " (" amount ")")))]
     (cond
-      holder (str (n/who names holder) " now has " (a-or-an item-name) ".")
-      in (str "Item added to " (the names in) ": " item-name ".")
-      :else (str "Item added in " (n/place names place) ": " item-name "."))))
+      holder (str (n/who names holder) " now has "
+                  (if amount (lower-first named) (a-or-an item-name)) ".")
+      in (str "Item added to " (the names in) ": " named ".")
+      :else (str "Item added in " (n/place names place) ": " named "."))))
 
 (defmethod n/describe :item/taken [{:keys [actor data]} names]
   (if-let [box (:from-item data)]
@@ -296,13 +323,18 @@
        ", until " (n/at names (:due data)) ")."))
 
 (defmethod n/describe :item/work-done [{:keys [actor data]} names]
-  (let [{:keys [doing stopped-early? summary changes]} data
+  (let [{:keys [doing stopped-early? summary changes used-up made]} data
         opener (work-opener (n/who names actor) doing stopped-early?)]
     (str opener
          (when (and summary (not= summary opener)) (str " " summary))
          (when (seq changes)
            (str " (" (str/join "; " (for [{:keys [item to]} changes] (str (get names [:item item] item) ": " to)))
-                ").")))))
+                ")."))
+         (when (seq used-up)
+           (str " Used up: " (str/join "; " (map :name used-up)) "."))
+         (when (seq made)
+           (str " Made: " (str/join "; " (for [it made] (str (:name it) (when (:in it) (str " in " (the names (:in it)))))))
+                ".")))))
 
 (defmethod n/describe :item/work-ended [{:keys [actor data]} names]
   (if (= :retired (:reason data))
@@ -634,16 +666,38 @@
   [world {:keys [actor doing]} stopped-early?]
   (work-opener (:name (w/agent world actor)) doing stopped-early?))
 
+(defn- made-items
+  "What the judge made (`made`), as new items with fresh ids: consumable,
+  owned like the first thing used up, and in the container the judge named,
+  else carried by the worker if they carried that first thing, else lying at
+  the job's place."
+  [world {:keys [actor place]} [first-used] made]
+  (let [carried? (= actor (:holder (outermost world first-used)))]
+    (second (reduce (fn [[world its] {:keys [in] :as m}]
+                      (let [it (new-item world (cond-> (assoc (select-keys m [:name :desc :condition]) :consumable? true)
+                                                 (:owner first-used) (assoc :owner (:owner first-used))
+                                                 in (assoc :in in)
+                                                 (and (not in) carried?) (assoc :holder actor)
+                                                 (not (or in carried?)) (assoc :place place)))]
+                        [(assoc-in world [:items (:id it)] it) (conj its it)]))
+                    [world []]
+                    made))))
+
 (defn work-done
   "Event: the result of `job`, seen by the worker and the people at the
-  place. `verdict` is the judge's checked answer, {:summary :changes}, or
-  nil for no changes and a neutral summary."
+  place. `verdict` is the judge's checked answer, {:summary :changes
+  :used-up [ids] :made [..]}, or nil for no changes and a neutral summary.
+  The data has :used-up [{:item :name}] and :made (the new items) only when
+  there are some."
   [world job {:keys [minutes stopped-early? luck]} verdict]
-  {:type :item/work-done :actor (:actor job) :visible-to (audience world job)
-   :data {:job (:id job) :actor (:actor job) :place (:place job) :doing (:doing job)
-          :minutes minutes :stopped-early? stopped-early? :luck luck
-          :summary (or (:summary verdict) (neutral-summary world job stopped-early?))
-          :changes (vec (:changes verdict))}})
+  (let [gone (keep #(item world %) (:used-up verdict))]
+    {:type :item/work-done :actor (:actor job) :visible-to (audience world job)
+     :data (cond-> {:job (:id job) :actor (:actor job) :place (:place job) :doing (:doing job)
+                    :minutes minutes :stopped-early? stopped-early? :luck luck
+                    :summary (or (:summary verdict) (neutral-summary world job stopped-early?))
+                    :changes (vec (:changes verdict))}
+             (seq gone) (assoc :used-up (mapv #(hash-map :item (:id %) :name (:name %)) gone))
+             (and (seq gone) (seq (:made verdict))) (assoc :made (made-items world job gone (:made verdict))))}))
 
 (defn judge-failed
   "Event, for the operator only: why the judge's answer about `job` wasn't used."
@@ -656,13 +710,21 @@
 (def ^:private judge-schema
   [:map
    [:changes {:optional true} [:vector [:map [:item :string] [:condition [:string {:min 1 :max max-condition}]]]]]
+   [:used-up {:optional true} [:vector :string]]
+   [:made {:optional true} [:vector {:max max-made}
+                            [:map
+                             [:name [:string {:min 1 :max max-name}]]
+                             [:desc [:string {:min 1 :max max-desc}]]
+                             [:condition [:string {:min 1 :max max-condition}]]
+                             [:in {:optional true} :string]]]]
    [:summary [:string {:min 1 :max max-summary}]]])
 
 (def ^:private judge-tool
   {:type "function"
    :function {:name "judge"
               :description (str "Give your judgement: the new condition of each item the work changed "
-                                "(its id, and a phrase of at most " max-condition " characters), and a summary "
+                                "(its id, and a phrase of at most " max-condition " characters), the ids of consumable "
+                                "items it used up, at most " max-made " things it made from them, and a summary "
                                 "of at most " max-summary " characters.")
               :parameters (mjs/transform judge-schema)}})
 
@@ -671,9 +733,11 @@
        "Decide what that much work, by this person, realistically did to these things, and answer by calling the `judge` tool. "
        "The time may be too short for the whole job: then only part of it is done.
 
-- Change only conditions, each a short phrase of at most " max-condition " characters saying what state the thing is in now.
+- Change conditions, each a short phrase of at most " max-condition " characters saying what state the thing is in now.
 - Leave out any item the work left unchanged.
 - An item's nature can't change: work can't turn a vase into gold. If the task is impossible or absurd, change nothing and say so in the summary.
+- Only things marked `consumable` can be used up, and only once they are gone: food eaten or cooked into something else, fuel burnt, an ingredient used up. List their ids in `used-up`. Something partly used is not used up: change its condition to say what's left (\"about 17 lb left\").
+- `made` is for at most " max-made " things the work really produced from what it used up (a carved joint leaves \"Beef bone and trimmings\"; the bone simmered makes \"Beef stock\"), each with a name, a description and a condition. Give `in`, the id of a listed `container`, to put one there (the stock in the saucepan). Nothing is made without something used up.
 - A thing listed with `in` is inside another of the things listed. The work may or may not have touched it: leave it out if it didn't.
 - Luck is a roll from 1 to 100, and 50 is ordinary: low luck means mishaps (a slip, a breakage), high luck means it went unusually well.
 - The summary is one or two sentences, past tense, third person, for the people present, at most " max-summary " characters."))
@@ -682,11 +746,13 @@
 
 (defn- judged-items
   "The items in reach as the judge sees them, with :in only when the
-  container is among them."
+  container is among them, and :consumable and :container when true."
   [reach]
   (let [ids (set (map :id reach))]
     (mapv #(cond-> (select-keys % [:id :name :desc :condition])
-             (ids (:in %)) (assoc :in (:in %)))
+             (ids (:in %)) (assoc :in (:in %))
+             (:consumable? %) (assoc :consumable true)
+             (:container %) (assoc :container true))
           reach)))
 
 (defn judge-request
@@ -694,8 +760,8 @@
   scenario's :judge-brief (under :items), the time, the worker's name and
   persona, the place, what they were doing, the minutes worked and whether
   they stopped early, the luck roll, and each item in reach (`reach`) with
-  its id, name, description and condition, and the container it's in when
-  that's in reach too."
+  its id, name, description and condition, the container it's in when
+  that's in reach too, and whether it's consumable or a container."
   [scenario world job {:keys [minutes stopped-early? luck]} reach]
   (let [worker (w/agent world (:actor job))
         brief (when-let [f (get-in scenario [:items :judge-brief])] (f world))]
@@ -715,23 +781,66 @@
                      (json/write-value-as-string (judged-items reach) pretty)
                      "\n```\n\nCall `judge` now.")}]}))
 
+(defn- ids-or-none [items] (if (seq items) (str/join ", " (map :id items)) "none"))
+
+(defn- use-up-problem
+  "Why the judge can't use up the ids `gone`, or nil: each must be a
+  consumable item in `reach`, not fixed, and everything in it used up too."
+  [reach gone]
+  (let [usable (filter #(and (:consumable? %) (not (:fixed? %))) reach)
+        bad (remove (set (map :id usable)) gone)
+        gone? (set gone)
+        [box left] (first (for [it reach
+                                :when (gone? (:id it))
+                                :let [left (remove #(gone? (:id %)) (filter #(= (:id it) (:in %)) reach))]
+                                :when (seq left)]
+                            [it left]))]
+    (cond
+      (seq bad) (str "you may use up only consumable items among these: " (ids-or-none usable)
+                     "; not " (str/join ", " bad))
+      box (str "the " (:name box) " (" (:id box) ") still holds " (ids-or-none left)
+               ": use those up too, or don't use it up"))))
+
+(defn- made-problem
+  "Why the judge can't make `made`, or nil: only from something used up,
+  and an :in must be a container in `reach` that isn't used up."
+  [reach gone made]
+  (let [boxes (filter #(and (:container %) (not ((set gone) (:id %)))) reach)
+        bad-in (remove (set (map :id boxes)) (keep :in made))]
+    (cond
+      (and (seq made) (empty? gone))
+      "things are made only from consumable items the work used up: list those in used-up, or make nothing"
+      (seq bad-in) (str "in must be the id of a container among these: " (ids-or-none boxes)
+                        "; not " (str/join ", " (distinct bad-in))))))
+
 (defn- verdict
-  "The judge's tool arguments, checked: {:summary :changes [{:item :from :to}]}
-  or {:error reason}. Only items in `reach` may change, and only their
-  condition; other keys are dropped, and unchanged conditions left out."
+  "The judge's tool arguments, checked: {:summary :changes [{:item :from :to}]},
+  with :used-up [ids] and :made [{:name :desc :condition :in}] when there are
+  some, or {:error reason}. Only items in `reach` may change, and only their
+  condition; only consumable ones may be used up (see `use-up-problem`), and
+  things made need something used up (see `made-problem`). Other keys are
+  dropped, and unchanged conditions, or changes to things used up, left out."
   [arguments reach]
   (let [{:keys [args error]} (a/decode-args {:args judge-schema} arguments)
         by-id (into {} (map (juxt :id identity)) reach)
-        strays (remove by-id (map :item (:changes args)))]
-    (cond
-      error {:error error}
-      (seq strays) {:error (str "you may change only these items: " (str/join ", " (keys by-id))
-                                "; not " (str/join ", " (distinct strays)))}
-      :else {:summary (:summary args)
-             :changes (vec (for [{:keys [item condition]} (:changes args)
-                                 :let [from (:condition (by-id item))]
-                                 :when (not= from condition)]
-                             {:item item :from from :to condition}))})))
+        strays (remove by-id (map :item (:changes args)))
+        gone (vec (distinct (:used-up args)))
+        made (vec (:made args))]
+    (if-let [problem (or error
+                         (when (seq strays)
+                           (str "you may change only these items: " (str/join ", " (keys by-id))
+                                "; not " (str/join ", " (distinct strays))))
+                         (use-up-problem reach gone)
+                         (made-problem reach gone made))]
+      {:error problem}
+      (cond-> {:summary (:summary args)
+               :changes (vec (for [{:keys [item condition]} (:changes args)
+                                   :let [from (:condition (by-id item))]
+                                   :when (not= from condition)
+                                   :when (not (some #{item} gone))]
+                               {:item item :from from :to condition}))}
+        (seq gone) (assoc :used-up gone)
+        (seq made) (assoc :made made)))))
 
 (defn judgement
   "Read a judge response: {:verdict v :replies [...]} or {:error reason

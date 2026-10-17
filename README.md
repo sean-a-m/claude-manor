@@ -13,7 +13,7 @@ in code; the engine owns all state, private information, and access to the real 
 Bundled scenarios: `village` (economy, weather bridge, locations, GM), `treasure` (small
 example), `quiz` (each contestant has a private, persistent pi assistant reached over MCP) and
 `claudeworth` (an Edwardian household and the village architect: half-hour turns, sleep and
-pastimes, a shop, items to carry, inspect and work on, plans and rooms built over a delay; the
+pastimes, a shop, items to carry, inspect, put away and work on, plans and rooms built over a delay; the
 architect is a babashka MCP server; its world is `resources/worlds/claudeworth.edn`). Work on items
 changes their condition when it ends, through a separate judge model call.
 

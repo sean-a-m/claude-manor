@@ -14,7 +14,10 @@ that hold other items, such as shelves, cabinets and a sideboard. Read `AGENTS.m
   `outermost`, `place-of`, `reachable?`, `visible-at` (the flattened visible list), and `opened`
   (the `open` reply). A loop reads "its containers go round in a loop". Reasons list visible
   items sorted by name, as before.
-- [ ] C2 Claudeworth: containers and contents, rules text, mock day, tests, docs
+- [x] C2 Claudeworth: containers and contents, rules text, mock day, tests, docs. The kitchen
+  shelves are a kitchen dresser; the bundled-content test is `claudeworth-containers` in
+  `scenarios_test.clj`; Nellie's mock day also takes the blacking brushes off the dresser for the
+  range and puts them back.
 - [ ] C3 one short real run, and the report
 
 Tick each phase here as it's committed, so a paused build can restart from this file.

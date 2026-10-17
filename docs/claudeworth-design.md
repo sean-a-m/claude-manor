@@ -626,3 +626,11 @@ Decisions for items (done):
     with a reason; a rejected one doesn't use up the turn's speech. Speaking turns now need a
     turn-ending action too (often `pass`, reworded to "do nothing (more)"), which costs an extra
     model call unless the model makes both calls in one response.
+34. **Containers.** Done: furniture can hold things (`:container :open` or `:closed`, contents
+    `:in` it). The glass-fronted china cabinet is open and holds three Meissen figures; the dining
+    room's sideboard is closed and holds the silver candlesticks, a canteen of cutlery and the
+    table linen; the kitchen dresser is open and holds a kettle, saucepans and the blacking
+    brushes. `open` is a free, reply-only look inside; `take` doesn't need it; `put-in` puts
+    things away. Nellie's brief gives no hint where the silver is kept, to see whether she finds
+    it. Nobody is told where things belong: agents decide. See
+    [the containers brief](archived/containers-brief.md).

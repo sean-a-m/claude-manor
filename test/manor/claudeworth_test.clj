@@ -591,7 +591,7 @@
       (is (every? #(:detail (space/location world %)) ["drawing-room" "study" "general-store"])))
     (testing "the rules say the item actions are free, and what look shows"
       (is (str/includes? (cw/rules world) "`look` shows them in detail, with their descriptions, conditions and owners"))
-      (is (str/includes? (cw/rules world) "`look`, `take`, `put-down` and `give` don't end your turn")))
+      (is (str/includes? (cw/rules world) "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn")))
     (e/stop-run run))
   (testing "carried shop goods need a description and a condition"
     (let [world-file (:world-file (wf/load-world fixture/world-file))]

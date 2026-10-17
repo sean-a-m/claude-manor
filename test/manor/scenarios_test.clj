@@ -4,6 +4,7 @@
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.items :as items]
             [manor.scenarios.claudeworth :as cw]
             [manor.space :as space]
             [manor.store :as store]
@@ -42,6 +43,37 @@
           (is (= world (w/replay (store/read-events (:dir run))))))
         (finally (e/stop-run run)))))
   (is (empty? (cw/problems (:world-file (cw/init {}))))))
+
+(deftest claudeworth-containers
+  ;; Bundled content: the house's containers, and the mock morning that uses them.
+  (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true
+                                       :run-id (str (gensym "claudeworth-containers-"))})
+        in (fn [world id] (:in (items/item world id)))]
+    (try
+      (let [world (e/world run)]
+        (testing "the cabinet, the sideboard and the dresser, and what's in them"
+          (is (= {"china-cabinet" :open "sideboard" :closed "kitchen-dresser" :open}
+                 (into {} (map (juxt :id :container)) (items/items-where world :container))))
+          (is (= ["meissen-harlequin" "meissen-pug" "meissen-shepherdess"] (map :id (items/contents world "china-cabinet"))))
+          (is (= ["canteen-of-cutlery" "silver-candlesticks" "table-linen"] (map :id (items/contents world "sideboard"))))
+          (is (= ["blacking-brushes" "kettle" "saucepans"] (map :id (items/contents world "kitchen-dresser"))))))
+      (e/auto! run 12)
+      (is (= :idle (e/wait-idle run 120000)))
+      (let [world (e/world run)
+            replies (mapcat :replies (store/read-llm (:dir run)))]
+        (testing "the morning has no forfeits or bad replies"
+          (is (empty? (filter #(= :action/forfeited (:type %)) (e/events run))))
+          (is (not-any? #(re-find #"^(error:|rejected:)" (:content % "")) replies)))
+        (testing "the countess opened the sideboard and found the candlesticks"
+          (is (some #(re-find #"\"id\" : \"silver-candlesticks\"" (:content % "")) replies)))
+        (testing "Nellie put the candlesticks back and the brushes away"
+          (is (= "sideboard" (in world "silver-candlesticks")))
+          (is (= "kitchen-dresser" (in world "blacking-brushes")))
+          (is (= [:item/taken :item/put-in :item/taken :item/put-in]
+                 (map :type (filter #(and (= "nellie" (:actor %)) (#{:item/taken :item/put-in} (:type %)))
+                                    (e/events run))))))
+        (is (= world (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))
 
 (deftest every-action-becomes-a-tool
   ;; The mock GM never builds its tools, so a bad schema (e.g. an empty

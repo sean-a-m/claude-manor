@@ -282,7 +282,9 @@
          "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). You get no turns while asleep or busy, unless someone uses `rouse` to interrupt you. On that turn, `carry-on` ignores them; any other accepted action means you stop. "
          "Use `spend-time` for longer pastimes (half an hour to " max-pastime-hours " hours). `note` keeps private notes. "
          "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows them in detail, with their descriptions, conditions and owners, along with the room and what the people here carry, so use it to examine something closely, not routinely on arrival. "
-         "`look`, `take`, `put-down` and `give` don't end your turn; `work-on` spends time doing something to things here or that you carry, and its results show when you finish. "
+         "Some things hold others: what's in an open one is listed under its `contents`, and one marked `closed` shows what's inside only when you `open` it. "
+         "You can `take` things out of either, and `put-in` puts something into one. "
+         "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn; `work-on` spends time doing something to things here or that you carry, and its results show when you finish. "
          "If you are waiting on someone or nothing needs doing, `pass` is the way to wait a turn; you act again next turn. "
          "Opening hours are shown in your view where a place has them. "
          "The family and secretary spend freely from the household account (`household` in your view), and can `buy` at an open shop. "
@@ -411,7 +413,7 @@
    {"08:00" [[:walk {:to "dining-room"}]
              [:say {:text "Enlarge it? Then I expect to be consulted on every room, Claudeworth."}]]
     "08:30" [[:spend-time {:activity "breakfasting" :hours 1}]]
-    "09:30" [[:take {:item "silver-candlesticks"}] [:walk {:to "drawing-room"}]
+    "09:30" [[:open {:container "sideboard"}] [:take {:item "silver-candlesticks"}] [:walk {:to "drawing-room"}]
              [:put-down {:item "silver-candlesticks"}] [:look {}]
              [:spend-time {:activity "going over the household accounts" :hours 4}]]
     "13:30" [[:travel {:to "abbey-church"}]]
@@ -447,9 +449,11 @@
              [:work-on {:items ["family-portrait"] :doing "dusting the dining room and the portrait" :hours 1}]]
     "10:00" [[:walk {:to "drawing-room"}]
              [:work-on {:items ["silver-candlesticks"] :doing "polishing the silver candlesticks" :hours 1.5}]]
-    "11:30" [[:walk {:to "kitchen"}]
-             [:work-on {:items ["kitchen-range"] :doing "blacking the kitchen range" :hours 2}]]
-    "13:30" [[:walk {:to "entrance-hall"}]
+    "11:30" [[:take {:item "silver-candlesticks"}] [:walk {:to "dining-room"}]
+             [:put-in {:item "silver-candlesticks" :container "sideboard"}] [:walk {:to "kitchen"}]
+             [:take {:item "blacking-brushes"}]
+             [:work-on {:items ["kitchen-range" "blacking-brushes"] :doing "blacking the kitchen range" :hours 2}]]
+    "13:30" [[:put-in {:item "blacking-brushes" :container "kitchen-dresser"}] [:walk {:to "entrance-hall"}]
              [:work-on {:items ["stags-head"] :doing "dusting the hall and the stag's head" :hours 1}]]
     "14:30" [[:walk {:to "drawing-room"}]]
     "18:00" [[:work-on {:items ["china-cabinet"] :doing "dusting the china cabinet and the glass with her new duster" :hours 1}]]

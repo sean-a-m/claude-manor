@@ -224,8 +224,9 @@ pi state on branches is for the GM/orchestrator to handle later; no cost limits 
 
 ### B7. State held by locations: largely done
 
-`manor.items` is an opt-in engine module: items at places or carried by people, free-text
-conditions, `take`, `put-down`, `give`, `look`, and timed `work-on` jobs. A separate judge decides
+`manor.items` is an opt-in engine module: items at places, carried by people or inside
+containers, free-text conditions, `take`, `put-down`, `give`, `look`, `open`, `put-in`, and timed
+`work-on` jobs. A separate judge decides
 condition changes when work ends, using the time actually worked. Claudeworth has starting
 items, shop purchases and a mock day that uses them. Resources and prices remain the scenario's
 job (`:state` keyed by location id).
@@ -233,7 +234,12 @@ job (`:state` keyed by location id).
 Follow-ups, by need:
 
 - Items getting dirty or wearing out over time: a GM job later, not automatic decay yet.
-- Containers.
+- Containers: done (see [the containers brief](archived/containers-brief.md)). Follow-ups:
+  locked containers, and perhaps needing to `open` before taking (today a guessed id inside a
+  closed container can be taken); carried containers (a basket) aren't forbidden but are
+  unsupported and untested (their contents don't show in `carrying`); views list every open
+  container's contents, which may need a count instead if shelves fill up; narration always says
+  "puts X in the Y", which reads oddly for shelves.
 - GM tools to create or alter items.
 - Judge `error:` replies currently count in the transcript's overall error total; distinguish
   them from character errors.

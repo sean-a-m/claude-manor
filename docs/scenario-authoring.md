@@ -444,8 +444,9 @@ id. Objects people can pick up and carry are items (next section).
 
 ### Items (`manor.items`)
 
-Items are things with a description and a condition that lie in a place or are carried by
-someone: a piano, a pocket watch, an umbrella someone bought. They need locations. A scenario
+Items are things with a description and a condition that lie in a place, are carried by
+someone, or are inside another item: a piano, a pocket watch, an umbrella someone bought, the
+silver in the sideboard. They need locations. A scenario
 turns them on with the key `:items`, a map, possibly empty; its one key is `:judge-brief` (see
 Work and the judge). Scenarios without it are unchanged.
 
@@ -457,12 +458,15 @@ An item:
  :condition "dusty, the glass smeared"                        ; 1-80 characters
  :place "drawing-room"      ; exactly one of :place (a location id)
  ;; :holder "hale"          ;   or :holder (an agent id)
+ ;; :in "sideboard"         ;   or :in (the id of a container item)
  :owner "household"         ; optional: an agent id or any label; shown, not enforced
- :fixed? true}              ; optional: furniture, can't be taken
+ :fixed? true               ; optional: furniture, can't be taken
+ :container :open}          ; optional: it holds things (see Containers)
 ```
 
 Ids are kebab-case and unique; at most 60 characters of name. No other keys are allowed. A
-carried item goes wherever its holder goes, with no events of its own.
+carried item goes wherever its holder goes, and things in a container go wherever it goes, with
+no events of their own.
 
 - **Starting items** come from `:init` (`:items`, a vector, holders and owners as ids), or from a
   world file's `:items` (see World files). The engine checks them and adds each with an
@@ -474,8 +478,14 @@ carried item goes wherever its holder goes, with no events of its own.
   |---|---|
   | `(items/item world id)` | the item, or nil |
   | `(items/all world)` | every item, by id |
-  | `(items/items-at world loc)` | items lying at a location (not those carried there) |
+  | `(items/items-at world loc)` | items lying at a location (not those carried there, or in containers) |
   | `(items/held-by world agent-id)` | what an agent carries |
+  | `(items/contents world id)` | the items directly in a container, by name |
+  | `(items/within world id)` | everything in a container at any depth, each followed by its own contents |
+  | `(items/outermost world item)` | the item it's ultimately inside (itself if in nothing) |
+  | `(items/place-of world item)` | where it lies, directly or in containers; nil if carried |
+  | `(items/reachable? world agent-id item)` | does it (or what it's in) lie where they are, or do they hold it? |
+  | `(items/visible-at world loc)` | what someone there can see: items lying there and what's in open containers |
   | `(items/items-where world pred)` | items matching a predicate |
   | `(items/enabled? world)` | does the world have items? |
   | `(items/jobs world)`, `(items/job world id)` | work in progress, by `:due` then id; one job |
@@ -489,8 +499,9 @@ carried item goes wherever its holder goes, with no events of its own.
   | Event | Data | Visible to | Reads |
   |---|---|---|---|
   | `:item/added` | `{:item {...}}` | the GM at the start; the room when bought | "Hale now has an umbrella." |
-  | `:item/taken` | `{:item :from-place}` | everyone here | "Lady Claudeworth picks up the silver candlesticks." |
+  | `:item/taken` | `{:item :from-place}`, plus `:from-item` out of a container | everyone here | "Lady Claudeworth picks up the silver candlesticks." / "Nellie takes the kettle from the kitchen dresser." |
   | `:item/put-down` | `{:item :place}` | everyone here | "Hale puts down the feather duster." |
+  | `:item/put-in` | `{:item :into}` | everyone here | "Nellie puts the silver candlesticks in the sideboard." |
   | `:item/given` | `{:item :to}` | everyone here | "Hale gives the pocket watch to Lord Claudeworth." |
 
 - **Actions** (all free, every role but the GM; merged before your own actions, so you can
@@ -509,33 +520,72 @@ carried item goes wherever its holder goes, with no events of its own.
      :people [{:name "Hale" :doing "dusting the china cabinet"
                :carrying [{:id "pocket-notebook" :name "Pocket notebook" :desc "..." :condition "half full"}]}]}
     ```
-  - `take {item}`: the item lies where you are and isn't fixed. Taking something you don't own is
+  - `take {item}`: the item lies where you are, directly or in a container (at any depth, open
+    or closed, without opening it first), and isn't fixed. Taking something you don't own is
     allowed; everyone here sees it.
+  - `open {container}` and `put-in {item container}`: see Containers.
   - `put-down {item}`: you carry it; it's left where you are.
   - `give {item to}`: you carry it, and `to` is someone else here.
 - **Views:** the engine adds to every agent's view `:you :carrying [{:id :name :condition}]`,
-  `:location :here :items [{:id :name}]` (names only) and `:carrying ["Umbrella" ...]` on each of
-  `:people-here`, each left out when empty. The default GM view gets `:items`.
+  `:location :here :items [{:id :name}]` (names only; containers as in Containers) and
+  `:carrying ["Umbrella" ...]` on each of `:people-here`, each left out when empty. The default
+  GM view gets `:items`.
 - **`:detail`** is an optional location key: a paragraph about the room that only `look` shows,
   never the view (which has `:id :name :desc`). Keep the `:desc` short and put what someone
   would notice on looking round in `:detail`; in a world file it goes last, after `:desc`. Things
   people could use or carry belong in items, not in either text.
 - Say in a brief that things are under `items` in the view and what you carry under `carrying`,
   that `look` shows their descriptions, conditions and owners (and the room's `:detail`), so it
-  is for examining something closely rather than looking routinely on arrival, that `look`,
-  `take`, `put-down` and `give` don't end the turn, and that `work-on` spends time on things here
-  or carried, with results when it's over.
+  is for examining something closely rather than looking routinely on arrival, that some things
+  hold others (open ones list `contents`, closed ones show them only to `open`; `take` works on
+  either, `put-in` puts things in), that `look`, `open`, `take`, `put-in`, `put-down` and `give`
+  don't end the turn, and that `work-on` spends time on things here or carried, with results
+  when it's over.
 - An agent you may leave out: mark the world-file agent `:optional?`, naming the run option that
   decides it. Claudeworth reads these in `:init`: Mr Pugh (`:optional? :architect?`) is in unless
   `:architect? false`, and Nellie the housemaid (`:optional? :housemaid?`) is in unless
   `:housemaid? false`. Leave out too the items such an agent holds.
+
+#### Containers
+
+An item with `:container` holds other items, whose `:in` names it. Furniture is the use so far
+(shelves, a sideboard, a glass-fronted cabinet); carried containers aren't forbidden, but nothing
+supports or tests them (a basket's contents don't show in `carrying`).
+
+- `:container :open`: what's inside can be seen from the room (shelves, glass). `:closed`: only
+  `open` shows it (a cupboard). It's a fixed fact: there are no open or closed states, no locks,
+  and no events for opening.
+- **Checks** (world files, `:init` and `items/added`): exactly one of `:place`, `:holder` and
+  `:in`; `:in` names an existing item (in the same list or already in the world) that has
+  `:container`; and no loops ("its containers go round in a loop"). Contents may be listed
+  before their container. Nesting is allowed; there are no sizes or capacities.
+- **The view** shows an open container as `{:id :name :contents [{:id :name} ...]}`, nested the
+  same way for open containers inside it and with `:contents []` when it's empty, and a closed one
+  as `{:id :name :closed true}`. `look` does the same with each item in detail. Every open
+  container's contents are listed, however many.
+- **`open {container}`** (free, reply-only, records nothing, so nobody else learns anything):
+  the container is here, in a container here, or carried, and has `:container`. The reply is
+  `{:name :condition :contents [...]}`, each item as `look` shows it, inner closed containers
+  with `:closed true` and not their contents. Open containers can be opened too.
+- **`put-in {item container}`** (free): the item is carried by you or could be taken here (so not
+  fixed); the container is in reach and is one; the item isn't the container, around it, or
+  already directly in it. Reasons say which. `put-down` still puts what you carry on the floor.
+- **Hidden contents stay hidden:** reasons that list "items here" list only what can be seen
+  (`items/visible-at`), never what's in closed containers. Something inside what another person
+  holds is just "not here". But `take` accepts any id in reach, so a guessed id inside a closed
+  container works; that's by design for now.
+- **Work on a container reaches its contents:** `work-on` accepts things inside containers here,
+  and the items in reach for the judge are each job item plus everything `within` it, at any
+  depth, open or closed. The judge sees `in` (the container's id) on an item whose container is
+  also listed, and may change any of them. A container counts as one of the six items.
 
 #### Work and the judge
 
 `work-on {items doing hours}` (turn-ending, every role but the GM, offered only when the world has
 a clock) spends time doing something to things:
 
-- `items`: 1-6 item ids, each lying where you are or carried by you (fixed items are fine);
+- `items`: 1-6 item ids, each lying where you are (in a container or not) or carried by you
+  (fixed items are fine);
   duplicates are dropped. `doing`: 3-120 characters, reading after "is" ("dusting the china
   cabinet"). `hours`: optional, 0.5 to 4, default 0.5; rounds as `clock/rounds-for` gives them,
   at least one.
@@ -556,7 +606,8 @@ a clock) spends time doing something to things:
 
   `carry-on` keeps the occupation and its job, so the work runs to its end.
 - For a stopped or finished job, the items **in reach** are the job's items still lying at the
-  job's place, or carried by the worker. If none are, or no time was worked, the job ends with
+  job's place (in a container or not), or carried by the worker, each followed by everything
+  inside it. If none are, or no time was worked, the job ends with
   `:item/work-ended`, seen by the worker and the people at the place ("Hale leaves off dusting the
   china cabinet before getting anywhere."), and no call. Otherwise the engine asks **the judge**
   and emits `:item/work-done`, seen by the worker and the people at the place:
@@ -571,7 +622,8 @@ a clock) spends time doing something to things:
   text)` under `:items`, optional; Claudeworth gives its setting paragraph), the time, the
   worker's name and persona, the place's name, what they were doing, the minutes worked and
   whether they stopped early, a luck roll (1-100, 50 ordinary, from `manor.rng` with the key
-  `[:judge job-id]`), and each item in reach with its id, name, description and condition. It has
+  `[:judge job-id]`), and each item in reach with its id, name, description and condition (and `in`
+  when its container is in reach too). It has
   one required tool, `judge {changes: [{item, condition}], summary}`. The engine sends it through
   the run's LLM with the model `:judge-model` (a run option; nil means `:model`) and the run's
   `:reasoning` and `:max-tokens`, without holding the world lock. Each call is in `llm.edn` as

@@ -9,7 +9,11 @@ that hold other items, such as shelves, cabinets and a sideboard. Read `AGENTS.m
 
 ## Status
 
-- [ ] C1 engine: data, checks, events, actions, views, judge reach, world files, tests
+- [x] C1 engine: data, checks, events, actions, views, judge reach, world files, tests
+  (`test/manor/containers_test.clj`). Accessor names as built: `contents`, `within`,
+  `outermost`, `place-of`, `reachable?`, `visible-at` (the flattened visible list), and `opened`
+  (the `open` reply). A loop reads "its containers go round in a loop". Reasons list visible
+  items sorted by name, as before.
 - [ ] C2 Claudeworth: containers and contents, rules text, mock day, tests, docs
 - [ ] C3 one short real run, and the report
 

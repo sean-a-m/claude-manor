@@ -10,11 +10,15 @@
                               :condition \"dusty, the glass smeared\"     ; 1-80 chars
                               :place \"drawing-room\"   ; exactly one of :place (a location id)
                               ;; :holder \"hale\"       ;   or :holder (an agent id)
+                              ;; :in \"sideboard\"      ;   or :in (the id of a container item)
                               :owner \"household\"      ; optional: an agent id or any label; not enforced
-                              :fixed? true}}            ; optional: furniture, can't be taken
+                              :fixed? true            ; optional: furniture, can't be taken
+                              :container :open}}      ; optional: holds things; :open shows them to
+                                                      ;   the room, :closed only to `open`
 
-  A carried item goes wherever its holder goes, with no events. The world has
-  :items once the first item is added, so worlds without items are unchanged.
+  A carried item goes wherever its holder goes, and things in a container go
+  wherever it goes, with no events. The world has :items once the first item
+  is added, so worlds without items are unchanged.
 
   Work on items (`work-on`, worlds with a clock only) is a job:
     :item-jobs {\"job-41\" {:id \"job-41\" :actor \"hale\" :items [\"china-cabinet\"]
@@ -61,8 +65,10 @@
    [:condition [:string {:min 1 :max max-condition}]]
    [:place {:optional true} :string]
    [:holder {:optional true} :string]
+   [:in {:optional true} :string]
    [:owner {:optional true} :string]
-   [:fixed? {:optional true} :boolean]])
+   [:fixed? {:optional true} :boolean]
+   [:container {:optional true} [:enum :open :closed]]])
 
 ;; ---------------------------------------------------------------------------
 ;; Accessors. For now they scan the map; with tens of items that's trivial.
@@ -102,32 +108,89 @@
 
 (defn- by-name [items] (sort-by (juxt :name :id) items))
 
+(defn contents
+  "The items directly inside the container `id`, by name."
+  [world id]
+  (by-name (items-where world #(= id (:in %)))))
+
+(defn within
+  "Every item inside the container `id` at any depth, each followed by its
+  own contents."
+  [world id]
+  (mapcat #(cons % (within world (:id %))) (contents world id)))
+
+(defn outermost
+  "The item that `it` is ultimately inside, or `it` itself if it's in
+  nothing: the one that lies at a place or is held."
+  [world it]
+  (loop [it it seen #{}]
+    (if-let [c (when-not (seen (:id it)) (some->> (:in it) (item world)))]
+      (recur c (conj seen (:id it)))
+      it)))
+
+(defn place-of
+  "The place where `it` lies, directly or inside containers; nil if it's carried."
+  [world it]
+  (:place (outermost world it)))
+
+(defn reachable?
+  "Can `actor` get at `it`: does it (or the container it's in) lie where they
+  are, or do they hold it?"
+  [world actor it]
+  (let [o (outermost world it)
+        here (space/location-of world actor)]
+    (boolean (or (= actor (:holder o)) (and here (= here (:place o)))))))
+
+(defn visible-at
+  "The items someone at `place` can see: those lying there, each followed by
+  the contents of open containers at any depth; never what's in closed ones."
+  [world place]
+  (letfn [(seen [it] (cons it (when (= :open (:container it)) (mapcat seen (contents world (:id it))))))]
+    (mapcat seen (by-name (items-at world place)))))
+
 ;; ---------------------------------------------------------------------------
 ;; Checks
 
 (defn- label [it] (pr-str (or (:id it) (:name it))))
 
+(defn- loops?
+  "Does following :in from `it` (through `by-id`) come back round?"
+  [by-id it]
+  (loop [it it seen #{}]
+    (cond (nil? (:in it)) false
+          (seen (:id it)) true
+          :else (recur (by-id (:in it)) (conj seen (:id it))))))
+
 (defn problems
   "Everything wrong with a list of items, as readable strings naming the item.
   `places` and `holders` are the known location ids and holders (agent names
-  in a world file, agent ids otherwise)."
-  [items {:keys [places holders]}]
-  (vec (concat
-        (for [[id k] (frequencies (keep :id items)) :when (> k 1)]
-          (str "item " (pr-str id) " is defined " k " times"))
-        (mapcat
-         (fn [it]
-           (let [where (str "item " (label it) ": ")]
-             (if-let [e (m/explain Item it)]
-               [(str where (pr-str (me/humanize e)))]
-               (concat
-                (when (= (contains? it :place) (contains? it :holder))
-                  [(str where "give exactly one of :place and :holder")])
-                (when (and (:place it) (not (contains? places (:place it))))
-                  [(str where "unknown location " (pr-str (:place it)))])
-                (when (and (:holder it) (not (contains? holders (:holder it))))
-                  [(str where "unknown holder " (pr-str (:holder it)))])))))
-         items))))
+  in a world file, agent ids otherwise); `existing` is the items already in
+  the world, by id, which an :in may also name."
+  [items {:keys [places holders existing]}]
+  (let [by-id (merge existing (into {} (map (juxt :id identity)) items))]
+    (vec (concat
+          (for [[id k] (frequencies (keep :id items)) :when (> k 1)]
+            (str "item " (pr-str id) " is defined " k " times"))
+          (mapcat
+           (fn [it]
+             (let [where (str "item " (label it) ": ")
+                   box (by-id (:in it))]
+               (if-let [e (m/explain Item it)]
+                 [(str where (pr-str (me/humanize e)))]
+                 (concat
+                  (when-not (= 1 (count (filter #(contains? it %) [:place :holder :in])))
+                    [(str where "give exactly one of :place, :holder and :in")])
+                  (when (and (:place it) (not (contains? places (:place it))))
+                    [(str where "unknown location " (pr-str (:place it)))])
+                  (when (and (:holder it) (not (contains? holders (:holder it))))
+                    [(str where "unknown holder " (pr-str (:holder it)))])
+                  (when (and (:in it) (nil? box))
+                    [(str where "unknown container " (pr-str (:in it)))])
+                  (when (and box (not (:container box)))
+                    [(str where (pr-str (:in it)) " is not a container")])
+                  (when (and box (loops? by-id it))
+                    [(str where "its containers go round in a loop")])))))
+           items)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Events
@@ -150,7 +213,8 @@
   [world fields visible-to]
   (let [it (assoc fields :id (fresh-id world (:name fields)))]
     (when-let [ps (seq (problems [it] {:places (set (keys (get-in world [:space :locations])))
-                                      :holders (set (keys (:agents world)))}))]
+                                      :holders (set (keys (:agents world)))
+                                      :existing (:items world)}))]
       (throw (ex-info (str "bad new item: " (str/join "; " ps)) {:item it})))
     {:type :item/added :data {:item it} :visible-to visible-to}))
 
@@ -167,10 +231,13 @@
   (assoc-in world [:items (get-in data [:item :id])] (:item data)))
 
 (defmethod w/apply-event :item/taken [world {:keys [actor data]}]
-  (update-in world [:items (:item data)] #(-> % (dissoc :place) (assoc :holder actor))))
+  (update-in world [:items (:item data)] #(-> % (dissoc :place :in) (assoc :holder actor))))
 
 (defmethod w/apply-event :item/put-down [world {:keys [data]}]
-  (update-in world [:items (:item data)] #(-> % (dissoc :holder) (assoc :place (:place data)))))
+  (update-in world [:items (:item data)] #(-> % (dissoc :holder :in) (assoc :place (:place data)))))
+
+(defmethod w/apply-event :item/put-in [world {:keys [data]}]
+  (update-in world [:items (:item data)] #(-> % (dissoc :place :holder) (assoc :in (:into data)))))
 
 (defmethod w/apply-event :item/given [world {:keys [data]}]
   (assoc-in world [:items (:item data) :holder] (:to data)))
@@ -198,13 +265,19 @@
   (str (if (re-find #"(?i)^[aeiou]" s) "an " "a ") (str/lower-case (subs s 0 1)) (subs s 1)))
 
 (defmethod n/describe :item/added [{:keys [data]} names]
-  (let [{:keys [holder place] item-name :name} (:item data)]
-    (if holder
-      (str (n/who names holder) " now has " (a-or-an item-name) ".")
-      (str "Item added in " (n/place names place) ": " item-name "."))))
+  (let [{:keys [holder place in] item-name :name} (:item data)]
+    (cond
+      holder (str (n/who names holder) " now has " (a-or-an item-name) ".")
+      in (str "Item added to " (the names in) ": " item-name ".")
+      :else (str "Item added in " (n/place names place) ": " item-name "."))))
 
 (defmethod n/describe :item/taken [{:keys [actor data]} names]
-  (str (n/who names actor) " picks up " (the names (:item data)) "."))
+  (if-let [box (:from-item data)]
+    (str (n/who names actor) " takes " (the names (:item data)) " from " (the names box) ".")
+    (str (n/who names actor) " picks up " (the names (:item data)) ".")))
+
+(defmethod n/describe :item/put-in [{:keys [actor data]} names]
+  (str (n/who names actor) " puts " (the names (:item data)) " in " (the names (:into data)) "."))
 
 (defmethod n/describe :item/put-down [{:keys [actor data]} names]
   (str (n/who names actor) " puts down " (the names (:item data)) "."))
@@ -239,8 +312,8 @@
   (str "The judge's answer for " (:job data) " was not used: " (:reason data)))
 
 ;; ---------------------------------------------------------------------------
-;; Actions, for every role but the GM: all free but `work-on`. `look`
-;; changes nothing: it only replies.
+;; Actions, for every role but the GM: all free but `work-on`. `look` and
+;; `open` change nothing: they only reply.
 
 (defn- listing
   "\"china-cabinet (China cabinet), piano (Piano)\", or `none`."
@@ -249,23 +322,54 @@
     (str/join ", " (map #(str (:id %) " (" (:name %) ")") (by-name items)))
     none))
 
-(defn- here-list [world actor]
-  (str "items here: " (listing (items-at world (space/location-of world actor)) "none")))
+(defn- here-list
+  "The items `actor` can see here, for reasons: never what's in closed containers."
+  [world actor]
+  (str "items here: " (listing (visible-at world (space/location-of world actor)) "none")))
 
 (defn- carried-list [world actor]
   (str "you carry: " (listing (held-by world actor) "nothing")))
 
-(defn- take-reason [world actor {id :item}]
+(defn- take-reason
+  "Why `actor` can't take the item `id`, or nil: it must lie here, directly or
+  in a container (at any depth, open or closed), and not be fixed. Something
+  inside what another person holds is just \"not here\", so nothing hidden leaks."
+  [world actor {id :item}]
   (let [it (item world id)
-        here (space/location-of world actor)
         holder (:holder it)]
     (cond
-      (nil? here) "you can't pick things up while travelling"
+      (nil? (space/location-of world actor)) "you can't pick things up while travelling"
       (= actor holder) (str "you are already carrying the " (:name it))
       (and holder (space/together? world actor holder))
       (str (:name (w/agent world holder)) " is holding the " (:name it))
-      (not= here (:place it)) (str id " is not here; " (here-list world actor))
+      (not (and it (reachable? world actor it))) (str id " is not here; " (here-list world actor))
       (:fixed? it) (str "the " (:name it) " is fixed in place"))))
+
+(defn- container-reason
+  "Why `actor` can't get at the container `id`, or nil."
+  [world actor id verb]
+  (let [box (item world id)]
+    (cond
+      (not (and box (reachable? world actor box))) (str id " is not here; " (here-list world actor))
+      (not (:container box)) (str "the " (:name box) " is not something you can " verb))))
+
+(defn- put-in-reason
+  "Why `actor` can't put the item `id` in the container `to`, or nil: the
+  item is carried or could be taken here, the container is here or carried,
+  and the item isn't the container or around it."
+  [world actor {id :item to :container}]
+  (let [it (item world id)]
+    (or (when-not (and it (= actor (:holder it))) (take-reason world actor {:item id}))
+        (container-reason world actor to "put things in")
+        (cond
+          (or (= id to) (some #(= to (:id %)) (within world id)))
+          (str "you can't put the " (:name it) " inside itself")
+          (= to (:in it)) (str "the " (:name it) " is already in the " (:name (item world to)))))))
+
+(defn- open-reason [world actor {id :container}]
+  (if (space/location-of world actor)
+    (container-reason world actor id "open")
+    "you can't open things while travelling"))
 
 (defn- carrying-reason [world actor id]
   (when-not (= actor (:holder (item world id)))
@@ -287,6 +391,23 @@
     (:owner it) (assoc :owner (owner-name world (:owner it)))
     (:fixed? it) (assoc :fixed? true)))
 
+(defn- as-seen
+  "`it` as `shape` shows it, and if it's a container, what can be seen of
+  its inside: an open one's :contents, each shown the same way, or :closed."
+  [world shape it]
+  (case (:container it)
+    :open (assoc (shape it) :contents (mapv #(as-seen world shape %) (contents world (:id it))))
+    :closed (assoc (shape it) :closed true)
+    (shape it)))
+
+(defn opened
+  "What `open` shows of a container: its name and condition, and its contents
+  in detail, inner containers as the room would see them."
+  [world box]
+  {:name (:name box)
+   :condition (:condition box)
+   :contents (mapv #(as-seen world (partial look-item world) %) (contents world (:id box)))})
+
 (defn- look-person [world id]
   (let [a (w/agent world id)
         carried (by-name (held-by world id))]
@@ -296,27 +417,27 @@
 
 (defn look
   "What `actor` sees on looking around: the place (with its :detail, if it
-  has one), the items lying here in detail, and the other people here with
-  what they carry. Empty parts are left out."
+  has one), the items lying here in detail (with what's in open containers),
+  and the other people here with what they carry. Empty parts are left out."
   [world actor]
   (let [here (space/location-of world actor)
         {loc-name :name :keys [detail]} (space/location world here)
         lying (by-name (items-at world here))
         people (sort (disj (space/present world here) actor))]
     (cond-> {:place (cond-> {:name loc-name} detail (assoc :detail detail))}
-      (seq lying) (assoc :items (mapv #(look-item world %) lying))
+      (seq lying) (assoc :items (mapv #(as-seen world (partial look-item world) %) lying))
       (seq people) (assoc :people (mapv #(look-person world %) people)))))
 
 (defn- work-reason
-  "Why `actor` can't work on the item `id`, or nil: it must lie here or be
-  carried by them."
+  "Why `actor` can't work on the item `id`, or nil: it must lie here (in a
+  container or not) or be carried by them."
   [world actor id]
   (let [it (item world id)
         holder (:holder it)]
     (cond
       (= actor holder) nil
       (and holder (space/together? world actor holder)) (str (:name (w/agent world holder)) " is holding the " (:name it))
-      (or (nil? it) holder (not= (:place it) (space/location-of world actor)))
+      (not (and it (reachable? world actor it)))
       (str id " is neither here nor carried by you; " (here-list world actor) "; " (carried-list world actor)))))
 
 (defn- work-on-reason [world actor {ids :items}]
@@ -353,8 +474,26 @@
     :args [:map [:item :string]]
     :valid? take-reason
     :effect (fn [world actor {id :item}]
-              [{:type :item/taken :data {:item id :from-place (:place (item world id))}
-                :visible-to (space/here world actor)}])}
+              (let [it (item world id)]
+                [{:type :item/taken :data (cond-> {:item id :from-place (place-of world it)}
+                                            (:in it) (assoc :from-item (:in it)))
+                  :visible-to (space/here world actor)}]))}
+
+   {:name :open
+    :kind :free
+    :doc (str "Open a container here (use its id) to see what's in it, in detail. "
+              "Containers marked `closed` in your view show their contents only this way.")
+    :args [:map [:container :string]]
+    :valid? open-reason
+    :reply (fn [world _ {id :container}] (opened world (item world id)))}
+
+   {:name :put-in
+    :kind :free
+    :doc "Put an item (use its id) that you carry, or could pick up here, into a container here (its id)."
+    :args [:map [:item :string] [:container :string]]
+    :valid? put-in-reason
+    :effect (fn [world actor {id :item to :container}]
+              [{:type :item/put-in :data {:item id :into to} :visible-to (space/here world actor)}])}
 
    {:name :put-down
     :kind :free
@@ -377,7 +516,8 @@
 
    {:name :work-on
     :kind :final
-    :doc (str "Spend time working on things here or that you carry (item ids, at most " max-work-items "). "
+    :doc (str "Spend time working on things here or that you carry (item ids, at most " max-work-items "; "
+              "working on a container includes what's in it). "
               "doing is a short phrase that reads after \"is\", e.g. \"dusting the shelves\". "
               "hours is how long you'll spend (half an hour to " max-work-hours ", default half an hour); "
               "if the job needs longer, only part of it gets done. "
@@ -397,15 +537,16 @@
 
 (defn add-to-view
   "The item parts of an agent's view: what they carry (with its condition),
-  the items in their place (names only), and what the people here carry.
-  Each is left out when empty."
+  the items in their place (names only, with what's in open containers and
+  closed ones marked), and what the people here carry. Each is left out when
+  empty."
   [view world agent-id]
   (let [carried (by-name (held-by world agent-id))
         here (when (get-in view [:location :here]) (space/location-of world agent-id))
         lying (by-name (items-at world here))]
     (cond-> view
       (seq carried) (assoc-in [:you :carrying] (mapv #(select-keys % [:id :name :condition]) carried))
-      (seq lying) (assoc-in [:location :here :items] (mapv #(select-keys % [:id :name]) lying))
+      (seq lying) (assoc-in [:location :here :items] (mapv #(as-seen world (fn [it] (select-keys it [:id :name])) %) lying))
       (get-in view [:location :people-here])
       (update-in [:location :people-here]
                  (fn [people]
@@ -452,12 +593,15 @@
          (assoc o :job job :luck (inc (rng/roll world [:judge (:id job)] 100))))))
 
 (defn in-reach
-  "The job's items still to hand: lying at the job's place, or carried by
-  the worker."
+  "The job's items still to hand (lying at the job's place, in a container or
+  not, or carried by the worker), each followed by everything inside it."
   [world {:keys [items place actor]}]
-  (keep #(let [it (item world %)]
-           (when (or (= actor (:holder it)) (and place (= place (:place it)))) it))
-        items))
+  (->> items
+       (keep #(let [it (item world %)
+                    o (some->> it (outermost world))]
+                (when (and it (or (= actor (:holder o)) (and place (= place (:place o))))) it)))
+       (mapcat #(cons % (within world (:id %))))
+       distinct))
 
 (defn- audience
   "The people at the job's place, and the worker wherever they are."
@@ -519,17 +663,28 @@
 - Change only conditions, each a short phrase of at most " max-condition " characters saying what state the thing is in now.
 - Leave out any item the work left unchanged.
 - An item's nature can't change: work can't turn a vase into gold. If the task is impossible or absurd, change nothing and say so in the summary.
+- A thing listed with `in` is inside another of the things listed. The work may or may not have touched it: leave it out if it didn't.
 - Luck is a roll from 1 to 100, and 50 is ordinary: low luck means mishaps (a slip, a breakage), high luck means it went unusually well.
 - The summary is one or two sentences, past tense, third person, for the people present, at most " max-summary " characters."))
 
 (def ^:private pretty (json/object-mapper {:pretty true}))
+
+(defn- judged-items
+  "The items in reach as the judge sees them, with :in only when the
+  container is among them."
+  [reach]
+  (let [ids (set (map :id reach))]
+    (mapv #(cond-> (select-keys % [:id :name :desc :condition])
+             (ids (:in %)) (assoc :in (:in %)))
+          reach)))
 
 (defn judge-request
   "The judge's request for `job`: {:messages :tools}. It holds only the
   scenario's :judge-brief (under :items), the time, the worker's name and
   persona, the place, what they were doing, the minutes worked and whether
   they stopped early, the luck roll, and each item in reach (`reach`) with
-  its id, name, description and condition."
+  its id, name, description and condition, and the container it's in when
+  that's in reach too."
   [scenario world job {:keys [minutes stopped-early? luck]} reach]
   (let [worker (w/agent world (:actor job))
         brief (when-let [f (get-in scenario [:items :judge-brief])] (f world))]
@@ -546,7 +701,7 @@
                      "- Time worked: " minutes " minutes" (if stopped-early? "; they stopped early" ", as planned") "\n"
                      "- Luck: " luck "\n\n"
                      "## The things worked on\n```json\n"
-                     (json/write-value-as-string (mapv #(select-keys % [:id :name :desc :condition]) reach) pretty)
+                     (json/write-value-as-string (judged-items reach) pretty)
                      "\n```\n\nCall `judge` now.")}]}))
 
 (defn- verdict

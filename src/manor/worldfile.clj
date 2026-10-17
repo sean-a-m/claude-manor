@@ -195,7 +195,7 @@
 
 (def ^:private key-order [:id :name])
 
-(def ^:private item-key-order [:id :name :place :holder :owner :fixed? :condition :desc])
+(def ^:private item-key-order [:id :name :place :in :holder :owner :fixed? :container :condition :desc])
 
 (defn- location-str
   "One location per line: :id and :name first, :connects-to, :desc and

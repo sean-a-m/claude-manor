@@ -109,6 +109,7 @@ Passed to `start-run` / `start!` (defaults in `manor.engine/default-opts`):
 | `:llm` | `:openrouter` | or `:mock` (uses the scenario's mock policy) |
 | `:model` / `:gm-model` / `:judge-model` | `deepseek/deepseek-v4.1-flash` | per-agent `:model` overrides; `:gm-model` and `:judge-model` (the judge of work on items) default to `:model` |
 | `:gm` | `:llm` | who holds the GM seat: `:llm`, `:human`, `:off` |
+| `:tool-choice` | `"auto"` | or `"required"` (CLI: `--tool-choice required`) to force a tool call on every reply. Not known to help: in a 4-round real run with `"auto"`, every reply called a tool. DeepSeek's own endpoint rejects `"required"` while reasoning is on. Under `"auto"`, a reply without a tool call is nudged once, then the turn ends |
 | `:offline?` | `false` | use the scenario's bridge stubs |
 | `:test?` | `false` | store the run under `test-runs/` (disposable) instead of `runs/` |
 | `:max-cost` | `1.0` | USD; the run pauses when reached |

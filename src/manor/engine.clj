@@ -45,6 +45,7 @@
    :judge-model nil                 ; the judge of work on items (manor.items); defaults to :model
    :gm :llm                         ; who fills the GM seat: :llm, :human or :off
    :reasoning {:effort "low"}
+   :tool-choice "auto"              ; or "required"; DeepSeek's own endpoint rejects "required" with reasoning on
    :max-tokens 4000                 ; includes reasoning tokens
    :max-steps 10                    ; model calls per agent turn (a cost guard, not game time)
    :max-queries 2                   ; query-bridge calls per agent turn
@@ -404,7 +405,8 @@
       (if (or (:done? st) (>= step max-steps))
         st
         (let [request {:model model :messages messages :tools tools
-                       :max-tokens (:max-tokens opts) :reasoning (:reasoning opts)}
+                       :max-tokens (:max-tokens opts) :reasoning (:reasoning opts)
+                       :tool-choice (:tool-choice opts)}
               response (llm/complete (:llm run)
                                      (assoc request :ctx {:world @(:world run) :agent-id agent-id :role role
                                                           :step step :used (:used st) :reasons reasons}))
@@ -524,7 +526,8 @@
     (try
       (loop [messages messages, attempt 0]
         (let [request {:model model :messages messages :tools tools
-                       :max-tokens (:max-tokens opts) :reasoning (:reasoning opts)}
+                       :max-tokens (:max-tokens opts) :reasoning (:reasoning opts)
+                       :tool-choice (:tool-choice opts)}
               response (llm/complete (:llm run)
                                      (assoc request :ctx (assoc (select-keys work [:minutes :stopped-early? :luck])
                                                                 :role :judge :step attempt :world world

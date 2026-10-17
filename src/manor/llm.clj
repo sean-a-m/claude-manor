@@ -3,7 +3,8 @@
   and keeps no conversation state here, so each call is self-contained.
 
   Request:  {:model \"deepseek/deepseek-v4.1-flash\" :messages [...] :tools [...]
-             :max-tokens 2000 :reasoning {:effort \"low\"} :ctx {...}}
+             :max-tokens 2000 :reasoning {:effort \"low\"} :tool-choice \"auto\"
+             :ctx {...}}
             :ctx is engine context for mock policies; it is never sent anywhere.
   Response: {:message {...assistant message, OpenAI wire format...}
              :content \"...\" :tool-calls [{:id :name :arguments}]
@@ -58,13 +59,13 @@
 
 (defrecord OpenRouter [key base-url timeout-ms]
   LLM
-  (complete [_ {:keys [model messages tools max-tokens reasoning]}]
+  (complete [_ {:keys [model messages tools max-tokens reasoning tool-choice]}]
     (let [body (json/write-value-as-string
                 (cond-> {:model model
                          :messages messages
                          :max_tokens (or max-tokens 2000)
                          :usage {:include true}}
-                  (seq tools) (assoc :tools tools :tool_choice "required")
+                  (seq tools) (assoc :tools tools :tool_choice (or tool-choice "auto"))
                   reasoning (assoc :reasoning reasoning)))
           send #(try
                   (http/request {:method :post

@@ -5,6 +5,7 @@
     clojure -M:run village --mock --offline
     clojure -M:run --load village-20261014-201500 --port 8081
     clojure -M:run village --model openai/gpt-5-mini --max-cost 0.5
+    clojure -M:run claudeworth --tool-choice required  force a tool call on every model reply
     clojure -M:run village --mock --offline --test     store under test-runs/ (disposable)
     clojure -M:run claudeworth --mock --test --start 1904-10-15T21:00"
   (:require [manor.engine :as e]
@@ -22,6 +23,7 @@
       (= a "--port") (recur (rest more) (assoc acc :port (parse-long (first more))))
       (= a "--model") (recur (rest more) (assoc-in acc [:opts :model] (first more)))
       (= a "--max-cost") (recur (rest more) (assoc-in acc [:opts :max-cost] (parse-double (first more))))
+      (= a "--tool-choice") (recur (rest more) (assoc-in acc [:opts :tool-choice] (first more)))
       (= a "--start") (recur (rest more) (assoc-in acc [:opts :start] (first more)))
       :else (recur more (assoc acc :scenario (keyword a))))))
 

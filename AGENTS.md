@@ -160,6 +160,9 @@ clj -M:dev                                    # REPL; see dev/user.clj docstring
 - Models rewrite kebab-case parameter names as snake_case. The decoder normalises them; keep it.
 - With closed or empty schemas, models invent junk keys. Unknown keys are dropped silently.
 - `deepseek-v4.1-flash` with reasoning can use up `:max-tokens` (now 4000) and return no tool call.
+- DeepSeek's own endpoint rejects `tool_choice: "required"` while reasoning is on, and OpenRouter
+  won't route such requests there. Hence `:tool-choice` defaults to `"auto"`; in a 4-round real run
+  every reply still called a tool (`old-test-runs/claudeworth-tool-choice-auto-deepseek`).
 - http-kit's HTTP *client* failed on gzip responses from Open-Meteo. Outbound HTTP uses `manor.http`.
 - pi 1.1.0 has no MCP *server* mode; `mcp-servers/pi/server.mjs` drives `pi --mode rpc` instead
   (prompt, wait for `agent_settled`, `get_last_assistant_text`). `--session-dir` plus

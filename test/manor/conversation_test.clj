@@ -172,6 +172,55 @@
       (is (= :manual (:mode (e/status run))))
       (e/stop-run run))))
 
+(defn- plain-text
+  "The mock LLM with `policy`, except that Hale's speaking turns answer
+  with `text` as plain text, with no tool call."
+  [policy text]
+  (let [m (llm/mock policy)]
+    (reify llm/LLM
+      (complete [_ {:keys [ctx] :as request}]
+        (if (and (:conversation ctx) (= "hale" (:agent-id ctx)))
+          {:message {:role "assistant" :content text} :content text :tool-calls []
+           :finish-reason "stop" :usage {:prompt-tokens 0 :completion-tokens 0 :cost 0}}
+          (llm/complete m request))))))
+
+(deftest plain-text-is-the-line
+  (testing "a speaking turn's text with no tool call is taken as its reply, without quotation marks"
+    (let [run (e/start-run :household {:llm-impl (plain-text (earl-opens {} chatty) "\"Very good, my lord.\"")
+                                       :offline? true :test? true :run-id (test-id "plain")})]
+      (doseq [id ["lord-claudeworth" "lady-claudeworth" "hale"]] @(e/place! run id "dining-room"))
+      (round! run)
+      (is (= [["hale" "Very good, my lord."] ["hale" "Very good, my lord."]] (filter #(= "hale" (first %)) (lines run))))
+      (is (= :finished (ending run)))
+      (let [hale (filter #(and (= "hale" (:agent %)) (:conversation %)) (store/read-llm (:dir run)))]
+        (is (= 2 (count hale)) "one call per line")
+        (is (= [{:role "user" :content "(Your text was taken as `reply`.) done"}] (:replies (first hale)))))
+      (e/stop-run run)))
+  (testing "text too long for a line is rejected, and the model may try again"
+    (let [run (e/start-run :household {:llm-impl (plain-text (earl-opens {} chatty) (apply str (repeat 1600 "x")))
+                                       :offline? true :test? true :run-id (test-id "plain")})]
+      (doseq [id ["lord-claudeworth" "lady-claudeworth" "hale"]] @(e/place! run id "dining-room"))
+      (round! run)
+      (let [[first-call] (filter #(and (= "hale" (:agent %)) (:conversation %)) (store/read-llm (:dir run)))]
+        (is (str/starts-with? (:content (first (:replies first-call)))
+                              "(Your text was taken as `reply`.) error: invalid arguments: text is 1600 characters; the limit is 400")))
+      (is (not-any? #(= "hale" (first %)) (lines run)))
+      (is (= ["hale" "hale"] (map :actor (of-type run :conversation/silent))))
+      (e/stop-run run)))
+  (testing "a normal turn's plain text still gets the nudge"
+    (let [m (llm/mock (constantly {:tool :pass}))
+          talker (reify llm/LLM
+                   (complete [_ {:keys [ctx] :as request}]
+                     (if (and (= "lord-claudeworth" (:agent-id ctx)) (zero? (:step ctx)))
+                       {:message {:role "assistant" :content "Good morning."} :content "Good morning." :tool-calls []
+                        :finish-reason "stop" :usage {:prompt-tokens 0 :completion-tokens 0 :cost 0}}
+                       (llm/complete m request))))
+          run (round! (household (constantly nil) {:opts {:llm-impl talker}}))
+          [earl] (filter #(= "lord-claudeworth" (:agent %)) (store/read-llm (:dir run)))]
+      (is (= [{:role "user" :content "You must respond by calling one of the tools."}] (:replies earl)))
+      (is (empty? (of-type run :agent/said)))
+      (e/stop-run run))))
+
 (deftest who-can-be-drawn-in
   (let [run (household (constantly {:tool :pass}) {:opts {:housemaid? true}})
         _ @(e/spawn! run {:role :secretary :name "Clerk" :location "dining-room"})

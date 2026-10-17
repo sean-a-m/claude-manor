@@ -404,14 +404,29 @@
     "You ran out of room while thinking, before calling a tool. Think briefly, then call one of the tools."
     "You must respond by calling one of the tools."))
 
+(defn- handle-text-as
+  "A response with text and no tool call, taken as a call of `tool` with
+  that text (a speaking turn's line). The engine's reply goes back as a
+  user message, since the model made no tool call to answer."
+  [run agent-id by-name call-opts st tool text]
+  (let [st (handle-call run agent-id by-name call-opts (assoc st :replies [])
+                        {:id "text" :name tool :arguments {:text text}})]
+    (update st :replies (partial mapv (fn [{:keys [content] :as m}]
+                                        (if (= "text" (:tool_call_id m))
+                                          {:role "user" :content (str "(Your text was taken as `" tool "`.) " content)}
+                                          m))))))
+
 (defn- handle-response
   "The turn state after one model response, with :replies (the messages to
   send back). A response without tool calls is told to call one; a second
-  ends the turn."
+  ends the turn. With call-opts :text-as (a tool name), its text, if any,
+  is taken as a call of that tool instead."
   [run agent-id by-name call-opts st response]
-  (let [calls (:tool-calls response)]
+  (let [calls (:tool-calls response)
+        text (some-> (:content response) str/trim not-empty)]
     (cond
       (seq calls) (reduce (partial handle-call run agent-id by-name call-opts) (assoc st :replies []) calls)
+      (and text (:text-as call-opts)) (handle-text-as run agent-id by-name call-opts st (:text-as call-opts) text)
       (:nudged st) (assoc st :replies [] :done? true)
       :else (assoc st :nudged true
                    :replies [{:role "user" :content (nudge response)}]))))
@@ -527,7 +542,9 @@
                            :actions actions
                            :max-steps speaking-turn-steps
                            :call-opts {:commit (fn [action args] (resolve! run speaker action args true))
-                                       :max-finals 1 :max-queries 0 :keep-occupation? true}
+                                       :max-finals 1 :max-queries 0 :keep-occupation? true
+                                       ;; models often write the line as plain text, not as a reply
+                                       :text-as "reply"}
                            :remind (partial speaking-reminder actions)
                            :ctx {:role (:role (w/agent world speaker))
                                  :conversation (assoc (select-keys conv [:id :initiator :members])

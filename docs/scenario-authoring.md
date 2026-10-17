@@ -801,7 +801,9 @@ on with it. It uses nobody else's turn either.
   Each speaking turn is one short model call (at most 3 with retries) with its own prompt (the
   agent's usual view, notes and recent events, plus who is in the conversation and where it has
   got to) and its own tools: members get `reply {text}`, `stay-silent` and `leave`; the
-  initiator gets `reply` and `end-conversation`; everyone also has `note`. These tools exist only
+  initiator gets `reply` and `end-conversation`; everyone also has `note`. A speaking turn that
+  answers with plain text and no tool call has the text taken as its `reply` (normal turns are
+  nudged to call a tool instead). These tools exist only
   in speaking turns and can't be overridden. Lines are told 400 characters and accept 1500.
 - **Ending:** the initiator ends it, everyone else leaves, nobody else speaks in a pass, the
   passes and the last word are done, the run reaches `:max-cost` (checked before each call), or

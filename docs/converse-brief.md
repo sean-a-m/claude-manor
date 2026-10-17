@@ -238,8 +238,11 @@ round). Compared with the first 8 rounds of `runs/claudeworth-20261017-120559`:
   and a budget, commissioning only the morning room at the countess's insistence, in a few
   rounds.
 - **Still open:**
-  - A third of speaking turns write the line as plain text and need a second call. The text is
-    the line itself, so taking it as the `reply` would save those calls.
+  - A third of speaking turns wrote the line as plain text and needed a second call; after the
+    nudge some chose `stay-silent` instead, so a useful answer (Nellie telling Hale where the
+    earl might be) was lost. **Fixed after the run** (user's decision; mock tests only): a
+    speaking turn's text with no tool call is taken as its `reply`, unquoted and length-checked,
+    and the engine's answer goes back as a user message. Normal turns are still nudged.
   - The calls of normal turns rose (159, against 117 in run 1), mostly Hale walking room to
     room looking for the earl; his one forfeited turn (round 2) was ten such calls, including a
     `converse` with Nellie to ask where the earl was. That is the old search problem, not

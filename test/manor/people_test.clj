@@ -323,12 +323,10 @@
           (is (= 5 (count (:temperament b))))
           (is (= 7 (count (:faculties b))))
           (is (<= 1 (count (:circumstances b)) 2))))
-      (testing "seed 1 rolls the traits the cast has now, except Hobbs's, rolled as a shopkeeper before he was a butcher"
+      (testing "seed 1 rolls exactly the traits the cast has now"
         (let [trait-keys [:sex :temperament :faculties :circumstances]]
           (doseq [[a b] (map vector (:agents before) (:agents after))]
-            (if (= "Hobbs" (:name a))
-              (is (not= (select-keys a trait-keys) (select-keys b trait-keys)))
-              (is (= (select-keys a trait-keys) (select-keys b trait-keys)) (:name a))))))
+            (is (= (select-keys a trait-keys) (select-keys b trait-keys)) (:name a)))))
       (testing "the rest of the file, comments included, is as it was"
         (is (= (dissoc before :agents) (dissoc after :agents)))
         (is (str/includes? rolled ";; his day when nobody else is in the village")))

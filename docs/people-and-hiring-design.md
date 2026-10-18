@@ -454,11 +454,10 @@ a manner whose "your" meant the stranger, and the traits crammed into one line. 
 - The polish writes both persona and manner to the person, beginning "You". Its check asks for
   one correction when either doesn't begin with "You", or a sentence's subject is He, She or the
   person's name. It no longer requires the persona to name the person, since the first line does.
-- Claudeworth's cast wasn't re-rolled (decision 32): its personas stay in the third person until
-  the real re-polish after the merge. With seed 1, `roll-cast!` rolls exactly the traits eight of
-  the nine characters have now (a test pins it). **Hobbs comes out different:** the server seeds
-  its dice and weights circumstances by position, and he is now a butcher, not a shopkeeper. The
-  user accepted this (decision 24: everything is rolled).
+- Claudeworth's cast was re-polished after the merge (`old-test-runs/roll-cast-claudeworth-second-person`,
+  $0.0044). With seed 1 the other eight kept their traits exactly; Hobbs was re-rolled, because
+  the server seeds its dice and weights circumstances by position and he is now a butcher (the
+  user accepted this; decision 24). A test pins that seed 1 reproduces the whole cast.
 
 Deviations and decisions made while building:
 

@@ -1,0 +1,76 @@
+;; Circumstances: period facts about a person, as distinct from dispositions.
+;; One or two are rolled, at most one from each group, and never a pair in
+;; :exclusions. :weights makes a circumstance likelier (or, at 0, impossible)
+;; for a position; any other position weighs 1.
+{:exclusions [[:drinks :teetotal]
+              [:chapel :church-and-king]
+              [:free-thinker :chapel]
+              [:free-thinker :superstitious]
+              [:radical :church-and-king]
+              [:cannot-read :radical]
+              [:cannot-read :reads-and-writes]
+              [:workhouse :farm-labourers-child]]
+ :groups
+ [{:group "Habits"
+   :circumstances
+   [{:id :drinks :label "drinks"
+     :texts ["Fond of a drink, and too fond of it on a Saturday night."
+             "Keeps a bottle somewhere about, and is never far from it."]
+     :weights {:groom 2 :coachman 2 :gamekeeper 2}}
+    {:id :teetotal :label "teetotal (signed the pledge)"
+     :texts ["Signed the pledge, and wears the blue ribbon to prove it."]}
+    {:id :pipe :label "smokes a pipe"
+     :texts ["Never without a pipe, and smells of shag tobacco."]}
+    {:id :gambler :label "a gambler (horses, cards)"
+     :texts ["Puts money on the horses, and cannot keep away from a hand of cards."]}]}
+  {:group "Faith and opinion"
+   :circumstances
+   [{:id :chapel :label "chapel"
+     :texts ["Goes to chapel twice on Sundays, and frowns on cards and the public house."]
+     :weights {:earl 0 :countess 0}}
+    {:id :church-and-king :label "Church and King"
+     :texts ["Church of England and a Tory, loyal to the Crown and the squire."]}
+    {:id :free-thinker :label "a free-thinker"
+     :texts ["Has no use for parsons, and says so when nobody important is listening."]}
+    {:id :radical :label "a Radical who reads the papers"
+     :texts ["Reads the Radical papers and talks of the rights of working men."]
+     :weights {:earl 0 :countess 0}}
+    {:id :superstitious :label "superstitious"
+     :texts ["Will not walk under a ladder, and turns the money in the pocket at a new moon."]}]}
+  {:group "Ties and secrets"
+   :circumstances
+   [{:id :sweetheart :label "a sweetheart in the village"
+     :texts ["Walking out with someone in the village, and slips away to see them whenever possible."]}
+    {:id :child-at-nurse :label "a child put out to nurse"
+     :texts ["Pays for a child put out to nurse in another parish, which nobody here knows of."]}
+    {:id :owes-money :label "owes money"
+     :texts ["Owes money, and dreads the letter that will come about it."]}
+    {:id :widowed-mother :label "sends wages home to a widowed mother"
+     :texts ["Sends most of the wages home to a widowed mother."]
+     :weights {:earl 0 :countess 0}}
+    {:id :under-a-cloud :label "left the last place under a cloud"
+     :texts ["Left the last place under a cloud, and would rather nobody asked why."]
+     :weights {:earl 0 :countess 0}}]}
+  {:group "Background"
+   :circumstances
+   [{:id :ex-army :label "ex-army (South Africa)"
+     :texts ["Served in South Africa, and came home with a medal and a cough."]
+     :weights {:gamekeeper 4 :groom 3 :coachman 3 :chauffeur 3 :odd-man 3 :footman 2 :butler 2
+               :countess 0 :housemaid 0 :scullery-maid 0 :cook 0 :housekeeper 0 :ladys-maid 0
+               :governess 0 :nurse 0 :kitchen-maid 0 :laundry-maid 0}}
+    {:id :workhouse :label "came up through the workhouse"
+     :texts ["Brought up in the workhouse, and has never forgotten it."]
+     :weights {:earl 0 :countess 0 :secretary 0 :architect 0 :governess 0}}
+    {:id :farm-labourers-child :label "a farm labourer's child"
+     :texts ["The child of a farm labourer, raised on bread and dripping in a tied cottage."]
+     :weights {:earl 0 :countess 0 :architect 0 :under-gardener 2 :stable-lad 2}}
+    {:id :in-service-since-twelve :label "in service since twelve"
+     :texts ["In service since the age of twelve, and knows no other life."]
+     :weights {:housemaid 3 :scullery-maid 3 :kitchen-maid 3 :cook 2 :footman 3 :butler 3 :housekeeper 3
+               :earl 0 :countess 0 :secretary 0 :architect 0 :shopkeeper 0 :butcher 0}}
+    {:id :reads-and-writes :label "reads and writes well"
+     :texts ["Reads and writes a good hand, which is more than most can."]
+     :weights {:secretary 3 :governess 3 :shopkeeper 2 :butler 2 :housekeeper 2}}
+    {:id :cannot-read :label "cannot read"
+     :texts ["Cannot read or write, and goes to some lengths to hide it."]
+     :weights {:earl 0 :countess 0 :secretary 0 :architect 0 :governess 0 :tutor 0 :shopkeeper 0}}]}]}

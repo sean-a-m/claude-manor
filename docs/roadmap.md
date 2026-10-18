@@ -246,8 +246,8 @@ things from them.
 
 Follow-ups, by need:
 
-**Next: [stores, aspects and the scene judge](stores-and-aspects-design.md)** (designed
-2026-10-17, phased; phases 0 and 1 done). It answers the meals, room-conditions and GM-tools
+**[Stores, aspects and the scene judge](stores-and-aspects-design.md): phases 0–7 done**
+(phase 7 mock-tested; its next real-model check needs the user's go-ahead). It answers the meals, room-conditions and GM-tools
 follow-ups below, replaces item conditions with keyed aspects (done), and removes the unused
 provisions counter (done).
 

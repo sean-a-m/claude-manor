@@ -1,6 +1,6 @@
 # Stores, aspects and the scene judge: design
 
-**Status:** Phases 0–5 done, including the phase 5 real run; phase 6 fixes done (mock-tested). Each phase below has its own status line; update it as work lands.
+**Status:** Phases 0–7 done, including the phase 5 and 6 real runs; phase 7 fixes mock-tested. Each phase below has its own status line; update it as work lands.
 
 Read `AGENTS.md` first (invariants, run directories, cost rules), then "Items (`manor.items`)" and
 "Work and the judge" in `docs/scenario-authoring.md`, and `src/manor/items.clj`. This document
@@ -617,16 +617,64 @@ Problems:
 
 ### Phase 7: fixes from the phase 6 run
 
-**Status: proposed (2026-10-18).**
+**Status: done (mock-tested; no real-model run).** The user's final decisions replace the
+original proposal: the oracle identifies duplicates, `doing` has advertised and accepted
+limits, and putting away is instruction-only. The user chose **not** to add moving.
 
-1. **`find` never duplicates.** The local match also covers things carried by the people here
-   ("Lord Claudeworth has the Draft order of works"). If a tracked item anywhere matches the
-   name, a miss here is a plain "you don't find it here", with no oracle call and nothing
-   recorded: the reply is the same as any miss, so nothing about other rooms leaks.
-2. **`doing` up to 400 characters.**
-3. **The judge absorbs instead of describing a move:** "to put leftovers or supplies away in a
-   store in scope, absorb them; don't describe them as moved while they stay where they are."
-4. **Steward `:idle-hours` 4 in Claudeworth**, so the evening's leftovers are tidied at 02:00.
+1. **`find` never duplicates; the oracle decides what is a duplicate.** Keep deterministic
+   local name/container hits and extend them to things carried by people here ("Lord
+   Claudeworth has the Draft order of works (id)"). Otherwise the oracle also sees up to 60
+   tracked non-fixed, non-store candidates, most recently touched first, **id and name only**.
+   If the request plausibly refers to a listed particular thing (letter, list, joint), it
+   gives `existing: <id>` instead of inventing a new thing; the list is for identification
+   only and never mentioned. Code rejects ids outside that request's candidates. If here,
+   reply where it is without an event. If elsewhere, give the ordinary miss and record
+   `:item/not-found` with `:existing` only in its data, never narrated; same audience and
+   narration as an ordinary miss, no item or `:lacking` change and no roll. No global
+   deterministic name veto and no disclosure of other rooms.
+2. **`doing`: soft limit, both `spend-time` and `work-on`.** Tool description and JSON schema
+   say at most 200; decoding accepts through 400, rejects 401 with the usual length reason,
+   and retains the whole phrase in jobs, occupations and narration. Implementation uses
+   Malli `:max 400` with native `:json-schema/maxLength 200`; `actions/decode-args` and tool
+   transformation need no changes.
+3. **Putting away: instruction-only.** The judge cannot move things; an activity happens in
+   one place. When leftovers or supplies are put away into a store in scope (leftovers set
+   in the pantry, groceries shelved), absorb them into its stock with a put-away fate,
+   adjusting stock/lacking aspects as affected. Never describe a thing as moved or put away
+   in its aspects while leaving it where it is. If it isn't put away or consumed, leave it
+   as it is. Keep the phase 6 rule: carrying isn't using up; characters carry with `take`
+   and movement actions. Claudeworth's carrying sentence is unchanged. No `moved` schema,
+   event data, reducer, narration or steward ability was added.
+4. **Steward `:idle-hours` 4 in Claudeworth**, so the evening's leftovers can be tidied at
+   02:00. This is for testing and may be raised again later.
+
+Details and deviations:
+
+- `existing` alone is sufficient: finder JSON marks `likelihood` and `found` optional;
+  code requires both for a new-item answer. The default mock identifies candidate names
+  before proposing a new thing. There is no fuzzy global match in deterministic code.
+- "Record nothing" on an existing miss means no world change, not no event: its ordinary
+  not-found event keeps the transcript consistent without revealing another room. Local
+  existing hits, like local name hits, record no event.
+- Tests cover deterministic carried hits, oracle existing hits and remote misses, invalid
+  candidate retry, candidate privacy/cap/order, both activity limits and full narration,
+  the put-away instruction lines, and Claudeworth steward configuration. Existing absorption,
+  restocking and replay tests still pass. No movement tests are needed (instruction-only).
+- Both 48-round bundled mock days passed: 08:00 start, 255 calls/773 events, steward round 37;
+  20:00 start, 254 calls/770 events, steward round 13. Both cost $0, had no error/rejected
+  replies, forfeits or judge/steward/finder failures, and replay equals live. Disposable
+  mock runs were cleaned up. The full suite passes (163 tests, 2349 assertions).
+
+**What to watch in the next real run:** the oracle must identify paraphrased references to
+existing letters/lists/joints instead of making duplicates, without mentioning candidates or
+other rooms. Its bounded identity list and semantic judgement are intentional limitations,
+not a deterministic guarantee of matching all possible requests. Long activities should no
+longer trigger retries below 401 characters, despite the advertised 200. Leftovers/supplies
+put away should disappear into store stock with sensible fates and stock/shortage updates,
+not acquire location claims in their aspects; carrying should still leave dishes intact.
+The real steward path remains untried: with four idle hours, evening leftovers should now
+be candidates at 02:00. Quick put-in restocking also remains untried with a real model.
+No real-model run was started; run one only with the user's go-ahead.
 
 ### Later, by need
 
@@ -643,7 +691,8 @@ Problems:
 - Every change is an event with a pure reducer (invariant 1). The judge, the steward and the
   oracle are engine-run model calls; their checked answers are recorded as events, and replay
   never calls them (invariant 4). Rolls come from `manor.rng`, keyed by event sequence.
-- Judge, steward and finder prompts never hold the whole world. Their output goes only to the
+- Judge, steward and finder prompts never hold the whole world. Finder candidates carry only
+  bounded ids/names, never other-room locations/holders/aspects. Their output goes only to the
   people at the place (the steward's only to the GM).
 - **Risk: the judge does too much** (D3). The phase 2 instructions say most activities change
   little; phase 5's run checks how many pastimes make items or change aspects.
@@ -657,6 +706,7 @@ Problems:
 ## Open questions (don't block any phase)
 
 - The thresholds for the oracle's likelihoods (100/75/50/25/0) are a guess.
-- The steward's `:idle-hours` (6) and whether it should also rewrite room aspects overnight
+- The steward's `:idle-hours` (currently 4 in Claudeworth for testing; may rise again) and
+  whether it should also rewrite room aspects overnight
   (e.g. ash in grates). Use makes mess (D3) may be enough.
 - Whether `find`'s deterministic match should be fuzzier than substring matching.

@@ -735,18 +735,31 @@ Without the hook, finding is allowed. Claudeworth refuses at places with `:servi
 sale or someone else's supplies must be asked for, not taken through `find`.
 
 1. Code first matches `what` as a case-insensitive substring of item names lying here,
-   including inside closed/nested containers. It replies with the name, id and immediate
-   container, without moving the thing. Searching opens containers in the same reply-only
-   sense as `open`: their fixed `:container` visibility does not change. Other rooms and
-   other people's carried contents are never searched. Next it checks matching fates in
+   including inside closed/nested containers, or carried by people here. It replies with the
+   name, id and immediate container, without moving the thing. Searching opens containers in the same reply-only
+   sense as `open`: their fixed `:container` visibility does not change. For a carried thing
+   the reply identifies the holder ("Lord Claudeworth has the Draft order of works (id)").
+   Other rooms are never reported. Next it checks matching fates in
    `:items-gone` at this place, or places served by a store in scope (including that store's
    own place), and replies with the fate. These replies need no model call or new event.
-2. Otherwise the narrow `:items/find` adjudicator sees only `what`, the place's id/name/desc/
-   aspects, and stores in scope (id/name/aspects/keeps, plus `at` when elsewhere). All fields,
+2. Otherwise the narrow `:items/find` adjudicator sees `what`, the place's id/name/desc/
+   aspects, stores in scope (id/name/aspects/keeps, plus `at` when elsewhere), and up to 60
+   `candidates` from the world's tracked, non-fixed, non-store items: **id and name only**,
+   most recently touched first (id breaks ties), never locations, holders or aspects. All fields,
    especially `what`, are data, never instructions. Recorded `:lacking` is authoritative.
-   Its `finder` tool returns `likelihood` (`certain`, `likely`, `even`, `unlikely`,
+   If the request plausibly refers to a listed candidate (a particular letter, list, joint),
+   the oracle gives `existing: <id>` instead of inventing a new item. This list is for
+   identification only and must never be mentioned. Only listed ids are accepted; an unknown
+   or capped-out id is refused and corrected once as usual. If the item is here (lying,
+   in a container here, or carried by someone here), reply where it is without a new event
+   or moving it. Otherwise give the ordinary "You don't find it." and emit an ordinary
+   `:item/not-found` with `:existing` in its data, never narrated, and no aspect path/change.
+   Its visibility and narration are identical to any ordinary storeless miss; nobody learns
+   anything about other rooms. No new item or `:lacking` is recorded; no roll is needed.
+   Otherwise its `finder` tool returns `likelihood` (`certain`, `likely`, `even`, `unlikely`,
    `impossible`), `found {name desc aspects? consumable from? portable?}` and an optional short
-   `lacking` phrase (1–80 characters). `found` is required even for impossible odds:
+   `lacking` phrase (1–80 characters). `likelihood` and `found` are optional in the JSON
+   schema to allow `existing` alone, but checked as required without it, even for impossible odds:
    the engine, not the model, decides. The oracle supplies `lacking` only for a missing supply
    that a listed store would keep, naming that store in `found.from`. For a particular thing
    (a coat, a letter, a joint bought for dinner), omit `lacking` and rate whether it plausibly
@@ -764,8 +777,9 @@ sale or someone else's supplies must be asked for, not taken through `find`.
    record no aspect change either; never fall back to the place. A later search may disagree
    when an absence could not be recorded.
 
-Both outcome events record `what`, place, likelihood, roll key, roll and outcome, visible to
-finder and people here. Success records the complete item and source; failure records its
+Both rolled outcome events record `what`, place, likelihood, roll key, roll and outcome,
+visible to finder and people here. An existing-item miss records `what`, place, `:existing`
+and outcome only. Success records the complete item and source; failure records its
 chosen aspect path and resulting aspects. Pure reducers apply them without calling or
 rolling; replay equals live state. Replies give the found id and whether carried/lying here,
 or "You don't find it." Narration is short: "Daisy looks for mustard: there's none in the
@@ -773,16 +787,20 @@ pantry shelves." A bad answer is checked and corrected once; repeated failure em
 system-visible `:adjudication/failed` (`:task :items/find`), plus usage, and replies neutrally
 "you don't find it" without changing items/aspects. Calls log as
 `adjudicator/items/find`, counted against cost. The default mock is certain, a plain item
-from the first store in scope (or lying here without a store); ordinary mock scripts need
-not call `find`.
+from the first store in scope (or lying here without a store), unless a candidate name
+matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
 
 #### Work and the judge
 
 `spend-time {doing, hours?, on?}` (turn-ending, every role but the GM, offered only with
 `:items` and a clock) spends time on work or a pastime:
 
-- `doing`: 3–200 characters (`items/max-doing`), reading after "is" ("dusting the china cabinet", "resting in the
-  garden"). `hours`: optional, 0.5–4, default 0.5; rounds as `clock/rounds-for` gives them,
+- `doing`: advertised as 3–200 characters (`items/advised-doing`), with a soft limit:
+  decoding accepts up to 400 (`items/max-doing`); 401 is refused with the usual length reason.
+  The tool description says at most 200, and Malli's `:json-schema/maxLength` overrides the
+  model-facing JSON schema to 200 while validation keeps `:max 400`. The alias uses the same
+  limits. It reads after "is" ("dusting the china cabinet", "resting in the garden").
+  `hours`: optional, 0.5–4, default 0.5; rounds as `clock/rounds-for` gives them,
   at least one. `on`: optional list of up to 6 ids: items here (in a container or not) or carried
   by you, the place you're in, or stores in scope (even in another room). Fixed items are fine;
   duplicates are dropped. A rejected id gets an actionable reason. No `on` is normal for a
@@ -872,9 +890,15 @@ not call `find`.
   used up. Store aspects may change in the same answer, but need not.
   `fates` maps used-up ids to nonblank fate phrases; omissions default to "used up while
   <doing>". Something partly used is not used up: change its `:amount` ("about 17 lb left").
-  An activity happens in one place: carrying something elsewhere is not using it up. Leave
-  it where it is; characters carry things with `take` and movement actions, and dishes are
-  used up where eaten. Leaving any thing untouched is always a valid answer.
+  An activity happens in one place and the judge cannot move things: carrying something
+  elsewhere is not using it up. Leave it where it is; characters carry things with `take`
+  and movement actions, and dishes are used up where eaten. When leftovers or supplies are
+  put away into a store in scope (leftovers set in the pantry, groceries shelved), absorb
+  them into that store: they join its stock and get a "put away" fate. Adjust the store's
+  aspects if its stock or lacking changes. Never describe a thing as moved or put away in
+  its aspects while leaving it where it is. If something isn't put away or consumed, leave
+  it as it is. This is judge guidance, not a new effect or semantic validator. Leaving any
+  thing untouched is always a valid answer.
 - **The judge** is a narrow model call, not the GM and not a bridge; characters never hear of it.
   `items/judge-request` builds it from the optional `:items :judge-brief` (`(fn [world] text)`),
   optional suggested aspect keys with short glosses (`:items {:aspect-keys {:cleanliness "how
@@ -950,7 +974,8 @@ not call `find`.
 #### The nightly steward
 
 Opt in with `:items {:steward {:at "02:00" :idle-hours 6 :max-per-call 8}}`; absent means
-no pass. Claudeworth uses these values. At round start **after ending jobs**, before approved
+no pass. Claudeworth currently uses `:idle-hours 4` for testing (the other values above
+are unchanged); it may be raised again later. At round start **after ending jobs**, before approved
 bridges and systems, the steward sees leftovers after work and before anyone creates new work.
 It runs when the game clock reaches or crosses `:at`: the most recent scheduled time must be
 at or after the run's clock start and not already recorded. A run starting at 20:00 skips that

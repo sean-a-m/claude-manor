@@ -132,7 +132,7 @@
             system (system-prompt run world "james-ward")]
         (testing "an operator's footman gets the footman's brief, address and situation"
           (is (str/includes? system "Your position: Footman. You live in.\nYou wait at table, answer the door"))
-          (is (str/includes? system "People address you as James."))
+          (is (str/includes? system "## Who you are\nYou are James Ward (id: james-ward), the footman. People address you as James."))
           (is (str/includes? system "## Your situation\nYou have just come to Claudeworth Manor")))
         (testing "his post is in the household, and he sleeps in the room he was given"
           (is (= {:position :footman :household "household" :since 0 :terms nil} (positions/post world "james-ward")))

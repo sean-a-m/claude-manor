@@ -45,19 +45,40 @@
    :faculties (into (array-map) (map (juxt :faculty (comp keyword :size))) (:faculties record))
    :circumstances (mapv :label (:circumstances record))})
 
-(defn readings
-  "One short line of an agent's own traits for their prompt, or nil if they
-  have none: \"... Temperament: openness high, .... Faculties: large
-  Acquisitiveness, .... Circumstances: drinks.\""
+;; What each term means, read from the people server's own data files (static
+;; data, as the architect's prices.edn is read), so there's one source.
+(def ^:private server-data #(edn/read-string (slurp (str "mcp-servers/people/" %))))
+
+(def axis-measures
+  "Big Five axis -> what it measures: {:openness \"curiosity, ...\"}."
+  (into {} (map (juxt :axis :measures)) (:axes (server-data "temperament.edn"))))
+
+(def faculty-means
+  "Faculty -> what the organ governs: {\"Alimentiveness\" \"appetite for food\"}."
+  (into {} (for [g (:groups (server-data "faculties.edn")) f (:faculties g)] [(:faculty f) (:means f)])))
+
+(defn- reading
+  "\"- Openness: average (curiosity, ...)\": a term, its level and what it means."
+  [term level meaning]
+  (str "- " term ": " (name level) (when meaning (str " (" meaning ")"))))
+
+(defn nature
+  "An agent's own traits for their prompt, one reading a line, each term with
+  what it means, or nil if they have none."
   [{:keys [temperament faculties circumstances]}]
-  (let [parts (cond-> []
-                (seq temperament) (conj (str "Temperament: "
-                                             (str/join ", " (for [[axis level] temperament] (str (name axis) " " (name level))))))
-                (seq faculties) (conj (str "Faculties: "
-                                           (str/join ", " (for [[faculty size] faculties] (str (name size) " " faculty)))))
-                (seq circumstances) (conj (str "Circumstances: " (str/join "; " circumstances))))]
-    (when (seq parts)
-      (str "Your traits, known only to you. " (str/join ". " parts) "."))))
+  (let [sections (cond-> []
+                   (seq temperament)
+                   (conj (str/join "\n" (cons "Temperament:"
+                                              (for [[axis level] temperament]
+                                                (reading (str/capitalize (name axis)) level (axis-measures axis))))))
+                   (seq faculties)
+                   (conj (str/join "\n" (cons "Phrenological faculties:"
+                                              (for [[faculty size] faculties]
+                                                (reading faculty size (faculty-means faculty))))))
+                   (seq circumstances)
+                   (conj (str/join "\n" (cons "Circumstances:" (map #(str "- " %) circumstances)))))]
+    (when (seq sections)
+      (str "### Your nature (known only to you)\n" (str/join "\n" sections)))))
 
 ;; ---------------------------------------------------------------------------
 ;; The polish: a base record (plus the setting, the position and any authored

@@ -103,6 +103,24 @@ Your view is private. Others only learn what is public or what someone tells the
   [brief & args]
   (if (fn? brief) (apply brief args) brief))
 
+(defn- who-you-are
+  "Who `agent-id` is, for their own prompt: their name and position (and
+  how they're addressed, when the run shows it), then their persona, how
+  strangers see them and their nature, each a paragraph of its own."
+  [world agent-id]
+  (let [a (w/agent world agent-id)
+        title (:title (positions/position world agent-id))
+        address (positions/addressed-as world agent-id)]
+    (str/join "\n\n" (remove str/blank?
+                             [(str "You are " (:name a) " (id: " agent-id ")"
+                                   (cond (= :none (:role a)) ", with no post at present"
+                                         title (str ", the " (str/lower-case title)))
+                                   "."
+                                   (when address (str " People address you as " address ".")))
+                              (:persona a)
+                              (when-not (str/blank? (:manner a)) (str "How strangers see you: " (:manner a)))
+                              (people/nature a)]))))
+
 (defn- agent-request
   "An agent's request: `preamble`, their role, who they are and their
   situation, then their view, notes and recent events, and `closing`. Their
@@ -115,12 +133,7 @@ Your view is private. Others only learn what is public or what someone tells the
     [{:role "system"
       :content (str preamble
                     "\n\n## Your role\n" (brief-text brief world agent-id)
-                    "\n\n## Who you are\nYou are " (:name a) " (id: " agent-id ")."
-                    (when-not (str/blank? (:persona a)) (str " " (:persona a)))
-                    (when-not (str/blank? (:manner a)) (str "\nTo a stranger you come across as: " (:manner a)))
-                    (when-let [r (people/readings a)] (str "\n" r))
-                    (when-let [address (positions/addressed-as world agent-id)]
-                      (str "\nPeople address you as " address "."))
+                    "\n\n## Who you are\n" (who-you-are world agent-id)
                     (when-not (str/blank? (:situation a)) (str "\n\n## Your situation\n" (:situation a))))}
      {:role "user"
       :content (str "# " (heading world)

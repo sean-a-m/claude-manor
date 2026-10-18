@@ -29,7 +29,7 @@
      :small "Gentle; cannot bring themselves to wring a chicken's neck."
      :moderate "Can be stern when sternness is wanted."
      :large "Hard and severe; a bad enemy, with a temper that breaks things."}
-    {:faculty "Alimentiveness" :means "appetite"
+    {:faculty "Alimentiveness" :means "appetite for food"
      :small "Eats like a bird and forgets mealtimes."
      :moderate "A good plain appetite."
      :large "Lives for meals; always peckish, and partial to the larder."}
@@ -103,19 +103,19 @@
      :small "A coarse touch, with little feeling in the hands."
      :moderate "An ordinary touch."
      :large "Fine, sensitive fingers; feels every draught and every crease."}
-    {:faculty "Taste" :means "taste"
+    {:faculty "Taste" :means "the sense of taste"
      :small "Can hardly tell beef from mutton."
      :moderate "Knows good food from bad."
      :large "A fine palate that can tell what went into a sauce."}
-    {:faculty "Smell" :means "smell"
+    {:faculty "Smell" :means "the sense of smell"
      :small "A poor nose that cannot smell gas or burning."
      :moderate "An ordinary nose."
      :large "A keen nose; smells damp, drink or smoke before anyone else."}
-    {:faculty "Hearing" :means "hearing"
+    {:faculty "Hearing" :means "the sense of hearing"
      :small "Hard of hearing in one ear, and apt to mishear."
      :moderate "Hears well enough."
      :large "Sharp ears that catch a whisper through a door."}
-    {:faculty "Sight" :means "sight"
+    {:faculty "Sight" :means "eyesight"
      :small "Short-sighted, and peers at things."
      :moderate "Good enough eyes."
      :large "Keen-eyed; misses nothing at a distance."}]}
@@ -137,7 +137,7 @@
      :small "Unsteady on the feet; drops things and trips on stairs."
      :moderate "Sure-footed enough."
      :large "Sure-footed and well balanced; carries a full tray up any stair."}
-    {:faculty "Colouring" :means "colour"
+    {:faculty "Colouring" :means "judging colour"
      :small "Cannot match one colour to another."
      :moderate "A fair eye for colour."
      :large "A fine eye for colour, and knows every shade."}]}

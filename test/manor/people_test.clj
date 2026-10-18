@@ -213,24 +213,45 @@
     (try
       (e/step! run)
       (e/wait-idle run)
-      (testing "Ada's own prompt shows her persona, then her manner and her readings"
+      (testing "Ada's own prompt shows who she is, her persona, then how strangers see her and her nature, a reading a line"
         (is (str/includes? (system-prompt run "ada")
-                           (str "An early riser who likes things orderly."
-                                "\nTo a stranger you come across as: Brisk with strangers, and plainly busy."
-                                "\nYour traits, known only to you. Temperament: openness low, conscientiousness high, "
-                                "extraversion average, agreeableness low, neuroticism high. Faculties: large Secretiveness, "
-                                "small Cautiousness, large Veneration, small Hearing, large Form, moderate Number, "
-                                "small Causality. Circumstances: a gambler (horses, cards); owes money."))))
+                           (str "## Who you are\nYou are Ada (id: ada).\n\n"
+                                "An early riser who likes things orderly.\n\n"
+                                "How strangers see you: Brisk with strangers, and plainly busy.\n\n"
+                                "### Your nature (known only to you)\n"
+                                "Temperament:\n"
+                                "- Openness: low (curiosity, imagination, willingness to entertain new ideas)\n"
+                                "- Conscientiousness: high (self-control, diligence, attention to detail)\n"
+                                "- Extraversion: average (boldness, energy, sociability)\n"
+                                "- Agreeableness: low (kindness, helpfulness, willingness to cooperate)\n"
+                                "- Neuroticism: high (irritability, anxiety, low spirits)\n"
+                                "Phrenological faculties:\n"
+                                "- Secretiveness: large (tact, concealment)\n"
+                                "- Cautiousness: small (fear, prudence)\n"
+                                "- Veneration: large (reverence, respect for authority)\n"
+                                "- Hearing: small (the sense of hearing)\n"
+                                "- Form: large (memory for shapes and faces)\n"
+                                "- Number: moderate (arithmetic)\n"
+                                "- Causality: small (cause and effect)\n"
+                                "Circumstances:\n"
+                                "- a gambler (horses, cards)\n"
+                                "- owes money"))))
+      (testing "every term's meaning comes from the people server's data"
+        (is (= (set (map :axis (:axes (data "temperament.edn")))) (set (keys people/axis-measures))))
+        (is (= (count (mapcat :faculties (:groups (data "faculties.edn")))) (count people/faculty-means)))
+        (is (every? (comp not str/blank?) (concat (vals people/axis-measures) (vals people/faculty-means)))))
       (testing "nobody else's view or prompt contains them"
         (let [ben (whole-prompt run "ben")]
-          (doseq [secret ["Brisk with strangers" "Secretiveness" "Veneration" "owes money" "gambler" "neuroticism"
-                          "early riser"]]
+          (doseq [secret ["Brisk with strangers" "Secretiveness" "Veneration" "owes money" "gambler" "Neuroticism"
+                          "tact, concealment" "Your nature" "early riser"]]
             (is (not (str/includes? ben secret)) secret))))
       (testing "her own view (the JSON) doesn't carry them either; the prompt says them once"
         (is (not (str/includes? (pr-str (prompt/agent-view (:scenario run) (e/world run) "ada")) "Secretiveness"))))
-      (testing "a character with no traits is prompted exactly as before"
+      (testing "a character with no traits is prompted as before: their name, then their persona"
         (is (= (system-prompt plain "ben") (system-prompt run "ben")))
-        (is (not (str/includes? (system-prompt plain "ada") "Your traits"))))
+        (is (str/includes? (system-prompt plain "ben") "## Who you are\nYou are Ben (id: ben).\n\nA night owl who hates going to bed."))
+        (is (not (str/includes? (system-prompt plain "ada") "Your nature")))
+        (is (not (str/includes? (system-prompt plain "ada") "How strangers see you"))))
       (finally (e/stop-run run) (e/stop-run plain)))))
 
 ;; ---------------------------------------------------------------------------

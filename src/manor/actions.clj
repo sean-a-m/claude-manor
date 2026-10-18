@@ -122,8 +122,9 @@
     (str/blank? s) {}
     :else (json/read-value s json/keyword-keys-object-mapper)))
 
-(defn- kebab-key
-  "Models often rewrite parameter names as snake_case or camelCase."
+(defn kebab-key
+  "Models often rewrite parameter names as snake_case or camelCase. Also
+  used for the names of aspects in the work judge's answers."
   [k]
   (-> (name k)
       (str/replace #"([a-z0-9])([A-Z])" "$1-$2")

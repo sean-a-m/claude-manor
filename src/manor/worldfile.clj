@@ -6,13 +6,14 @@
             :minutes-per-round 30}
      :locations [{:id \"entrance-hall\" :name \"Entrance hall\" :desc \"...\"
                   :connects-to [\"study\" \"drawing-room\"]   ; next door: :travel 0
+                  :aspects {:cleanliness \"dusty\"}          ; optional, see manor.items
                   :domain :house :floor :ground}            ; any other keys are kept
                  ...]
      :routes [[\"carriage-sweep\" \"village-green\" 1]       ; journeys, as in :space
               [\"cliff\" \"beach\" 1 :one-way]]
      :agents [{:name \"Hale\" :role :secretary :location \"study\"}]
      :items [{:id \"pocket-watch\" :name \"Pocket watch\" :holder \"Hale\"   ; optional, see manor.items
-              :owner \"Hale\" :condition \"keeping good time\" :desc \"...\"}]
+              :owner \"Hale\" :aspects {:state \"keeping good time\"} :desc \"...\"}]
      ...}                                                   ; anything else is the scenario's
 
   `:connects-to` is undirected: listing a neighbour on either side is enough.
@@ -38,6 +39,7 @@
    [:id [:re #"^[a-z0-9][a-z0-9_-]*$"]]
    [:name [:string {:min 1}]]
    [:desc {:optional true} :string]
+   [:aspects {:optional true} :any]          ; checked by `problems`, for a readable message
    [:connects-to {:optional true} [:vector :string]]])
 
 (def WorldFile
@@ -92,6 +94,11 @@
                   :when (or (not (known to)) (= to id))]
               (str "location " (pr-str id) ": :connects-to "
                    (if (= to id) "names the location itself" (str "names unknown location " (pr-str to)))))
+            (for [{:keys [id] :as loc} (:locations wf)
+                  :when (contains? loc :aspects)
+                  :let [e (m/explain items/Aspects (:aspects loc))]
+                  :when e]
+              (str "location " (pr-str id) ": " (pr-str {:aspects (me/humanize e)})))
             (mapcat #(route-problems known %) (:routes wf))
             (for [{:keys [name location]} (:agents wf)
                   :when (and location (not (known location)))]
@@ -159,7 +166,7 @@
 
 (defn- export-items
   "The live items, in `start`'s order with new ones after, holders and agent
-  owners as names again."
+  owners as names again, and without :touched (it's the run's, not the map's)."
   [world start]
   (let [agent-name #(:name (w/agent world %))
         live (into {} (map (juxt :id identity)) (items/all world))
@@ -167,7 +174,7 @@
         order (concat (filter live orig) (sort (remove (set orig) (keys live))))]
     (vec (for [id order
                :let [it (live id)]]
-           (cond-> it
+           (cond-> (dissoc it :touched)
              (:holder it) (update :holder #(or (agent-name %) %))
              (agent-name (:owner it)) (update :owner agent-name))))))
 
@@ -195,7 +202,7 @@
 
 (def ^:private key-order [:id :name])
 
-(def ^:private item-key-order [:id :name :place :in :holder :owner :fixed? :consumable? :container :condition :desc])
+(def ^:private item-key-order [:id :name :place :in :holder :owner :fixed? :consumable? :container :aspects :desc])
 
 (defn- location-str
   "One location per line: :id and :name first, :connects-to, :desc and
@@ -208,7 +215,7 @@
     (str "{" (str/join " " (for [k ks :when (contains? loc k)] (str (pr-str k) " " (pr-str (get loc k))))) "}")))
 
 (defn- item-str
-  "One item per line: :id and :name first, :condition and :desc last."
+  "One item per line: :id and :name first, :aspects and :desc last."
   [it]
   (str "{" (str/join " " (for [k item-key-order :when (contains? it k)] (str (pr-str k) " " (pr-str (get it k))))) "}"))
 

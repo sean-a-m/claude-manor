@@ -25,15 +25,15 @@
   "In the hall: an open shelf with a cup and an open tray (holding a spoon),
   and a closed cupboard with a candle, a fixed hook and a closed box (holding
   a key)."
-  [{:id "shelf" :name "Shelf" :place "hall" :fixed? true :container :open :condition "dusty" :desc "A plank shelf on brackets."}
-   {:id "cup" :name "Cup" :in "shelf" :condition "chipped" :desc "A tin cup."}
-   {:id "tray" :name "Tray" :in "shelf" :container :open :condition "sticky" :desc "A japanned tray."}
-   {:id "spoon" :name "Spoon" :in "tray" :condition "bent" :desc "A pewter spoon."}
-   {:id "cupboard" :name "Cupboard" :place "hall" :fixed? true :container :closed :condition "shut tight" :desc "A tall painted cupboard."}
-   {:id "candle" :name "Candle" :in "cupboard" :condition "half burnt" :desc "A tallow candle."}
-   {:id "hook" :name "Hook" :in "cupboard" :fixed? true :condition "firm" :desc "A brass hook inside the door."}
-   {:id "box" :name "Box" :in "cupboard" :container :closed :condition "dented" :desc "A small tin box."}
-   {:id "key" :name "Key" :in "box" :condition "rusty" :desc "An iron key."}])
+  [{:id "shelf" :name "Shelf" :place "hall" :fixed? true :container :open :aspects {:cleanliness "dusty"} :desc "A plank shelf on brackets."}
+   {:id "cup" :name "Cup" :in "shelf" :aspects {:state "chipped"} :desc "A tin cup."}
+   {:id "tray" :name "Tray" :in "shelf" :container :open :aspects {:state "sticky"} :desc "A japanned tray."}
+   {:id "spoon" :name "Spoon" :in "tray" :aspects {:state "bent"} :desc "A pewter spoon."}
+   {:id "cupboard" :name "Cupboard" :place "hall" :fixed? true :container :closed :aspects {:state "shut tight"} :desc "A tall painted cupboard."}
+   {:id "candle" :name "Candle" :in "cupboard" :aspects {:state "half burnt"} :desc "A tallow candle."}
+   {:id "hook" :name "Hook" :in "cupboard" :fixed? true :aspects {:state "firm"} :desc "A brass hook inside the door."}
+   {:id "box" :name "Box" :in "cupboard" :container :closed :aspects {:state "dented"} :desc "A small tin box."}
+   {:id "key" :name "Key" :in "box" :aspects {:state "rusty"} :desc "An iron key."}])
 
 (def world-file
   (update (wf/read-file "test/fixtures/hamlet.edn") :items into containers))
@@ -97,11 +97,11 @@
 (deftest new-items-in-containers
   (let [run (start)
         world (e/world run)
-        e (items/added world {:name "Candle" :desc "Another candle." :condition "new" :in "cupboard"} :gm)]
+        e (items/added world {:name "Candle" :desc "Another candle." :aspects {:state "new"} :in "cupboard"} :gm)]
     (is (= "candle-2" (get-in e [:data :item :id])))
     (is (= "Item added to the cupboard: Candle." (n/describe e (n/names world))))
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"\"umbrella\" is not a container"
-                          (items/added world {:name "Candle" :desc "x" :condition "new" :in "umbrella"} :gm)))
+                          (items/added world {:name "Candle" :desc "x" :aspects {:state "new"} :in "umbrella"} :gm)))
     (e/stop-run run)))
 
 ;; ---------------------------------------------------------------------------
@@ -140,11 +140,11 @@
                (nth (get-in (prompt/agent-view (:scenario run) emptied "ada") [:location :here :items]) 2)))))
     (testing "look: the same, in detail"
       (let [seen (:items (items/look world "ada"))]
-        (is (= {:id "cupboard" :name "Cupboard" :desc "A tall painted cupboard." :condition "shut tight"
+        (is (= {:id "cupboard" :name "Cupboard" :desc "A tall painted cupboard." :aspects {:state "shut tight"}
                 :fixed? true :closed true}
                (first seen)))
-        (is (= {:id "tray" :name "Tray" :desc "A japanned tray." :condition "sticky"
-                :contents [{:id "spoon" :name "Spoon" :desc "A pewter spoon." :condition "bent"}]}
+        (is (= {:id "tray" :name "Tray" :desc "A japanned tray." :aspects {:state "sticky"}
+                :contents [{:id "spoon" :name "Spoon" :desc "A pewter spoon." :aspects {:state "bent"}}]}
                (get-in (nth seen 2) [:contents 1])))))
     (testing "nothing in the cupboard reaches a view or look"
       (doseq [s [(pr-str (prompt/agent-view (:scenario run) world "ada")) (pr-str (items/look world "ada"))]
@@ -165,12 +165,12 @@
       (is (not (a/allowed? open :gm)))
       (is (empty? (a/effect-events open world "ada" {:container "cupboard"}))))
     (testing "the contents in detail; an inner closed container stays closed"
-      (is (= {:name "Cupboard" :condition "shut tight"
-              :contents [{:id "box" :name "Box" :desc "A small tin box." :condition "dented" :closed true}
-                         {:id "candle" :name "Candle" :desc "A tallow candle." :condition "half burnt"}
-                         {:id "hook" :name "Hook" :desc "A brass hook inside the door." :condition "firm" :fixed? true}]}
+      (is (= {:name "Cupboard" :aspects {:state "shut tight"}
+              :contents [{:id "box" :name "Box" :desc "A small tin box." :aspects {:state "dented"} :closed true}
+                         {:id "candle" :name "Candle" :desc "A tallow candle." :aspects {:state "half burnt"}}
+                         {:id "hook" :name "Hook" :desc "A brass hook inside the door." :aspects {:state "firm"} :fixed? true}]}
              (reply world "cupboard")))
-      (is (= [{:id "key" :name "Key" :desc "An iron key." :condition "rusty"}]
+      (is (= [{:id "key" :name "Key" :desc "An iron key." :aspects {:state "rusty"}}]
              (:contents (reply world "box"))) "a known id inside a closed container opens too"))
     (testing "open containers can be opened as well"
       (is (= ["cup" "tray"] (ids (:contents (reply world "shelf"))))))
@@ -257,7 +257,7 @@
       (is (str/includes? (:content (first (:messages (items/judge-request (:scenario run) world job {:minutes 60} reach))))
                          "A thing listed with `in` is inside another")))
     (testing "an item named alone shows no :in, since its container isn't in reach"
-      (is (= [{:id "key" :name "Key" :desc "An iron key." :condition "rusty"}]
+      (is (= [{:id "key" :name "Key" :desc "An iron key." :aspects {:state "rusty"}}]
              (-> (items/judge-request (:scenario run) world (assoc job :items ["key"]) {:minutes 30}
                                       (items/in-reach world (assoc job :items ["key"])))
                  :messages second :content (->> (re-find #"(?s)```json\n(.*)\n```") second)
@@ -265,10 +265,10 @@
     (testing "the judge may change what's inside"
       (let [{:keys [verdict]} (items/judgement {:tool-calls [{:id "j" :name "judge"
                                                               :arguments (json/write-value-as-string
-                                                                          {:changes [{:item "key" :condition "oiled"}]
+                                                                          {:changes [{:thing "key" :aspect "state" :value "oiled"}]
                                                                            :summary "Ben cleaned it out."})}]}
                                                reach)]
-        (is (= [{:item "key" :from "rusty" :to "oiled"}] (:changes verdict)))))
+        (is (= [{:item "key" :aspect :state :from "rusty" :to "oiled"}] (:changes verdict)))))
     (testing "work-on accepts things inside containers here"
       (is (nil? (a/check (action run :work-on) world "ben" {:items ["key" "cup"] :doing "oiling the key"}))))
     (e/stop-run run)))
@@ -323,6 +323,6 @@
         (is (= :closed (:container (by-id "cupboard"))))
         (is (str/includes? (slurp path) "{:id \"shelf\" :name \"Shelf\" :place \"hall\" :fixed? true :container :open"))
         (let [r2 (start {:world-file path})]
-          (is (= (items/all world) (items/all (e/world r2))))
+          (is (= (map #(dissoc % :touched) (items/all world)) (items/all (e/world r2))))
           (e/stop-run r2))))
     (e/stop-run run)))

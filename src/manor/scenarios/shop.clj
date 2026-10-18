@@ -16,10 +16,8 @@
 
 (def max-unit-price 240000) ; £1000: bound untrusted arithmetic, not a price list
 (def max-quantity 20)
-;; A parcel's condition is "<amount>; <condition>": "20 × " + unit + "; " + condition
-;; stays within items/max-condition (5 + 30 + 2 + 40 = 77).
+;; A parcel's :amount aspect, "20 × " + unit, stays within items/max-aspect.
 (def max-unit 30)
-(def max-goods-condition 40)
 
 (defn- text-schema [limit] [:string {:min 1 :max limit}])
 
@@ -30,7 +28,7 @@
    [:item {:optional true} (text-schema items/max-name)]
    [:unit {:optional true} (text-schema max-unit)]
    [:desc {:optional true} (text-schema items/max-desc)]
-   [:condition {:optional true} (text-schema max-goods-condition)]
+   [:condition {:optional true} (text-schema items/max-aspect)]
    [:consumable {:optional true} :boolean]
    [:unit-price-pence {:optional true} [:int {:min 1 :max max-unit-price}]]])
 
@@ -157,13 +155,14 @@
                        (money/display (get-in world [:state :household :funds]))))))))
 
 (defn buy-events
-  "The purchase, and one parcel of the goods for the buyer: the amount
-  bought leads its condition, where work can later say what's left."
+  "The purchase, and one parcel of the goods for the buyer: its :amount
+  aspect is the amount bought, where work can later say what's left, and
+  its :state the appraised condition."
   [world buyer {:keys [quote-id]}]
   (let [quote (get-in world [:state :quotes quote-id])
         audience (space/here world buyer)
         bought (amount (:qty quote) (:unit quote))
-        item (cond-> {:name (:item quote) :desc (:desc quote) :condition (str bought "; " (:condition quote))
+        item (cond-> {:name (:item quote) :desc (:desc quote) :aspects {:amount bought :state (:condition quote)}
                       :holder buyer :owner "household"}
                (:consumable quote) (assoc :consumable? true))]
     [{:type :claudeworth/bought :visible-to audience

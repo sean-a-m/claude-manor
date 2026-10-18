@@ -62,7 +62,7 @@
           (is (= ["canteen-of-cutlery" "silver-candlesticks" "table-linen"] (map :id (items/contents world "sideboard"))))
           (is (= ["blacking-brushes" "kettle" "saucepans"] (map :id (items/contents world "kitchen-dresser"))))
           (is (= "kitchen" (:place (items/item world "sugar-jar"))))
-          (is (= "empty" (:condition (items/item world "sugar-jar"))))
+          (is (= {:state "empty"} (:aspects (items/item world "sugar-jar"))))
           (is (empty? (items/contents world "sugar-jar")))))
       (e/auto! run 12)
       (is (= :idle (e/wait-idle run 120000)))

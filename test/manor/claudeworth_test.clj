@@ -458,7 +458,7 @@
             seen (json/read-value (:content (first (:replies call))) json/keyword-keys-object-mapper)]
         (is (= "lady-claudeworth" (:agent call)))
         (is (= "Drawing room" (get-in seen [:place :name])))
-        (is (= "dusty, the glass smeared" (:condition (first (filter #(= "china-cabinet" (:id %)) (:items seen))))))))
+        (is (= {:cleanliness "dusty, the glass smeared"} (:aspects (first (filter #(= "china-cabinet" (:id %)) (:items seen))))))))
     (testing "the countess carries the candlesticks from the dining room to the drawing room"
       (is (= {:item "silver-candlesticks" :from-place "dining-room"}
              (:data (first (by "lady-claudeworth" (of-type run :item/taken))))))
@@ -613,7 +613,7 @@
                           ["carriage-sweep" "motor car"] ["study" "ledgers"]]]
         (is (not (str/includes? (str/lower-case (:desc (space/location world loc))) word)) loc)))
     (testing "Hale's view lists what he carries, and the shop says to ask its clerk"
-      (is (= [{:id "pocket-notebook" :name "Pocket notebook" :condition "half full"}]
+      (is (= [{:id "pocket-notebook" :name "Pocket notebook" :aspects {:state "half full"}}]
              (get-in (prompt/agent-view (:scenario run) world "hale") [:you :carrying])))
       (is (str/includes? (get-in (cw/observe shop "hale") [:here :service]) "shopkeeper"))
       (is (not (contains? (:here (cw/observe shop "hale")) :sells))))
@@ -622,15 +622,17 @@
             seen (items/look room "hale")]
         (is (= "Drawing room" (get-in seen [:place :name])))
         (is (str/starts-with? (get-in seen [:place :detail]) "Faded rose wallpaper"))
-        (is (= [["china-cabinet" "household" true "dusty, the glass smeared"] ["piano" "household" true "a little out of tune"]]
-               (map (juxt :id :owner :fixed? :condition) (:items seen))))
+        (is (= [["china-cabinet" "household" true {:cleanliness "dusty, the glass smeared"}]
+                ["piano" "household" true {:repair "a little out of tune"}]]
+               (map (juxt :id :owner :fixed? :aspects) (:items seen))))
         (is (= ["pocket-watch"]
                (->> (:people seen) (filter #(= "Lord Claudeworth" (:name %))) first :carrying (map :id))))
         (is (not (contains? (get-in (prompt/agent-view (:scenario run) room "hale") [:location :here]) :detail)))))
     (testing "a few rooms have a :detail"
       (is (every? #(:detail (space/location world %)) ["drawing-room" "study" "general-store"])))
     (testing "the rules say the item actions are free, and what look shows"
-      (is (str/includes? (cw/rules world) "`look` shows them in detail, with their descriptions, conditions and owners"))
+      (is (str/includes? (cw/rules world) "`look` shows them in detail, with their descriptions, owners and aspects"))
+      (is (str/includes? (cw/rules world) "The room's own aspects (its floor, hearth and air) are under `here` in your view."))
       (is (str/includes? (cw/rules world) "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn")))
     (testing "the rules and the judge both take everyday things as to hand"
       (let [judge-brief ((get-in (:scenario run) [:items :judge-brief]) world)]
@@ -640,7 +642,7 @@
     (e/stop-run run))
   (testing "leaving Mr Pugh out leaves out what he holds"
     (let [with-pugh (update (wf/read-file fixture/world-file) :items conj
-                            {:id "set-square" :name "Set square" :holder "Pugh" :condition "true" :desc "A brass set square."})
+                            {:id "set-square" :name "Set square" :holder "Pugh" :aspects {:state "true"} :desc "A brass set square."})
           file-name (str (gensym "pugh-items-") ".edn")
           _ (store/write-text! store/test-runs-root file-name (wf/->edn-string with-pugh))
           source (str (io/file store/test-runs-root file-name))
@@ -676,13 +678,13 @@
                (mapv (fn [e] [(get-in e [:data :started]) (get-in e [:data :due]) (get-in e [:data :items])]) begun)))
         (is (= (mapv #(get-in % [:data :id]) begun) (mapv #(get-in % [:data :job]) done)))
         (is (every? #(seq (get-in % [:data :changes])) done))
-        (is (every? #(= "just seen to" (get-in % [:data :changes 0 :to])) done))
+        (is (every? #(= {:aspect :cleanliness :to "just seen to"} (select-keys (get-in % [:data :changes 0]) [:aspect :to])) done))
         (is (= 5 (count (filter #(= "judge" (:agent %)) calls))))
         (testing "the cabinet is dusty until the job that dusts it finishes"
           (let [due (get-in (first (filter #(= ["china-cabinet"] (get-in % [:data :items])) begun)) [:data :due])
                 before (w/replay (take-while #(< (:round %) due) evs))]
-            (is (= "dusty, the glass smeared" (:condition (items/item before "china-cabinet"))))
-            (is (= "just seen to" (:condition (items/item world "china-cabinet"))))))))
+            (is (= {:cleanliness "dusty, the glass smeared"} (:aspects (items/item before "china-cabinet"))))
+            (is (= {:cleanliness "just seen to"} (:aspects (items/item world "china-cabinet"))))))))
     (testing "the first judge call was given the setting, the worker and the item"
       (let [[call] (filter #(= "judge" (:agent %)) calls)]
         (is (str/includes? (:content (first (:messages call))) (str "## The setting\n" (get-in world [:state :setting]))))

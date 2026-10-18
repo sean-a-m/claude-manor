@@ -108,30 +108,30 @@
  ;; things in the world; :holder and an agent :owner are agent names (see manor.items).
  ;; A :container holds things :in it: :open shows them to the room, :closed only to `open`.
  :items
- [{:id "stags-head" :name "Stag's head" :place "entrance-hall" :owner "household" :fixed? true :condition "dusty, one glass eye loose" :desc "A mounted twelve-pointer above the fireplace, shot by the sixth earl."}
-  {:id "piano" :name "Piano" :place "drawing-room" :owner "household" :fixed? true :condition "a little out of tune" :desc "An upright rosewood piano with brass candle sconces."}
-  {:id "china-cabinet" :name "China cabinet" :place "drawing-room" :owner "household" :fixed? true :container :open :condition "dusty, the glass smeared" :desc "A glass-fronted walnut cabinet on slender legs, for the family's Meissen."}
-  {:id "meissen-shepherdess" :name "Meissen shepherdess" :in "china-cabinet" :owner "household" :condition "dusty" :desc "A porcelain shepherdess in a flowered gown, with a crook and a lamb at her feet."}
-  {:id "meissen-harlequin" :name "Meissen harlequin" :in "china-cabinet" :owner "household" :condition "dusty" :desc "A porcelain harlequin in a chequered suit, caught in mid-leap."}
-  {:id "meissen-pug" :name "Meissen pug" :in "china-cabinet" :owner "household" :condition "dusty" :desc "A porcelain pug in a gilt collar with a bell, its ears painted black."}
-  {:id "estate-ledgers" :name "Estate ledgers" :place "study" :owner "household" :condition "in good order" :desc "Three tall ledgers bound in green leather: rents, wages and household accounts."}
-  {:id "family-portrait" :name "Family portrait" :place "dining-room" :owner "household" :fixed? true :condition "darkened with old varnish" :desc "A gloomy full-length portrait of the third earl in a powdered wig, in a heavy gilt frame."}
-  {:id "sideboard" :name "Sideboard" :place "dining-room" :owner "household" :fixed? true :container :closed :condition "polished, a ring mark on the top" :desc "A long mahogany sideboard with cupboards below and baize-lined drawers for the plate."}
-  {:id "silver-candlesticks" :name "Silver candlesticks" :in "sideboard" :owner "household" :condition "tarnished" :desc "A pair of Georgian silver candlesticks with fluted columns."}
-  {:id "canteen-of-cutlery" :name "Canteen of cutlery" :in "sideboard" :owner "household" :condition "complete, the forks tarnished" :desc "An oak case of silver cutlery for twelve, each piece in its own green baize slot."}
-  {:id "table-linen" :name "Table linen" :in "sideboard" :owner "household" :condition "starched and folded" :desc "Damask tablecloths and napkins woven with the Claudeworth arms."}
-  {:id "kitchen-range" :name "Kitchen range" :place "kitchen" :owner "household" :fixed? true :condition "cold and unlit" :desc "A black cast-iron range with two ovens and a boiler."}
-  {:id "kitchen-dresser" :name "Kitchen dresser" :place "kitchen" :owner "household" :fixed? true :container :open :condition "scrubbed" :desc "A tall deal dresser with open shelves above a broad worktop."}
-  {:id "pantry-shelves" :name "Pantry shelves" :place "pantry" :owner "household" :fixed? true :container :open :condition "well stocked with the household's staples"
+ [{:id "stags-head" :name "Stag's head" :place "entrance-hall" :owner "household" :fixed? true :aspects {:cleanliness "dusty" :repair "one glass eye loose"} :desc "A mounted twelve-pointer above the fireplace, shot by the sixth earl."}
+  {:id "piano" :name "Piano" :place "drawing-room" :owner "household" :fixed? true :aspects {:repair "a little out of tune"} :desc "An upright rosewood piano with brass candle sconces."}
+  {:id "china-cabinet" :name "China cabinet" :place "drawing-room" :owner "household" :fixed? true :container :open :aspects {:cleanliness "dusty, the glass smeared"} :desc "A glass-fronted walnut cabinet on slender legs, for the family's Meissen."}
+  {:id "meissen-shepherdess" :name "Meissen shepherdess" :in "china-cabinet" :owner "household" :aspects {:cleanliness "dusty"} :desc "A porcelain shepherdess in a flowered gown, with a crook and a lamb at her feet."}
+  {:id "meissen-harlequin" :name "Meissen harlequin" :in "china-cabinet" :owner "household" :aspects {:cleanliness "dusty"} :desc "A porcelain harlequin in a chequered suit, caught in mid-leap."}
+  {:id "meissen-pug" :name "Meissen pug" :in "china-cabinet" :owner "household" :aspects {:cleanliness "dusty"} :desc "A porcelain pug in a gilt collar with a bell, its ears painted black."}
+  {:id "estate-ledgers" :name "Estate ledgers" :place "study" :owner "household" :aspects {:state "in good order"} :desc "Three tall ledgers bound in green leather: rents, wages and household accounts."}
+  {:id "family-portrait" :name "Family portrait" :place "dining-room" :owner "household" :fixed? true :aspects {:repair "darkened with old varnish"} :desc "A gloomy full-length portrait of the third earl in a powdered wig, in a heavy gilt frame."}
+  {:id "sideboard" :name "Sideboard" :place "dining-room" :owner "household" :fixed? true :container :closed :aspects {:cleanliness "polished" :repair "a ring mark on the top"} :desc "A long mahogany sideboard with cupboards below and baize-lined drawers for the plate."}
+  {:id "silver-candlesticks" :name "Silver candlesticks" :in "sideboard" :owner "household" :aspects {:cleanliness "tarnished"} :desc "A pair of Georgian silver candlesticks with fluted columns."}
+  {:id "canteen-of-cutlery" :name "Canteen of cutlery" :in "sideboard" :owner "household" :aspects {:state "complete" :cleanliness "the forks tarnished"} :desc "An oak case of silver cutlery for twelve, each piece in its own green baize slot."}
+  {:id "table-linen" :name "Table linen" :in "sideboard" :owner "household" :aspects {:state "starched and folded"} :desc "Damask tablecloths and napkins woven with the Claudeworth arms."}
+  {:id "kitchen-range" :name "Kitchen range" :place "kitchen" :owner "household" :fixed? true :aspects {:state "cold and unlit"} :desc "A black cast-iron range with two ovens and a boiler."}
+  {:id "kitchen-dresser" :name "Kitchen dresser" :place "kitchen" :owner "household" :fixed? true :container :open :aspects {:cleanliness "scrubbed"} :desc "A tall deal dresser with open shelves above a broad worktop."}
+  {:id "pantry-shelves" :name "Pantry shelves" :place "pantry" :owner "household" :fixed? true :container :open :aspects {:stock "well stocked with the household's staples"}
    :desc "Stout wooden shelves fixed along the pantry wall, ready for jars, packets and other provisions."}
-  {:id "sugar-jar" :name "Sugar jar" :place "kitchen" :owner "household" :container :open :condition "empty"
+  {:id "sugar-jar" :name "Sugar jar" :place "kitchen" :owner "household" :container :open :aspects {:state "empty"}
    :desc "An empty white earthenware sugar jar on the kitchen worktop, its lid beside it. Not a grain of sugar remains inside."}
-  {:id "kettle" :name "Kettle" :in "kitchen-dresser" :owner "household" :condition "cold, the spout furred" :desc "A big copper kettle with a swing handle."}
-  {:id "saucepans" :name "Saucepans" :in "kitchen-dresser" :owner "household" :condition "clean but dented" :desc "A nest of iron saucepans, the largest at the bottom."}
-  {:id "blacking-brushes" :name "Blacking brushes" :in "kitchen-dresser" :owner "household" :condition "stiff with old blacklead" :desc "A tin of blacklead and two brushes: one to put it on, one to polish."}
-  {:id "motor-car" :name "Motor car" :place "carriage-sweep" :owner "household" :fixed? true :condition "polished" :desc "A green Daimler tourer with brass lamps, rather out of place before the house."}
-  {:id "pocket-watch" :name "Pocket watch" :holder "Lord Claudeworth" :owner "Lord Claudeworth" :condition "keeping good time" :desc "A gold half-hunter on a chain, engraved with the Claudeworth arms."}
-  {:id "pocket-notebook" :name "Pocket notebook" :holder "Hale" :owner "Hale" :condition "half full" :desc "A small black notebook with a pencil in its spine, for his lordship's instructions."}]
+  {:id "kettle" :name "Kettle" :in "kitchen-dresser" :owner "household" :aspects {:state "cold" :cleanliness "the spout furred"} :desc "A big copper kettle with a swing handle."}
+  {:id "saucepans" :name "Saucepans" :in "kitchen-dresser" :owner "household" :aspects {:cleanliness "clean" :repair "dented"} :desc "A nest of iron saucepans, the largest at the bottom."}
+  {:id "blacking-brushes" :name "Blacking brushes" :in "kitchen-dresser" :owner "household" :aspects {:cleanliness "stiff with old blacklead"} :desc "A tin of blacklead and two brushes: one to put it on, one to polish."}
+  {:id "motor-car" :name "Motor car" :place "carriage-sweep" :owner "household" :fixed? true :aspects {:cleanliness "polished"} :desc "A green Daimler tourer with brass lamps, rather out of place before the house."}
+  {:id "pocket-watch" :name "Pocket watch" :holder "Lord Claudeworth" :owner "Lord Claudeworth" :aspects {:state "keeping good time"} :desc "A gold half-hunter on a chain, engraved with the Claudeworth arms."}
+  {:id "pocket-notebook" :name "Pocket notebook" :holder "Hale" :owner "Hale" :aspects {:state "half full"} :desc "A small black notebook with a pencil in its spine, for his lordship's instructions."}]
 
  :agents
  [{:name "Lord Claudeworth" :role :earl :location "earls-bedroom" :bedroom "earls-bedroom"

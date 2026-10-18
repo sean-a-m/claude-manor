@@ -1,7 +1,7 @@
 {:meta {:name "Hamlet" :start "1904-10-15T21:00" :minutes-per-round 30}
 
  :locations
- [{:id "hall" :name "Hall" :domain :house :floor :ground :connects-to ["bedroom" "porch"] :desc "A small hall."
+ [{:id "hall" :name "Hall" :aspects {:cleanliness "muddy boot prints by the door" :hearth "cold ash in the grate"} :domain :house :floor :ground :connects-to ["bedroom" "porch"] :desc "A small hall."
    :detail "Coats on pegs, a worn rug, and a smell of pipe smoke."}
   {:id "bedroom" :name "Bedroom" :domain :house :floor :first :kind :bedroom}
   {:id "porch" :name "Porch" :domain :house :floor :ground}
@@ -18,9 +18,9 @@
   {:name "Ben" :role :resident :location "hall" :persona "A night owl who hates going to bed."}]
 
  :items
- [{:id "clock" :name "Grandfather clock" :place "hall" :owner "Ada" :fixed? true :condition "ticking loudly" :desc "A tall oak clock that strikes the hours."}
-  {:id "umbrella" :name "Umbrella" :place "hall" :owner "Ada" :condition "dry" :desc "A black umbrella with a horn handle."}
-  {:id "pipe" :name "Pipe" :holder "Ben" :owner "Ben" :condition "still warm" :desc "A briar pipe, much chewed."}
-  {:id "basket" :name "Basket" :place "shop" :owner "the shop" :condition "empty" :desc "A wicker shopping basket."}]
+ [{:id "clock" :name "Grandfather clock" :place "hall" :owner "Ada" :fixed? true :aspects {:state "ticking loudly"} :desc "A tall oak clock that strikes the hours."}
+  {:id "umbrella" :name "Umbrella" :place "hall" :owner "Ada" :aspects {:state "dry"} :desc "A black umbrella with a horn handle."}
+  {:id "pipe" :name "Pipe" :holder "Ben" :owner "Ben" :aspects {:state "still warm"} :desc "A briar pipe, much chewed."}
+  {:id "basket" :name "Basket" :place "shop" :owner "the shop" :aspects {:state "empty"} :desc "A wicker shopping basket."}]
 
  :notices ["A section the engine doesn't know about, kept as is."]}

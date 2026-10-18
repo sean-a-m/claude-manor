@@ -81,16 +81,16 @@
 
  ;; things in the world; :holder and an agent :owner are agent names (see manor.items)
  :items
- [{:id "stags-head" :name "Stag's head" :place "entrance-hall" :owner "household" :fixed? true :condition "dusty, one glass eye loose" :desc "A mounted twelve-pointer above the fireplace, shot by the sixth earl."}
-  {:id "piano" :name "Piano" :place "drawing-room" :owner "household" :fixed? true :condition "a little out of tune" :desc "An upright rosewood piano with brass candle sconces."}
-  {:id "china-cabinet" :name "China cabinet" :place "drawing-room" :owner "household" :fixed? true :condition "dusty, the glass smeared" :desc "A glass-fronted walnut cabinet of Meissen figures: shepherdesses, a harlequin and a pug."}
-  {:id "estate-ledgers" :name "Estate ledgers" :place "study" :owner "household" :condition "in good order" :desc "Three tall ledgers bound in green leather: rents, wages and household accounts."}
-  {:id "family-portrait" :name "Family portrait" :place "dining-room" :owner "household" :fixed? true :condition "darkened with old varnish" :desc "A gloomy full-length portrait of the third earl in a powdered wig, in a heavy gilt frame."}
-  {:id "silver-candlesticks" :name "Silver candlesticks" :place "dining-room" :owner "household" :condition "tarnished" :desc "A pair of Georgian silver candlesticks with fluted columns."}
-  {:id "kitchen-range" :name "Kitchen range" :place "kitchen" :owner "household" :fixed? true :condition "cold and unlit" :desc "A black cast-iron range with two ovens and a boiler."}
-  {:id "motor-car" :name "Motor car" :place "carriage-sweep" :owner "household" :fixed? true :condition "polished" :desc "A green Daimler tourer with brass lamps, rather out of place before the house."}
-  {:id "pocket-watch" :name "Pocket watch" :holder "Lord Claudeworth" :owner "Lord Claudeworth" :condition "keeping good time" :desc "A gold half-hunter on a chain, engraved with the Claudeworth arms."}
-  {:id "pocket-notebook" :name "Pocket notebook" :holder "Hale" :owner "Hale" :condition "half full" :desc "A small black notebook with a pencil in its spine, for his lordship's instructions."}]
+ [{:id "stags-head" :name "Stag's head" :place "entrance-hall" :owner "household" :fixed? true :aspects {:cleanliness "dusty" :repair "one glass eye loose"} :desc "A mounted twelve-pointer above the fireplace, shot by the sixth earl."}
+  {:id "piano" :name "Piano" :place "drawing-room" :owner "household" :fixed? true :aspects {:repair "a little out of tune"} :desc "An upright rosewood piano with brass candle sconces."}
+  {:id "china-cabinet" :name "China cabinet" :place "drawing-room" :owner "household" :fixed? true :aspects {:cleanliness "dusty, the glass smeared"} :desc "A glass-fronted walnut cabinet of Meissen figures: shepherdesses, a harlequin and a pug."}
+  {:id "estate-ledgers" :name "Estate ledgers" :place "study" :owner "household" :aspects {:state "in good order"} :desc "Three tall ledgers bound in green leather: rents, wages and household accounts."}
+  {:id "family-portrait" :name "Family portrait" :place "dining-room" :owner "household" :fixed? true :aspects {:repair "darkened with old varnish"} :desc "A gloomy full-length portrait of the third earl in a powdered wig, in a heavy gilt frame."}
+  {:id "silver-candlesticks" :name "Silver candlesticks" :place "dining-room" :owner "household" :aspects {:cleanliness "tarnished"} :desc "A pair of Georgian silver candlesticks with fluted columns."}
+  {:id "kitchen-range" :name "Kitchen range" :place "kitchen" :owner "household" :fixed? true :aspects {:state "cold and unlit"} :desc "A black cast-iron range with two ovens and a boiler."}
+  {:id "motor-car" :name "Motor car" :place "carriage-sweep" :owner "household" :fixed? true :aspects {:cleanliness "polished"} :desc "A green Daimler tourer with brass lamps, rather out of place before the house."}
+  {:id "pocket-watch" :name "Pocket watch" :holder "Lord Claudeworth" :owner "Lord Claudeworth" :aspects {:state "keeping good time"} :desc "A gold half-hunter on a chain, engraved with the Claudeworth arms."}
+  {:id "pocket-notebook" :name "Pocket notebook" :holder "Hale" :owner "Hale" :aspects {:state "half full"} :desc "A small black notebook with a pencil in its spine, for his lordship's instructions."}]
 
  :agents
  [{:name "Lord Claudeworth" :role :earl :location "earls-bedroom" :bedroom "earls-bedroom"

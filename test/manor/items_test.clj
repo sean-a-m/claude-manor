@@ -57,9 +57,14 @@
            [#(update-in % [:items 0] dissoc :place) "item \"clock\": give exactly one of :place, :holder and :in"]
            [#(assoc-in % [:items 0 :place] "attic") "item \"clock\": unknown location \"attic\""]
            [#(assoc-in % [:items 2 :holder] "Bob") "item \"pipe\": unknown holder \"Bob\""]
-           [#(assoc-in % [:items 0 :condition] (apply str (repeat 81 "x"))) "item \"clock\": {:condition [\"should be at most 80 characters\"]}"]
+           [#(assoc-in % [:items 0 :aspects :state] (apply str (repeat 81 "x"))) "item \"clock\": {:aspects {:state [\"should be at most 80 characters\"]}}"]
            [#(assoc-in % [:items 0 :desc] (apply str (repeat 401 "x"))) "item \"clock\": {:desc [\"should be at most 400 characters\"]}"]
-           [#(assoc-in % [:items 0 :condition] "") "item \"clock\": {:condition [\"should be at least 1 character\"]}"]
+           [#(assoc-in % [:items 0 :aspects :state] "") "item \"clock\": {:aspects {:state [\"should be at least 1 character\"]}}"]
+           [#(assoc-in % [:items 0 :aspects] {:a "x" :b "x" :c "x" :d "x" :e "x"}) "item \"clock\": {:aspects [\"should have at most 4 elements\"]}"]
+           [#(assoc-in % [:items 0 :aspects] {:Glass_Eye "loose"}) "item \"clock\": {:aspects {:Glass_Eye [\"should be a key of lower-case letters and hyphens, at most 24 characters\"]}}"]
+           [#(assoc-in % [:items 0 :condition] "dusty") "item \"clock\": {:condition [\"disallowed key\"]}"]
+           [#(assoc-in % [:locations 0 :aspects :hearth] "") "location \"hall\": {:aspects {:hearth [\"should be at least 1 character\"]}}"]
+           [#(assoc-in % [:locations 0 :aspects :glass-eye-of-the-stag-head] "x") "location \"hall\": {:aspects {:glass-eye-of-the-stag-head [\"should be a key"]
            [#(assoc-in % [:items 0 :id] "Grand Clock") "item \"Grand Clock\": {:id"]
            [#(assoc-in % [:items 0 :colour] "brown") "item \"clock\": {:colour [\"disallowed key\"]}"]
            [#(assoc % :items [1]) "malformed"]]]
@@ -112,14 +117,14 @@
 (deftest new-items-get-fresh-ids
   (let [run (start)
         world (e/world run)
-        evs (items/added-events world (repeat 2 {:name "Umbrella" :desc "Another umbrella." :condition "new"
+        evs (items/added-events world (repeat 2 {:name "Umbrella" :desc "Another umbrella." :aspects {:state "new"}
                                                  :holder "ada" :owner "household"})
                                 #{"ada"})]
     (is (= ["umbrella-2" "umbrella-3"] (map #(get-in % [:data :item :id]) evs)))
     (is (= "Ada now has an umbrella." (n/describe (first evs) (n/names world))))
     (testing "invalid fields are refused"
       (is (thrown? clojure.lang.ExceptionInfo
-                   (items/added world {:name "Umbrella" :desc "x" :condition "new" :place "attic"} :gm))))
+                   (items/added world {:name "Umbrella" :desc "x" :aspects {:state "new"} :place "attic"} :gm))))
     (e/stop-run run)))
 
 (deftest take-put-down-and-give
@@ -141,6 +146,7 @@
       (let [[taken [e]] (perform run world "ben" :take {:item "umbrella"})]
         (is (= "ben" (:holder (items/item taken "umbrella"))))
         (is (nil? (:place (items/item taken "umbrella"))))
+        (is (= 1 (:touched (items/item taken "umbrella"))) "the round it was last handled")
         (is (= {:item "umbrella" :from-place "hall"} (:data e)))
         (is (= #{"ada" "ben"} (:visible-to e)))
         (is (= "Ben picks up the umbrella." (n/describe e (n/names taken))))))
@@ -149,6 +155,7 @@
       (is (= "you are not carrying basket; you carry: pipe (Pipe)" (check world "ben" :put-down {:item "basket"})))
       (let [[down [e]] (perform run (at world "ben" "porch") "ben" :put-down {:item "pipe"})]
         (is (= "porch" (:place (items/item down "pipe"))))
+        (is (= 1 (:touched (items/item down "pipe"))))
         (is (nil? (:holder (items/item down "pipe"))))
         (is (= #{"ben"} (:visible-to e)))
         (is (= "Ben puts down the pipe." (n/describe e (n/names down))))))
@@ -159,6 +166,7 @@
       (is (str/starts-with? (check world "ada" :give {:item "pipe" :to "ben"}) "you are not carrying pipe"))
       (let [[given [e]] (perform run world "ben" :give {:item "pipe" :to "ada"})]
         (is (= "ada" (:holder (items/item given "pipe"))))
+        (is (= 1 (:touched (items/item given "pipe"))))
         (is (= "ben" (:owner (items/item given "pipe"))) "ownership is recorded, not changed")
         (is (= #{"ada" "ben"} (:visible-to e)))
         (is (= "Ben gives the pipe to Ada." (n/describe e (n/names given))))))
@@ -173,19 +181,23 @@
   (let [run (start)
         world (assoc (e/world run) :round 1)
         view #(prompt/agent-view (:scenario run) %1 %2)]
-    (testing "items here by name only; what you carry with its condition; what people here carry"
+    (testing "items here by name only; what you carry with its aspects; what people here carry"
       (let [ada (view world "ada")
             ben (view world "ben")]
         (is (= [{:id "clock" :name "Grandfather clock"} {:id "umbrella" :name "Umbrella"}]
                (get-in ada [:location :here :items])))
-        (is (= [{:id "pipe" :name "Pipe" :condition "still warm"}] (get-in ben [:you :carrying])))
+        (is (= [{:id "pipe" :name "Pipe" :aspects {:state "still warm"}}] (get-in ben [:you :carrying])))
         (is (not (contains? (:you ada) :carrying)))
         (is (= [{:id "ben" :name "Ben" :role :resident :carrying ["Pipe"]}] (get-in ada [:location :people-here])))
         (is (= [{:id "ada" :name "Ada" :role :resident}] (get-in ben [:location :people-here])))))
+    (testing "the place's aspects are in the view, without looking"
+      (is (= {:cleanliness "muddy boot prints by the door" :hearth "cold ash in the grate"}
+             (get-in (view world "ada") [:location :here :aspects]))))
     (testing "nothing from other rooms, and no :items where there are none"
       (let [porch (view (at world "ada" "porch") "ada")
             shop (view (at world "ada" "shop") "ada")]
         (is (not (contains? (get-in porch [:location :here]) :items)))
+        (is (not (contains? (get-in porch [:location :here]) :aspects)) "a place with none shows none")
         (is (empty? (get-in porch [:location :people-here])))
         (is (= [{:id "basket" :name "Basket"}] (get-in shop [:location :here :items])))))
     (testing "worlds without items have no item parts"
@@ -209,14 +221,15 @@
       (is (not (a/allowed? look :gm)))
       (is (= {} (:args (a/decode-args look "{\"at\": \"clock\"}"))))
       (is (empty? (a/effect-events look world "ada" {}))))
-    (testing "the place with its detail, the items here in detail, owners by name, and what people carry"
-      (is (= {:place {:name "Hall" :detail "Coats on pegs, a worn rug, and a smell of pipe smoke."}
+    (testing "the place with its aspects and detail, the items here in detail, owners by name, and what people carry"
+      (is (= {:place {:name "Hall" :aspects {:cleanliness "muddy boot prints by the door" :hearth "cold ash in the grate"}
+                      :detail "Coats on pegs, a worn rug, and a smell of pipe smoke."}
               :items [{:id "clock" :name "Grandfather clock" :desc "A tall oak clock that strikes the hours."
-                       :condition "ticking loudly" :owner "Ada" :fixed? true}
+                       :aspects {:state "ticking loudly"} :owner "Ada" :fixed? true}
                       {:id "umbrella" :name "Umbrella" :desc "A black umbrella with a horn handle."
-                       :condition "dry" :owner "Ada"}]
+                       :aspects {:state "dry"} :owner "Ada"}]
               :people [{:name "Ben" :carrying [{:id "pipe" :name "Pipe" :desc "A briar pipe, much chewed."
-                                                :condition "still warm"}]}]}
+                                                :aspects {:state "still warm"}}]}]}
              (items/look world "ada"))))
     (testing "people who carry nothing, and what busy people are doing"
       (let [busy (w/apply-event world (b/occupy world "ada" "reading" 4))]
@@ -233,7 +246,8 @@
         (is (space/in-transit? travelling "ada"))
         (is (= "you can't look around while travelling" (a/check look travelling "ada" {})))))
     (testing "the detail is only for look, never in the view"
-      (is (= {:id "hall" :name "Hall" :desc "A small hall."}
+      (is (= {:id "hall" :name "Hall" :desc "A small hall."
+              :aspects {:cleanliness "muddy boot prints by the door" :hearth "cold ash in the grate"}}
              (dissoc (get-in (prompt/agent-view (:scenario run) world "ada") [:location :here]) :items))))
     (e/stop-run run)))
 
@@ -256,7 +270,9 @@
                            [(:tool_call_id r) (:content r)]))]
     (testing "look's reply is the tool result, as JSON"
       (let [seen (json/read-value (replies "mock-0-look") json/keyword-keys-object-mapper)]
-        (is (= {:name "Hall" :detail "Coats on pegs, a worn rug, and a smell of pipe smoke."} (:place seen)))
+        (is (= {:name "Hall" :aspects {:cleanliness "muddy boot prints by the door" :hearth "cold ash in the grate"}
+                :detail "Coats on pegs, a worn rug, and a smell of pipe smoke."}
+               (:place seen)))
         (is (= ["clock" "umbrella"] (map :id (:items seen))))))
     (testing "a string :reply is sent as it is"
       (is (= "It is Saturday 15 October 1904, 21:00." (replies "mock-1-check-time"))))
@@ -288,6 +304,7 @@
         evs (e/events run)]
     (testing "Ben carried the umbrella to the porch"
       (is (= "porch" (:place (items/item world "umbrella"))))
+      (is (= 2 (:touched (items/item world "umbrella"))) "put down in round 2")
       (is (= [:item/taken :item/put-down] (map :type (filter #(and (item-event? %) (= "ben" (:actor %))) evs))))
       (is (empty? (filter #(= :action/forfeited (:type %)) evs))))
     (testing "replay gives the same world"
@@ -297,7 +314,7 @@
       (is (= [:item/taken :item/put-down] (map :type (filter item-event? (prompt/visible-events evs "ben" 1000)))))
       (is (not (str/includes? (pr-str (prompt/agent-messages (:scenario run) world evs "ada" {:event-window 1000}))
                               "umbrella"))))
-    (testing "the exported map has the live items, holders as names, and starts a run with the same items"
+    (testing "the exported map has the live items, holders as names, and starts a run with the same items (untouched)"
       (let [m (wf/read-file (str (io/file (:dir run) "map.edn")))
             by-id (into {} (map (juxt :id identity)) (:items m))]
         (is (= "porch" (:place (by-id "umbrella"))))
@@ -305,7 +322,8 @@
         (is (= "Ada" (:owner (by-id "clock"))))
         (is (= (map :id (:items (wf/read-file hamlet-file))) (map :id (:items m))))
         (let [r2 (start {:world-file (str (io/file (:dir run) "map.edn"))})]
-          (is (= (items/all world) (items/all (e/world r2))))
+          (is (not (contains? (by-id "umbrella") :touched)))
+          (is (= (map #(dissoc % :touched) (items/all world)) (items/all (e/world r2))))
           (e/stop-run r2))))
     (e/stop-run run)))
 
@@ -333,7 +351,10 @@
 
 (defn- judge-calls [run] (filter #(= "judge" (:agent %)) (store/read-llm (:dir run))))
 
-(defn- condition [run id] (:condition (items/item (e/world run) id)))
+(defn- aspects [run id] (:aspects (items/item (e/world run) id)))
+
+(def ^:private clock-as-found {:state "ticking loudly"})
+(def ^:private clock-seen-to {:state "ticking loudly" :cleanliness "just seen to"})
 
 (deftest work-on-checks
   (let [run (start)
@@ -395,15 +416,17 @@
                      (cond-> (llm/complete inner req)
                        (= :judge (get-in req [:ctx :role])) (assoc-in [:usage :cost] 0.01)))))
         run (rounds! (start {:llm-impl priced}) 3)]
-    (testing "the condition is unchanged at round due - 1"
+    (testing "the aspects are unchanged at round due - 1"
       (is (= 3 (:round (e/world run))))
-      (is (= "ticking loudly" (condition run "clock")))
+      (is (= clock-as-found (aspects run "clock")))
       (is (empty? @judged)))
     (rounds! run 1)
     (let [world (e/world run)
           [done] (of-type run :item/work-done)]
-      (testing "and changed at due, when Ben is freed and acts again"
-        (is (= "just seen to" (condition run "clock") (condition run "pipe")))
+      (testing "and changed at due, when Ben is freed and acts again; the other aspects are left alone"
+        (is (= clock-seen-to (aspects run "clock")))
+        (is (= {:state "still warm" :cleanliness "just seen to"} (aspects run "pipe")))
+        (is (= 4 (:touched (items/item world "clock"))) "changed items are touched")
         (is (= 4 (:round done)))
         (is (= 4 (:round (last (filter #(= "ben" (:actor %)) (of-type run :agent/freed))))))
         (is (contains? (set (map :round (filter #(= "ben" (:actor %)) (of-type run :llm/usage)))) 4))
@@ -413,15 +436,15 @@
           (is (= 1 (count @judged)))
           (is (= {:minutes 90 :stopped-early? false} (select-keys ctx [:minutes :stopped-early?])))
           (is (<= 1 (:luck ctx) 100))
-          (is (= ["clock" "pipe"] (map :id (:items ctx))))))
+          (is (= ["clock" "pipe"] (map :id (:things ctx))))))
       (testing "the result: data, narration and who sees it (Ada is upstairs)"
         (is (= {:actor "ben" :place "hall" :doing "polishing the clock" :minutes 90 :stopped-early? false
                 :summary "Ben finishes polishing the clock."
-                :changes [{:item "clock" :from "ticking loudly" :to "just seen to"}
-                          {:item "pipe" :from "still warm" :to "just seen to"}]}
+                :changes [{:item "clock" :aspect :cleanliness :from nil :to "just seen to"}
+                          {:item "pipe" :aspect :cleanliness :from nil :to "just seen to"}]}
                (dissoc (:data done) :job :luck)))
         (is (= #{"ben"} (:visible-to done)))
-        (is (= "Ben finishes polishing the clock. (Grandfather clock: just seen to; Pipe: just seen to)."
+        (is (= "Ben finishes polishing the clock. (Grandfather clock: cleanliness just seen to; Pipe: cleanliness just seen to)."
                (n/describe done (n/names world))))
         (is (empty? (filter item-event? (prompt/visible-events (e/events run) "ada" 1000)))))
       (testing "the judge's usage counts towards the cost, and its call is in llm.edn"
@@ -435,7 +458,7 @@
         (let [text (manor.transcript/render (:dir run))]
           (is (str/includes? text "| judge | 1 | $0.0100 |"))
           (is (str/includes? text "- **judge** judge {"))
-          (is (str/includes? text "Ben finishes polishing the clock. (Grandfather clock: just seen to; Pipe: just seen to)."))))
+          (is (str/includes? text "Ben finishes polishing the clock. (Grandfather clock: cleanliness just seen to; Pipe: cleanliness just seen to)."))))
       (testing "replay gives the same world"
         (is (= world (w/replay (store/read-events (:dir run)))))))
     (e/stop-run run)))
@@ -446,7 +469,7 @@
         job {:id "job-9" :actor "ben" :items ["clock" "pipe"] :doing "polishing the clock" :place "hall" :started 1 :due 4}
         {:keys [messages tools]} (items/judge-request (assoc (:scenario run) :items {:judge-brief (constantly "A small house.")})
                                                       world job {:minutes 60 :stopped-early? true :luck 7}
-                                                      (items/in-reach world job))
+                                                      (items/judged-things world job))
         [system user] messages]
     (is (= ["judge"] (map #(get-in % [:function :name]) tools)))
     (is (str/includes? (:content system) "work can't turn a vase into gold"))
@@ -458,9 +481,23 @@
                                             "- Time worked: 60 minutes; they stopped early\n"
                                             "- Luck: 7\n")))
     (is (str/includes? (:content user) "\"desc\" : \"A briar pipe, much chewed.\""))
-    (testing "only the job and its items: nothing about other items or people"
+    (is (str/includes? (:content user) "\"aspects\" : {\n    \"state\" : \"still warm\"\n  }"))
+    (testing "only the job and its items: nothing about other items or people, and no room unless named"
       (is (not (str/includes? (pr-str messages) "Umbrella")))
-      (is (not (str/includes? (pr-str messages) "Ada"))))
+      (is (not (str/includes? (pr-str messages) "Ada")))
+      (is (not (str/includes? (:content user) "\"room\""))))
+    (testing "a job that names its place sends the room first, marked, with its description and aspects"
+      (let [room-job (assoc job :items ["hall" "clock"])
+            things (items/judged-things world room-job)
+            content (:content (second (:messages (items/judge-request (:scenario run) world room-job {:minutes 60} things))))]
+        (is (= [{:id "hall" :name "Hall" :desc "A small hall."
+                 :aspects {:cleanliness "muddy boot prints by the door" :hearth "cold ash in the grate"} :room? true}
+                (items/item world "clock")]
+               things))
+        (is (str/includes? content "\"id\" : \"hall\""))
+        (is (str/includes? content "\"room\" : true"))
+        (is (str/includes? content "\"hearth\" : \"cold ash in the grate\""))
+        (is (not (str/includes? content "Coats on pegs")) "the room's detail isn't sent")))
     (testing "without a :judge-brief, no setting"
       (is (not (str/includes? (:content (first (:messages (items/judge-request (:scenario run) world job {:minutes 30} []))))
                               "## The setting"))))
@@ -472,32 +509,53 @@
 (deftest checking-the-judge
   (let [run (start)
         world (e/world run)
-        reach (map #(items/item world %) ["clock" "pipe"])
-        judge #(items/judgement (judge-says %) reach)]
-    (testing "a good answer: changes with their old condition; unchanged ones left out"
+        things (items/judged-things world {:items ["hall" "clock" "pipe"] :place "hall" :actor "ben"})
+        judge #(items/judgement (judge-says %) things)
+        change (fn [thing aspect value] {:thing thing :aspect aspect :value value})]
+    (testing "a good answer: each change with the aspect's old value; unchanged ones left out"
       (is (= {:verdict {:summary "It shines."
-                        :changes [{:item "clock" :from "ticking loudly" :to "polished"}]}
+                        :changes [{:item "clock" :aspect :cleanliness :from nil :to "polished"}]}
               :replies [{:role "tool" :tool_call_id "j1" :content "ok"}]}
-             (judge {:changes [{:item "clock" :condition "polished"} {:item "pipe" :condition "still warm"}]
+             (judge {:changes [(change "clock" "cleanliness" "polished") (change "pipe" "state" "still warm")]
                      :summary "It shines."}))))
-    (testing "descriptions, names and other keys are ignored: only conditions change"
-      (is (= {:summary "Gilded." :changes [{:item "clock" :from "ticking loudly" :to "gilded"}]}
-             (:verdict (judge {:changes [{:item "clock" :condition "gilded" :desc "A gold clock." :name "Gold clock"}]
+    (testing "the room changes as a place; its other aspects are left alone"
+      (is (= [{:place "hall" :aspect :cleanliness :from "muddy boot prints by the door" :to "swept"}]
+             (:changes (:verdict (judge {:changes [(change "hall" "cleanliness" "swept")] :summary "Swept."}))))))
+    (testing "an empty value removes the aspect; removing one it doesn't have is no change"
+      (is (= [{:item "clock" :aspect :state :from "ticking loudly" :to nil}]
+             (:changes (:verdict (judge {:changes [(change "clock" "state" "") (change "pipe" "repair" "")] :summary "Stopped."}))))))
+    (testing "aspect names are normalised like argument names, and the last change to an aspect counts"
+      (is (= [{:item "clock" :aspect :glass-front :from nil :to "clean"}
+              {:item "pipe" :aspect :state :from "still warm" :to "cold"}]
+             (:changes (:verdict (judge {:changes [(change "clock" "glass_front" "smeared") (change "pipe" "state" "cold")
+                                                   (change "clock" "glassFront" "clean")]
+                                         :summary "x"}))))))
+    (testing "descriptions, names and other keys are ignored: only aspects change"
+      (is (= {:summary "Gilded." :changes [{:item "clock" :aspect :state :from "ticking loudly" :to "gilded"}]}
+             (:verdict (judge {:changes [(assoc (change "clock" "state" "gilded") :desc "A gold clock." :name "Gold clock")]
                                :summary "Gilded." :desc "x"})))))
     (testing "no changes is a fine answer"
       (is (= {:summary "Nothing came of it." :changes []} (:verdict (judge {:summary "Nothing came of it."})))))
-    (testing "refused: items out of reach, bad lengths, no summary, no call"
-      (is (= "you may change only these items: clock, pipe; not umbrella"
-             (:error (judge {:changes [{:item "umbrella" :condition "dry"}] :summary "x"}))))
-      (is (str/includes? (:error (judge {:changes [{:item "clock" :condition (apply str (repeat 81 "x"))}] :summary "x"}))
-                         "is 81 characters; the limit is 80"))
+    (testing "at most four aspects a thing, counting those it has less those removed"
+      (let [four-more (for [k ["a" "b" "c" "d"]] (change "clock" k "x"))]
+        (is (= (str "the Grandfather clock (clock) would have 5 aspects (state, a, b, c, d); a thing has at most 4: "
+                    "change one it has instead, or remove one with the value \"\"")
+               (:error (judge {:changes four-more :summary "x"}))))
+        (is (= 5 (count (:changes (:verdict (judge {:changes (cons (change "clock" "state" "") four-more) :summary "x"}))))))))
+    (testing "refused: things not judged, bad keys, bad lengths, no summary, the old shape, no call"
+      (is (= "you may change only these things: hall, clock, pipe; not umbrella"
+             (:error (judge {:changes [(change "umbrella" "state" "dry")] :summary "x"}))))
+      (is (= "an aspect's key is lower-case letters and hyphens, at most 24 characters, starting with a letter (cleanliness, glass-eye); not \"glass eye\", \"1st\""
+             (:error (judge {:changes [(change "clock" "Glass Eye" "loose") (change "clock" "1st" "x")] :summary "x"}))))
+      (is (str/includes? (:error (judge {:changes [(change "clock" "state" (apply str (repeat 81 "x")))] :summary "x"}))
+                         "changes.0.value is 81 characters; the limit is 80"))
       (is (str/includes? (:error (judge {:changes [] :summary (apply str (repeat 301 "x"))})) "the limit is 300"))
-      (is (:error (judge {:changes [{:item "clock" :condition ""}] :summary "x"})))
       (is (:error (judge {:changes []})))
-      (is (= "error: you may change only these items: clock, pipe; not umbrella. Call judge again with a corrected answer."
-             (:content (first (:replies (judge {:changes [{:item "umbrella" :condition "dry"}] :summary "x"}))))))
+      (is (:error (judge {:changes [{:item "clock" :condition "polished"}] :summary "x"})))
+      (is (= "error: you may change only these things: hall, clock, pipe; not umbrella. Call judge again with a corrected answer."
+             (:content (first (:replies (judge {:changes [(change "umbrella" "state" "dry")] :summary "x"}))))))
       (is (= {:error "no judge call" :replies [{:role "user" :content "You must answer by calling the judge tool."}]}
-             (items/judgement {:tool-calls []} reach))))
+             (items/judgement {:tool-calls []} things))))
     (e/stop-run run)))
 
 (deftest bad-judge-answers
@@ -507,24 +565,24 @@
                                                                             :judge judge :judged judged))})
                                       2)]
                      [run judged]))]
-    (testing "an invalid answer is sent back with the reason; a good second answer is used"
+    (testing "an invalid answer (a bad key) is sent back with the reason; a good second answer is used"
       (let [[run judged] (run-with (fn [{:keys [step]}]
                                      {:tool :judge :args (if (zero? step)
-                                                           {:changes [{:item "umbrella" :condition "dry"}] :summary "x"}
-                                                           {:changes [{:item "clock" :condition "wound"}] :summary "It ticks."})}))
+                                                           {:changes [{:thing "clock" :aspect "wound up" :value "yes"}] :summary "x"}
+                                                           {:changes [{:thing "clock" :aspect "state" :value "wound"}] :summary "It ticks."})}))
             [first-call second-call] (judge-calls run)]
         (is (= 2 (count @judged)))
-        (is (= "wound" (condition run "clock")))
-        (is (str/starts-with? (:content (last (:messages second-call))) "error: you may change only these items: clock"))
+        (is (= {:state "wound"} (aspects run "clock")))
+        (is (str/starts-with? (:content (last (:messages second-call))) "error: an aspect's key is lower-case letters and hyphens"))
         (is (= (:replies first-call) [(last (:messages second-call))]))
         (is (empty? (of-type run :item/judge-failed)))
         (e/stop-run run)))
     (testing "a second bad answer: no changes, a neutral summary, and a :system event with the reason"
-      (let [[run judged] (run-with (constantly {:tool :judge :args {:changes [{:item "clock" :condition ""}] :summary "x"}}))
+      (let [[run judged] (run-with (constantly {:tool :judge :args {:changes [{:thing "clock" :aspect "state"}] :summary "x"}}))
             [done] (of-type run :item/work-done)
             [failed] (of-type run :item/judge-failed)]
         (is (= 2 (count @judged) (count (judge-calls run))))
-        (is (= "ticking loudly" (condition run "clock")))
+        (is (= clock-as-found (aspects run "clock")))
         (is (= {:summary "Ben finishes winding the clock." :changes []} (select-keys (:data done) [:summary :changes])))
         (is (= :system (:visible-to failed)))
         (is (str/starts-with? (get-in failed [:data :reason]) "a second bad answer: invalid arguments"))
@@ -536,7 +594,7 @@
             [failed] (of-type run :item/judge-failed)]
         (is (= "the judge call failed: provider down" (get-in failed [:data :reason])))
         (is (= 1 (count (of-type run :item/work-done))))
-        (is (= "ticking loudly" (condition run "clock")))
+        (is (= clock-as-found (aspects run "clock")))
         (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
         (e/stop-run run)))))
 
@@ -560,16 +618,16 @@
           (is (= 4 (:round done)))
           (is (= {:minutes 60 :stopped-early? true} (select-keys (:data done) [:minutes :stopped-early?])))
           (is (= {:minutes 60 :stopped-early? true} (select-keys (first @judged) [:minutes :stopped-early?])))
-          (is (= "Ben leaves off winding the clock. (Grandfather clock: just seen to)."
+          (is (= "Ben leaves off winding the clock. (Grandfather clock: cleanliness just seen to)."
                  (n/describe done (n/names (e/world run))))))
-        (is (= "just seen to" (condition run "clock")))
+        (is (= clock-seen-to (aspects run "clock")))
         (is (empty? (items/jobs (e/world run))))
         (e/stop-run run)))
     (testing "carrying on: the job runs to its end"
       (let [[run judged] (run-with [{:tool :carry-on}])]
         (rounds! run 4)
         (is (empty? @judged))
-        (is (= "ticking loudly" (condition run "clock")))
+        (is (= clock-as-found (aspects run "clock")))
         (rounds! run 1)
         (let [[done] (of-type run :item/work-done)]
           (is (= 5 (:round done)))
@@ -592,7 +650,7 @@
       (is (empty? @judged))
       (is (empty? (judge-calls run)))
       (is (empty? (items/jobs (e/world run))))
-      (is (= "ticking loudly" (condition run "clock"))))
+      (is (= clock-as-found (aspects run "clock"))))
     (e/stop-run run)))
 
 (deftest things-taken-away-mid-job
@@ -604,9 +662,10 @@
                                                               "ben" {1 [(work ["umbrella" "clock" "pipe"] "tidying up" 1.5)]}}
                                                              :judged judged))})
                        4)]
-      (is (= ["clock" "pipe"] (map :id (:items (first @judged)))))
-      (is (= "just seen to" (condition run "clock") (condition run "pipe")))
-      (is (= "dry" (condition run "umbrella")))
+      (is (= ["clock" "pipe"] (map :id (:things (first @judged)))))
+      (is (= clock-seen-to (aspects run "clock")))
+      (is (= "just seen to" (:cleanliness (aspects run "pipe"))))
+      (is (= {:state "dry"} (aspects run "umbrella")))
       (e/stop-run run)))
   (testing "nothing left in reach: the work ends with no call"
     (let [judged (atom [])
@@ -622,40 +681,72 @@
       (is (= :nothing-in-reach (get-in ended [:data :reason])))
       (is (= #{"ben"} (:visible-to ended)) "Ada took it to the porch, so only Ben is in the hall")
       (is (= "Ben leaves off drying the umbrella before getting anywhere." (n/describe ended (n/names (e/world run)))))
-      (is (= "dry" (condition run "umbrella")))
+      (is (= {:state "dry"} (aspects run "umbrella")))
       (e/stop-run run))))
 
+(def ^:private hall-as-found {:cleanliness "muddy boot prints by the door" :hearth "cold ash in the grate"})
+
 (deftest work-on-the-room
-  (testing "the room with items: only the items go to the judge"
+  (testing "the room with items: the room goes to the judge first, then the items"
     (let [judged (atom [])
           run (rounds! (start {:llm-impl (llm/mock (scripted {"ben" {1 [(work ["hall" "clock"] "sweeping the hall and dusting the clock" 1)]}}
                                                              :judged judged))})
                        3)
           [done] (of-type run :item/work-done)]
-      (is (= ["clock"] (map :id (:items (first @judged)))))
-      (is (= [{:item "clock" :from "ticking loudly" :to "just seen to"}] (get-in done [:data :changes])))
+      (is (= ["hall" "clock"] (map :id (:things (first @judged)))))
+      (is (= [{:place "hall" :aspect :cleanliness :from "muddy boot prints by the door" :to "just seen to"}
+              {:item "clock" :aspect :cleanliness :from nil :to "just seen to"}]
+             (get-in done [:data :changes])))
+      (is (= "Ben finishes sweeping the hall and dusting the clock. (Hall: cleanliness just seen to; Grandfather clock: cleanliness just seen to)."
+             (n/describe done (n/names (e/world run)))))
       (e/stop-run run)))
-  (testing "the room alone: done with a neutral summary and no judge call"
+  (testing "the room alone is judged too; its other aspects are left alone, and replay agrees"
     (let [judged (atom [])
           run (rounds! (start {:llm-impl (llm/mock (scripted {"ben" {1 [(work ["hall"] "sweeping the hall" 1)]}}
                                                              :judged judged))})
                        3)
           [done] (of-type run :item/work-done)
           world (e/world run)]
-      (is (empty? @judged))
-      (is (empty? (judge-calls run)))
+      (is (= 1 (count @judged) (count (judge-calls run))))
+      (is (= [{:id "hall" :name "Hall" :desc "A small hall." :aspects hall-as-found :room? true}] (:things (first @judged))))
       (is (empty? (of-type run :item/work-ended)))
-      (is (= {:minutes 60 :stopped-early? false :summary "Ben finishes sweeping the hall." :changes []}
+      (is (= {:minutes 60 :stopped-early? false :summary "Ben finishes sweeping the hall."
+              :changes [{:place "hall" :aspect :cleanliness :from "muddy boot prints by the door" :to "just seen to"}]}
              (select-keys (:data done) [:minutes :stopped-early? :summary :changes])))
-      (is (= "Ben finishes sweeping the hall." (n/describe done (n/names world))))
+      (is (= "Ben finishes sweeping the hall. (Hall: cleanliness just seen to)." (n/describe done (n/names world))))
+      (is (= {:cleanliness "just seen to" :hearth "cold ash in the grate"} (:aspects (space/location world "hall"))))
+      (is (= {:cleanliness "just seen to" :hearth "cold ash in the grate"}
+             (get-in (prompt/agent-view (:scenario run) world "ben") [:location :here :aspects]))
+          "the view shows the room as it is now")
       (is (empty? (items/jobs world)))
       (is (= world (w/replay (store/read-events (:dir run)))))
+      (e/stop-run run)))
+  (testing "a room aspect removed: gone from the place, and read as \"no longer\""
+    (let [judge (fn [{:keys [world job stopped-early?]}]
+                  {:tool :judge :args {:changes [{:thing "hall" :aspect "hearth" :value ""}
+                                                 {:thing "hall" :aspect "air" :value "fresh"}]
+                                       :summary (items/neutral-summary world job stopped-early?)}})
+          run (rounds! (start {:llm-impl (llm/mock (scripted {"ben" {1 [(work ["hall"] "clearing the grate" 1)]}} :judge judge))})
+                       3)
+          [done] (of-type run :item/work-done)
+          world (e/world run)]
+      (is (= {:cleanliness "muddy boot prints by the door" :air "fresh"} (:aspects (space/location world "hall"))))
+      (is (= "Ben finishes clearing the grate. (Hall: no longer hearth, air fresh)." (n/describe done (n/names world))))
+      (is (= world (w/replay (store/read-events (:dir run)))))
+      (e/stop-run run)))
+  (testing "nothing in reach and no room: the work ends with no call"
+    (let [run (start)
+          world (e/world run)]
+      (is (empty? (items/judged-things world {:items ["umbrella"] :place "porch" :actor "ben"})))
+      (is (= ["hall"] (map :id (items/judged-things world {:items ["hall" "basket"] :place "hall" :actor "ada"})))
+          "the room is judged even when its items have gone")
+      (is (= ["umbrella"] (map :id (items/judged-things world {:items ["umbrella"] :place "hall" :actor "ada"}))))
       (e/stop-run run))))
 
 (deftest overlapping-jobs
   (let [judged (atom [])
         judge (fn [{:keys [job]}]
-                {:tool :judge :args {:changes [{:item "clock" :condition (str "after " (:doing job))}]
+                {:tool :judge :args {:changes [{:thing "clock" :aspect "state" :value (str "after " (:doing job))}]
                                      :summary "Done."}})
         run (rounds! (start {:llm-impl (llm/mock (scripted {"ada" {1 [(work ["clock"] "dusting the clock" 1)]}
                                                             "ben" {1 [(work ["clock"] "winding the clock" 1)]}}
@@ -668,9 +759,9 @@
       (is (= [3 3] (map :round dones)))
       (is (= (sort (map :id [first-job second-job])) [(:id first-job) (:id second-job)])))
     (testing "the second judge saw the first one's result, and the last applied wins"
-      (is (= "ticking loudly" (:condition (first (:items (first @judged))))))
-      (is (= (str "after " (:doing first-job)) (:condition (first (:items (second @judged))))))
-      (is (= (str "after " (:doing second-job)) (condition run "clock"))))
+      (is (= "ticking loudly" (get-in (first (:things (first @judged))) [:aspects :state])))
+      (is (= (str "after " (:doing first-job)) (get-in (first (:things (second @judged))) [:aspects :state])))
+      (is (= {:state (str "after " (:doing second-job))} (aspects run "clock"))))
     (testing "replay gives the same world"
       (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
     (e/stop-run run)))

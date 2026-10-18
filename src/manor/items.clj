@@ -1,5 +1,5 @@
 (ns manor.items
-  "Items: objects with a description and a condition that lie in a place or
+  "Items: objects with a description and a few aspects that lie in a place or
   are carried by an agent. An opt-in engine module, like manor.space: a
   scenario turns it on with the key :items (a map, possibly empty), and its
   :init may return starting :items.
@@ -7,15 +7,18 @@
   World shape:
     :items {\"china-cabinet\" {:id \"china-cabinet\" :name \"China cabinet\"
                               :desc \"A glass-fronted walnut cabinet.\"   ; 1-400 chars, never changes
-                              :condition \"dusty, the glass smeared\"     ; 1-80 chars
+                              :aspects {:cleanliness \"dusty\"            ; optional: at most 4, keys
+                                        :repair \"the glass cracked\"}    ;   [a-z-], values 1-80 chars
                               :place \"drawing-room\"   ; exactly one of :place (a location id)
                               ;; :holder \"hale\"       ;   or :holder (an agent id)
                               ;; :in \"sideboard\"      ;   or :in (the id of a container item)
                               :owner \"household\"      ; optional: an agent id or any label; not enforced
                               :fixed? true            ; optional: furniture, can't be taken
                               :consumable? true       ; optional: food, fuel, soap: work may use it up
-                              :container :open}}      ; optional: holds things; :open shows them to
+                              :container :open        ; optional: holds things; :open shows them to
                                                       ;   the room, :closed only to `open`
+                              :touched 12}}           ; set by the reducers: the round it was last
+                                                      ;   taken, put down or in, given or changed
     :items-gone {\"beef-stock\" \"Beef stock\"}       ; id -> name of every item used up
 
   A carried item goes wherever its holder goes, and things in a container go
@@ -31,9 +34,11 @@
   The worker is occupied until :due, with the job id in their :busy :job.
   Nothing changes until the work is over: at the start of the round it
   ends, the engine asks a judge (a narrow model call, never seen by the
-  characters) what the time worked did to the items still in reach, checks
-  the answer and records it as :item/work-done: new conditions, consumable
-  items used up, and at most two things made from them.
+  characters) what the time worked did to the items still in reach and to
+  the room, if the job named it, checks the answer and records it as
+  :item/work-done: changed aspects, consumable items used up, and at most
+  two things made from them. Locations have :aspects too (the room itself:
+  floor, hearth, air), which only work changes.
 
   Code outside this namespace never reads (:items world) directly: it uses
   the accessors below, and only the reducers here write items. That keeps
@@ -54,13 +59,27 @@
             [manor.world :as w]))
 
 (def max-desc 400)
-(def max-condition 80)
+(def max-aspect 80)
+(def max-aspects 4)
 (def max-name 60)
 (def max-summary 300)
 (def max-work-items 6)
 (def max-work-hours 4)
 (def max-made 2)
 (def default-work-hours 0.5)
+
+(defn aspect-key?
+  "Is `k` an aspect's key: a plain keyword of at most 24 lower-case letters
+  and hyphens, starting with a letter (:cleanliness, :glass-eye)?"
+  [k]
+  (and (keyword? k) (nil? (namespace k)) (boolean (re-matches #"^[a-z][a-z-]{0,23}$" (name k)))))
+
+(def Aspects
+  "What's notable about an item or a place: at most `max-aspects` keyed
+  facets, each a short phrase ({:cleanliness \"dusty\" :repair \"one glass eye loose\"})."
+  [:map-of {:max max-aspects}
+   [:fn {:error/message "should be a key of lower-case letters and hyphens, at most 24 characters"} aspect-key?]
+   [:string {:min 1 :max max-aspect}]])
 
 (def Item
   "An item as written in a world file or returned by :init (holder and owner
@@ -69,7 +88,7 @@
    [:id [:re #"^[a-z0-9]+(-[a-z0-9]+)*$"]]
    [:name [:string {:min 1 :max max-name}]]
    [:desc [:string {:min 1 :max max-desc}]]
-   [:condition [:string {:min 1 :max max-condition}]]
+   [:aspects {:optional true} Aspects]
    [:place {:optional true} :string]
    [:holder {:optional true} :string]
    [:in {:optional true} :string]
@@ -250,17 +269,30 @@
 (defmethod w/apply-event :item/added [world {:keys [data]}]
   (assoc-in world [:items (get-in data [:item :id])] (:item data)))
 
+(defn- touch
+  "The item `id` marked as handled or changed this round."
+  [world id]
+  (assoc-in world [:items id :touched] (:round world)))
+
 (defmethod w/apply-event :item/taken [world {:keys [actor data]}]
-  (update-in world [:items (:item data)] #(-> % (dissoc :place :in) (assoc :holder actor))))
+  (-> world
+      (update-in [:items (:item data)] #(-> % (dissoc :place :in) (assoc :holder actor)))
+      (touch (:item data))))
 
 (defmethod w/apply-event :item/put-down [world {:keys [data]}]
-  (update-in world [:items (:item data)] #(-> % (dissoc :holder :in) (assoc :place (:place data)))))
+  (-> world
+      (update-in [:items (:item data)] #(-> % (dissoc :holder :in) (assoc :place (:place data))))
+      (touch (:item data))))
 
 (defmethod w/apply-event :item/put-in [world {:keys [data]}]
-  (update-in world [:items (:item data)] #(-> % (dissoc :place :holder) (assoc :in (:into data)))))
+  (-> world
+      (update-in [:items (:item data)] #(-> % (dissoc :place :holder) (assoc :in (:into data))))
+      (touch (:item data))))
 
 (defmethod w/apply-event :item/given [world {:keys [data]}]
-  (assoc-in world [:items (:item data) :holder] (:to data)))
+  (-> world
+      (assoc-in [:items (:item data) :holder] (:to data))
+      (touch (:item data))))
 
 (defmethod w/apply-event :item/work-begun [world {:keys [data]}]
   (assoc-in world [:item-jobs (:id data)] data))
@@ -268,11 +300,26 @@
 (defn- used-up [world {id :item item-name :name}]
   (-> world (update :items dissoc id) (assoc-in [:items-gone id] item-name)))
 
+(defn- set-aspect
+  "The thing at `path` with aspect `k` set to `to`, or removed if `to` is
+  nil; a thing with no aspects left has no :aspects."
+  [world path k to]
+  (update-in world path (fn [thing]
+                          (let [aspects (if to (assoc (:aspects thing) k to) (dissoc (:aspects thing) k))]
+                            (if (seq aspects) (assoc thing :aspects aspects) (dissoc thing :aspects))))))
+
+(defn- changed
+  "Apply one change of an aspect: of an item (which is then touched) or of a place."
+  [world {:keys [item place aspect to]}]
+  (if item
+    (touch (set-aspect world [:items item] aspect to) item)
+    (set-aspect world [:space :locations place] aspect to)))
+
 (defmethod w/apply-event :item/work-done [world {:keys [data]}]
   (as-> world world
-    (reduce (fn [world {:keys [item to]}] (assoc-in world [:items item :condition] to)) world (:changes data))
+    (reduce changed world (:changes data))
     (reduce used-up world (:used-up data))
-    (reduce (fn [world it] (assoc-in world [:items (:id it)] it)) world (:made data))
+    (reduce (fn [world it] (touch (assoc-in world [:items (:id it)] it) (:id it))) world (:made data))
     (update world :item-jobs dissoc (:job data))))
 
 (defmethod w/apply-event :item/work-ended [world {:keys [data]}]
@@ -322,14 +369,29 @@
   (str (n/who names actor) " starts " (:doing data) " (" (:id data) ", on " (str/join ", " (:items data))
        ", until " (n/at names (:due data)) ")."))
 
+(defn- aspect-name [k] (str/replace (name k) "-" " "))
+
+(defn- change-text
+  "\"cleanliness swept\", or \"no longer lacking\" for an aspect removed."
+  [{:keys [aspect to]}]
+  (if to (str (aspect-name aspect) " " to) (str "no longer " (aspect-name aspect))))
+
+(defn- changes-text
+  "\"Drawing room: cleanliness swept; Piano: cleanliness dusted\": the
+  changes, thing by thing, in the order they come."
+  [names changes]
+  (let [thing (fn [{:keys [item place]}] (if item [:item item] [:loc place]))
+        by-thing (group-by thing changes)]
+    (str/join "; " (for [k (distinct (map thing changes))]
+                     (str (get names k (second k)) ": " (str/join ", " (map change-text (by-thing k))))))))
+
 (defmethod n/describe :item/work-done [{:keys [actor data]} names]
   (let [{:keys [doing stopped-early? summary changes used-up made]} data
         opener (work-opener (n/who names actor) doing stopped-early?)]
     (str opener
          (when (and summary (not= summary opener)) (str " " summary))
          (when (seq changes)
-           (str " (" (str/join "; " (for [{:keys [item to]} changes] (str (get names [:item item] item) ": " to)))
-                ")."))
+           (str " (" (changes-text names changes) ")."))
          (when (seq used-up)
            (str " Used up: " (str/join "; " (map :name used-up)) "."))
          (when (seq made)
@@ -420,7 +482,7 @@
   (or (:name (w/agent world owner)) owner))
 
 (defn- look-item [world it]
-  (cond-> (select-keys it [:id :name :desc :condition])
+  (cond-> (select-keys it [:id :name :desc :aspects])
     (:owner it) (assoc :owner (owner-name world (:owner it)))
     (:fixed? it) (assoc :fixed? true)))
 
@@ -434,30 +496,30 @@
     (shape it)))
 
 (defn opened
-  "What `open` shows of a container: its name and condition, and its contents
+  "What `open` shows of a container: its name and aspects, and its contents
   in detail, inner containers as the room would see them."
   [world box]
-  {:name (:name box)
-   :condition (:condition box)
-   :contents (mapv #(as-seen world (partial look-item world) %) (contents world (:id box)))})
+  (merge (select-keys box [:name :aspects])
+         {:contents (mapv #(as-seen world (partial look-item world) %) (contents world (:id box)))}))
 
 (defn- look-person [world id]
   (let [a (w/agent world id)
         carried (by-name (held-by world id))]
     (cond-> {:name (:name a)}
       (:busy a) (assoc :doing (get-in a [:busy :activity]))
-      (seq carried) (assoc :carrying (mapv #(select-keys % [:id :name :desc :condition]) carried)))))
+      (seq carried) (assoc :carrying (mapv #(select-keys % [:id :name :desc :aspects]) carried)))))
 
 (defn look
-  "What `actor` sees on looking around: the place (with its :detail, if it
-  has one), the items lying here in detail (with what's in open containers),
-  and the other people here with what they carry. Empty parts are left out."
+  "What `actor` sees on looking around: the place (with its :aspects and
+  :detail, if it has them), the items lying here in detail (with what's in
+  open containers), and the other people here with what they carry. Empty
+  parts are left out."
   [world actor]
   (let [here (space/location-of world actor)
-        {loc-name :name :keys [detail]} (space/location world here)
+        loc (space/location world here)
         lying (by-name (items-at world here))
         people (sort (disj (space/present world here) actor))]
-    (cond-> {:place (cond-> {:name loc-name} detail (assoc :detail detail))}
+    (cond-> {:place (select-keys loc [:name :aspects :detail])}
       (seq lying) (assoc :items (mapv #(as-seen world (partial look-item world) %) lying))
       (seq people) (assoc :people (mapv #(look-person world %) people)))))
 
@@ -502,7 +564,7 @@
 (defn actions []
   [{:name :look
     :kind :free
-    :doc (str "Examine this place and its things closely: the room's detail, and the descriptions, conditions and owners of "
+    :doc (str "Examine this place and its things closely: the room's detail, and the descriptions, aspects and owners of "
               "the items here and what the people here carry. "
               "Use it when you need to inspect the state of something or see it in detail; "
               "your view already lists who is here and what items are here, so don't look routinely on arrival.")
@@ -579,7 +641,7 @@
 (defn- carrying-names [world id] (mapv :name (by-name (held-by world id))))
 
 (defn add-to-view
-  "The item parts of an agent's view: what they carry (with its condition),
+  "The item parts of an agent's view: what they carry (with its aspects),
   the items in their place (names only, with what's in open containers and
   closed ones marked), and what the people here carry. Each is left out when
   empty."
@@ -588,7 +650,7 @@
         here (when (get-in view [:location :here]) (space/location-of world agent-id))
         lying (by-name (items-at world here))]
     (cond-> view
-      (seq carried) (assoc-in [:you :carrying] (mapv #(select-keys % [:id :name :condition]) carried))
+      (seq carried) (assoc-in [:you :carrying] (mapv #(select-keys % [:id :name :aspects]) carried))
       (seq lying) (assoc-in [:location :here :items] (mapv #(as-seen world (fn [it] (select-keys it [:id :name])) %) lying))
       (get-in view [:location :people-here])
       (update-in [:location :people-here]
@@ -646,6 +708,15 @@
        (mapcat #(cons % (within world (:id %))))
        distinct))
 
+(defn judged-things
+  "What the judge of `job` sees and may change: the job's place, when the
+  job named it (work on the room itself), as {:id :name :desc :aspects
+  :room? true}, then the items in reach."
+  [world {:keys [place] :as job}]
+  (let [loc (when (place-worked? job) (space/location world place))]
+    (into (if loc [(assoc (select-keys loc [:id :name :desc :aspects]) :room? true)] [])
+          (in-reach world job))))
+
 (defn- audience
   "The people at the job's place, and the worker wherever they are."
   [world {:keys [actor place]}]
@@ -674,7 +745,7 @@
   [world {:keys [actor place]} [first-used] made]
   (let [carried? (= actor (:holder (outermost world first-used)))]
     (second (reduce (fn [[world its] {:keys [in] :as m}]
-                      (let [it (new-item world (cond-> (assoc (select-keys m [:name :desc :condition]) :consumable? true)
+                      (let [it (new-item world (cond-> (assoc (select-keys m [:name :desc :aspects]) :consumable? true)
                                                  (:owner first-used) (assoc :owner (:owner first-used))
                                                  in (assoc :in in)
                                                  (and (not in) carried?) (assoc :holder actor)
@@ -709,23 +780,24 @@
 
 (def ^:private judge-schema
   [:map
-   [:changes {:optional true} [:vector [:map [:item :string] [:condition [:string {:min 1 :max max-condition}]]]]]
+   [:changes {:optional true} [:vector [:map [:thing :string] [:aspect :string] [:value [:string {:max max-aspect}]]]]]
    [:used-up {:optional true} [:vector :string]]
    [:made {:optional true} [:vector {:max max-made}
                             [:map
                              [:name [:string {:min 1 :max max-name}]]
                              [:desc [:string {:min 1 :max max-desc}]]
-                             [:condition [:string {:min 1 :max max-condition}]]
+                             ;; value lengths are checked by `made-problem`: decoding drops map-of entries that don't fit
+                             [:aspects {:optional true} [:map-of {:max max-aspects} :keyword :string]]
                              [:in {:optional true} :string]]]]
    [:summary [:string {:min 1 :max max-summary}]]])
 
 (def ^:private judge-tool
   {:type "function"
    :function {:name "judge"
-              :description (str "Give your judgement: the new condition of each item the work changed "
-                                "(its id, and a phrase of at most " max-condition " characters), the ids of consumable "
-                                "items it used up, at most " max-made " things it made from them, and a summary "
-                                "of at most " max-summary " characters.")
+              :description (str "Give your judgement: each aspect the work changed (the thing's id, the aspect's key, "
+                                "and its new value: a phrase of at most " max-aspect " characters, or \"\" to remove it), "
+                                "the ids of consumable items it used up, at most " max-made " things it made from them, "
+                                "and a summary of at most " max-summary " characters.")
               :parameters (mjs/transform judge-schema)}})
 
 (def judge-instructions
@@ -733,36 +805,42 @@
        "Decide what that much work, by this person, realistically did to these things, and answer by calling the `judge` tool. "
        "The time may be too short for the whole job: then only part of it is done.
 
-- Change conditions, each a short phrase of at most " max-condition " characters saying what state the thing is in now.
-- Leave out any item the work left unchanged.
+- A thing's `aspects` say what's notable about its state, each under its own key: cleanliness, repair, state, amount, stock and the like. A change sets one aspect of one thing: `thing` (its id), `aspect` (the key) and `value` (a short phrase of at most " max-aspect " characters saying how it is now).
+- Change only the aspects the work affected, and leave the others alone: polishing a cabinet changes its cleanliness, not its repair. Use a key the thing already has where one fits; a new key is lower-case letters and hyphens, at most 24 characters. A thing has at most " max-aspects " aspects. To remove an aspect that no longer applies, give it the value \"\".
+- Leave out anything the work left unchanged.
+- An entry marked `room`, if there is one, is the place itself: its aspects describe the room as a whole (floor, hearth, air), not the things in it, which have their own entries.
 - An item's nature can't change: work can't turn a vase into gold. If the task is impossible or absurd, change nothing and say so in the summary.
-- Only things marked `consumable` can be used up, and only once they are gone: food eaten or cooked into something else, fuel burnt, an ingredient used up. List their ids in `used-up`. Something partly used is not used up: change its condition to say what's left (\"about 17 lb left\").
-- `made` is for at most " max-made " things the work really produced from what it used up (a carved joint leaves \"Beef bone and trimmings\"; the bone simmered makes \"Beef stock\"), each with a name, a description and a condition. Give `in`, the id of a listed `container`, to put one there (the stock in the saucepan). Nothing is made without something used up.
+- Only things marked `consumable` can be used up, and only once they are gone: food eaten or cooked into something else, fuel burnt, an ingredient used up. List their ids in `used-up`. Something partly used is not used up: change its `amount` to say what's left (\"about 17 lb left\").
+- `made` is for at most " max-made " things the work really produced from what it used up (a carved joint leaves \"Beef bone and trimmings\"; the bone simmered makes \"Beef stock\"), each with a name, a description and, if anything about its state is notable, its `aspects` (keys and short phrases, as above). Give `in`, the id of a listed `container`, to put one there (the stock in the saucepan). Nothing is made without something used up.
 - A thing listed with `in` is inside another of the things listed. The work may or may not have touched it: leave it out if it didn't.
 - Luck is a roll from 1 to 100, and 50 is ordinary: low luck means mishaps (a slip, a breakage), high luck means it went unusually well.
 - The summary is one or two sentences, past tense, third person, for the people present, at most " max-summary " characters."))
 
 (def ^:private pretty (json/object-mapper {:pretty true}))
 
-(defn- judged-items
-  "The items in reach as the judge sees them, with :in only when the
-  container is among them, and :consumable and :container when true."
-  [reach]
-  (let [ids (set (map :id reach))]
-    (mapv #(cond-> (select-keys % [:id :name :desc :condition])
+(defn- judged-json
+  "The judged things as the judge sees them: the room marked :room, and
+  items with :in only when the container is among them, and :consumable
+  and :container when true."
+  [things]
+  (let [ids (set (map :id things))]
+    (mapv #(cond-> (select-keys % [:id :name :desc :aspects])
+             (:room? %) (assoc :room true)
              (ids (:in %)) (assoc :in (:in %))
              (:consumable? %) (assoc :consumable true)
              (:container %) (assoc :container true))
-          reach)))
+          things)))
 
 (defn judge-request
   "The judge's request for `job`: {:messages :tools}. It holds only the
   scenario's :judge-brief (under :items), the time, the worker's name and
   persona, the place, what they were doing, the minutes worked and whether
-  they stopped early, the luck roll, and each item in reach (`reach`) with
-  its id, name, description and condition, the container it's in when
-  that's in reach too, and whether it's consumable or a container."
-  [scenario world job {:keys [minutes stopped-early? luck]} reach]
+  they stopped early, the luck roll, and the judged things (`things`, see
+  `judged-things`): the room, if the job named it, with its id, name,
+  description and aspects, and each item in reach with its id, name,
+  description and aspects, the container it's in when that's in reach too,
+  and whether it's consumable or a container."
+  [scenario world job {:keys [minutes stopped-early? luck]} things]
   (let [worker (w/agent world (:actor job))
         brief (when-let [f (get-in scenario [:items :judge-brief])] (f world))]
     {:tools [judge-tool]
@@ -778,10 +856,52 @@
                      "- Time worked: " minutes " minutes" (if stopped-early? "; they stopped early" ", as planned") "\n"
                      "- Luck: " luck "\n\n"
                      "## The things worked on\n```json\n"
-                     (json/write-value-as-string (judged-items reach) pretty)
+                     (json/write-value-as-string (judged-json things) pretty)
                      "\n```\n\nCall `judge` now.")}]}))
 
 (defn- ids-or-none [items] (if (seq items) (str/join ", " (map :id items)) "none"))
+
+(defn- decoded-changes
+  "The judge's changes as [{:thing :aspect :to}]: the aspect's name as a
+  key, normalised like argument names (\"glass_eye\" is :glass-eye), and a
+  blank value as a nil :to, removing the aspect. When the same aspect of a
+  thing comes more than once, the last counts."
+  [changes]
+  (let [cs (for [{:keys [thing aspect value]} changes]
+             {:thing thing :aspect (a/kebab-key aspect) :to (when-not (str/blank? value) value)})
+        last-of (into {} (map (juxt (juxt :thing :aspect) identity)) cs)]
+    (map last-of (distinct (map (juxt :thing :aspect) cs)))))
+
+(defn- aspects-after
+  "Each judged thing's aspects, by id, once `changes` are made."
+  [things changes]
+  (reduce (fn [m {:keys [thing aspect to]}]
+            (if to (assoc-in m [thing aspect] to) (update m thing dissoc aspect)))
+          (into {} (map (juxt :id #(or (:aspects %) {}))) things)
+          changes))
+
+(defn- key-problem
+  "Why the aspect keys `ks` won't do, or nil."
+  [ks]
+  (when-let [bad (seq (distinct (remove aspect-key? ks)))]
+    (str "an aspect's key is lower-case letters and hyphens, at most 24 characters, starting with a letter "
+         "(cleanliness, glass-eye); not " (str/join ", " (map #(pr-str (name %)) bad)))))
+
+(defn- change-problem
+  "Why the judge can't make `changes`, or nil: each names one of the judged
+  `things`, with a well-formed key, and no thing ends up with more than
+  `max-aspects` aspects (counting those it has, less those cleared)."
+  [things changes]
+  (let [by-id (into {} (map (juxt :id identity)) things)
+        strays (distinct (remove by-id (map :thing changes)))
+        after (aspects-after things changes)
+        crowded (first (filter #(> (count (after %)) max-aspects) (distinct (map :thing changes))))]
+    (cond
+      (seq strays) (str "you may change only these things: " (ids-or-none things) "; not " (str/join ", " strays))
+      (key-problem (map :aspect changes)) (key-problem (map :aspect changes))
+      crowded (str "the " (:name (by-id crowded)) " (" crowded ") would have " (count (after crowded)) " aspects ("
+                   (str/join ", " (map name (keys (after crowded)))) "); a thing has at most " max-aspects
+                   ": change one it has instead, or remove one with the value \"\""))))
 
 (defn- use-up-problem
   "Why the judge can't use up the ids `gone`, or nil: each must be a
@@ -803,42 +923,58 @@
 
 (defn- made-problem
   "Why the judge can't make `made`, or nil: only from something used up,
-  and an :in must be a container in `reach` that isn't used up."
+  an :in must be a container in `reach` that isn't used up, and aspects
+  need well-formed keys and values of 1 to `max-aspect` characters."
   [reach gone made]
   (let [boxes (filter #(and (:container %) (not ((set gone) (:id %)))) reach)
-        bad-in (remove (set (map :id boxes)) (keep :in made))]
+        bad-in (remove (set (map :id boxes)) (keep :in made))
+        bad-value (first (for [{item-name :name :keys [aspects]} made
+                               [k v] aspects
+                               :when (not (<= 1 (count v) max-aspect))]
+                           (str "made " (pr-str item-name) ": its " (name k) " is " (count v) " characters; give it 1 to " max-aspect)))]
     (cond
       (and (seq made) (empty? gone))
       "things are made only from consumable items the work used up: list those in used-up, or make nothing"
       (seq bad-in) (str "in must be the id of a container among these: " (ids-or-none boxes)
-                        "; not " (str/join ", " (distinct bad-in))))))
+                        "; not " (str/join ", " (distinct bad-in)))
+      :else (or (key-problem (mapcat (comp keys :aspects) made)) bad-value))))
+
+(defn- made-entries
+  "The judge's `made` entries with their aspect keys normalised, and no
+  :aspects when there are none."
+  [made]
+  (mapv #(let [aspects (update-keys (:aspects %) a/kebab-key)]
+           (cond-> (dissoc % :aspects) (seq aspects) (assoc :aspects aspects)))
+        made))
 
 (defn- verdict
-  "The judge's tool arguments, checked: {:summary :changes [{:item :from :to}]},
-  with :used-up [ids] and :made [{:name :desc :condition :in}] when there are
-  some, or {:error reason}. Only items in `reach` may change, and only their
-  condition; only consumable ones may be used up (see `use-up-problem`), and
-  things made need something used up (see `made-problem`). Other keys are
-  dropped, and unchanged conditions, or changes to things used up, left out."
-  [arguments reach]
+  "The judge's tool arguments, checked: {:summary :changes [{:item or :place,
+  :aspect :from :to}]}, with :used-up [ids] and :made [{:name :desc :aspects
+  :in}] when there are some, or {:error reason}. Only the judged `things`
+  (see `judged-things`) may change, and only their aspects (see
+  `change-problem`); only consumable items may be used up (see
+  `use-up-problem`), and things made need something used up (see
+  `made-problem`). Other keys are dropped, and unchanged aspects, or changes
+  to things used up, left out. A nil :to removes the aspect."
+  [arguments things]
   (let [{:keys [args error]} (a/decode-args {:args judge-schema} arguments)
-        by-id (into {} (map (juxt :id identity)) reach)
-        strays (remove by-id (map :item (:changes args)))
+        changes (decoded-changes (:changes args))
+        by-id (into {} (map (juxt :id identity)) things)
         gone (vec (distinct (:used-up args)))
-        made (vec (:made args))]
+        made (made-entries (:made args))]
     (if-let [problem (or error
-                         (when (seq strays)
-                           (str "you may change only these items: " (str/join ", " (keys by-id))
-                                "; not " (str/join ", " (distinct strays))))
-                         (use-up-problem reach gone)
-                         (made-problem reach gone made))]
+                         (change-problem things changes)
+                         (use-up-problem things gone)
+                         (made-problem things gone made))]
       {:error problem}
       (cond-> {:summary (:summary args)
-               :changes (vec (for [{:keys [item condition]} (:changes args)
-                                   :let [from (:condition (by-id item))]
-                                   :when (not= from condition)
-                                   :when (not (some #{item} gone))]
-                               {:item item :from from :to condition}))}
+               :changes (vec (for [{:keys [thing aspect to]} changes
+                                   :let [from (get-in by-id [thing :aspects aspect])]
+                                   :when (not= from to)
+                                   :when (not (some #{thing} gone))]
+                               (if (:room? (by-id thing))
+                                 {:place thing :aspect aspect :from from :to to}
+                                 {:item thing :aspect aspect :from from :to to})))}
         (seq gone) (assoc :used-up gone)
         (seq made) (assoc :made made)))))
 
@@ -846,14 +982,15 @@
   "Read a judge response: {:verdict v :replies [...]} or {:error reason
   :replies [...]}, where :replies are the messages to send back (a reply to
   each tool call, or a reminder if it made none). Only the first `judge`
-  call counts."
-  [response reach]
-  (adjudication/answer "judge" response #(verdict % reach)))
+  call counts. `things` are the judged things (see `judged-things`)."
+  [response things]
+  (adjudication/answer "judge" response #(verdict % things)))
 
 (defn mock-judge
   "The judge in mock runs, a mock policy for calls with role :judge: every
-  item in reach is \"just seen to\", and the summary only says the work is over."
-  [{:keys [world job items stopped-early?]}]
+  judged thing (`:things`, see `judged-things`) gets the cleanliness \"just
+  seen to\", and the summary only says the work is over."
+  [{:keys [world job things stopped-early?]}]
   {:tool :judge
-   :args {:changes (mapv (fn [it] {:item (:id it) :condition "just seen to"}) items)
+   :args {:changes (mapv (fn [t] {:thing (:id t) :aspect "cleanliness" :value "just seen to"}) things)
           :summary (neutral-summary world job stopped-early?)}})

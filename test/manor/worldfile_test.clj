@@ -4,6 +4,7 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.engine :as e]
+            [manor.items :as items]
             [manor.space :as space]
             [manor.store :as store]
             [manor.world :as w]
@@ -72,6 +73,22 @@
                          ":desc \"A small hall.\" :detail \"Coats on pegs, a worn rug, and a smell of pipe smoke.\"}")))
     (testing "other sections are kept"
       (is (= (:notices start) (:notices exported))))
+    (testing "aspects of places and items are kept and printed; :touched is the run's, not the map's"
+      (is (= {:cleanliness "muddy boot prints by the door" :hearth "cold ash in the grate"} (:aspects (first (:locations exported)))))
+      (is (str/includes? (wf/->edn-string exported)
+                         "{:id \"clock\" :name \"Grandfather clock\" :place \"hall\" :owner \"Ada\" :fixed? true :aspects {:state \"ticking loudly\"} :desc"))
+      (let [changed (reduce w/apply-event (assoc (e/world run) :round 3)
+                            [{:type :item/taken :actor "ada" :data {:item "umbrella" :from-place "hall"}}
+                             {:type :item/work-done :actor "ben"
+                              :data {:job "job-1" :changes [{:place "hall" :aspect :hearth :from "cold ash in the grate" :to nil}
+                                                            {:item "clock" :aspect :cleanliness :from nil :to "dusted"}]}}])
+            again (wf/export changed start)]
+        (is (= 3 (:touched (some #(when (= "umbrella" (:id %)) %) (items/all changed)))))
+        (is (= {:cleanliness "muddy boot prints by the door"} (:aspects (first (:locations again)))))
+        (is (= {:state "ticking loudly" :cleanliness "dusted"} (:aspects (first (:items again)))))
+        (is (not-any? :touched (:items again)))
+        (is (empty? (wf/problems again)))
+        (is (= again (edn/read-string (wf/->edn-string again))))))
     (e/stop-run run)))
 
 (deftest run-files

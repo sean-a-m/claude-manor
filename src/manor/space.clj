@@ -131,8 +131,9 @@
                    went (assoc :went (loc-name went))))))))
 
 (defn view
-  "The location section of an agent's observation. With a clock, times
-  replace round numbers."
+  "The location section of an agent's observation: the place you're in
+  (with its :aspects, if it has any), the exits, the people here and where
+  you last saw others. With a clock, times replace round numbers."
   [world agent-id]
   (let [a (w/agent world agent-id)
         c (:clock world)
@@ -143,7 +144,7 @@
                        c (assoc :arrives (clock/label c arrives))
                        (not c) (assoc :arrives-round arrives))}
         (let [loc (:location a)]
-          {:here (select-keys (location world loc) [:id :name :desc])
+          {:here (select-keys (location world loc) [:id :name :desc :aspects])
            :exits (mapv (fn [{:keys [to travel]}]
                           (cond-> {:to to :name (loc-name to)}
                             c (assoc :travel-minutes (* travel (:minutes-per-round c)))

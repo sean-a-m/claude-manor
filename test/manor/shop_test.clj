@@ -97,9 +97,9 @@
           (is (= 594 (get-in after [:state :household :funds])))
           (is (= 7 (get-in after [:state :household :untouched])))
           (is (empty? (get-in after [:state :quotes])))
-          (testing "one parcel for the whole quantity, the amount leading its condition"
+          (testing "one parcel for the whole quantity, its amount and state as aspects"
             (is (= [{:id "packet-of-needles" :name "packet of needles" :owner "household" :holder "customer"
-                     :condition "2 × a paper packet of ten needles; new"
+                     :aspects {:amount "2 × a paper packet of ten needles" :state "new"}
                      :desc "Ten steel sewing needles in a folded paper packet."}]
                    (items/items-where after #(= "customer" (:holder %))))))
           (is (str/includes? (shop/buy-reason after "customer" {:quote-id (:id offer)}) "unspent quote"))
@@ -142,7 +142,7 @@
                (assoc available :unit-price-pence 1.5) (assoc available :unit-price-pence (inc shop/max-unit-price))
                (assoc available :item (apply str (repeat 61 "x")))
                (assoc available :unit (apply str (repeat (inc shop/max-unit) "x")))
-               (assoc available :condition (apply str (repeat (inc shop/max-goods-condition) "x")))
+               (assoc available :condition (apply str (repeat (inc items/max-aspect) "x")))
                (dissoc available :consumable)
                {:available false} {:available false :reason " "}]]
     (is (:error (shop/check (response bad))) (pr-str bad)))
@@ -179,10 +179,10 @@
     (try
       (let [[after evs] (bought (e/world run) flour 20)
             names (n/names after)]
-        (testing "one item for twenty pounds, the amount in its condition, consumable"
+        (testing "one item for twenty pounds, the amount and the condition as aspects, consumable"
           (is (= [:claudeworth/bought :item/added] (map :type evs)))
           (is (= [{:id "plain-household-flour" :name "Plain household flour" :holder "customer" :owner "household"
-                   :desc "Fine white flour in a blue paper bag." :condition "20 × 1 lb; fresh, dry, unbleached"
+                   :desc "Fine white flour in a blue paper bag." :aspects {:amount "20 × 1 lb" :state "fresh, dry, unbleached"}
                    :consumable? true}]
                  (items/held-by after "customer"))))
         (testing "both lines give the amount"
@@ -190,14 +190,15 @@
           (is (= "Customer now has plain household flour (20 × 1 lb)." (n/describe (second evs) names))))
         (testing "a single unit is just the unit; lasting goods aren't consumable"
           (let [[after] (bought (e/world run) available 1)]
-            (is (= [["a paper packet of ten needles; new" nil]]
-                   (map (juxt :condition :consumable?) (items/held-by after "customer")))))))
-      (testing "the longest unit and condition the appraiser may give still fit an item's condition"
+            (is (= [[{:amount "a paper packet of ten needles" :state "new"} nil]]
+                   (map (juxt :aspects :consumable?) (items/held-by after "customer")))))))
+      (testing "the longest unit and condition the appraiser may give still fit an item's aspects"
         (let [longest (assoc flour :unit (apply str (repeat shop/max-unit "u"))
-                             :condition (apply str (repeat shop/max-goods-condition "c")) :unit-price-pence 1)
+                             :condition (apply str (repeat items/max-aspect "c")) :unit-price-pence 1)
               [after] (bought (e/world run) longest shop/max-quantity)
               [it] (items/held-by after "customer")]
-          (is (<= (count (:condition it)) items/max-condition))))
+          (is (= {:amount (str "20 × " (apply str (repeat shop/max-unit "u"))) :state (apply str (repeat items/max-aspect "c"))}
+                 (:aspects it)))))
       (finally (e/stop-run run)))))
 
 (deftest refusals-and-failures-never-charge-or-create-goods

@@ -25,12 +25,12 @@
 (def consumables
   "In the hall: a roasted rib of beef (Ada's), an open saucepan, a paper bag
   holding a bun, and a fixed woodpile; Ben carries an apple."
-  [{:id "beef" :name "Rib of beef" :place "hall" :owner "Ada" :consumable? true :condition "roasted, on the board" :desc "A roasted rib of beef."}
-   {:id "saucepan" :name "Saucepan" :place "hall" :container :open :condition "clean" :desc "A copper saucepan."}
-   {:id "bag" :name "Paper bag" :place "hall" :container :open :consumable? true :condition "crumpled" :desc "A baker's paper bag."}
-   {:id "bun" :name "Bun" :in "bag" :consumable? true :condition "fresh" :desc "A currant bun."}
-   {:id "woodpile" :name "Woodpile" :place "hall" :fixed? true :consumable? true :condition "stacked" :desc "Split logs by the hearth."}
-   {:id "apple" :name "Apple" :holder "Ben" :consumable? true :condition "ripe" :desc "A red apple."}])
+  [{:id "beef" :name "Rib of beef" :place "hall" :owner "Ada" :consumable? true :aspects {:state "roasted, on the board"} :desc "A roasted rib of beef."}
+   {:id "saucepan" :name "Saucepan" :place "hall" :container :open :aspects {:cleanliness "clean"} :desc "A copper saucepan."}
+   {:id "bag" :name "Paper bag" :place "hall" :container :open :consumable? true :aspects {:state "crumpled"} :desc "A baker's paper bag."}
+   {:id "bun" :name "Bun" :in "bag" :consumable? true :aspects {:state "fresh"} :desc "A currant bun."}
+   {:id "woodpile" :name "Woodpile" :place "hall" :fixed? true :consumable? true :aspects {:state "stacked"} :desc "Split logs by the hearth."}
+   {:id "apple" :name "Apple" :holder "Ben" :consumable? true :aspects {:state "ripe"} :desc "A red apple."}])
 
 (def world-file
   (update (wf/read-file "test/fixtures/hamlet.edn") :items into consumables))
@@ -60,8 +60,8 @@
 (defn- judge-says [args]
   {:tool-calls [{:id "j1" :name "judge" :arguments (json/write-value-as-string args)}]})
 
-(def stock {:name "Beef stock" :desc "A rich brown stock." :condition "simmering" :in "saucepan"})
-(def bones {:name "Beef bones" :desc "The rib bones, picked clean." :condition "picked clean"})
+(def stock {:name "Beef stock" :desc "A rich brown stock." :aspects {:state "simmering"} :in "saucepan"})
+(def bones {:name "Beef bones" :desc "The rib bones, picked clean." :aspects {:state "picked clean"}})
 
 ;; ---------------------------------------------------------------------------
 ;; The judge's answer
@@ -70,7 +70,7 @@
   (let [run (start)
         world (e/world run)
         user (:content (second (:messages (items/judge-request (:scenario run) world job {:minutes 60 :luck 50}
-                                                               (items/in-reach world job)))))
+                                                               (items/judged-things world job)))))
         judged (json/read-value (second (re-find #"(?s)```json\n(.*)\n```" user)) json/keyword-keys-object-mapper)
         system (:content (first (:messages (items/judge-request (:scenario run) world job {:minutes 60} []))))]
     (is (= {"beef" [true nil] "saucepan" [nil true] "bag" [true true] "bun" [true nil] "clock" [nil nil]}
@@ -84,13 +84,13 @@
 (deftest checking-used-up-and-made
   (let [run (start)
         world (e/world run)
-        reach (items/in-reach world job)
+        reach (items/judged-things world job)
         judge #(items/judgement (judge-says %) reach)
         error #(:error (judge (assoc % :summary "Done.")))]
     (testing "a good answer: what's used up, and what's made from it; a change to a used-up item is dropped"
-      (is (= {:summary "The beef went into stock." :changes [{:item "saucepan" :from "clean" :to "greasy"}]
+      (is (= {:summary "The beef went into stock." :changes [{:item "saucepan" :aspect :cleanliness :from "clean" :to "greasy"}]
               :used-up ["beef"] :made [stock bones]}
-             (:verdict (judge {:changes [{:item "saucepan" :condition "greasy"} {:item "beef" :condition "carved"}]
+             (:verdict (judge {:changes [{:thing "saucepan" :aspect "cleanliness" :value "greasy"} {:thing "beef" :aspect "state" :value "carved"}]
                                :used_up ["beef" "beef"] :made [stock bones] :summary "The beef went into stock."})))))
     (testing "using up without making anything is fine"
       (is (= {:summary "Eaten." :changes [] :used-up ["apple"]} (:verdict (judge {:used-up ["apple"] :summary "Eaten."})))))
@@ -113,9 +113,21 @@
       (is (= "in must be the id of a container among these: saucepan; not bag"
              (error {:used-up ["beef" "bag" "bun"] :made [(assoc stock :in "bag")]})))
       (is (str/ends-with? (error {:used-up ["beef"] :made [(assoc stock :in "cellar")]}) "; not cellar")))
-    (testing "made things need a name, a description and a condition within the limits"
+    (testing "made things need a name and a description within the limits; aspects are optional, and checked"
       (is (error {:used-up ["beef"] :made [(dissoc bones :desc)]}))
-      (is (error {:used-up ["beef"] :made [(assoc bones :name (apply str (repeat 61 "x")))]})))
+      (is (error {:used-up ["beef"] :made [(assoc bones :name (apply str (repeat 61 "x")))]}))
+      (is (= [{:name "Beef bones" :desc "The rib bones, picked clean."}]
+             (:made (:verdict (judge {:used-up ["beef"] :made [(dissoc bones :aspects)] :summary "x"})))))
+      (is (= {:picked-state "clean"}
+             (:aspects (first (:made (:verdict (judge {:used-up ["beef"] :made [(assoc bones :aspects {"picked_state" "clean"})] :summary "x"})))))))
+      (is (= "an aspect's key is lower-case letters and hyphens, at most 24 characters, starting with a letter (cleanliness, glass-eye); not \"bone count\""
+             (error {:used-up ["beef"] :made [(assoc bones :aspects {"Bone Count" "three"})]})))
+      (is (str/includes? (error {:used-up ["beef"] :made [(assoc bones :aspects (zipmap ["a" "b" "c" "d" "e"] (repeat "x")))]})
+                         "should have at most 4 elements"))
+      (is (= "made \"Beef bones\": its state is 81 characters; give it 1 to 80"
+             (error {:used-up ["beef"] :made [(assoc bones :aspects {"state" (apply str (repeat 81 "x"))})]})))
+      (is (= "made \"Beef bones\": its state is 0 characters; give it 1 to 80"
+             (error {:used-up ["beef"] :made [(assoc bones :aspects {"state" ""})]}))))
     (testing "the reason goes back to the judge"
       (is (= "error: the Paper bag (bag) still holds bun: use those up too, or don't use it up. Call judge again with a corrected answer."
              (:content (first (:replies (judge {:used-up ["bag"] :summary "x"})))))))
@@ -127,23 +139,24 @@
 (deftest work-done-uses-up-and-makes
   (let [run (start)
         world (e/world run)
-        reach (items/in-reach world job)
+        reach (items/judged-things world job)
         verdict-of #(:verdict (items/judgement (judge-says %) reach))
         done (items/work-done world job {:minutes 60 :stopped-early? false :luck 50}
                               (verdict-of {:used-up ["beef"] :made [stock bones] :summary "Ben made stock of the beef."}))
         after (w/apply-event world done)]
     (testing "the data names what was used up and holds the new items"
       (is (= [{:item "beef" :name "Rib of beef"}] (get-in done [:data :used-up])))
-      (is (= [{:id "beef-stock" :name "Beef stock" :desc "A rich brown stock." :condition "simmering"
+      (is (= [{:id "beef-stock" :name "Beef stock" :desc "A rich brown stock." :aspects {:state "simmering"}
                :consumable? true :owner "ada" :in "saucepan"}
-              {:id "beef-bones" :name "Beef bones" :desc "The rib bones, picked clean." :condition "picked clean"
+              {:id "beef-bones" :name "Beef bones" :desc "The rib bones, picked clean." :aspects {:state "picked clean"}
                :consumable? true :owner "ada" :place "hall"}]
              (get-in done [:data :made]))
           "owned like the beef; the stock in the saucepan, the bones where the work was"))
     (testing "the reducer removes the used-up item and adds the made ones"
       (is (nil? (items/item after "beef")))
       (is (= ["beef-stock"] (map :id (items/contents after "saucepan"))))
-      (is (= "hall" (:place (items/item after "beef-bones")))))
+      (is (= "hall" (:place (items/item after "beef-bones"))))
+      (is (= (:round world) (:touched (items/item after "beef-bones"))) "made things are touched"))
     (testing "a used-up item keeps its name for older lines, and its id isn't given out again"
       (is (= "Ada picks up the rib of beef."
              (n/describe {:type :item/taken :actor "ada" :data {:item "beef" :from-place "hall"}} (n/names after))))
@@ -158,7 +171,7 @@
         (is (not-any? #(= "beef" (:id %)) (:items (prompt/default-gm-view after))))))
     (testing "made from something the worker carried: the worker holds it"
       (let [d (items/work-done world job {:minutes 30 :luck 50}
-                               (verdict-of {:used-up ["apple"] :made [{:name "Apple core" :desc "A core." :condition "brown"}]
+                               (verdict-of {:used-up ["apple"] :made [{:name "Apple core" :desc "A core." :aspects {:state "brown"}}]
                                             :summary "Ben ate the apple."}))]
         (is (= {:holder "ben" :consumable? true} (select-keys (first (get-in d [:data :made])) [:holder :consumable? :place])))
         (is (= ["apple-core" "pipe"] (map :id (items/held-by (w/apply-event world d) "ben"))))))
@@ -174,10 +187,10 @@
 ;; ---------------------------------------------------------------------------
 ;; A short mock run: Ben makes stock of the beef in the saucepan; Ada goes to bed.
 
-(defn- judge [{:keys [items]}]
+(defn- judge [{:keys [things]}]
   {:tool :judge
-   :args (if (some #(= "beef" (:id %)) items)
-           {:used-up ["beef"] :made [stock] :changes [{:item "saucepan" :condition "full of stock"}]
+   :args (if (some #(= "beef" (:id %)) things)
+           {:used-up ["beef"] :made [stock] :changes [{:thing "saucepan" :aspect "state" :value "full of stock"}]
             :summary "Ben boiled the beef down to stock."}
            {:summary "Nothing to do."})})
 
@@ -197,7 +210,7 @@
       (is (nil? (items/item world "beef")))
       (is (= [{:id "beef-stock" :in "saucepan" :owner "ada" :consumable? true}]
              (map #(select-keys % [:id :in :owner :consumable?]) (items/contents world "saucepan"))))
-      (is (= "full of stock" (:condition (items/item world "saucepan")))))
+      (is (= {:cleanliness "clean" :state "full of stock"} (:aspects (items/item world "saucepan")))))
     (testing "Ben saw it; Ada, upstairs, didn't"
       (is (= #{"ben"} (:visible-to done))))
     (testing "replay gives the same world"
@@ -211,6 +224,6 @@
         (is (= {:in "saucepan" :consumable? true} (select-keys (by-id "beef-stock") [:in :consumable?])))
         (is (str/includes? (slurp path) "{:id \"beef-stock\" :name \"Beef stock\" :in \"saucepan\" :owner \"Ada\" :consumable? true"))
         (let [r2 (start {:world-file path})]
-          (is (= (items/all world) (items/all (e/world r2))))
+          (is (= (map #(dissoc % :touched) (items/all world)) (items/all (e/world r2))))
           (e/stop-run r2))))
     (e/stop-run run)))

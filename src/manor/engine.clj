@@ -122,7 +122,8 @@
         :openrouter (llm/openrouter))))
 
 (defn- make-run [id dir scenario opts]
-  (let [opts (cond-> opts
+  (let [scenario (cond-> scenario (:items scenario) (update :adjudicators #(merge items/adjudicators %)))
+        opts (cond-> opts
                (:offline? opts) (update :bridge-stubs #(merge (:offline-stubs scenario) %)))]
   {:id id
    :dir dir
@@ -239,13 +240,15 @@
              (emit! run (action-events action @(:world run) actor args))
              {:ok true :world @(:world run)}))))))
 
+(defn- reply-text [data]
+  (if (string? data) data (prompt/->json data)))
+
 (defn- free-reply
   "The tool result for an accepted free action: its :reply (a string as is,
   anything else as JSON), computed from the world after its effect, or \"ok\"."
   [action world actor args]
   (if-let [f (:reply action)]
-    (let [data (f world actor args)]
-      (if (string? data) data (prompt/->json data)))
+    (reply-text (f world actor args))
     "ok"))
 
 (declare ask-structured!)
@@ -264,13 +267,17 @@
             bargs (when-not task ((or (:bridge-args action) (fn [_ _ args] args)) world actor args))
             {:keys [result error cost] :as res}
             (if task
-              (let [{:keys [messages tools ctx]} ((:request spec) world actor args)
-                    {:keys [verdict failure]}
-                    (ask-structured! run (str "adjudicator/" (subs (str task) 1))
-                                     {:messages messages :tools tools
-                                      :ctx (assoc ctx :role :adjudicator :task task)}
-                                     (:check spec))]
-                (if failure {:error "The enquiry failed; try again later." :failure failure} {:result verdict}))
+              (let [{:keys [messages tools ctx result check] :as request} ((:request spec) world actor args)]
+                (if (contains? request :result)
+                  {:result result}
+                  (let [{:keys [verdict failure]}
+                        (ask-structured! run (str "adjudicator/" (subs (str task) 1))
+                                         {:messages messages :tools tools
+                                          :ctx (assoc ctx :role :adjudicator :task task)}
+                                         (or check (:check spec)))]
+                    (if failure
+                      {:error (or (:failure-reply spec) "The enquiry failed; try again later.") :failure failure}
+                      {:result verdict}))))
               (bridge/call (:scenario run) (:opts run) (bridge-ctx run) (:bridge action) bargs))]
         (locking (:world run)
           (if task
@@ -280,10 +287,16 @@
             (do (emit! run [{:type :bridge/called :actor actor :visible-to #{actor}
                             :data {:bridge (:bridge action) :args bargs :result result :error error}}])
                 (record-bridge-cost! run actor (:bridge action) cost)))
-          (when (and result (:on-result action))
-            (emit! run (mapv #(cond-> % (not (:actor %)) (assoc :actor actor))
-                             ((:on-result action) @(:world run) actor args result)))))
-        res))))
+          (let [before (count @(:events run))]
+            (when (and result (:on-result action))
+              (emit! run (mapv #(cond-> % (not (:actor %)) (assoc :actor actor))
+                               ((:on-result action) @(:world run) actor args result))))
+            (cond
+              (and error (:failure-reply spec)) (assoc res :reply error)
+              (and result (:reply action))
+              (assoc res :reply (reply-text ((:reply action) @(:world run) actor args
+                                            (assoc result :events (subvec @(:events run) before)))))
+              :else res)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Activations
@@ -411,12 +424,12 @@
             :query
             (if (>= (:queries st) max-queries)
               (reply st (str "error: query limit reached for this turn (" max-queries "); take your action now, and query again next turn"))
-              (let [{:keys [result error]} (run-query! run agent-id action args)]
+              (let [{:keys [result error] :as response} (run-query! run agent-id action args)]
                 (-> st
                     (update :queries inc)
                     (update :used conj name)
-                    (cond-> (not error) (use-up action))
-                    (reply (if error (str "error: " error) (prompt/->json result))))))
+                    (cond-> (or (not error) (:reply response)) (use-up action))
+                    (reply (or (:reply response) (if error (str "error: " error) (prompt/->json result)))))))
 
             (:final :act)
             (let [{:keys [rejected]} (commit action args)]

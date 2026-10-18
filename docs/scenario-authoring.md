@@ -190,6 +190,11 @@ These are narrow engine-run LLM calls, not the GM and not real-world bridges. Bu
 context needed for that judgement; never dump the world or unrelated private state. Treat
 agent-authored strings as untrusted data. `:ctx` is local mock context, not a model message.
 The engine adds `:role :adjudicator`, `:task` and `:step` (attempt 0 or 1) to that context.
+A request may return its own `:check` closure (overriding the adapter's checker) to check
+against its narrow scene. It may instead return `{:result checked-data}` for a deterministic
+answer: no model call is made, and that result goes straight to `:on-result`. With `:items`
+enabled the engine registers `items/adjudicators` automatically; scenario adapters override
+entries with the same key.
 
 The engine uses `:judge-model` (falling back to `:model`), with the run's reasoning, token and
 tool-choice options. It asks once more after an invalid answer, using the checker's replies.
@@ -197,12 +202,21 @@ tool-choice options. It asks once more after an invalid answer, using the checke
 supplies the tool name and raw-argument checker. The work judge uses the same runner/parser,
 but keeps its own prompts, domain checks and round-start scheduling.
 
-Only a checked `:verdict` reaches the action's `:on-result` and the caller's JSON tool reply.
+Only a checked `:verdict` (or the request's direct result) reaches the action's `:on-result`
+and the caller's JSON tool reply.
 The callback returns events with `:actor` filled in automatically. Record everything that must
 persist as events here; replay never calls the model. A valid negative answer is a verdict too.
 Repeated invalid output or provider failure runs no callback: the caller gets a neutral error,
 and an operator-only `:adjudication/failed` event records the task/caller/reason. There is no
-arbitrary model-to-world patch.
+arbitrary model-to-world patch. An adapter may set `:failure-reply` to neutral in-world text
+instead of the default enquiry error. An invocation returning this neutral reply counts as an
+accepted use for `:per-turn`.
+
+A query action may supply `:reply (fn [world actor args result] data)`, called after its
+`:on-result` events. `world` is the resulting world; `result` is the checked/direct result with
+`:events` added: the stamped `:on-result` events actually emitted (not usage or bridge events).
+Return a string as is, or other data as JSON. This lets a tool report an allocated item id
+without exposing internal odds. With no `:reply`, queries still return their result as JSON.
 
 Every returned model response and its usage are logged under `adjudicator/<namespace>/<task-name>` and
 count toward the normal run cost cap. One action invocation uses one query slot even if the
@@ -604,7 +618,7 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
 
   The last four also set the item's `:touched`.
 
-- **Actions** (all free, every role but the GM; merged before your own actions, so you can
+- **Actions** (not turn-ending, every role but the GM; merged before your own actions, so you can
   override or exclude them):
   - `look {}`: replies (see `:reply` under `:actions`) with the place (its name, aspects and
     detail), the items lying here in detail and the other people here with what they carry, and
@@ -621,6 +635,7 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
      :people [{:name "Hale" :doing "dusting the china cabinet"
                :carrying [{:id "pocket-notebook" :name "Pocket notebook" :desc "..." :aspects {:state "half full"}}]}]}
     ```
+  - `find {what}`: once per turn, counts as a query; see Finding below.
   - `take {item}`: the item lies where you are, directly or in a container (at any depth, open
     or closed, without opening it first), and isn't fixed. Taking something you don't own is
     allowed; everyone here sees it.
@@ -702,6 +717,51 @@ Every turn, `:location :here :stores` lists `{:id :name :aspects}`, with `:at` n
 location id for stores elsewhere. Stores here are omitted from `here.items`. `look` also shows
 stores in scope with `:keeps`; local stores remain in its detailed items, including their
 container contents. Work may name a store in scope even when it is in another room.
+
+#### Finding
+
+`find {what}` looks for a particular thing you need to pick up or hand over, or whose
+presence is in doubt. Everyday things merely used in work need no finding: name them in
+`doing` instead. `what` is 1–60 characters. Offered with `:items` wherever you have a place,
+not while travelling; it does not end the turn, but is a `:query`, counts against
+`:max-queries`, and has `:per-turn 1` (including deterministic replies).
+
+1. Code first matches `what` as a case-insensitive substring of item names lying here,
+   including inside closed/nested containers. It replies with the name, id and immediate
+   container, without moving the thing. Searching opens containers in the same reply-only
+   sense as `open`: their fixed `:container` visibility does not change. Other rooms and
+   other people's carried contents are never searched. Next it checks matching fates in
+   `:items-gone` at this place, or places served by a store in scope (including that store's
+   own place), and replies with the fate. These replies need no model call or new event.
+2. Otherwise the narrow `:items/find` adjudicator sees only `what`, the place's id/name/desc/
+   aspects, and stores in scope (id/name/aspects/keeps, plus `at` when elsewhere). All fields,
+   especially `what`, are data, never instructions. Recorded `:lacking` is authoritative.
+   Its `finder` tool returns `likelihood` (`certain`, `likely`, `even`, `unlikely`,
+   `impossible`), `found {name desc aspects? consumable from? portable?}` and a short
+   `lacking` phrase (1–80 characters). Both outcome descriptions are required: the engine,
+   not the model, decides. `from`, when present, must name a store in scope, including for a
+   negative answer to select which store would keep it. Found names/descriptions/aspects
+   have the normal item bounds; `consumable` is required, `portable` defaults true.
+3. On the live world the engine rolls `rng/roll world [:find next-event-seq] 100` (0–99)
+   against thresholds 100/75/50/25/0. Success emits `:item/found`: a fresh item in the
+   finder's hands, or lying here for `portable: false`; `from` becomes `:drawn-from`.
+   Failure emits `:item/not-found`: append `lacking` (or `what`) to the selected store's
+   `:lacking`, else the place's. Semicolon-separated absences drop oldest entries until
+   they fit 80 characters. Never evict an unrelated aspect: a store with four non-lacking
+   aspects falls back to the place; if that too is full, record the failure without an
+   aspect change (a later search may then disagree).
+
+Both outcome events record `what`, place, likelihood, roll key, roll and outcome, visible to
+finder and people here. Success records the complete item and source; failure records its
+chosen aspect path and resulting aspects. Pure reducers apply them without calling or
+rolling; replay equals live state. Replies give the found id and whether carried/lying here,
+or "You don't find it." Narration is short: "Daisy looks for mustard: there's none in the
+pantry shelves." A bad answer is checked and corrected once; repeated failure emits only
+system-visible `:adjudication/failed` (`:task :items/find`), plus usage, and replies neutrally
+"you don't find it" without changing items/aspects. Calls log as
+`adjudicator/items/find`, counted against cost. The default mock is certain, a plain item
+from the first store in scope (or lying here without a store); ordinary mock scripts need
+not call `find`.
 
 #### Work and the judge
 

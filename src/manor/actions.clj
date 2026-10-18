@@ -24,6 +24,10 @@
                                             ; a string as is, else JSON; `world`
                                             ; is the world after the effect
 
+     ;; :query actions may also supply a reply after :on-result
+     ;; :reply (fn [world actor args result]) => data
+     ;; result includes :events, the stamped :on-result events actually emitted
+
      ;; :query and :act actions only
      :bridge      :open-meteo/daily
      :bridge-args (fn [world actor args]) => bridge args

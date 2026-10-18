@@ -1,6 +1,6 @@
 # Stores, aspects and the scene judge: design
 
-**Status:** designed (2026-10-17). Phases 0–3 done. Each phase below has its own status line;
+**Status:** designed (2026-10-17). Phases 0–4 done. Each phase below has its own status line;
 update it as work lands, so an agent picking this up can tell where to start.
 
 Read `AGENTS.md` first (invariants, run directories, cost rules), then "Items (`manor.items`)" and
@@ -401,9 +401,35 @@ Small details and deviations:
 
 ### Phase 4: `find`
 
-**Status: not started.**
+**Status: done, mock-tested only (no real run).** Local name/container hits and scoped fates
+short-circuit the oracle. Checked finder answers, seeded outcomes, bounded absences,
+visibility, per-turn limits, failure/correction, usage and replay are covered by
+`test/manor/find_test.clj`. The full suite's Claudeworth mock days remain unchanged.
 
-- `find {what}`: `what` is 1–60 characters. A free action, once per turn (`:per-turn 1`), not
+Approved deviations and details:
+
+- `find` is a non-turn-ending `:query`, not `:free`: it uses the existing adjudication
+  machinery and counts against the query budget as well as `:per-turn 1`. This intentionally
+  reduces its salience. Calls log as `adjudicator/items/find`, not `finder`; failures use
+  system-only `:adjudication/failed` with task `:items/find`, not a new failure event type.
+- Item adapters register automatically when items are enabled. Adjudicator requests may
+  return a direct `:result` or their own scope-closing `:check`; query actions may return a
+  custom `:reply` using the stamped on-result events (for exact allocated ids). Shop defaults
+  are unchanged. Finder failures reply neutrally and consume the accepted per-turn use.
+- Container searches, like `open`, reveal matching contents only in their reply; no persistent
+  open/closed state was introduced. Deterministic hits/fates emit nothing and do not move items.
+- Oracle `found` and `lacking` are both required because code decides the outcome. Optional
+  `portable` defaults true; false leaves the thing here (no new size mechanics). Mock items
+  lie here when no store is in scope. A found source becomes `:drawn-from`.
+- The roll key uses the live world's next event sequence at on-result time, after usage is
+  recorded. Key, roll, likelihood and outcome are recorded, so replay never re-rolls.
+- **Known gap:** four unrelated aspects are never evicted to make room for `:lacking`.
+  A full selected store falls back to the place; if that is full too, the negative event
+  records `what` without changing aspects. A later search may disagree in that rare case.
+- No phase 5 content or mock-day search choreography was added; only the requested short
+  Claudeworth rules sentence and query-budget wording changed.
+
+- `find {what}`: `what` is 1–60 characters. A non-turn-ending query, once per turn (`:per-turn 1`), not
   while travelling. Its doc: "Look for a particular thing you need to pick up or hand over, or
   whose presence is in doubt. Everyday things you only use in your work need no finding: just
   name them in what you're doing."
@@ -414,7 +440,7 @@ Small details and deviations:
   here (including inside containers, which searching opens) replies "the X is here (id)". A
   match against `:items-gone` whose `:place` is here, or a place this store serves, replies with
   its fate ("the rib of beef was carved at dinner; its bones went into the stock pot").
-- **Step 2, the oracle:** otherwise one narrow call (agent `"finder"`) gets the place, its
+- **Step 2, the oracle:** otherwise one narrow call (agent `"adjudicator/items/find"`) gets the place, its
   aspects, the stores in scope and `what`. It returns a `likelihood` (`certain`, `likely`,
   `even`, `unlikely`, `impossible`), a `found` item `{name desc aspects consumable from}` for a
   yes, and a short `lacking` phrase for a no. The engine rolls `rng/roll world [:find seq] 100`

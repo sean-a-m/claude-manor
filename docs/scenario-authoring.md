@@ -1096,7 +1096,8 @@ persona as before. A character without traits is prompted exactly as one was bef
   `acquaintance`, `fellow-servant`, `employer`, `family`). Both are deterministic from the seed.
 - The **polish** (`manor.people/polish!`) is one narrow checked model call, like the shop's
   appraiser: the setting, the position, the base record and any notes go in; `{persona manner}`
-  comes out. Code checks the lengths (persona at most 600 characters, manner at most 200), that
+  comes out. Code checks the lengths (persona at most 600 characters, though the model is asked
+  for about 450 because it overshoots a stated limit; manner at most 200), that
   the persona names the person, and that it doesn't use the record's jargon (faculty or Big Five
   axis names); a bad answer is sent back once with the reason. The record's facts are stored from
   the record, never from the model's text. `mock-polish` is the free responder.
@@ -1106,7 +1107,8 @@ persona as before. A character without traits is prompted exactly as one was bef
   agent keeps their `:name` and `:sex`; their old `:persona` becomes `:sketch` (an existing
   `:sketch` is used instead), and the polish keeps their position and situation from it but not
   its traits. The server's age, origin and home are dropped for these authored characters. The
-  default model and settings are the runs' (`deepseek/deepseek-v4.1-flash`, the manor key); the
+  default model and settings are the runs' (`deepseek/deepseek-v4.1-flash`, the manor key);
+  `{:only ["Hobbs"]}` rolls just the agents named. The
   server log and every call go to `test-runs/roll-cast-<time>/roll-cast.edn`, with the cost. An
   agent whose polish fails is left as it was.
 - Loading, branching and replay never read world files: the starting map is recorded as events.

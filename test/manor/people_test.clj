@@ -137,7 +137,9 @@
         error #(:error (people/check-polish record (polish-response %)))]
     (testing "a good answer is kept, trimmed"
       (is (= good (verdict (update good :persona #(str "  " % " "))))))
-    (testing "lengths"
+    (testing "lengths: the model is asked for less persona than is accepted"
+      (is (verdict (assoc good :persona (apply str "Tom Ridding " (repeat 580 "x")))))
+      (is (= 450 (get-in (people/polish-request {:record record}) [:tools 0 :function :parameters :properties :persona :maxLength])))
       (is (error (assoc good :persona (apply str "Tom Ridding " (repeat 600 "x")))))
       (is (error (assoc good :manner (apply str (repeat 201 "x")))))
       (is (error (assoc good :manner "   "))))
@@ -259,10 +261,11 @@
         (is (= {} (:failed result)))
         (is (zero? (:cost result)))
         (is (= 9 (count (:results (edn/read-string (slurp (io/file dir "roll-cast.edn"))))))))
-      (testing "each keeps name, role and sex; the old persona becomes the sketch; the traits are rolled"
-        (doseq [[a b] (map vector (:agents before) (:agents after))]
-          (is (= (dissoc a :persona) (select-keys b (keys (dissoc a :persona)))))
-          (is (= (:persona a) (:sketch b)))
+      (testing "each keeps name, role, sex and the rest; the old persona (or sketch) is the sketch; the traits are rolled"
+        (doseq [[a b] (map vector (:agents before) (:agents after))
+                :let [rolled-keys [:persona :sketch :manner :temperament :faculties :circumstances]]]
+          (is (= (apply dissoc a rolled-keys) (apply dissoc b rolled-keys)))
+          (is (= (or (:sketch a) (:persona a)) (:sketch b)))
           (is (str/starts-with? (:persona b) (:name a)))
           (is (= 5 (count (:temperament b))))
           (is (= 7 (count (:faculties b))))
@@ -274,4 +277,12 @@
         (is (= 9 (count (:agents (wf/load-world (str file)))))))
       (testing "rolling again with the same seed changes nothing: the sketch is kept"
         (roll)
-        (is (= rolled (slurp file)))))))
+        (is (= rolled (slurp file))))
+      (testing ":only rolls just the agents named"
+        (let [{:keys [rolled]} (people/roll-cast! (str file) {:llm (llm/mock people/mock-polish) :dir dir
+                                                             :only ["Hobbs"] :seed 2})
+              again (edn/read-string (slurp file))]
+          (is (= ["Hobbs"] rolled))
+          (is (= (remove #(= "Hobbs" (:name %)) (:agents after)) (remove #(= "Hobbs" (:name %)) (:agents again))))
+          (is (not= (first (filter #(= "Hobbs" (:name %)) (:agents after)))
+                    (first (filter #(= "Hobbs" (:name %)) (:agents again))))))))))

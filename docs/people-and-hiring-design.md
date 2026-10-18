@@ -475,9 +475,9 @@ fields without changing the seeded traits. Appearance reaches `people-here`, the
 cast view. Tests cover those surfaces, privacy, replay, optional-field compatibility and seed 1.
 
 No product deviations. The existing jargon list is deliberately lexical, not a semantic privacy
-judge; visible-only prose remains an instruction and review requirement. No real model calls or
-runs were made, and Claudeworth's authored file is unchanged: the real re-polish is left for after
-merge, so it has no appearances yet.
+judge; visible-only prose remains an instruction and review requirement. After the merge, Claudeworth's cast
+was re-polished with appearances (`old-test-runs/roll-cast-claudeworth-appearance`, $0.0048); seed
+1 kept every trait, and personas and manners were rewritten along with the appearances.
 
 Deviations and decisions made while building:
 

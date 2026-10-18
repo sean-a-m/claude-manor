@@ -831,10 +831,22 @@
            (a/effect-events alias world "ben" {:doing "taking stock" :hours 1 :items ["pantry" "pantry"]})))
     (is (= ["pantry"] (get-in (first (a/effect-events spend world "ben" args)) [:data :items])))
     (is (= {:doing "resting"} (:args (a/decode-args spend {:doing "resting"}))))
-    (doseq [args [{:doing "do"} {:doing (apply str (repeat 121 "x"))}
+    (doseq [args [{:doing "do"} {:doing (apply str (repeat 201 "x"))}
                   {:doing "resting" :hours 0.4} {:doing "resting" :hours 4.1}
                   {:doing "resting" :on (vec (repeat 7 "clock"))}]]
       (is (:error (a/decode-args spend args))))
+    (doseq [act [spend alias]
+            :let [doing (str "writing " (apply str (repeat 192 "x")))
+                  args (cond-> {:doing doing} (= act alias) (assoc :items ["clock"]))
+                  {:keys [args error]} (a/decode-args act args)]]
+      (is (= 200 (count doing)))
+      (is (nil? error))
+      (is (:error (a/decode-args act (assoc args :doing (str doing "x")))))
+      (let [[begun occupied] (a/effect-events act world "ben" args)]
+        (is (= doing (get-in occupied [:data :activity])))
+        (is (str/includes? (n/describe occupied (n/names world)) (str "Ben is " doing)))
+        (is (str/starts-with? (n/describe (items/work-done world (:data begun) {:minutes 30} {}) (n/names world))
+                             (str "Ben finishes " doing ".")))))
     (is (nil? (a/check spend world "ben" {:doing "reading" :on []})))
     (is (str/includes? (a/check spend world "ben" {:doing "taking stock" :on ["basket"]}) "basket is neither here"))
     (e/stop-run run)))

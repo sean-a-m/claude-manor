@@ -8,6 +8,7 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [jsonista.core :as json]
+            [manor.actions :as a]
             [manor.engine :as e]
             [manor.items :as items]
             [manor.llm :as llm]
@@ -102,8 +103,8 @@
     (testing "a container is used up only with everything in it"
       (is (= "the Paper bag (bag) still holds bun: use those up too, or don't use it up" (error {:used-up ["bag"]})))
       (is (= ["bag" "bun"] (get-in (judge {:used-up ["bag" "bun"] :summary "Done."}) [:verdict :used-up]))))
-    (testing "nothing is made without something used up"
-      (is (str/starts-with? (error {:made [bones]}) "things are made only from consumable items the work used up")))
+    (testing "work products need no tracked source or use-up"
+      (is (nil? (error {:made [{:name "Letter" :desc "A letter in ink." :consumable false :held true}]}))))
     (testing "at most two things made"
       (is (str/includes? (error {:used-up ["beef"] :made [stock bones bones]}) "made has 3 items")))
     (testing "in names a container in reach that isn't used up"
@@ -305,10 +306,10 @@
                 made (first (get-in done [:data :made]))]
             (is (= expected (select-keys made [:in :place :holder])))
             (is (= (not (:consumable entry)) (contains? made :drawn-from))))))
-      (testing "only in-scope stores authorize drawing, and making still needs something used up"
+      (testing "only in-scope stores authorize drawing; source-free products are allowed"
         (is (:error (check activity {:made [(assoc tin :from "remote")]})))
         (is (:error (check activity {:made [(assoc tin :from "saucepan")]})))
-        (is (:error (check activity {:made [(dissoc tin :from)]})))
+        (is (:verdict (check activity {:made [(dissoc tin :from)]})))
         (is (:error (check activity {:made [(dissoc tin :consumable)]}))))
       (testing "absorb only eligible visible things into in-scope stores"
         (doseq [thing ["woodpile" "pipe" "pantry" "clock" "remote" "unknown"]]
@@ -317,7 +318,7 @@
         (is (:error (check activity {:absorbed [{:thing "beef" :into "saucepan"}]})))
         (is (:error (check activity {:used-up ["beef"] :absorbed [{:thing "beef" :into "pantry"}]})))
         (is (:error (check activity {:absorbed [{:thing "beef" :into "pantry"} {:thing "beef" :into "pantry"}]})))
-        (is (:error (check activity {:absorbed [{:thing "beef" :into "pantry"}] :made [(dissoc tin :from)]})))
+        (is (:verdict (check activity {:absorbed [{:thing "beef" :into "pantry"}] :made [(dissoc tin :from)]})))
         (let [verdict (:verdict (check activity {:absorbed [{:thing "beef" :into "pantry"} {:thing "tin" :into "pantry"}]
                                                 :changes [{:thing "pantry" :aspect "stock" :value "well stocked"}
                                                           {:thing "beef" :aspect "state" :value "stored"}]}))
@@ -351,4 +352,64 @@
               done (items/work-done world activity {:minutes 30} verdict)]
           (is (= "Ben finishes putting things away. Things were put away. Put away: Rib of beef (in the Pantry shelves). Fetched: Dripping tin."
                  (n/describe done (n/names (w/apply-event world done)))))))
+      (finally (e/stop-run run)))))
+
+(deftest everyday-work-products-and-placement
+  (let [letter {:name "Household list" :desc "A list written in ink." :consumable false :held true}
+        dish {:name "Clear soup" :desc "A tureen of soup." :consumable true :held false}
+        policy (fn [{:keys [role world agent-id] :as ctx}]
+                 (cond (= :judge role) {:tool :judge :args {:made [letter dish] :summary "Ben wrote the list and made soup."}}
+                       (and (= "ben" agent-id) (= 1 (:round world)))
+                       {:tool :spend-time :args {:doing "writing a list and cooking soup" :on ["hall"]}}
+                       :else (hamlet/mock-policy ctx)))
+        run (rounds! (start {:llm-impl (llm/mock policy)}) 2)]
+    (try
+      (let [world (e/world run)
+            [done] (of-type run :item/work-done)]
+        (is (= {:holder "ben" :consumable? false}
+               (select-keys (items/item world "household-list") [:holder :place :consumable? :drawn-from])))
+        (is (= {:place "hall" :consumable? true}
+               (select-keys (items/item world "clear-soup") [:holder :place :consumable? :drawn-from])))
+        (is (empty? (get-in done [:data :used-up])))
+        (is (empty? (of-type run :item/judge-failed)))
+        (is (str/ends-with? (n/describe done (n/names world)) "Made: Household list; Clear soup."))
+        (is (= world (w/replay (store/read-events (:dir run)))))
+        (doseq [[focus entry expected] [[[] (dissoc letter :held) {:holder "ben"}]
+                                       [["hall"] (dissoc letter :held) {:place "hall"}]
+                                       [[] dish {:place "hall"}]
+                                       [["hall"] (assoc letter :in "saucepan") {:in "saucepan"}]]]
+          (let [activity (assoc job :items focus)
+                verdict (:verdict (items/judgement (judge-says {:made [entry] :summary "Made."}) world
+                                                    (items/judged-things world (assoc activity :items ["saucepan"]))))
+                made (first (get-in (items/work-done world activity {:minutes 30} verdict) [:data :made]))]
+            (is (= expected (select-keys made [:holder :place :in])))))
+        (let [bad (items/judgement (judge-says {:made [(assoc letter :held "yes")] :summary "Made."}) world
+                                     (items/judged-things world job))]
+          (is (:error bad))))
+      (finally (e/stop-run run)))))
+
+(deftest carrying-a-dish-does-not-use-it-up
+  (let [run (start)
+        action (fn [name] (first (filter #(= name (:name %)) (:actions run))))
+        perform! (fn [name args]
+                   (is (nil? (a/check (action name) (e/world run) "ben" args)))
+                   (e/emit! run (a/effect-events (action name) (e/world run) "ben" args)))]
+    (try
+      (is (str/includes? items/judge-instructions "Taking or carrying something elsewhere is not using it up"))
+      (is (str/includes? items/judge-instructions "Leaving any thing untouched is always a valid answer"))
+      (let [activity (assoc job :items ["beef"] :doing "carrying the joint to the porch")
+            verdict (:verdict (items/judgement (judge-says {:summary "The joint was left for Ben to carry."})
+                                                (e/world run) (items/judged-things (e/world run) activity)))]
+        (e/emit! run [(items/work-done (e/world run) activity {:minutes 30} verdict)])
+        (is (= "hall" (:place (items/item (e/world run) "beef")))))
+      (perform! :take {:item "beef"})
+      (perform! :move {:to "porch"})
+      (is (= "ben" (:holder (items/item (e/world run) "beef"))))
+      (let [world (e/world run)
+            activity (assoc job :items ["beef"] :place "porch" :doing "eating the joint")
+            verdict (:verdict (items/judgement (judge-says {:used-up ["beef"] :summary "Ben ate the joint."})
+                                                world (items/judged-things world activity)))]
+        (e/emit! run [(items/work-done world activity {:minutes 30} verdict)]))
+      (is (= "porch" (get-in (e/world run) [:items-gone "beef" :place])))
+      (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
       (finally (e/stop-run run)))))

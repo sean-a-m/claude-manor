@@ -769,3 +769,20 @@
         (is (space/in-transit? world' "hale"))
         (is (= {:from "secretarys-room" :to "abbey-gatehouse" :arrives 4} (:travel (w/agent world' "hale"))))))
     (e/stop-run run)))
+
+(deftest find-is-refused-at-service-places
+  (let [run (start)]
+    (try
+      (doseq [place ["general-store" "architects-office"]]
+        (e/emit! run [{:type :agent/placed :data {:id "hale" :to place}}])
+        (let [before (e/events run)
+              calls (store/read-llm (:dir run))
+              result (#'e/run-query! run "hale" (action run :find) {:what "sugar"})]
+          (is (= "this isn't your house to search; ask for it here instead" (:error result)))
+          (is (= before (e/events run)))
+          (is (= calls (store/read-llm (:dir run))))))
+      (let [world (-> (e/world run) (at "hale" "study"))]
+        (is (nil? (a/check (action run :find) world "hale" {:what "a letter"})))
+        (is (str/includes? (cw/rules world) "Carry things such as dishes with `take` and `walk`; they are used up where they are eaten, not while being carried.")))
+      (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+      (finally (e/stop-run run)))))

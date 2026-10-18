@@ -144,7 +144,7 @@
         (is (= 48 (:round world)))
         (is (seq pastimes))
         (is (every? #(every? empty? ((juxt :changes :used-up :made) (:data %))) pastimes))
-        (is (not-any? #(#{:action/forfeited :item/judge-failed :items/steward-failed} (:type %)) events))
+        (is (not-any? #(#{:action/forfeited :item/judge-failed :items/steward-failed :adjudication/failed} (:type %)) events))
         (is (not-any? #(re-find #"^(error:|rejected:)" (:content % "")) (mapcat :replies calls)))
         (is (= world (w/replay (store/read-events (:dir run))))))
       (finally (e/stop-run run)))))
@@ -162,7 +162,7 @@
             markers (filter #(= :items/steward-ran (:type %)) events)]
         (is (= 48 (:round world)))
         (is (= [[13 "1904-10-16"]] (map (juxt :round #(get-in % [:data :day])) markers)))
-        (is (not-any? #(#{:action/forfeited :item/judge-failed :items/steward-failed} (:type %)) events))
+        (is (not-any? #(#{:action/forfeited :item/judge-failed :items/steward-failed :adjudication/failed} (:type %)) events))
         (is (not-any? #(re-find #"^(error:|rejected:)" (:content % ""))
                       (mapcat :replies (store/read-llm (:dir run)))))
         (is (= world (w/replay (store/read-events (:dir run))))))

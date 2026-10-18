@@ -328,7 +328,7 @@
          "To talk something over with people here, `converse` draws up to " conversation/max-others " of them into a conversation within your turn: "
          "you each speak in turn, up to " conversation/passes " times, so nobody waits a turn for each answer, and then you carry on with your turn. "
          "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). You get no turns while asleep or busy, unless someone uses `rouse` to interrupt you. On that turn, `carry-on` ignores them; any other accepted action means you stop. "
-         "`spend-time` spends time on work or pastimes (`spend-time {doing, hours, on?}`, half an hour to " items/max-work-hours " hours); optionally name things here or carried, the room itself, or stores in scope with `on`. Describe everyday tools and supplies in `doing`; they need no item ids. Results show when you finish. `note` keeps private notes. "
+         "`spend-time` spends time on work or pastimes (`spend-time {doing, hours, on?}`, half an hour to " items/max-work-hours " hours); optionally name things here or carried, the room itself, or stores in scope with `on`. Describe everyday tools and supplies in `doing`; they need no item ids. Carry things such as dishes with `take` and `walk`; they are used up where they are eaten, not while being carried. Results show when you finish. `note` keeps private notes. "
          "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows them in detail, with their descriptions, owners and aspects (how clean they are, what needs mending, and so on), along with the room and what the people here carry, so use it to examine something closely, not routinely on arrival. The room's own aspects (its floor, hearth and air) and the stores in scope are under `here` in your view. Supplies are kept in stores (shelves, cupboards), listed under `here.stores`: a store has everything it keeps unless its `stock` or `lacking` says otherwise; `look` shows what it keeps. "
          "The house has the ordinary things a house like it keeps: everyday things (cloths, paper, pans, salt, matches and the like) can be assumed to be to hand unless you've been told otherwise. The things listed in your view are the notable ones, not everything there is. "
          "Use `find` only for something you must pick up or hand over, or whose presence is in doubt; everyday things you merely use need no finding. "
@@ -628,6 +628,9 @@
    :mcp-servers building/mcp-servers
    :systems [building/construction]
    :items {:steward {:at "02:00" :idle-hours 6 :max-per-call 8}
+           :find-allowed? (fn [world _ place]
+                            (when (seq (:services (space/location world place)))
+                              "this isn't your house to search; ask for it here instead"))
            :judge-brief judge-brief
            :aspect-keys {:cleanliness "how clean" :repair "damage and needed repairs"
                          :state "lit, hot, cooking, carved" :amount "how much remains, or parcel quantity"

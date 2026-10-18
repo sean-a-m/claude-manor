@@ -81,7 +81,7 @@
   (let [excluded (set (:exclude-actions scenario))]
     (remove #(excluded (:name %))
             (a/merge-actions (b/agent-actions) [conversation/converse] (space/actions)
-                             (when (:items scenario) (items/actions))
+                             (when (:items scenario) (items/actions (:items scenario)))
                              (b/gm-actions scenario) (:actions scenario)))))
 
 ;; ---------------------------------------------------------------------------
@@ -807,7 +807,7 @@
   [run world {:keys [job outcome minutes] :as work}]
   (cond
     (= :dropped outcome) {:ended :retired}
-    (zero? minutes) {:ended :no-time}
+    (and (zero? minutes) (not (:quick? job))) {:ended :no-time}
     (items/empty-activity? world job) {}
     :else (ask-judge run world job work (items/judged-things world job))))
 

@@ -325,3 +325,98 @@
           (is (= (map #(dissoc % :touched) (items/all world)) (map #(dissoc % :touched) (items/all (e/world r2)))))
           (e/stop-run r2))))
     (e/stop-run run)))
+
+(def restocking
+  [{:id "pantry" :name "Pantry shelves" :desc "Shelves of provisions." :place "hall"
+    :fixed? true :container :closed :store {:keeps "food"} :aspects {:stock "well stocked" :lacking "sugar; salt"}}
+   {:id "sugar" :name "Loaf sugar" :desc "A sugar loaf." :holder "ben" :consumable? true}
+   {:id "salt" :name "Salt" :desc "A packet of salt." :place "hall" :consumable? true}])
+
+(deftest store-put-ins-merge-and-are-judged-next-round-without-occupation
+  (let [policy (fn [{:keys [world agent-id step role] :as ctx}]
+                 (cond (= role :judge) (items/mock-judge ctx)
+                       (and (= "ben" agent-id) (= 1 (:round world)))
+                       (get [{:tool :put-in :args {:item "sugar" :container "pantry"}}
+                             {:tool :put-in :args {:item "salt" :container "pantry"}}] step {:tool :pass})
+                       :else {:tool :pass}))
+        run (start {:llm-impl (llm/mock policy)})]
+    (try
+      (e/emit! run (items/init-events restocking))
+      (rounds! run 1)
+      (let [world (e/world run)
+            [job] (items/jobs world)]
+        (is (= 1 (count (items/jobs world))))
+        (is (= {:quick? true :store "pantry" :started 1 :due 2 :items ["sugar" "pantry" "salt"]}
+               (select-keys job [:quick? :store :started :due :items])))
+        (is (= "putting the loaf sugar and the salt away in the pantry shelves" (:doing job)))
+        (is (nil? (w/busy world "ben")))
+        (is (empty? (items/ending-jobs world)) "never judged in the put-in round")
+        (is (every? #(= "pantry" (:in (items/item world %))) ["sugar" "salt"]))
+        (is (empty? (filter #(= "judge" (:agent %)) (store/read-llm (:dir run)))))
+        (is (= 1 (count (of-type run :item/work-begun))))
+        (is (= 1 (count (of-type run :item/work-extended))))
+        (is (= world (w/replay (store/read-events (:dir run)))))
+        (is (str/includes? (get-in (items/judge-request (:scenario run) (dissoc world :clock) job {:minutes 0})
+                                  [:messages 1 :content]) "- Time: round 1")))
+      (rounds! run 1)
+      (let [world (e/world run)
+            [done] (of-type run :item/work-done)
+            calls (store/read-llm (:dir run))
+            [judge] (filter #(= "judge" (:agent %)) calls)
+            text (get-in judge [:messages 1 :content])
+            scene (json/read-value (second (re-find #"(?s)```json\n(.*)\n```" text)) json/keyword-keys-object-mapper)]
+        (is (= 1 (count (filter #(= "judge" (:agent %)) calls))))
+        (is (str/includes? text "- Quick job: putting things away; no occupation or time needed"))
+        (is (str/includes? text "- Time worked: 0 minutes, as planned"))
+        (is (= #{"sugar" "salt" "pantry"} (set (map :id (:focus scene)))))
+        (is (= {:minutes 0 :stopped-early? false} (select-keys (:data done) [:minutes :stopped-early?])))
+        (is (= "Ben finishes putting the loaf sugar and the salt away in the pantry shelves. (Pantry shelves: no longer lacking). Put away: Loaf sugar (in the Pantry shelves); Salt (in the Pantry shelves)."
+               (n/describe done (n/names world))))
+        (is (every? #(nil? (items/item world %)) ["sugar" "salt"]))
+        (is (= {:stock "well stocked"} (:aspects (items/item world "pantry"))))
+        (is (= "put away in the Pantry shelves" (get-in world [:items-gone "sugar" :fate])))
+        (is (empty? (items/jobs world)))
+        (is (nil? (w/busy world "ben")))
+        (is (= #{1 2} (set (map :round (filter #(and (= "ben" (:actor %)) (= :agent/passed (:type %))) (e/events run))))))
+        (is (empty? (of-type run :item/work-ended)))
+        (is (empty? (of-type run :item/judge-failed)))
+        (is (= world (w/replay (store/read-events (:dir run)))))
+        (is (not-any? #(re-find #"^(error:|rejected:)" (:content % "")) (mapcat :replies calls))))
+      (finally (e/stop-run run)))))
+
+(deftest quick-store-job-does-not-stop-another-occupation
+  (let [run (start)]
+    (try
+      (e/emit! run (items/init-events restocking))
+      (let [act (action run :put-in)]
+        (e/emit! run (a/effect-events act (e/world run) "ben" {:item "sugar" :container "pantry"})))
+      (let [act (action run :spend-time)]
+        (e/emit! run (a/effect-events act (e/world run) "ben" {:doing "reading a book" :hours 2})))
+      (rounds! run 1)
+      (let [[done] (of-type run :item/work-done)]
+        (is (= "reading a book" (:activity (w/busy (e/world run) "ben"))))
+        (is (= 0 (get-in done [:data :minutes])))
+        (is (false? (get-in done [:data :stopped-early?])))
+        (is (= "salt" (get-in (items/item (e/world run) "pantry") [:aspects :lacking])))
+        (is (empty? (of-type run :item/work-ended)))
+        (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))
+
+(deftest ordinary-container-put-in-needs-no-judge
+  (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true :gm :off
+                                      :run-id (str (gensym "sideboard-no-judge-"))})]
+    (try
+      (e/emit! run [{:type :agent/placed :data {:id "hale" :to "dining-room"}}])
+      (let [act (first (filter #(= :put-in (:name %)) (:actions run)))
+            args {:item "pocket-notebook" :container "sideboard"}]
+        (is (nil? (a/check act (e/world run) "hale" args)))
+        (e/emit! run (a/effect-events act (e/world run) "hale" args)))
+      (is (= "sideboard" (:in (items/item (e/world run) "pocket-notebook"))))
+      (is (empty? (items/jobs (e/world run))))
+      (is (empty? (store/read-llm (:dir run))))
+      (let [before (e/world run)]
+        (#'e/finish-jobs! run (items/ending-jobs before))
+        (is (= before (e/world run)))
+        (is (empty? (store/read-llm (:dir run)))))
+      (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+      (finally (e/stop-run run)))))

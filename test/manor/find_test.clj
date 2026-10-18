@@ -139,7 +139,7 @@
       (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
       (finally (e/stop-run run)))))
 
-(deftest find-lacking-cap-and-fallback
+(deftest find-lacking-cap-without-place-fallback
   (let [run (start)]
     (try
       (let [world (e/world run)
@@ -153,7 +153,8 @@
         (let [world (assoc-in world [:items "shelves" :aspects] full)
               after (w/apply-event world (event world "mustard"))]
           (is (= full (:aspects (items/item after "shelves"))))
-          (is (= "mustard" (get-in after [:space :locations "hall" :aspects :lacking])))
+          (is (nil? (get-in after [:space :locations "hall" :aspects :lacking])))
+          (is (= world after))
           (let [world (assoc-in world [:space :locations "hall" :aspects] full)
                 ev (event world "mustard")]
             (is (nil? (get-in ev [:data :path])))
@@ -242,5 +243,43 @@
         (is (not-any? #(str/starts-with? % "error:") replies))
         (is (not-any? #(= :action/forfeited (:type %)) (e/events run)))
         (is (every? #(= "ada" (:holder %)) (filter #(str/starts-with? (:id %) "plain-spoon") (items/all (e/world run)))))
+        (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))
+
+(deftest find-particular-misses-record-no-absence
+  (let [run (start)]
+    (try
+      (doseq [store? [true false]
+              lacking? [true false]
+              :when (or store? (not lacking?))]
+        (let [world (cond-> (e/world run) (not store?) (update :items dissoc "shelves"))
+              args (cond-> (assoc answer :likelihood "impossible")
+                     (not lacking?) (dissoc :lacking)
+                     (not store?) (update :found dissoc :from))
+              request (items/finder-request world "ada" {:what "a letter"})
+              result ((:check request) (response args))
+              [event] (items/find-events world "ada" {:what "a letter"} (:verdict result))]
+          (is (nil? (:error result)))
+          (is (= :item/not-found (:type event)))
+          (if lacking?
+            (is (= [:items "shelves"] (get-in event [:data :path])))
+            (do (is (nil? (get-in event [:data :path])))
+                (is (= world (w/apply-event world event)))))))
+      (is (:error (check (e/world run) (update answer :found dissoc :from))))
+      (is (str/includes? items/finder-instructions "For a particular thing (a coat, a letter, a joint bought for dinner), omit lacking"))
+      (finally (e/stop-run run)))))
+
+(deftest finder-miss-without-store-keeps-event-and-replays
+  (let [args (-> answer (assoc :likelihood "impossible") (dissoc :lacking) (update :found dissoc :from))
+        run (start {:llm-impl (llm/mock (constantly {:tool :finder :args args}))})]
+    (try
+      (let [before (e/world run)]
+        (is (= "You don't find it." (:reply (query! run "a sealed letter"))))
+        (is (= (:items before) (:items (e/world run))))
+        (is (= (:space before) (:space (e/world run))))
+        (let [[event] (filter #(= :item/not-found (:type %)) (e/events run))]
+          (is (some? event))
+          (is (nil? (get-in event [:data :path]))))
+        (is (not-any? #(= :adjudication/failed (:type %)) (e/events run)))
         (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
       (finally (e/stop-run run)))))

@@ -243,7 +243,8 @@
                             :data {:plan-id plan-id :room room :name name :connects-to connects-to}}
                            {:type :space/location-added
                             :data {:location {:id room :name name :desc (:desc p) :domain :house
-                                              :floor (:floor p) :kind :room}}}]
+                                              :floor (:floor p) :kind :room
+                                              :aspects {:cleanliness "new, smelling of plaster and paint"}}}}]
                           (for [to connects-to]
                             {:type :space/route-opened :data {:from room :to to :travel 0 :one-way? false}})))))
                    (get-in world [:state :works])))})

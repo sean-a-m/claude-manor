@@ -328,13 +328,13 @@
          "To talk something over with people here, `converse` draws up to " conversation/max-others " of them into a conversation within your turn: "
          "you each speak in turn, up to " conversation/passes " times, so nobody waits a turn for each answer, and then you carry on with your turn. "
          "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). You get no turns while asleep or busy, unless someone uses `rouse` to interrupt you. On that turn, `carry-on` ignores them; any other accepted action means you stop. "
-         "Use `spend-time {doing, hours, on?}` for work or longer pastimes (half an hour to " items/max-work-hours " hours). `note` keeps private notes. "
-         "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows them in detail, with their descriptions, owners and aspects (how clean they are, what needs mending, and so on), along with the room and what the people here carry, so use it to examine something closely, not routinely on arrival. The room's own aspects (its floor, hearth and air) and the stores in scope are under `here` in your view. A store holds everything it keeps unless its aspects say otherwise; `look` shows what it keeps. "
-         "The house has the ordinary things a house like it keeps: everyday things (cloths, paper, pans, salt, matches and the like) can be assumed to be to hand unless you've been told otherwise. The things listed in your view are the notable ones, not everything there is. Supplies are kept in stores (shelves, cupboards), listed under `stores` in your view: a store has everything it keeps unless its `stock` or `lacking` says otherwise. "
+         "`spend-time` spends time on work or pastimes (`spend-time {doing, hours, on?}`, half an hour to " items/max-work-hours " hours); optionally name things here or carried, the room itself, or stores in scope with `on`. Describe everyday tools and supplies in `doing`; they need no item ids. Results show when you finish. `note` keeps private notes. "
+         "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows them in detail, with their descriptions, owners and aspects (how clean they are, what needs mending, and so on), along with the room and what the people here carry, so use it to examine something closely, not routinely on arrival. The room's own aspects (its floor, hearth and air) and the stores in scope are under `here` in your view. Supplies are kept in stores (shelves, cupboards), listed under `here.stores`: a store has everything it keeps unless its `stock` or `lacking` says otherwise; `look` shows what it keeps. "
+         "The house has the ordinary things a house like it keeps: everyday things (cloths, paper, pans, salt, matches and the like) can be assumed to be to hand unless you've been told otherwise. The things listed in your view are the notable ones, not everything there is. "
          "Use `find` only for something you must pick up or hand over, or whose presence is in doubt; everyday things you merely use need no finding. "
          "Some things hold others: what's in an open one is listed under its `contents`, and one marked `closed` shows what's inside only when you `open` it. "
          "You can `take` things out of either, and `put-in` puts something into one. "
-         "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn; `spend-time` spends time on work or pastimes; optionally name things here or carried, the room itself, or stores in scope with `on`. Its results show when you finish. "
+         "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn. "
          "If you are waiting on someone or nothing needs doing, `pass` is the way to wait a turn; you act again next turn. "
          "Opening hours are shown in your view where a place has them. "
          "Purchases and commissions are paid from the household account (`household` in your view). There is no engine-enforced spending restriction by role: whether you should spend depends on your station, instructions and relationships. At an open shop, ask the shopkeeper with `say` for portable goods and a quantity; there is no fixed catalogue. The shopkeeper checks availability and quotes a firm price. Accept an offer made for you with `buy {quote-id}`, from `offers` in your view. Payment is separate from asking; no bargaining, bulk counters or delivery. Prices are old sterling: £1 = 20 shillings = 240 pence (12d = 1s). "
@@ -517,9 +517,8 @@
              [:spend-time {:on ["silver-candlesticks"] :doing "polishing the silver candlesticks" :hours 1.5}]]
     "11:30" [[:take {:item "silver-candlesticks"}] [:walk {:to "dining-room"}]
              [:put-in {:item "silver-candlesticks" :container "sideboard"}] [:walk {:to "kitchen"}]
-             [:take {:item "blacking-brushes"}]
-             [:spend-time {:on ["kitchen-range" "blacking-brushes"] :doing "blacking the kitchen range" :hours 2}]]
-    "13:30" [[:put-in {:item "blacking-brushes" :container "kitchen-dresser"}] [:walk {:to "entrance-hall"}]
+             [:spend-time {:on ["kitchen-range" "housemaids-cupboard"] :doing "blacking the kitchen range" :hours 2}]]
+    "13:30" [[:walk {:to "entrance-hall"}]
              [:spend-time {:on ["entrance-hall" "stags-head"] :doing "dusting the hall and the stag's head" :hours 1}]]
     "14:30" [[:walk {:to "drawing-room"}]]
     "18:00" [[:spend-time {:on ["china-cabinet"] :doing "dusting the china cabinet and the glass with her new duster" :hours 1}]]

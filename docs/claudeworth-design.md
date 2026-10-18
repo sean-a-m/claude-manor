@@ -26,8 +26,11 @@ The current cast:
 | Daisy, scullery maid | `scullery-maid` | scullery | assists the cook with washing up, cleaning and preparation |
 | Mr Hobbs, butcher | `shopkeeper` | butcher's shop | quotes meat purchases using his own shop profile; lives above the shop |
 
-The pantry opens off the kitchen and has fixed, open container shelves. A scullery also opens
-from the kitchen. Mrs Finch and Daisy have bedrooms off a servants' landing at the back of the
+The pantry opens off the kitchen; its fixed shelves are an open container and a store of the
+usual provisions, lacking sugar. The kitchen dresser stores everyday kitchen ware; Nellie's
+cupboard in her room supplies her housework, and a closed linen press stands in the gallery.
+Every indoor house place has one or two starting aspects. A scullery also opens from the
+kitchen. Mrs Finch and Daisy have bedrooms off a servants' landing at the back of the
 first-floor gallery; Nellie keeps her existing room off the kitchen.
 
 The design is done when a run supports this sequence, first with the mock policy (free,
@@ -198,7 +201,7 @@ Scenario actions built on this:
 | Action | Rule |
 |---|---|
 | `sleep {until "07:00"}` | in a bedroom (`:kind :bedroom`); until the next time it's that time, at most 12 hours. "Go to a bedroom first (earls-bedroom)" otherwise. |
-| `spend-time {activity "reading the newspapers" hours 2}` | anywhere; 0.5 to 4 hours; visible to the room ("Lord Claudeworth settles down to read the newspapers, until 11:30.") |
+| `spend-time {doing "reading the newspapers" hours 2 on? [...]}` | work or pastimes; 0.5 to 4 hours; optional focus ids; judged when finished |
 | `pass` (built-in) | wait half an hour |
 
 When everyone is asleep, rounds run with no model calls at all, so nights cost nothing and pass
@@ -287,6 +290,7 @@ construction system (every round)
   room is commissioned once the present work is finished.
 - **The delay** is one day by default (48 rounds × `build-days`). The run option `:build-rounds`
   overrides it so tests and cheap real checks don't need a whole simulated day.
+- New rooms start with `{:cleanliness "new, smelling of plaster and paint"}` in their aspects.
 - While works are in progress, `:observe` shows "builders at work beside the entrance hall,
   finishing Sunday at 10:00". Completion is announced to everyone (`:visible-to :all`; the
   village talks).
@@ -341,7 +345,7 @@ map; places, journeys and opening hours reach agents through their view.
 | `say`, `whisper`, `note`, `pray`, `pass` | all | built-in | |
 | `walk {to}` | all | free | within an area |
 | `travel {to}` | all | final | to another area |
-| `spend-time {activity hours}` | all | final | anywhere |
+| `spend-time {doing hours on?}` | all | final | anywhere; work and pastimes, judged on completion |
 | `sleep {until}` | all | final | in a bedroom |
 | `rouse {who}` | all | free | same room, target occupied |
 | `quote-goods {for item qty}` | shopkeeper | query | general-store service, customer present, open hours |
@@ -362,7 +366,7 @@ The GM is hands-off and unseen by the characters: it's called only when an agent
 **`:observe`** (private per agent):
 
 - `:time`, `:you` (bedroom)
-- `:household` (funds and stores), visible to all characters; building works are shown separately
+- `:household` (funds), visible to all characters; building works are shown separately
 - `:places` by area
 - `:here` details: opening hours, general-store profile and how to ask the clerk
 - `:offers`, unspent quotes made for you or by you, with formatted prices
@@ -668,9 +672,11 @@ Decisions for items (done):
 34. **Containers.** Done: furniture can hold things (`:container :open` or `:closed`, contents
     `:in` it). The glass-fronted china cabinet is open and holds three Meissen figures; the dining
     room's sideboard is closed and holds the silver candlesticks, a canteen of cutlery and the
-    table linen; the kitchen dresser is open and holds a kettle, saucepans and the blacking
-    brushes. `open` is a free, reply-only look inside; `take` doesn't need it; `put-in` puts
-    things away. Nellie's brief gives no hint where the silver is kept, to see whether she finds
+    table linen. The kitchen dresser is now an open store of everyday kitchen ware; the kettle,
+    saucepans and blacking brushes are ambient supplies, not starting items. The sugar jar is
+    gone too: the pantry shelves record `:lacking "sugar"`. The housemaid's cupboard and linen
+    press are closed stores (decision 40). `open` is a free, reply-only look inside; `take` doesn't
+    need it; `put-in` puts things away. Nellie's brief gives no hint where the silver is kept, to see whether she finds
     it. Nobody is told where things belong: agents decide. See
     [the containers brief](archived/containers-brief.md).
 35. **Finding people and walking (turns stage 1).** `walk` replies with the new place (who and
@@ -723,12 +729,13 @@ Decisions for items (done):
     stay in the world so older lines still read. Still open: food eaten at table during a meal
     ("dining on the rib of beef") isn't linked to items, so leftovers remain unless someone works
     on them (roadmap B7).
-40. **Stores, aspects and the scene judge.** Designed (2026-10-17); phase 1 (aspects on items
-    and rooms) is built, the rest isn't: see
+40. **Stores, aspects and the scene judge.** Phases 0–4 and phase 5 content (items 1–4) are
+    built; real runs (phase 5 item 5) await the user's go-ahead. See
     [stores-and-aspects-design.md](stores-and-aspects-design.md), from the same run. Things that
     matter stay items; ambient supplies are stores (fixed items with `:store {:keeps :serves}`)
     whose aspects say how they stand, and anything a store keeps is assumed present unless they
-    say otherwise. Conditions become keyed aspects on items and rooms (superseding decision 24
-    once built); `spend-time` and `work-on` merge into one judged activity; the judge promotes
-    and demotes things; a steward tidies loose consumables at 02:00; `find` searches here with
-    an engine-rolled oracle. The provisions counter in 6.2 goes.
+    say otherwise. Keyed aspects on items and rooms supersede decision 24. Claudeworth offers
+    `spend-time` for all judged work and pastimes, not the `work-on` alias; the scene judge
+    promotes and demotes things; a steward tidies loose consumables at 02:00; `find` searches
+    here with an engine-rolled oracle. The provisions counter is removed. Four stores and room
+    aspects supply the household; no cellar or coal-hole was added, as neither is on the map.

@@ -1,7 +1,7 @@
 # Stores, aspects and the scene judge: design
 
-**Status:** designed (2026-10-17). Phases 0–4 done. Each phase below has its own status line;
-update it as work lands, so an agent picking this up can tell where to start.
+**Status:** Phases 0–4 and phase 5 content (items 1–4) done; phase 5 real runs await the user's
+go-ahead. Each phase below has its own status line; update it as work lands.
 
 Read `AGENTS.md` first (invariants, run directories, cost rules), then "Items (`manor.items`)" and
 "Work and the judge" in `docs/scenario-authoring.md`, and `src/manor/items.clj`. This document
@@ -460,7 +460,17 @@ Approved deviations and details:
   and consulted, not reporting other rooms, the per-turn limit.
 ### Phase 5: Claudeworth content and a real run
 
-**Status: not started.** The rest of the old room-conditions R2, plus stores.
+**Status: content (items 1–4) done; real runs (item 5) pending the user's go-ahead.**
+Four household stores, the pantry's sugar shortage, aspects on all sixteen indoor house places,
+new-room aspects, and tidied rules/role wording are built. Nellie's range-blacking names the
+range and her cupboard in scope. Mock days (08:00 and 20:00 starts, 48 rounds each) have no
+errors, rejections, forfeits or judge/steward failures, and replay equals live.
+
+Placement and test notes: the housemaid's cupboard is in her room off the kitchen, serving the
+kitchen, dining room, drawing room and entrance hall; the closed linen press is in the gallery.
+There is no wine cellar or coal-hole on the map, so neither was added. The dresser/sugar-jar
+assertions now belong to fixed household-container fixtures and remain unchanged; the bundled
+store smoke check is generic. No mechanics or fixtures changed; no real runs were started.
 
 1. **Stores:** the pantry shelves (serving the kitchen); the kitchen dresser (pans, tins, cloths,
    crockery, kitchen tools); a housemaid's cupboard (brushes, dusters, polish, blacklead); the

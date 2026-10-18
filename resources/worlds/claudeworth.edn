@@ -13,44 +13,60 @@
    :connects-to ["entrance-hall"]
    :desc "A gravel turning circle before the front door."}
   {:id "entrance-hall" :name "Entrance hall" :domain :house :floor :ground :kind :hall
+   :aspects {:cleanliness "dust in the corners" :state "hearth swept, fire unlit"}
    :connects-to ["drawing-room" "study" "dining-room" "kitchen" "staircase"]
    :desc "A modest hall with a fireplace. Doors lead to the principal rooms and the kitchen, with the bedrooms upstairs."}
   {:id "drawing-room" :name "Drawing room" :domain :house :floor :ground :kind :sitting-room
+   :aspects {:cleanliness "dusty, with ash by the fender" :state "hearth cold"}
    :desc "A pleasant room with chintz chairs, though four guests would crowd it."
    :detail "Faded rose wallpaper, a white marble chimneypiece and two tall windows onto the lawn. The chintz is worn thin on the arms of the best chair, and the carpet has been turned to hide a scorch mark by the fender."}
   {:id "study" :name "Study" :domain :house :floor :ground :kind :study
+   :aspects {:cleanliness "dust on the skirting boards" :state "air close with stale pipe smoke"}
    :desc "The earl's business room: a leather-topped desk and a view of the drive."
    :detail "Shelves of county histories and bound sermons that nobody reads, a map of the estate pinned above the fireplace, and a smell of pipe smoke and old leather. From the desk you can see every caller coming up the drive."}
   {:id "dining-room" :name "Dining room" :domain :house :floor :ground :kind :dining-room
+   :aspects {:cleanliness "floor swept, cobwebs above the cornice" :state "hearth laid but unlit"}
    :desc "Has mahogany table for eight."}
   {:id "kitchen" :name "Kitchen" :domain :house :floor :ground :kind :kitchen
+   :aspects {:cleanliness "flour dust on the floor" :state "air cold"}
    :connects-to ["maids-room" "pantry" "scullery"]
    :desc "An old kitchen with a cast-iron range, a broad worktable and a dresser. Mrs Finch, the cook, runs it; the pantry and scullery open off it."}
   {:id "pantry" :name "Pantry" :domain :house :floor :ground :kind :pantry
+   :aspects {:cleanliness "floor swept" :state "cool and dry"}
    :desc "A cool pantry off the kitchen, with wooden shelves for the household's provisions and a small window shaded from the sun."}
   {:id "scullery" :name "Scullery" :domain :house :floor :ground :kind :scullery
+   :aspects {:cleanliness "floor wet, sink in need of scouring"}
    :desc "A plain workroom off the kitchen, with a deep stone sink, a draining board and room for washing pots and peeling vegetables."}
   {:id "maids-room" :name "Maid's room" :domain :house :floor :ground :kind :bedroom
+   :aspects {:cleanliness "swept, with dust under the bed"}
    :desc "A small room off the kitchen: a narrow bed, a chest of drawers and a window on the yard."}
   {:id "staircase" :name "Staircase" :domain :house :floor :ground :kind :stair
+   :aspects {:cleanliness "dust along the stair edges"}
    :connects-to ["gallery"]
    :desc "A narrow oak staircase, creaking on the fourth step."}
   {:id "gallery" :name "First-floor gallery" :domain :house :floor :first :kind :landing
+   :aspects {:cleanliness "dust on the banisters"}
    :connects-to ["earls-bedroom" "countess-bedroom" "secretarys-room" "servants-landing"]
    :desc "A short landing hung with watercolours, the bedroom doors opening off it."}
   {:id "earls-bedroom" :name "Earl's bedroom" :domain :house :floor :first :kind :bedroom
+   :aspects {:cleanliness "carpet brushed, dust behind the curtains" :state "hearth cold"}
    :desc "A large bed with heavy curtains, a washstand and a dressing room no bigger than a cupboard."}
   {:id "countess-bedroom" :name "Countess's bedroom" :domain :house :floor :first :kind :bedroom
+   :aspects {:cleanliness "tidy, with dust on the window ledge" :state "hearth cold"}
    :desc "A bright room with a dressing table, a writing desk and a window over the garden."}
   {:id "secretarys-room" :name "Secretary's room" :domain :house :floor :first :kind :bedroom
+   :aspects {:cleanliness "floor swept, dust beneath the table"}
    :desc "A small, plain room under the eaves with a narrow bed and a deal table piled with papers."}
 
   {:id "servants-landing" :name "Servants' landing" :domain :house :floor :first :kind :landing
+   :aspects {:cleanliness "boards swept"}
    :connects-to ["cooks-room" "scullery-maids-room"]
    :desc "A narrow passage at the back of the first floor, reached from the gallery. The servants' bedrooms are plain and out of sight of the principal rooms."}
   {:id "cooks-room" :name "Cook's room" :domain :house :floor :first :kind :bedroom
+   :aspects {:cleanliness "neatly kept, washstand wiped"}
    :desc "Mrs Finch's small but comfortable room in the servants' quarters: an iron bed, a washstand and a chair by the window."}
   {:id "scullery-maids-room" :name "Scullery maid's room" :domain :house :floor :first :kind :bedroom
+   :aspects {:cleanliness "swept, with dust beneath the chest"}
    :desc "Daisy's little room in the servants' quarters, with a narrow bed, a peg for her apron and a chest for her clothes."}
 
   ;; ------------------------------------------------ Claudeworth village
@@ -99,8 +115,8 @@
   :countess {:about "You are the Countess of Claudeworth; the household calls you my lady. You run the household, you have firm views on what the house needs and how it should look, and you expect to be consulted on any alteration to it."}
   :secretary {:about "You are Mr Hale, private secretary to the Earl of Claudeworth (my lord; the countess is my lady). You serve his lordship: correspondence, errands and arrangements, often in the village, and you report back to him. You work in the study."}
   :housemaid {:about "You are Nellie, the housemaid at Claudeworth Manor, in service to the family (my lord and my lady; the secretary is Mr Hale). Your day is housework: dusting and sweeping the drawing room, polishing the silver, blacking the kitchen range and laying the fires, and doing whatever the countess asks. You have no money and spend none: the household buys what you need."}
-  :cook {:about "You are the cook at Claudeworth Manor, in service to the earl and countess (my lord and my lady). You run the kitchen: plan meals, tend the range, prepare food and keep track of provisions in the pantry. The scullery maid assists you with washing up, cleaning and preparation; the housemaid looks after the other rooms. Consult the countess about meals and household spending, and obtain needed ingredients from the village tradespeople."}
-  :scullery-maid {:about "You are the scullery maid at Claudeworth Manor, junior to the cook and in service to the family (my lord and my lady). Help the cook: wash pots and utensils, scrub the scullery and kitchen, prepare vegetables when asked, and put things away. Ask the cook what needs doing and report when it is done. Use spend-time with on for work on existing things, and take, give and put-in to handle them. Village errands and household spending should follow your instructions, not your own whims."}
+  :cook {:about "You are the cook at Claudeworth Manor, in service to the earl and countess (my lord and my lady). You run the kitchen: plan meals, tend the range, prepare food and keep track of provisions in the pantry. The scullery maid assists you with washing up, cleaning and preparation; the housemaid looks after the other rooms. The pantry is a store of the usual provisions: shop for what is lacking or running low, not for every staple. Consult the countess about meals and household spending, and obtain needed ingredients from the village tradespeople."}
+  :scullery-maid {:about "You are the scullery maid at Claudeworth Manor, junior to the cook and in service to the family (my lord and my lady). Help the cook: wash pots and utensils, scrub the scullery and kitchen, prepare vegetables when asked, and put things away. Ask the cook what needs doing and report when it is done. Use spend-time for work, with on for particular things or the room; take, give and put-in handle things you need to move. Village errands and household spending should follow your instructions, not your own whims."}
   :architect {:about "You are Mr Pugh of Pugh & Sons, Architects, in Claudeworth village. You keep the architect's office and live in the lodgings above it. You consult your reference books, draw plans for clients and earn your living from commissions. Your firm builds one room at a time: you will not begin a new room while one is being built, and you refuse politely, saying when you can start. You are proud of your craft and keen for the manor's custom: advise on proportion, but respect the client's wishes. Address the earl as my lord and the countess as my lady."}
   :shopkeeper {:about "You are a village shopkeeper; your persona identifies your trade and premises. Serve customers at the counter: listen to what they want, use quote-goods with the customer's id, goods and quantity to check availability and price, then let them accept with buy. Never promise goods or invent a price without checking. There is no fixed catalogue, no bargaining, bulk deliveries or credit. Goods are handed over when bought: the customer takes them away there and then, and nothing is set by, kept for collection or delivered. Address the earl as my lord and the countess as my lady."}
   :gm {:about "A quiet period household: the family, their secretary and servants, and the village tradespeople going about their days."}}
@@ -121,14 +137,13 @@
   {:id "canteen-of-cutlery" :name "Canteen of cutlery" :in "sideboard" :owner "household" :aspects {:state "complete" :cleanliness "the forks tarnished"} :desc "An oak case of silver cutlery for twelve, each piece in its own green baize slot."}
   {:id "table-linen" :name "Table linen" :in "sideboard" :owner "household" :aspects {:state "starched and folded"} :desc "Damask tablecloths and napkins woven with the Claudeworth arms."}
   {:id "kitchen-range" :name "Kitchen range" :place "kitchen" :owner "household" :fixed? true :aspects {:state "cold and unlit"} :desc "A black cast-iron range with two ovens and a boiler."}
-  {:id "kitchen-dresser" :name "Kitchen dresser" :place "kitchen" :owner "household" :fixed? true :container :open :aspects {:cleanliness "scrubbed"} :desc "A tall deal dresser with open shelves above a broad worktop."}
-  {:id "pantry-shelves" :name "Pantry shelves" :place "pantry" :owner "household" :fixed? true :container :open :store {:keeps "dry goods, preserves, condiments, butter and cheese" :serves ["kitchen"]} :aspects {:stock "well stocked with the household's staples"}
+  {:id "kitchen-dresser" :name "Kitchen dresser" :place "kitchen" :owner "household" :fixed? true :container :open :store {:keeps "pans, tins, cloths, crockery and kitchen tools"} :aspects {:stock "well stocked with the usual kitchen ware" :cleanliness "scrubbed"} :desc "A tall deal dresser with open shelves above a broad worktop."}
+  {:id "pantry-shelves" :name "Pantry shelves" :place "pantry" :owner "household" :fixed? true :container :open :store {:keeps "dry goods, preserves, condiments, butter and cheese" :serves ["kitchen"]} :aspects {:stock "well stocked with the household's staples" :lacking "sugar"}
    :desc "Stout wooden shelves fixed along the pantry wall, ready for jars, packets and other provisions."}
-  {:id "sugar-jar" :name "Sugar jar" :place "kitchen" :owner "household" :container :open :aspects {:state "empty"}
-   :desc "An empty white earthenware sugar jar on the kitchen worktop, its lid beside it. Not a grain of sugar remains inside."}
-  {:id "kettle" :name "Kettle" :in "kitchen-dresser" :owner "household" :aspects {:state "cold" :cleanliness "the spout furred"} :desc "A big copper kettle with a swing handle."}
-  {:id "saucepans" :name "Saucepans" :in "kitchen-dresser" :owner "household" :aspects {:cleanliness "clean" :repair "dented"} :desc "A nest of iron saucepans, the largest at the bottom."}
-  {:id "blacking-brushes" :name "Blacking brushes" :in "kitchen-dresser" :owner "household" :aspects {:cleanliness "stiff with old blacklead"} :desc "A tin of blacklead and two brushes: one to put it on, one to polish."}
+  {:id "housemaids-cupboard" :name "Housemaid's cupboard" :place "maids-room" :owner "household" :fixed? true :container :closed :store {:keeps "brushes, dusters, polish and blacklead" :serves ["entrance-hall" "drawing-room" "dining-room" "kitchen"]} :aspects {:stock "well stocked with cleaning things"}
+   :desc "A narrow deal cupboard by the door, for Nellie's cleaning things."}
+  {:id "linen-press" :name "Linen press" :place "gallery" :owner "household" :fixed? true :container :closed :store {:keeps "sheets, pillowcases, towels and household linen"} :aspects {:stock "well stocked with clean, folded linen"}
+   :desc "A tall oak press on the landing, with shelves for the household linen."}
   {:id "motor-car" :name "Motor car" :place "carriage-sweep" :owner "household" :fixed? true :aspects {:cleanliness "polished"} :desc "A green Daimler tourer with brass lamps, rather out of place before the house."}
   {:id "pocket-watch" :name "Pocket watch" :holder "Lord Claudeworth" :owner "Lord Claudeworth" :aspects {:state "keeping good time"} :desc "A gold half-hunter on a chain, engraved with the Claudeworth arms."}
   {:id "pocket-notebook" :name "Pocket notebook" :holder "Hale" :owner "Hale" :aspects {:state "half full"} :desc "A small black notebook with a pencil in its spine, for his lordship's instructions."}]

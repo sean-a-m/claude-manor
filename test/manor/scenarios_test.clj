@@ -127,9 +127,11 @@
                                       :run-id (str (gensym "claudeworth-activities-"))})]
     (try
       (let [world (e/world run)
-            pantry (items/item world "pantry-shelves")]
-        (is (items/store? pantry))
-        (is (= ["pantry-shelves"] (map :id (items/stores-for world "kitchen")))))
+            stores (items/items-where world items/store?)]
+        (is (seq stores))
+        (is (every? (fn [store]
+                      (some #(= (:id store) (:id %))
+                            (items/stores-for world (:place store)))) stores)))
       (e/auto! run 48)
       (is (= :idle (e/wait-idle run 120000)))
       (let [world (e/world run)

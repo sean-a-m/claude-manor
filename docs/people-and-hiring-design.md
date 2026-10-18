@@ -1,6 +1,6 @@
 # People, positions and hiring: design
 
-Status: design only, nothing built. Four phases, in order:
+Status: phase 1 is done (section 3.5); phases 2–4 are not built. Four phases, in order:
 
 1. **People and traits**: a people server that generates characters (temperament, faculties,
    circumstances, a polished persona), tried first on the existing casts.
@@ -186,6 +186,61 @@ not its traits. Pins (`:pin {:amativeness :large}`) can come later if a rolled c
 Phase 1 is done when the server and its data exist with tests (free, seeded, no model);
 the polish is a checked call with a mock responder; `roll-cast!` has rolled Claudeworth's cast
 and you've reviewed the result; and prompts show each agent its own traits and no one else's.
+
+### 3.5 Phase 1 as built
+
+Done. The contract is in "People and traits" in `docs/scenario-authoring.md`.
+
+- **The server** is `mcp-servers/people/` (babashka, stateless, no model, no key), with the four
+  data files, all in wording written for it, plus a fifth, `positions.edn` (below).
+  `generate_people` and `reputation` are deterministic from their seed. Tests in
+  `test/manor/people_test.clj` check determinism, five axes, one faculty per group, one or two
+  circumstances from different groups never in an excluded pair, untaken names and the position
+  weights, and they check `reputation` against the person's own traits.
+- **The polish** is `manor.people/polish!`: one call with one correction, a free `mock-polish`,
+  and checks that the persona names the person, keeps to the lengths and uses no jargon.
+- **Traits on agents:** world-file agents may carry `:sex :manner :temperament :faculties
+  :circumstances` and a `:sketch`. The agent's own prompt shows the persona, then the manner and
+  a line of readings. A test proves no other agent's view or prompt contains them, and that an
+  agent without traits gets the same prompt as before.
+- **`roll-cast!`** (`dev/user.clj`, over `manor.people/roll-cast!`) writes into the world file
+  in place, keeping comments and layout. Loading a world never calls out.
+- **Claudeworth's cast** was rolled with seed 1 by `deepseek/deepseek-v4.1-flash`. The first roll
+  cost $0.0046 for 13 calls. Seven characters were written; Lord Claudeworth and Nellie overshot
+  the 600 characters on both tries. After the fix below, a second roll of the earl, Nellie and
+  Hobbs cost $0.0015, with every answer accepted first time. Hobbs was included because his
+  persona had lost "meat is his trade, not general groceries", and the second roll lost it too
+  (see section 8). The records are in `old-test-runs/roll-cast-claudeworth-first` and
+  `old-test-runs/roll-cast-claudeworth-earl-nellie-hobbs` in the phase 1 worktree.
+
+Deviations and decisions made while building:
+
+1. **`positions.edn`**, a fifth data file: the age range for a position, and its sex where the
+   place was a man's or a woman's in 1904 (a housemaid, a groom). Without it, "an age suited to
+   the position" had no data.
+2. **`generate_people` takes an optional `sex`,** which overrides the position's. `roll-cast!`
+   passes the agent's `:sex`, so authored characters keep theirs. `:sex` was added by hand to
+   Claudeworth's nine agents before the roll, taken from their honorifics and pronouns.
+3. **`origins` and `dwellings`** live in `names.edn`. `setting` is accepted only as
+   `"england-1900"`, the one setting that has data.
+4. **Authored characters drop the server's age, origin and home.** The polish takes them from
+   the old persona instead, so Daisy stays sixteen.
+5. **`:sketch`:** `roll-cast!` keeps the old persona as `:sketch` and polishes from it on later
+   rolls, so a re-roll starts from the authored text and not from a rolled persona. The sketch
+   reaches no prompt.
+6. **`:manner`** goes in the agent's own prompt after the persona ("To a stranger you come across
+   as: ..."), because it guides how they present themselves.
+7. **The persona length is advised, not just limited.** The model is asked for about 450
+   characters and code accepts up to 600 (the same pattern as aspect values), because deepseek
+   overshot a plain "at most 600" for three of nine characters. `{:only [names]}` re-rolls just
+   the agents named.
+8. **"Facts unchanged"** is enforced by storing the facts from the record, never from the model.
+   The text check covers only what text can show: the person is named (any word of the name but
+   a title), and there's no jargon (faculty or Big Five axis names, phrenology).
+9. **Temperament levels** are `:low :average :high`, rolled evenly. Faculty sizes are `:small
+   :moderate :large`, as in section 3.1.
+10. **Labels:** "a farm labourer's son" is written "a farm labourer's child", so that it suits
+    anyone. Descriptors are written so that they suit a man or a woman.
 
 ## 4. Phase 2: positions
 
@@ -408,4 +463,22 @@ An engine-level status alongside `:active` and `:retired`:
 
 ## 8. Open questions
 
-None at present. New ones from implementation go here.
+From phase 1:
+
+1. **Role `:about` texts still state the old traits,** and some now contradict the rolled cast.
+   The earl's says he is "lazy, and a notorious womanizer", but he rolled average
+   conscientiousness and no Amativeness. The countess's says she is "an angry woman", and
+   Nellie's says she is "somewhat naive and foolish". Phase 2 removes personality from `:about`;
+   until then the agent gets both texts. Should these phrases be removed now, before phase 2?
+2. **Directions in personas get lost.** Hobbs's old persona told him "meat is his trade, not
+   general groceries", and both rolls dropped it (the shared shopkeeper `:about` covers
+   `quote-goods`, but not what he sells). Phase 2 should put each tradesman's trade in the
+   position, or in a field the polish doesn't rewrite.
+3. **Invented details:** the polish adds facts the record doesn't give, such as the countess
+   being "past fifty", Hobbs having left "Bramford", or Pugh sending wages home. Most are harmless
+   colour. Should the polish be told to add no new facts beyond its notes and record, or is the
+   colour wanted?
+4. **The polish has no in-run registration yet.** Phase 4 will need it as a scenario adjudicator
+   (`polish-request` already returns the `{:messages :tools :ctx :check}` shape) and needs the
+   people server in `:mcp-servers`, `:bridges` and `:offline-stubs`. Phase 1 registers neither,
+   because nothing in a run uses them yet.

@@ -770,26 +770,27 @@
   recorded in llm.edn as agent \"judge\", and its usage counts towards the
   run's cost."
   [run world job work things]
-  (let [request (assoc (items/judge-request (:scenario run) world job work things)
+  (let [work (assoc work :recent (prompt/scene-recent world (events run) job))
+        request (assoc (items/judge-request (:scenario run) world job work)
                        :label "judge"
                        :ctx (assoc (select-keys work [:minutes :stopped-early? :luck])
-                                   :role :judge :world world :job job :things things))
-        {:keys [verdict] :as result} (ask-structured! run "judge" request #(items/judgement % things))]
+                                   :role :judge :world world :job job :things things
+                                   :focus (items/focus-things world job)))
+        {:keys [verdict] :as result} (ask-structured! run "judge" request #(items/judgement % world things))]
     (or verdict result)))
 
 (defn- finish-job!
   "Apply the end of one job (see manor.items/ending-jobs): dropped, ended
-  with nothing to judge (no item in reach, and the job didn't name its
-  place) or no time worked, or judged. The model call is made outside the
-  world lock; the result is built from the world as it is then, so a later
+  with no time worked, a neutral unnamed activity in an empty place, or judged.
+  The model call is made outside the world lock; the result is built from the world as it is then, so a later
   job's judge sees this one's result."
   [run {:keys [job outcome minutes] :as work}]
   (let [world @(:world run)
         things (items/judged-things world job)]
     (cond
       (= :dropped outcome) (emit! run [(items/work-ended world job :retired)])
-      (empty? things) (emit! run [(items/work-ended world job :nothing-in-reach)])
       (zero? minutes) (emit! run [(items/work-ended world job :no-time)])
+      (items/empty-activity? world job) (emit! run [(items/work-done world job work nil)])
       :else
       (let [{:keys [failure] :as verdict} (ask-judge run world job work things)]
         (locking (:world run)

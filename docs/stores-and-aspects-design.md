@@ -1,6 +1,6 @@
 # Stores, aspects and the scene judge: design
 
-**Status:** designed (2026-10-17). Phases 0 and 1 done. Each phase below has its own status line;
+**Status:** designed (2026-10-17). Phases 0, 1 and 2a–2c done. Each phase below has its own status line;
 update it as work lands, so an agent picking this up can tell where to start.
 
 Read `AGENTS.md` first (invariants, run directories, cost rules), then "Items (`manor.items`)" and
@@ -243,9 +243,26 @@ additions:
 
 ### Phase 2: stores, the scene judge, one timed activity
 
-**Status: 2a done; 2b–2d not started.** Stores are also explicitly checked not to be
-consumable, as required by the data model. Local stores remain in `look.items` for container
-contents as well as `look.stores` for the in-scope supply list.
+**Status: 2a–2c done, mock-tested only (no real run); 2d not started.** Stores, the scene
+judge, suggested aspect keys and the shared `spend-time` are built. The pantry shelves serve
+the kitchen; the rest of phase 5's content is untouched. Small deviations and safeguards:
+
+- Stores are explicitly checked not to be consumable, as required by the data model. Local
+  stores remain in `look.items` for container contents as well as `look.stores` for the in-scope
+  supply list; per-turn `here.items` omits them.
+- The internal job still calls its focus ids `:items`, including jobs from `spend-time :on`.
+  `items/focus-things` is the old named-things scope; `items/judged-things` is now the whole
+  changeable scene. Mock ctx includes both `:focus` and `:things`.
+- `prompt/scene-recent` builds the shared recent lines in the engine (items cannot require
+  prompt, which already requires items). It uses `visible-events` and the same narrated lines
+  as agent prompts, starting after the job's actual begun event, not earlier in that round.
+- Container use-up checks now require the world, not just the judged things: otherwise a
+  consumable container in `also_here` could orphan hidden contents or contents beyond its cap.
+  Rejections are generic about unseen contents and suggest naming the container with `on`;
+  no hidden ids or names are sent to the judge.
+- A job whose named focus has gone still has its local scene judged; the old nothing-in-reach
+  shortcut no longer applies. Only an unnamed activity in an empty, aspectless, storeless
+  place skips the judge, with a neutral work-done summary (or no-time/retired as before).
 
 **2a. Stores (engine).**
 

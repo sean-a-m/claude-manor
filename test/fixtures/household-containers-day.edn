@@ -7,15 +7,15 @@
      "Pugh is keen. He talks a great deal about proportion, but I think he is our man."}]],
   "18:30"
   [[:walk {:to "dining-room"}]
-   [:spend-time {:activity "dining", :hours 2}]],
+   [:spend-time {:doing "dining", :hours 2}]],
   "14:00"
   [[:walk {:to "study"}]
-   [:spend-time {:activity "reading the newspapers", :hours 4}]],
+   [:spend-time {:doing "reading the newspapers", :hours 4}]],
   "11:30" [[:travel {:to "carriage-sweep"}]],
-  "08:30" [[:spend-time {:activity "breakfasting", :hours 1}]],
+  "08:30" [[:spend-time {:doing "breakfasting", :hours 1}]],
   "12:00"
   [[:walk {:to "study"}]
-   [:spend-time {:activity "attending to estate business", :hours 1}]],
+   [:spend-time {:doing "attending to estate business", :hours 1}]],
   "11:00" [[:commission {:plan-id "library"}]],
   "07:00" [[:say {:text "Thank you, Hale. Another day of it, then."}]],
   "22:30" [[:walk {:to "earls-bedroom"}] [:sleep {:until "07:30"}]],
@@ -30,34 +30,34 @@
      "Good morning, Mr Pugh. I want Claudeworth made a proper seat: a library to begin with. What do you advise?"}]],
   "13:00"
   [[:walk {:to "dining-room"}]
-   [:spend-time {:activity "lunching", :hours 1}]],
+   [:spend-time {:doing "lunching", :hours 1}]],
   "10:30"
   [[:say
     {:text
      "A library beside the study, then. Please draw it for me."}]],
   "20:30"
   [[:walk {:to "drawing-room"}]
-   [:spend-time {:activity "smoking a cigar over a novel", :hours 2}]],
+   [:spend-time {:doing "smoking a cigar over a novel", :hours 2}]],
   "09:30" [[:travel {:to "architects-office"}]]},
  "lady-claudeworth"
  {"17:00" [[:travel {:to "carriage-sweep"}]],
   "16:00" [[:request-goods {:item "feather duster", :qty 1}]],
   "14:00"
   [[:spend-time
-    {:activity "sitting quietly in the abbey church", :hours 1.5}]],
-  "08:30" [[:spend-time {:activity "breakfasting", :hours 1}]],
+    {:doing "sitting quietly in the abbey church", :hours 1.5}]],
+  "08:30" [[:spend-time {:doing "breakfasting", :hours 1}]],
   "19:00"
   [[:say
     {:text
      "I hope Mr Pugh understands that the drawing room is mine to decide."}]],
   "21:30"
   [[:walk {:to "drawing-room"}]
-   [:spend-time {:activity "reading a novel", :hours 1}]],
+   [:spend-time {:doing "reading a novel", :hours 1}]],
   "22:30" [[:walk {:to "countess-bedroom"}] [:sleep {:until "07:30"}]],
   "17:30"
   [[:walk {:to "drawing-room"}]
    [:give {:item "feather-duster", :to "nellie"}]
-   [:spend-time {:activity "writing letters", :hours 1.5}]],
+   [:spend-time {:doing "writing letters", :hours 1.5}]],
   "13:30" [[:travel {:to "abbey-church"}]],
   "16:30" [[:accept-offer {:item "feather duster"}]],
   "08:00"
@@ -69,7 +69,7 @@
   "15:30" [[:travel {:to "general-store"}]],
   "19:30"
   [[:walk {:to "dining-room"}]
-   [:spend-time {:activity "dining", :hours 2}]],
+   [:spend-time {:doing "dining", :hours 2}]],
   "09:30"
   [[:open {:container "sideboard"}]
    [:take {:item "silver-candlesticks"}]
@@ -81,46 +81,46 @@
      "Nellie! The candlesticks are in the drawing room when you have a moment.",
      :to "nellie"}]
    [:spend-time
-    {:activity "going over the household accounts", :hours 4}]]},
+    {:doing "going over the household accounts", :hours 4}]]},
  "hale"
- {"18:00" [[:spend-time {:activity "copying letters", :hours 2}]],
+ {"18:00" [[:spend-time {:doing "copying letters", :hours 2}]],
   "22:00" [[:walk {:to "secretarys-room"}] [:sleep {:until "06:30"}]],
   "12:30" [[:accept-offer {:item "tin of silver polish"}]],
   "14:00"
   [[:walk {:to "study"}]
-   [:spend-time {:activity "filing correspondence", :hours 4}]],
+   [:spend-time {:doing "filing correspondence", :hours 4}]],
   "11:30" [[:travel {:to "general-store"}]],
-  "08:30" [[:spend-time {:activity "breakfasting", :hours 1}]],
+  "08:30" [[:spend-time {:doing "breakfasting", :hours 1}]],
   "12:00" [[:request-goods {:item "tin of silver polish", :qty 1}]],
   "06:30"
   [[:walk {:to "earls-bedroom"}]
    [:rouse {:who "lord-claudeworth"}]
    [:say {:text "Good morning, my lord. It is half past six."}]],
-  "20:00" [[:spend-time {:activity "reading", :hours 2}]],
+  "20:00" [[:spend-time {:doing "reading", :hours 2}]],
   "13:30"
   [[:walk {:to "dining-room"}]
-   [:spend-time {:activity "lunching", :hours 0.5}]],
+   [:spend-time {:doing "lunching", :hours 0.5}]],
   "08:00"
   [[:walk {:to "dining-room"}]
    [:say {:text "Good morning, my lord. Good morning, my lady."}]],
   "13:00" [[:travel {:to "carriage-sweep"}]],
   "09:30"
   [[:walk {:to "study"}]
-   [:spend-time {:activity "writing letters", :hours 2}]]},
+   [:spend-time {:doing "writing letters", :hours 2}]]},
  "nellie"
  {"08:00"
   [[:walk {:to "kitchen"}]
    [:say {:text "Morning. Fires, then the dining room."}]],
   "09:00"
   [[:walk {:to "dining-room"}]
-   [:work-on
-    {:items ["family-portrait"],
+   [:spend-time
+    {:on ["family-portrait"],
      :doing "dusting the dining room and the portrait",
      :hours 1}]],
   "10:00"
   [[:walk {:to "drawing-room"}]
-   [:work-on
-    {:items ["silver-candlesticks"],
+   [:spend-time
+    {:on ["silver-candlesticks"],
      :doing "polishing the silver candlesticks",
      :hours 1.5}]],
   "11:30"
@@ -129,21 +129,21 @@
    [:put-in {:item "silver-candlesticks", :container "sideboard"}]
    [:walk {:to "kitchen"}]
    [:take {:item "blacking-brushes"}]
-   [:work-on
-    {:items ["kitchen-range" "blacking-brushes"],
+   [:spend-time
+    {:on ["kitchen-range" "blacking-brushes"],
      :doing "blacking the kitchen range",
      :hours 2}]],
   "13:30"
   [[:put-in {:item "blacking-brushes", :container "kitchen-dresser"}]
    [:walk {:to "entrance-hall"}]
-   [:work-on
-    {:items ["entrance-hall" "stags-head"],
+   [:spend-time
+    {:on ["entrance-hall" "stags-head"],
      :doing "dusting the hall and the stag's head",
      :hours 1}]],
   "14:30" [[:walk {:to "drawing-room"}]],
   "18:00"
-  [[:work-on
-    {:items ["china-cabinet"],
+  [[:spend-time
+    {:on ["china-cabinet"],
      :doing
      "dusting the china cabinet and the glass with her new duster",
      :hours 1}]],
@@ -152,18 +152,18 @@
  {"09:00" [[:walk {:to "architects-office"}] [:pass {}]],
   "18:00"
   [[:walk {:to "architects-lodgings"}]
-   [:spend-time {:activity "reading by the fire", :hours 4}]],
+   [:spend-time {:doing "reading by the fire", :hours 4}]],
   "22:00" [[:sleep {:until "07:30"}]],
   "12:30"
   [[:walk {:to "architects-lodgings"}]
-   [:spend-time {:activity "lunching", :hours 1}]],
-  "17:30" [[:spend-time {:activity "tidying the office", :hours 0.5}]],
+   [:spend-time {:doing "lunching", :hours 1}]],
+  "17:30" [[:spend-time {:doing "tidying the office", :hours 0.5}]],
   "13:30"
   [[:walk {:to "architects-office"}]
-   [:spend-time {:activity "at his drawing board", :hours 4}]],
+   [:spend-time {:doing "at his drawing board", :hours 4}]],
   "08:00"
   [[:walk {:to "architects-lodgings"}]
-   [:spend-time {:activity "breakfasting", :hours 1}]],
+   [:spend-time {:doing "breakfasting", :hours 1}]],
   "10:00"
   [[:consult-references {:query "library study"}]
    [:price-list {}]
@@ -179,4 +179,4 @@
      :connects-to ["study"],
      :size "large"}]
    [:show-plans {:plan-id "library"}]
-   [:spend-time {:activity "at his drawing board", :hours 2}]]}}
+   [:spend-time {:doing "at his drawing board", :hours 2}]]}}

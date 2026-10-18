@@ -283,7 +283,7 @@ it isn't an event, so anything that must be remembered or replayed belongs in `:
 | `pray` | all | free | a private, diegetic way to reach the GM: its `:gm/requested` event fills the GM's inbox and triggers the GM this round |
 | `move` | all | final | follow a route (see Locations); only offered when the agent has a location |
 | `look`, `take`, `put-down`, `give` | all | free | only when the scenario has `:items` (see Items) |
-| `work-on` | all | final | only when the scenario has `:items` and the world a clock (see Items) |
+| `spend-time`, `work-on` (alias) | all | final | only when the scenario has `:items` and the world a clock (see Items) |
 | `spawn-agent` | gm | final | spawn a `:spawnable?` role, optional location; respects `:limits` |
 | `retire-agent` | gm | final | remove an agent |
 | `announce` | gm | final | message to everyone or a list of ids |
@@ -524,7 +524,7 @@ id. Objects people can pick up and carry are items (next section).
 Items are things with a description and a few aspects that lie in a place, are carried by
 someone, or are inside another item: a piano, a pocket watch, an umbrella someone bought, the
 silver in the sideboard. They need locations. A scenario
-turns them on with the key `:items`, a map, possibly empty; its optional judge configuration includes `:judge-brief` (see
+turns them on with the key `:items`, a map, possibly empty; its optional configuration includes `:judge-brief` and `:aspect-keys` (see
 Work and the judge). Scenarios without it are unchanged.
 
 An item:
@@ -553,7 +553,7 @@ world under `:items-gone` (id -> name), so older lines that mention it still rea
   letters and hyphens, at most 24 characters, starting with a letter (`items/aspect-key?`;
   `:cleanliness`, `:glass-eye`). The engine checks only the form and the cap; the keys are the
   scenario's choice. Claudeworth uses `:cleanliness`, `:repair`, `:state` (lit, cold, half full),
-  `:amount` (a parcel's "20 × 1 lb") and `:stock`. A thing with nothing notable has no
+  `:amount` (a parcel's "20 × 1 lb"), `:stock` and `:lacking`. A thing with nothing notable has no
   `:aspects`. Only work changes them, one aspect at a time, so unrelated facts survive (see Work
   and the judge). Locations have them too (see Locations).
 - **`:touched`** is the round an item was last taken, put down, put in a container, given,
@@ -606,7 +606,7 @@ world under `:items-gone` (id -> name), so older lines that mention it still rea
     records nothing. Empty parts are left out, as are `:aspects`, `:detail`, `:owner`, `:fixed?`
     and `:doing` when absent; agent owners show as names. Refused while travelling. The aspects,
     descriptions and owners of items here come **only** from `look`: the view lists items here by
-    name (the place's own aspects are in the view too). Say in the brief that it is for examining
+    name (the place's and stores' aspects are in the view too). Say in the brief that it is for examining
     something closely, not a routine arrival action (Claudeworth's `rules` does).
 
     ```clojure
@@ -635,8 +635,9 @@ world under `:items-gone` (id -> name), so older lines that mention it still rea
   is for examining something closely rather than looking routinely on arrival, that some things
   hold others (open ones list `contents`, closed ones show them only to `open`; `take` works on
   either, `put-in` puts things in), that `look`, `open`, `take`, `put-in`, `put-down` and `give`
-  don't end the turn, and that `work-on` spends time on things here or carried, with results
-  when it's over.
+  don't end the turn, and that `spend-time` spends time on work or pastimes, with optional
+  focus ids under `on` and results when it's over. Stores in scope appear every turn; they hold
+  everything they keep unless their aspects say otherwise.
 - An agent you may leave out: mark the world-file agent `:optional?`, naming the run option that
   decides it. Claudeworth reads these in `:init`: Mr Pugh (`:optional? :architect?`) is in unless
   `:architect? false`, and Nellie the housemaid (`:optional? :housemaid?`) is in unless
@@ -670,7 +671,7 @@ supports or tests them (a basket's contents don't show in `carrying`).
   (`items/visible-at`), never what's in closed containers. Something inside what another person
   holds is just "not here". But `take` accepts any id in reach, so a guessed id inside a closed
   container works; that's by design for now.
-- **Work on a container reaches its contents:** `work-on` accepts things inside containers here,
+- **Work on a container reaches its contents:** `spend-time` accepts things inside containers here,
   and the items in reach for the judge are each job item plus everything `within` it, at any
   depth, open or closed. The judge sees `in` (the container's id) on an item whose container is
   also listed, and may change the aspects of any of them. A container counts as one of the six items.
@@ -699,16 +700,18 @@ container contents. Work may name a store in scope even when it is in another ro
 
 #### Work and the judge
 
-`work-on {items doing hours}` (turn-ending, every role but the GM, offered only when the world has
-a clock) spends time doing something to things:
+`spend-time {doing, hours?, on?}` (turn-ending, every role but the GM, offered only with
+`:items` and a clock) spends time on work or a pastime:
 
-- `items`: 1-6 item ids, each lying where you are (in a container or not) or carried by you
-  (fixed items are fine), or the id of the place you're in, for work on the room itself
-  (sweeping, airing); duplicates are dropped. A rejected id gets a reason that lists this place's
-  id, the items here and what you carry. The room's id stays in the job's `:items`
-  (`items/place-worked?` says whether a job named its place), and the room goes to the judge.
-  `doing`: 3-120 characters, reading after "is" ("dusting the china cabinet"). `hours`: optional, 0.5 to 4, default 0.5; rounds as `clock/rounds-for` gives them,
-  at least one.
+- `doing`: 3–120 characters, reading after "is" ("dusting the china cabinet", "resting in the
+  garden"). `hours`: optional, 0.5–4, default 0.5; rounds as `clock/rounds-for` gives them,
+  at least one. `on`: optional list of up to 6 ids: items here (in a container or not) or carried
+  by you, the place you're in, or stores in scope (even in another room). Fixed items are fine;
+  duplicates are dropped. A rejected id gets an actionable reason. No `on` is normal for a
+  pastime, and most pastimes change nothing.
+- `work-on {items, doing, hours?}` remains an alias for now: `items` (1–6 ids) means `on`, with
+  the same effect. New scripts and briefs should use `spend-time` and `doing`, not `activity`.
+  `sleep` in Claudeworth stays separate and unjudged.
 - Its effect is a job, `:item/work-begun` (visible to the GM; data: the job), and an occupation
   (`b/occupy`, seen by the room: "Hale is dusting the china cabinet until 15:30") whose `:busy`
   carries the job id as `:job`. The job table is `(:item-jobs world)`, keyed by id (`"job-<seq>"`):
@@ -725,14 +728,16 @@ a clock) spends time doing something to things:
   | otherwise | still going on |
 
   `carry-on` keeps the occupation and its job, so the work runs to its end.
-- For a stopped or finished job, the items **in reach** (`items/in-reach`) are the job's items
-  still lying at the job's place (in a container or not), or carried by the worker, each followed
-  by everything inside it. The **judged things** (`items/judged-things`) are the job's place, if
-  the job named it, followed by the items in reach. If there are none (no item in reach and the
-  room not named), or no time was worked, the job ends with `:item/work-ended`, seen by the
-  worker and the people at the place ("Hale leaves off dusting the china cabinet before getting
-  anywhere."), and no call. Otherwise the engine asks **the judge**, even for the room alone, and
-  emits `:item/work-done`, seen by the worker and the people at the place:
+- For a stopped or finished job, **focus** (`items/focus-things`) is the named things still
+  in reach: the room if named, and items at the job's place or carried by the worker, or stores
+  in scope, each followed by everything inside it. `items/in-reach` stays items-only.
+  The **scene** (`items/scene`) always includes the place, focus, up to 12 other visible items
+  (not inside closed containers), stores in scope, and people present. **Judged things**
+  (`items/judged-things`) are the place, focus, other visible items and stores, once each.
+  With no time worked, the job ends with `:item/work-ended`, seen by the worker and people at
+  the place, and no call. An activity naming nothing, at a place with no aspects, no items and
+  no stores in scope, ends with a neutral `:item/work-done` and no call. Otherwise the engine
+  asks the scene judge and emits `:item/work-done`, seen by the worker and people at the place:
   `{:job :actor :place :doing :minutes :stopped-early? :luck :summary :changes [..]}`, plus
   `:used-up [{:item :name}]` and `:made [item ...]` (complete new items) when there are some.
   Each change is `{:item id :aspect k :from s :to s}`, or `{:place id ...}` for the room; `:from`
@@ -756,16 +761,37 @@ a clock) spends time doing something to things:
   limits. Something partly used isn't used up: the judge rewrites its `:amount` ("about 17 lb
   left"). Everything else keeps its nature, as before.
 - **The judge** is a narrow model call, not the GM and not a bridge; characters never hear of it.
-  `manor.items/judge-request` builds it from only: the scenario's `:judge-brief` (`(fn [world]
-  text)` under `:items`, optional; Claudeworth gives its setting paragraph), the time, the
-  worker's name and persona, the place's name, what they were doing, the minutes worked and
-  whether they stopped early, a luck roll (1-100, 50 ordinary, from `manor.rng` with the key
-  `[:judge job-id]`), and the judged things: the room first, if the job named it, as `{id, name,
-  desc, aspects, room: true}` (not its `:detail`), then each item in reach with its id, name,
-  description and aspects (and `in` when its container is in reach too, `consumable: true` and
-  `container: true` when they are). Its instructions say to change only the aspects the work
-  affected and leave the others alone, and that the room entry describes the room as a whole,
-  not the things in it. It has one required tool, `judge {changes: [{thing, aspect, value}],
+  `items/judge-request` builds it from the optional `:items :judge-brief` (`(fn [world] text)`),
+  optional suggested aspect keys with short glosses (`:items {:aspect-keys {:cleanliness "how
+  clean" :repair "damage and needed repairs" ...}}`), time, worker's name and persona, doing,
+  minutes worked, whether stopped early, and luck (1–100, 50 ordinary, `rng` key `[:judge job-id]`).
+  Claudeworth suggests cleanliness, repair, state, amount, stock and lacking. These aren't a
+  closed vocabulary: other well-formed keys are allowed. The user message's scene is:
+
+  ```clojure
+  {:place {:id "kitchen" :name "Kitchen" :desc "..." :aspects {...}}
+   :focus [{:id "kitchen-range" :name "Kitchen range" :desc "..." :aspects {...}}]
+   :also_here [...]
+   :stores [{:id "pantry-shelves" :name "Pantry shelves" :keeps "dry goods, preserves, ..."
+             :aspects {:stock "well stocked"} :at "pantry"}]
+   :people [{:name "Mrs Finch" :doing "cooking dinner"}]
+   :recent ["[17:00] Mrs Finch says: ..."]}
+  ```
+
+  Focus includes container contents as above, with `in` only when that container is also in
+  focus; entries mark `consumable: true`, `container: true`, or `room: true` when appropriate.
+  `also_here` has the same item shape, at most 12; stores are excluded from it. No other rooms,
+  other people's holdings, or closed-container contents are added to the scene. A focused
+  container still includes its contents, open or closed, as before.
+  `recent` is at most 10 narrated lines the worker saw since this job began, excluding events
+  only they saw (notes and private replies); it uses `prompt/visible-events` and the same
+  narration as agent prompts, not a separate visibility rule. Shared whispers may be included.
+  Room detail is not sent.
+  Instructions say most activities change little and a pastime often nothing: empty answers
+  are normal, and the judge must not invent events to make it eventful. A store holds everything
+  it keeps unless its aspects say otherwise. Change only aspects affected by this activity;
+  the place's aspects describe the room itself, not its contents.
+  It has one required tool, `judge {changes: [{thing, aspect, value}],
   used-up: [id], made: [{name, desc, aspects, in}], summary}`: each change sets one aspect of one
   thing, and `value: ""` removes it. The engine sends it through
   the run's LLM with the model `:judge-model` (a run option; nil means `:model`) and the run's
@@ -781,17 +807,21 @@ a clock) spends time doing something to things:
   characters. When the same aspect of a thing comes twice, the last counts. Other keys (a `desc`,
   a `name`) are dropped, so an existing thing's aspects are all that ever change, and unchanged
   values (or removing an aspect a thing hasn't got) are left out, as are changes to items used
-  up. `used-up` names only consumable, unfixed items in reach, and a container only with
-  everything in it; `made` has at most 2 entries (name 1-60, desc 1-400 characters, optional
+  up. `used-up` names only consumable, unfixed items in focus or `also_here`, and a container
+  only with all its real descendants used up. The check reads the world, not just the scene:
+  hidden contents or contents beyond the 12-item cap cannot be orphaned. The rejection names
+  no unseen things and suggests naming the container with `on` next time; `made` has at most 2 entries (name 1-60, desc 1-400 characters, optional
   aspects as above), only with something used up, and an `in` must be a container in reach that
   isn't used up. A bad answer is sent back with the reason and asked once more. A second bad answer, or an exception, gives `:item/work-done` with no changes and a
   neutral summary ("Hale finishes dusting the china cabinet."), plus an `:item/judge-failed`
   event (`:visible-to :system`) with the reason. The run isn't paused.
 - **Mock runs:** a call with role `:judge` goes to the scenario's `:mock-judge` if it has one,
-  else to `items/mock-judge` (every judged thing gets the cleanliness "just seen to"; the summary
-  only says the work is over), so `:mock-policy` never sees the judge. Its context has `:world
-  :job :things` (the judged things) `:minutes :stopped-early? :luck :step`, and it returns `{:tool
-  :judge :args {..}}`.
+  else to `items/mock-judge` (each focused thing gets cleanliness "just seen to"; without `on`
+  it changes nothing and makes nothing), so `:mock-policy` never sees the judge. Its context has
+  `:world :job :things` (all judged things), `:focus` (named things still in reach),
+  `:minutes :stopped-early? :luck :step`, and it returns `{:tool :judge :args {..}}`.
+  `items/judgement` takes the response, world and judged things, so every check includes real
+  container contents.
 
 Stores of provisions can be consumable items, a parcel each, whose `:amount` the judge rewrites as
 they are used (Claudeworth's purchases).
@@ -871,7 +901,7 @@ and are freed at the start of that round. This makes nights and long activities 
 ```
 
 - `(b/occupy world id activity until)` is an `:agent/occupied` event, visible to everyone present.
-  Its `:busy` keeps `:activity :until :asleep? :hibernating? :job` from the event data (`work-on`
+  Its `:busy` keeps `:activity :until :asleep? :hibernating? :job` from the event data (`spend-time`
   adds the `:job`; see Items). For sleep, pass `{:asleep? true}` as a fifth argument:
   `(b/asleep? world id)` is then true until they're roused, and nobody can draw them into a
   conversation. The activity text alone ("asleep") means nothing to the engine.

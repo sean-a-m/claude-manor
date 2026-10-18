@@ -248,26 +248,25 @@
         job {:id "job-9" :actor "ben" :items ["cupboard" "candle"] :doing "cleaning out the cupboard"
              :place "hall" :started 1 :due 4}
         reach (items/in-reach world job)
-        user (:content (second (:messages (items/judge-request (:scenario run) world job {:minutes 60 :luck 50} reach))))
-        judged (json/read-value (second (re-find #"(?s)```json\n(.*)\n```" user)) json/keyword-keys-object-mapper)]
+        user (:content (second (:messages (items/judge-request (:scenario run) world job {:minutes 60 :luck 50}))))
+        judged (:focus (json/read-value (second (re-find #"(?s)```json\n(.*)\n```" user)) json/keyword-keys-object-mapper))]
     (testing "the judge's reach is the container and everything inside it, once each"
       (is (= ["cupboard" "box" "key" "candle" "hook"] (ids reach))))
     (testing "the judge sees what's in what"
       (is (= [nil "cupboard" "box" "cupboard" "cupboard"] (map :in judged)))
-      (is (str/includes? (:content (first (:messages (items/judge-request (:scenario run) world job {:minutes 60} reach))))
+      (is (str/includes? (:content (first (:messages (items/judge-request (:scenario run) world job {:minutes 60}))))
                          "A thing listed with `in` is inside another")))
     (testing "an item named alone shows no :in, since its container isn't in reach"
       (is (= [{:id "key" :name "Key" :desc "An iron key." :aspects {:state "rusty"}}]
-             (-> (items/judge-request (:scenario run) world (assoc job :items ["key"]) {:minutes 30}
-                                      (items/in-reach world (assoc job :items ["key"])))
+             (-> (items/judge-request (:scenario run) world (assoc job :items ["key"]) {:minutes 30})
                  :messages second :content (->> (re-find #"(?s)```json\n(.*)\n```") second)
-                 (json/read-value json/keyword-keys-object-mapper)))))
+                 (json/read-value json/keyword-keys-object-mapper) :focus))))
     (testing "the judge may change what's inside"
       (let [{:keys [verdict]} (items/judgement {:tool-calls [{:id "j" :name "judge"
                                                               :arguments (json/write-value-as-string
                                                                           {:changes [{:thing "key" :aspect "state" :value "oiled"}]
                                                                            :summary "Ben cleaned it out."})}]}
-                                               reach)]
+                                               world reach)]
         (is (= [{:item "key" :aspect :state :from "rusty" :to "oiled"}] (:changes verdict)))))
     (testing "work-on accepts things inside containers here"
       (is (nil? (a/check (action run :work-on) world "ben" {:items ["key" "cup"] :doing "oiling the key"}))))

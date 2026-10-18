@@ -400,9 +400,9 @@
         (is (= {:activity "asleep" :until 9 :asleep? true} (:data slept)))
         (is (= {:activity "asleep" :until 9 :asleep? true} (w/busy world' "hale")))))
     (testing "spend-time occupies the right number of rounds"
-      (let [{:keys [args]} (a/decode-args (action run :spend-time) "{\"activity\": \"writing letters\", \"hours\": 1.5}")
+      (let [{:keys [args]} (a/decode-args (action run :spend-time) "{\"doing\": \"writing letters\", \"hours\": 1.5}")
             [world' _] (perform run world "hale" :spend-time args)]
-        (is (= {:activity "writing letters" :until 4} (w/busy world' "hale")))))
+        (is (= {:activity "writing letters" :until 4} (dissoc (w/busy world' "hale") :job)))))
     (testing "rouse interrupts someone busy in the same room, and nobody else"
       (let [asleep (w/apply-event world (b/occupy world "lord-claudeworth" "asleep" 20))
             [together] (perform run asleep "hale" :walk {:to "earls-bedroom"})
@@ -451,7 +451,7 @@
         (is (= "16:30" (clock/short-label (:clock world) (:round bought) (:round bought))))
         (is (= "lady-claudeworth" (:holder (items/item world "feather-duster"))))
         (is (empty? (of-type run :item/given)))
-        (is (empty? (of-type run :item/work-begun)))))
+        (is (every? #(empty? (get-in % [:data :items])) (of-type run :item/work-begun)))))
     (testing "the countess's look reply shows the drawing room and the dusty cabinet"
       (let [[call] (filter #(some (fn [tc] (= "look" (get-in tc [:function :name])))
                                   (get-in % [:response :tool_calls])) calls)
@@ -632,7 +632,7 @@
       (is (every? #(:detail (space/location world %)) ["drawing-room" "study" "general-store"])))
     (testing "the rules say the item actions are free, and what look shows"
       (is (str/includes? (cw/rules world) "`look` shows them in detail, with their descriptions, owners and aspects"))
-      (is (str/includes? (cw/rules world) "The room's own aspects (its floor, hearth and air) are under `here` in your view."))
+      (is (str/includes? (cw/rules world) "The room's own aspects (its floor, hearth and air) and the stores in scope are under `here` in your view."))
       (is (str/includes? (cw/rules world) "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn")))
     (testing "the rules and the judge both take everyday things as to hand"
       (let [judge-brief ((get-in (:scenario run) [:items :judge-brief]) world)]
@@ -679,25 +679,27 @@
         (is (= (mapv #(get-in % [:data :id]) begun) (mapv #(get-in % [:data :job]) done)))
         (is (every? #(seq (get-in % [:data :changes])) done))
         (is (every? #(= {:aspect :cleanliness :to "just seen to"} (select-keys (get-in % [:data :changes 0]) [:aspect :to])) done))
-        (is (= 5 (count (filter #(= "judge" (:agent %)) calls))))
+        (is (= 5 (count (filter #(and (= "judge" (:agent %))
+                                              (str/includes? (get-in % [:messages 1 :content]) "- Worker: Nellie.")) calls))))
         (testing "the cabinet is dusty until the job that dusts it finishes"
           (let [due (get-in (first (filter #(= ["china-cabinet"] (get-in % [:data :items])) begun)) [:data :due])
                 before (w/replay (take-while #(< (:round %) due) evs))]
             (is (= {:cleanliness "dusty, the glass smeared"} (:aspects (items/item before "china-cabinet"))))
             (is (= {:cleanliness "just seen to"} (:aspects (items/item world "china-cabinet"))))))))
     (testing "the first judge call was given the setting, the worker and the item"
-      (let [[call] (filter #(= "judge" (:agent %)) calls)]
+      (let [[call] (filter #(and (= "judge" (:agent %))
+                                 (str/includes? (get-in % [:messages 1 :content]) "- Worker: Nellie.")) calls)]
         (is (str/includes? (:content (first (:messages call))) (str "## The setting\n" (get-in world [:state :setting]))))
         (is (str/includes? (:content (second (:messages call))) "- Worker: Nellie. Nellie, the housemaid"))
         (is (str/includes? (:content (second (:messages call))) "powdered wig"))))
     (testing "the countess gives her the duster she bought in the village"
-      (is (empty? (by "hale" (of-type run :item/work-begun))))
+      (is (every? #(empty? (get-in % [:data :items])) (by "hale" (of-type run :item/work-begun))))
       (let [[given] (of-type run :item/given)]
         (is (= "lady-claudeworth" (:actor given)))
         (is (= {:item "feather-duster" :to "nellie"} (:data given)))
         (is (= "nellie" (:holder (items/item world "feather-duster"))))))
     (testing "the rules explain when to look"
-      (is (str/includes? (cw/rules world) "`work-on` spends time doing something to things here or that you carry"))
+      (is (str/includes? (cw/rules world) "`spend-time` spends time on work or pastimes"))
       (is (str/includes? (cw/rules world) "not routinely on arrival")))
     (e/stop-run run)))
 

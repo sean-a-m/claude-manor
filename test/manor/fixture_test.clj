@@ -61,7 +61,7 @@
             (is (= 47 (:round (e/world fixed))))
             (is (= "lady-claudeworth" (:holder (items/item (e/world fixed) "feather-duster"))))
             (is (some #(= :claudeworth/commissioned (:type %)) (e/events fixed)))
-            (is (not-any? #(#{:action/forfeited :item/work-begun :item/given} (:type %)) (e/events fixed)))
+            (is (not-any? #(#{:action/forfeited :item/given} (:type %)) (e/events fixed)))
             (is (not-any? #(re-find #"^(error:|rejected:)" (:content % ""))
                           (mapcat :replies (store/read-llm (:dir fixed)))))
             (is (= (e/world fixed) (w/replay (store/read-events (:dir fixed))))))

@@ -42,6 +42,20 @@
     (str/join "\n" (map #(str (stamp world (:round %)) " " (narrate/describe % names)) events))
     "(nothing yet)"))
 
+(defn scene-recent
+  "At most ten narrated lines the worker saw since this job began, excluding
+  worker-only events. Use the same visibility and narration as their prompt."
+  [world events {:keys [id actor]}]
+  (let [since (rest (drop-while #(not (and (= :item/work-begun (:type %))
+                                          (= id (get-in % [:data :id])))) events))
+        shared (->> (visible-events since actor (count since) true)
+                    (remove (fn [{audience :visible-to}]
+                              (and (set? audience) (empty? (disj audience actor :gm)))))
+                    (take-last 10))]
+    (if (seq shared)
+      (vec (take-last 10 (str/split-lines (event-lines world shared (narrate/names world)))))
+      [])))
+
 (defn- heading
   "\"Round 3\", or with a clock \"Saturday 15 October 1904, 09:30\"."
   [world]

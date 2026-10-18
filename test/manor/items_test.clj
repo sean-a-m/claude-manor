@@ -436,7 +436,7 @@
           (is (= 1 (count @judged)))
           (is (= {:minutes 90 :stopped-early? false} (select-keys ctx [:minutes :stopped-early?])))
           (is (<= 1 (:luck ctx) 100))
-          (is (= ["clock" "pipe"] (map :id (:things ctx))))))
+          (is (= ["clock" "pipe"] (map :id (:focus ctx))))))
       (testing "the result: data, narration and who sees it (Ada is upstairs)"
         (is (= {:actor "ben" :place "hall" :doing "polishing the clock" :minutes 90 :stopped-early? false
                 :summary "Ben finishes polishing the clock."
@@ -463,16 +463,32 @@
         (is (= world (w/replay (store/read-events (:dir run)))))))
     (e/stop-run run)))
 
+(defn- request-scene [request]
+  (-> (get-in request [:messages 1 :content])
+      (->> (re-find #"(?s)```json\n(.*)\n```")) second
+      (json/read-value json/keyword-keys-object-mapper)))
+
+(def pantry
+  {:id "pantry" :name "Pantry shelves" :desc "Stout shelves."
+   :place "shop" :fixed? true :container :open
+   :store {:keeps "dry goods and preserves" :serves ["hall"]}
+   :aspects {:stock "well stocked"}})
+
 (deftest the-judge-request
   (let [run (start)
-        world (assoc (e/world run) :round 4)
+        world (w/apply-event (assoc (e/world run) :round 4) {:type :item/added :data {:item pantry}})
         job {:id "job-9" :actor "ben" :items ["clock" "pipe"] :doing "polishing the clock" :place "hall" :started 1 :due 4}
-        {:keys [messages tools]} (items/judge-request (assoc (:scenario run) :items {:judge-brief (constantly "A small house.")})
-                                                      world job {:minutes 60 :stopped-early? true :luck 7}
-                                                      (items/judged-things world job))
-        [system user] messages]
-    (is (= ["judge"] (map #(get-in % [:function :name]) tools)))
-    (is (str/includes? (:content system) "work can't turn a vase into gold"))
+        request (items/judge-request (assoc (:scenario run) :items {:judge-brief (constantly "A small house.")
+                                                                   :aspect-keys {:cleanliness "how clean"}})
+                                     world job {:minutes 60 :stopped-early? true :luck 7 :recent ["Ada speaks."]})
+        [system user] (:messages request)
+        scene (request-scene request)]
+    (is (= ["judge"] (map #(get-in % [:function :name]) (:tools request))))
+    (doseq [instruction ["work can't turn a vase into gold" "Most activities change little"
+                         "a pastime often changes nothing" "Empty changes, used-up and made lists are normal"
+                         "Do not invent events" "A store holds everything it `keeps`"
+                         "Change only the aspects the activity affected" "- cleanliness: how clean"]]
+      (is (str/includes? (:content system) instruction)))
     (is (str/ends-with? (:content system) "## The setting\nA small house."))
     (is (str/includes? (:content user) (str "- Time: Saturday 15 October 1904, 22:30\n"
                                             "- Worker: Ben. A night owl who hates going to bed.\n"
@@ -480,26 +496,25 @@
                                             "- Doing: polishing the clock\n"
                                             "- Time worked: 60 minutes; they stopped early\n"
                                             "- Luck: 7\n")))
-    (is (str/includes? (:content user) "\"desc\" : \"A briar pipe, much chewed.\""))
-    (is (str/includes? (:content user) "\"aspects\" : {\n    \"state\" : \"still warm\"\n  }"))
-    (testing "only the job and its items: nothing about other items or people, and no room unless named"
-      (is (not (str/includes? (pr-str messages) "Umbrella")))
-      (is (not (str/includes? (pr-str messages) "Ada")))
-      (is (not (str/includes? (:content user) "\"room\""))))
-    (testing "a job that names its place sends the room first, marked, with its description and aspects"
-      (let [room-job (assoc job :items ["hall" "clock"])
-            things (items/judged-things world room-job)
-            content (:content (second (:messages (items/judge-request (:scenario run) world room-job {:minutes 60} things))))]
-        (is (= [{:id "hall" :name "Hall" :desc "A small hall."
-                 :aspects {:cleanliness "muddy boot prints by the door" :hearth "cold ash in the grate"} :room? true}
-                (items/item world "clock")]
-               things))
-        (is (str/includes? content "\"id\" : \"hall\""))
-        (is (str/includes? content "\"room\" : true"))
-        (is (str/includes? content "\"hearth\" : \"cold ash in the grate\""))
-        (is (not (str/includes? content "Coats on pegs")) "the room's detail isn't sent")))
+    (is (= #{:place :focus :also_here :stores :people :recent} (set (keys scene))))
+    (is (= {:id "hall" :name "Hall" :desc "A small hall."
+            :aspects {:cleanliness "muddy boot prints by the door" :hearth "cold ash in the grate"}}
+           (:place scene)))
+    (is (= ["clock" "pipe"] (map :id (:focus scene))))
+    (is (= {:state "still warm"} (:aspects (second (:focus scene)))))
+    (is (= ["umbrella"] (map :id (:also_here scene))))
+    (is (= [{:name "Ada"} {:name "Ben"}] (:people scene)))
+    (is (= [{:id "pantry" :name "Pantry shelves" :aspects {:stock "well stocked"}
+             :at "shop" :keeps "dry goods and preserves"}] (:stores scene)))
+    (is (= ["Ada speaks."] (:recent scene)))
+    (is (not (str/includes? (:content user) "Coats on pegs")) "no room detail")
+    (is (not (str/includes? (:content user) "basket")) "nothing from elsewhere")
+    (testing "a place named as focus is marked as a room too"
+      (let [scene (request-scene (items/judge-request (:scenario run) world (assoc job :items ["hall"]) {:minutes 60}))]
+        (is (= true (:room (first (:focus scene)))))
+        (is (= "hall" (:id (first (:focus scene)))))))
     (testing "without a :judge-brief, no setting"
-      (is (not (str/includes? (:content (first (:messages (items/judge-request (:scenario run) world job {:minutes 30} []))))
+      (is (not (str/includes? (get-in (items/judge-request (:scenario run) world job {:minutes 30}) [:messages 0 :content])
                               "## The setting"))))
     (e/stop-run run)))
 
@@ -510,7 +525,7 @@
   (let [run (start)
         world (e/world run)
         things (items/judged-things world {:items ["hall" "clock" "pipe"] :place "hall" :actor "ben"})
-        judge #(items/judgement (judge-says %) things)
+        judge #(items/judgement (judge-says %) world things)
         change (fn [thing aspect value] {:thing thing :aspect aspect :value value})]
     (testing "a good answer: each change with the aspect's old value; unchanged ones left out"
       (is (= {:verdict {:summary "It shines."
@@ -543,8 +558,8 @@
                (:error (judge {:changes four-more :summary "x"}))))
         (is (= 5 (count (:changes (:verdict (judge {:changes (cons (change "clock" "state" "") four-more) :summary "x"}))))))))
     (testing "refused: things not judged, bad keys, bad lengths, no summary, the old shape, no call"
-      (is (= "you may change only these things: hall, clock, pipe; not umbrella"
-             (:error (judge {:changes [(change "umbrella" "state" "dry")] :summary "x"}))))
+      (is (= "you may change only these things: hall, clock, pipe, umbrella; not basket"
+             (:error (judge {:changes [(change "basket" "state" "dry")] :summary "x"}))))
       (is (= "an aspect's key is lower-case letters and hyphens, at most 24 characters, starting with a letter (cleanliness, glass-eye); not \"glass eye\", \"1st\""
              (:error (judge {:changes [(change "clock" "Glass Eye" "loose") (change "clock" "1st" "x")] :summary "x"}))))
       (is (str/includes? (:error (judge {:changes [(change "clock" "state" (apply str (repeat 81 "x")))] :summary "x"}))
@@ -552,10 +567,10 @@
       (is (str/includes? (:error (judge {:changes [] :summary (apply str (repeat 301 "x"))})) "the limit is 300"))
       (is (:error (judge {:changes []})))
       (is (:error (judge {:changes [{:item "clock" :condition "polished"}] :summary "x"})))
-      (is (= "error: you may change only these things: hall, clock, pipe; not umbrella. Call judge again with a corrected answer."
-             (:content (first (:replies (judge {:changes [(change "umbrella" "state" "dry")] :summary "x"}))))))
+      (is (= "error: you may change only these things: hall, clock, pipe, umbrella; not basket. Call judge again with a corrected answer."
+             (:content (first (:replies (judge {:changes [(change "basket" "state" "dry")] :summary "x"}))))))
       (is (= {:error "no judge call" :replies [{:role "user" :content "You must answer by calling the judge tool."}]}
-             (items/judgement {:tool-calls []} things))))
+             (items/judgement {:tool-calls []} world things))))
     (e/stop-run run)))
 
 (deftest bad-judge-answers
@@ -662,12 +677,12 @@
                                                               "ben" {1 [(work ["umbrella" "clock" "pipe"] "tidying up" 1.5)]}}
                                                              :judged judged))})
                        4)]
-      (is (= ["clock" "pipe"] (map :id (:things (first @judged)))))
+      (is (= ["clock" "pipe"] (map :id (:focus (first @judged)))))
       (is (= clock-seen-to (aspects run "clock")))
       (is (= "just seen to" (:cleanliness (aspects run "pipe"))))
       (is (= {:state "dry"} (aspects run "umbrella")))
       (e/stop-run run)))
-  (testing "nothing left in reach: the work ends with no call"
+  (testing "nothing left in focus: the scene is still judged"
     (let [judged (atom [])
           run (rounds! (start {:llm-impl (llm/mock (scripted {"ada" {1 [{:tool :pass}]
                                                                      2 [{:tool :take :args {:item "umbrella"}}
@@ -675,12 +690,13 @@
                                                               "ben" {1 [(work ["umbrella"] "drying the umbrella" 1)]}}
                                                              :judged judged))})
                        3)
-          [ended] (of-type run :item/work-ended)]
-      (is (empty? @judged))
-      (is (empty? (judge-calls run)))
-      (is (= :nothing-in-reach (get-in ended [:data :reason])))
-      (is (= #{"ben"} (:visible-to ended)) "Ada took it to the porch, so only Ben is in the hall")
-      (is (= "Ben leaves off drying the umbrella before getting anywhere." (n/describe ended (n/names (e/world run)))))
+          [done] (of-type run :item/work-done)]
+      (is (= 1 (count @judged) (count (judge-calls run))))
+      (is (empty? (:focus (first @judged))))
+      (is (= ["hall" "clock"] (map :id (:things (first @judged)))))
+      (is (empty? (:changes (:data done))))
+      (is (= #{"ben"} (:visible-to done)) "Ada took it to the porch, so only Ben is in the hall")
+      (is (= "Ben finishes drying the umbrella." (n/describe done (n/names (e/world run)))))
       (is (= {:state "dry"} (aspects run "umbrella")))
       (e/stop-run run))))
 
@@ -693,7 +709,7 @@
                                                              :judged judged))})
                        3)
           [done] (of-type run :item/work-done)]
-      (is (= ["hall" "clock"] (map :id (:things (first @judged)))))
+      (is (= ["hall" "clock"] (map :id (:focus (first @judged)))))
       (is (= [{:place "hall" :aspect :cleanliness :from "muddy boot prints by the door" :to "just seen to"}
               {:item "clock" :aspect :cleanliness :from nil :to "just seen to"}]
              (get-in done [:data :changes])))
@@ -708,7 +724,7 @@
           [done] (of-type run :item/work-done)
           world (e/world run)]
       (is (= 1 (count @judged) (count (judge-calls run))))
-      (is (= [{:id "hall" :name "Hall" :desc "A small hall." :aspects hall-as-found :room? true}] (:things (first @judged))))
+      (is (= [{:id "hall" :name "Hall" :desc "A small hall." :aspects hall-as-found :room? true}] (:focus (first @judged))))
       (is (empty? (of-type run :item/work-ended)))
       (is (= {:minutes 60 :stopped-early? false :summary "Ben finishes sweeping the hall."
               :changes [{:place "hall" :aspect :cleanliness :from "muddy boot prints by the door" :to "just seen to"}]}
@@ -734,13 +750,13 @@
       (is (= "Ben finishes clearing the grate. (Hall: no longer hearth, fresh)." (n/describe done (n/names world))))
       (is (= world (w/replay (store/read-events (:dir run)))))
       (e/stop-run run)))
-  (testing "nothing in reach and no room: the work ends with no call"
+  (testing "the place and visible scene are judged even when no focus remains"
     (let [run (start)
           world (e/world run)]
-      (is (empty? (items/judged-things world {:items ["umbrella"] :place "porch" :actor "ben"})))
-      (is (= ["hall"] (map :id (items/judged-things world {:items ["hall" "basket"] :place "hall" :actor "ada"})))
+      (is (= ["porch"] (map :id (items/judged-things world {:items ["umbrella"] :place "porch" :actor "ben"}))))
+      (is (= ["hall" "clock" "umbrella"] (map :id (items/judged-things world {:items ["hall" "basket"] :place "hall" :actor "ada"})))
           "the room is judged even when its items have gone")
-      (is (= ["umbrella"] (map :id (items/judged-things world {:items ["umbrella"] :place "hall" :actor "ada"}))))
+      (is (= ["hall" "umbrella" "clock"] (map :id (items/judged-things world {:items ["umbrella"] :place "hall" :actor "ada"}))))
       (e/stop-run run))))
 
 (deftest overlapping-jobs
@@ -759,18 +775,12 @@
       (is (= [3 3] (map :round dones)))
       (is (= (sort (map :id [first-job second-job])) [(:id first-job) (:id second-job)])))
     (testing "the second judge saw the first one's result, and the last applied wins"
-      (is (= "ticking loudly" (get-in (first (:things (first @judged))) [:aspects :state])))
-      (is (= (str "after " (:doing first-job)) (get-in (first (:things (second @judged))) [:aspects :state])))
+      (is (= "ticking loudly" (get-in (first (:focus (first @judged))) [:aspects :state])))
+      (is (= (str "after " (:doing first-job)) (get-in (first (:focus (second @judged))) [:aspects :state])))
       (is (= {:state (str "after " (:doing second-job))} (aspects run "clock"))))
     (testing "replay gives the same world"
       (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
     (e/stop-run run)))
-
-(def pantry
-  {:id "pantry" :name "Pantry shelves" :desc "Stout shelves."
-   :place "shop" :fixed? true :container :open
-   :store {:keeps "dry goods and preserves" :serves ["hall"]}
-   :aspects {:stock "well stocked"}})
 
 (deftest stores-in-scope
   (let [run (start)
@@ -806,3 +816,110 @@
           path (str (io/file store/test-runs-root file))]
       (store/write-text! store/test-runs-root file (wf/->edn-string good))
       (is (= good (wf/read-file path))))))
+
+(deftest spend-time-and-work-on-alias
+  (let [run (start)
+        world (w/apply-event (assoc (e/world run) :round 1) {:type :item/added :data {:item pantry}})
+        spend (action run :spend-time)
+        alias (action run :work-on)
+        args {:doing "taking stock" :hours 1 :on ["pantry" "pantry"]}]
+    (is (= :final (a/kind spend)))
+    (is (not (a/allowed? spend :gm)))
+    (is (empty? (a/available [spend] (dissoc world :clock) "ben")))
+    (is (nil? (a/check spend world "ben" args)))
+    (is (= (a/effect-events spend world "ben" args)
+           (a/effect-events alias world "ben" {:doing "taking stock" :hours 1 :items ["pantry" "pantry"]})))
+    (is (= ["pantry"] (get-in (first (a/effect-events spend world "ben" args)) [:data :items])))
+    (is (= {:doing "resting"} (:args (a/decode-args spend {:doing "resting"}))))
+    (doseq [args [{:doing "do"} {:doing (apply str (repeat 121 "x"))}
+                  {:doing "resting" :hours 0.4} {:doing "resting" :hours 4.1}
+                  {:doing "resting" :on (vec (repeat 7 "clock"))}]]
+      (is (:error (a/decode-args spend args))))
+    (is (nil? (a/check spend world "ben" {:doing "reading" :on []})))
+    (is (str/includes? (a/check spend world "ben" {:doing "taking stock" :on ["basket"]}) "basket is neither here"))
+    (e/stop-run run)))
+
+(deftest scene-scope-and-cap
+  (let [run (start)
+        things (concat [pantry
+                        {:id "chest" :name "Chest" :desc "A closed chest." :place "hall" :container :closed}
+                        {:id "secret" :name "Secret" :desc "Hidden." :in "chest"}]
+                       (for [i (range 16)] {:id (str "token-" i) :name (str "Token " i) :desc "A token." :place "hall"}))
+        world (reduce w/apply-event (e/world run) (items/init-events things))
+        job {:actor "ben" :place "hall" :items ["clock" "pantry"]}
+        request (items/judge-request (:scenario run) world job {:minutes 30})
+        scene (request-scene request)
+        judged (items/judged-things world job)
+        verdict (:verdict (items/judgement (judge-says {:summary "Done."
+                                                       :changes [{:thing "hall" :aspect "air" :value "fresh"}
+                                                                 {:thing "pantry" :aspect "stock" :value "running low"}
+                                                                 {:thing "chest" :aspect "state" :value "dusty"}]}) world judged))]
+    (is (= ["clock" "pantry"] (map :id (:focus scene))))
+    (is (= 12 (count (:also_here scene))))
+    (is (= "chest" (:id (first (:also_here scene)))))
+    (is (not-any? #(#{"secret" "clock" "pantry" "basket" "pipe"} (:id %)) (:also_here scene)))
+    (is (= [{:id "pantry" :name "Pantry shelves" :aspects {:stock "well stocked"}
+             :at "shop" :keeps "dry goods and preserves"}] (:stores scene)))
+    (is (= 1 (count (filter #(= "pantry" (:id %)) judged))))
+    (is (= ["hall" "pantry" "chest"] (map #(or (:place %) (:item %)) (:changes verdict))))
+    (is (:error (items/judgement (judge-says {:summary "No." :changes [{:thing "secret" :aspect "state" :value "found"}]})
+                                 world judged)))
+    (e/stop-run run)))
+
+(deftest scene-recent-uses-the-workers-shared-events
+  (let [run (start)
+        world (assoc (e/world run) :round 3)
+        job {:id "job-9" :actor "ben"}
+        announcement (fn [text audience] {:type :gm/announced :round 2 :visible-to audience :data {:text text}})
+        begun {:type :item/work-begun :round 1 :visible-to :gm :data {:id "job-9"}}
+        events [(announcement "before the job" :all) begun
+                (announcement "the range ran too hot" #{"ben" "ada"})
+                (announcement "for Ada only" #{"ada"})
+                (announcement "for Ben only" #{"ben"})
+                {:type :agent/noted :actor "ben" :round 2 :visible-to #{"ben"} :data {:text "private note"}}
+                {:type :llm/usage :round 2 :visible-to :all}
+                {:type :round/ended :round 2 :visible-to :all}
+                (announcement "operator only" :system)
+                (announcement "shared whisper" #{"ben" "ada"})]]
+    (is (= ["[21:30] Announcement: the range ran too hot" "[21:30] Announcement: shared whisper"]
+           (prompt/scene-recent world events job)))
+    (let [events (into events (map #(announcement (str "line " %) :all) (range 14)))
+          recent (prompt/scene-recent world events job)]
+      (is (= 10 (count recent))))
+    (is (empty? (prompt/scene-recent world events (assoc job :id "missing"))))
+    (e/stop-run run)))
+
+(deftest judged-pastime-and-empty-place
+  (testing "a pastime may change the room even with no on; replay agrees"
+    (let [judge (constantly {:tool :judge :args {:changes [{:thing "hall" :aspect "air" :value "smoky"}]
+                                                :summary "Ben smoked quietly."}})
+          run (rounds! (start {:llm-impl (llm/mock (scripted {"ben" {1 [{:tool :spend-time :args {:doing "smoking a pipe"}}]}}
+                                                           :judge judge))}) 2)]
+      (is (= "smoky" (get-in (space/location (e/world run) "hall") [:aspects :air])))
+      (is (= 1 (count (judge-calls run))))
+      (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+      (e/stop-run run)))
+  (testing "a rest at an empty place ends neutrally, with no judge call"
+    (let [run (rounds! (start {:llm-impl (llm/mock (scripted {"ben" {1 [{:tool :move :args {:to "porch"}}]
+                                                                 2 [{:tool :spend-time :args {:doing "resting quietly"}}]}}))}) 3)
+          [done] (of-type run :item/work-done)]
+      (is (empty? (judge-calls run)))
+      (is (= "Ben finishes resting quietly." (get-in done [:data :summary])))
+      (is (empty? (get-in done [:data :changes])))
+      (is (empty? (items/jobs (e/world run))))
+      (is (empty? (of-type run :item/work-ended)))
+      (e/stop-run run))))
+
+(deftest spend-time-on-a-serving-store
+  (let [file (str (gensym "serving-store-") ".edn")
+        _ (store/write-text! store/test-runs-root file
+                             (wf/->edn-string (update (wf/read-file hamlet-file) :items conj pantry)))
+        run (rounds! (start {:world-file (str (io/file store/test-runs-root file))
+                             :llm-impl (llm/mock (scripted {"ben" {1 [{:tool :spend-time
+                                                                     :args {:on ["pantry"] :doing "taking stock"}}]}}))}) 2)
+        [done] (of-type run :item/work-done)]
+    (is (= [{:item "pantry" :aspect :cleanliness :from nil :to "just seen to"}] (get-in done [:data :changes])))
+    (is (= {:stock "well stocked" :cleanliness "just seen to"} (:aspects (items/item (e/world run) "pantry"))))
+    (is (= "shop" (:place (items/item (e/world run) "pantry"))))
+    (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+    (e/stop-run run)))

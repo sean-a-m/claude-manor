@@ -27,15 +27,15 @@
   names under :items-gone, so older lines still read, and their ids are never
   given out again.
 
-  Work on items (`work-on`, worlds with a clock only) is a job:
+  Timed activities (`spend-time`, with `work-on` as an alias; clock required) are jobs:
     :item-jobs {\"job-41\" {:id \"job-41\" :actor \"hale\" :items [\"china-cabinet\"]
                            :doing \"dusting the china cabinet\" :place \"drawing-room\"
                            :started 12 :due 15}}
   The worker is occupied until :due, with the job id in their :busy :job.
   Nothing changes until the work is over: at the start of the round it
   ends, the engine asks a judge (a narrow model call, never seen by the
-  characters) what the time worked did to the items still in reach and to
-  the room, if the job named it, checks the answer and records it as
+  characters) what the activity did to its local scene (place, focus,
+  other visible items and stores in scope), checks the answer and records it as
   :item/work-done: changed aspects, consumable items used up, and at most
   two things made from them. Locations have :aspects too (the room itself:
   floor, hearth, air), which only work changes.
@@ -392,7 +392,7 @@
   (str worker-name (if stopped-early? " leaves off " " finishes ") doing "."))
 
 (defmethod n/describe :item/work-begun [{:keys [actor data]} names]
-  (str (n/who names actor) " starts " (:doing data) " (" (:id data) ", on " (str/join ", " (:items data))
+  (str (n/who names actor) " starts " (:doing data) " (" (:id data) (when (seq (:items data)) (str ", on " (str/join ", " (:items data))))
        ", until " (n/at names (:due data)) ")."))
 
 (defn- aspect-name [k] (str/replace (name k) "-" " "))
@@ -434,7 +434,7 @@
   (str "The judge's answer for " (:job data) " was not used: " (:reason data)))
 
 ;; ---------------------------------------------------------------------------
-;; Actions, for every role but the GM: all free but `work-on`. `look` and
+;; Actions, for every role but the GM: all free but timed activities. `look` and
 ;; `open` change nothing: they only reply.
 
 (defn- listing
@@ -554,8 +554,8 @@
       (seq people) (assoc :people (mapv #(look-person world %) people)))))
 
 (defn- work-reason
-  "Why `actor` can't work on `id`, or nil: it must be an item lying here (in
-  a container or not) or carried by them, or the place they're in."
+  "Why `actor` can't name `id` as focus: items here or carried, the place
+  they're in, or a store serving it are allowed."
   [world actor id]
   (let [it (item world id)
         holder (:holder it)
@@ -591,6 +591,28 @@
       :data {:id id :actor actor :items (vec (distinct ids)) :doing doing
              :place (space/location-of world actor) :started (:round world) :due due}}
      (assoc-in (b/occupy world actor doing due) [:data :job] id)]))
+
+(defn- timed-activity
+  "One activity, with work-on's old argument spelling retained as an alias."
+  [action-name]
+  (let [alias? (= :work-on action-name)
+        activity-args (fn [args] (if alias? args (assoc args :items (:on args))))]
+    {:name action-name
+     :kind :final
+     :doc (str (when alias? "Alias for spend-time; items means on. ")
+               "Spend time on an activity here, work or pastime. doing reads after \"is\", e.g. \"resting in the garden\". "
+               "hours is half an hour to " max-work-hours ", default half an hour. "
+               "Optionally name up to " max-work-items " things with " (if alias? "items" "on")
+               ": items here or carried, this place's id, or stores in scope. Working on a container includes its contents. "
+               "You get no turns until it ends; results show when you finish. Most pastimes change nothing.")
+     :args [:map
+            [(if alias? :items :on) (if alias? {} {:optional true})
+             [:vector {:min (if alias? 1 0) :max max-work-items} :string]]
+            [:doing [:string {:min 3 :max 120}]]
+            [:hours {:optional true} [:double {:min 0.5 :max max-work-hours}]]]
+     :available? (fn [world _] (some? (:clock world)))
+     :valid? (fn [world actor args] (work-on-reason world actor (activity-args args)))
+     :effect (fn [world actor args] (work-on-events world actor (activity-args args)))}))
 
 (defn actions []
   [{:name :look
@@ -649,22 +671,8 @@
     :effect (fn [world actor {id :item to :to}]
               [{:type :item/given :data {:item id :to to} :visible-to (space/here world actor)}])}
 
-   {:name :work-on
-    :kind :final
-    :doc (str "Spend time working on things here or that you carry (item ids, at most " max-work-items "; "
-              "working on a container includes what's in it). "
-              "To work on the room itself (sweeping, airing, laying the fire), include this place's id. "
-              "doing is a short phrase that reads after \"is\", e.g. \"dusting the shelves\". "
-              "hours is how long you'll spend (half an hour to " max-work-hours ", default half an hour); "
-              "if the job needs longer, only part of it gets done. "
-              "You get no turns until it's over, and the results show when you finish.")
-    :args [:map
-           [:items [:vector {:min 1 :max max-work-items} :string]]
-           [:doing [:string {:min 3 :max 120}]]
-           [:hours {:optional true} [:double {:min 0.5 :max max-work-hours}]]]
-    :available? (fn [world _] (some? (:clock world)))
-    :valid? work-on-reason
-    :effect work-on-events}])
+   (timed-activity :spend-time)
+   (timed-activity :work-on)])
 
 ;; ---------------------------------------------------------------------------
 ;; Views
@@ -732,24 +740,57 @@
 
 (defn in-reach
   "The job's items still to hand (lying at the job's place, in a container or
-  not, or carried by the worker), each followed by everything inside it."
+  not, or carried by the worker), or stores in scope, each followed by everything inside it."
   [world {:keys [items place actor]}]
   (->> items
        (keep #(let [it (item world %)
                     o (some->> it (outermost world))]
-                (when (and it (or (= actor (:holder o)) (and place (= place (:place o)))
-                                                 (some (fn [store] (= (:id it) (:id store))) (stores-for world place)))) it)))
+                (when (and it (or (= actor (:holder o))
+                                  (and place (= place (:place o)))
+                                  (some (fn [store] (= (:id it) (:id store))) (stores-for world place))))
+                  it)))
        (mapcat #(cons % (within world (:id %))))
        distinct))
 
-(defn judged-things
-  "What the judge of `job` sees and may change: the job's place, when the
-  job named it (work on the room itself), as {:id :name :desc :aspects
-  :room? true}, then the items in reach."
+(defn focus-things
+  "Named things still in reach, including the place when named."
   [world {:keys [place] :as job}]
   (let [loc (when (place-worked? job) (space/location world place))]
     (into (if loc [(assoc (select-keys loc [:id :name :desc :aspects]) :room? true)] [])
           (in-reach world job))))
+
+(defn scene
+  "The activity's local scene: place, named focus (including container contents),
+  at most twelve other visible items, stores in scope, and people present."
+  [world {:keys [place] :as job}]
+  (let [focus (focus-things world job)
+        named (set (map :id focus))]
+    {:place (assoc (select-keys (space/location world place) [:id :name :desc :aspects]) :room? true)
+     :focus focus
+     :also-here (vec (take 12 (remove #(or (named (:id %)) (store? %)) (visible-at world place))))
+     :stores (vec (stores-for world place))
+     :people (mapv (fn [id]
+                     (cond-> {:name (:name (w/agent world id))}
+                       (w/busy world id) (assoc :doing (:activity (w/busy world id)))))
+                   (sort (space/present world place)))}))
+
+(defn judged-things
+  "Everything the scene judge may change, once each: place, focus, other
+  visible items (at most twelve) and stores in scope."
+  [world job]
+  (let [{:keys [place focus also-here stores]} (scene world job)]
+    (->> (concat [place] focus also-here stores)
+         (reduce (fn [its it] (if (some #(= (:id it) (:id %)) its) its (conj its it))) [])
+         vec)))
+
+(defn empty-activity?
+  "An unnamed activity with no place aspects, items here, or stores in scope
+  needs only a neutral ending, not a judge call."
+  [world {:keys [place items]}]
+  (and (empty? items)
+       (empty? (:aspects (space/location world place)))
+       (empty? (items-at world place))
+       (empty? (stores-for world place))))
 
 (defn- audience
   "The people at the job's place, and the worker wherever they are."
@@ -758,8 +799,7 @@
 
 (defn work-ended
   "Event: `job` ends with nothing done. `reason` is :retired (the GM sees
-  it), :nothing-in-reach or :no-time (the worker and the people at the
-  place see it)."
+  it), or :no-time (the worker and people at the place see it)."
   [world job reason]
   {:type :item/work-ended :actor (:actor job)
    :visible-to (if (= :retired reason) :gm (audience world job))
@@ -835,19 +875,22 @@
               :parameters (mjs/transform judge-schema)}})
 
 (def judge-instructions
-  (str "You judge the results of work in a simulation. Someone has spent time working on some things. "
-       "Decide what that much work, by this person, realistically did to these things, and answer by calling the `judge` tool. "
+  (str "You judge the results of an activity in a simulation. Someone has spent time on work or a pastime. "
+       "Decide what that activity, by this person, realistically changed in the scene, and answer by calling the `judge` tool. "
        "The time may be too short for the whole job: then only part of it is done.
 
+- Most activities change little, and a pastime often changes nothing. Empty changes, used-up and made lists are normal, successful answers. Resting in the garden need not change anything. Do not invent events to make the activity eventful, even for an unusual luck roll.
+- A store holds everything it `keeps` unless its aspects say otherwise. The listed items are notable things, not everything available.
+- You may change aspects of the place, focus, also_here and stores. Only consumables in focus or also_here may be used up. People and recent lines are context, not things to change.
 - A thing's `aspects` say what's notable about its state, each under its own key: cleanliness, repair, state, amount, stock and the like. A change sets one aspect of one thing: `thing` (its id), `aspect` (the key) and `value` (a short phrase of at most " max-aspect " characters saying how it is now).
-- Change only the aspects the work affected, and leave the others alone: polishing a cabinet changes its cleanliness, not its repair. Use a key the thing already has where one fits; a new key is lower-case letters and hyphens, at most 24 characters. A thing has at most " max-aspects " aspects. To remove an aspect that no longer applies, give it the value \"\".
+- Change only the aspects the activity affected, and leave the others alone: polishing a cabinet changes its cleanliness, not its repair. Use a key the thing already has where one fits; a new key is lower-case letters and hyphens, at most 24 characters. A thing has at most " max-aspects " aspects. To remove an aspect that no longer applies, give it the value \"\".
 - Leave out anything the work left unchanged.
-- An entry marked `room`, if there is one, is the place itself: its aspects describe the room as a whole (floor, hearth, air), not the things in it, which have their own entries.
+- The `place` entry is the place itself: its aspects describe the room as a whole (floor, hearth, air), not the things in it, which have their own entries.
 - An item's nature can't change: work can't turn a vase into gold. If the task is impossible or absurd, change nothing and say so in the summary.
 - Only things marked `consumable` can be used up, and only once they are gone: food eaten or cooked into something else, fuel burnt, an ingredient used up. List their ids in `used-up`. Something partly used is not used up: change its `amount` to say what's left (\"about 17 lb left\").
 - `made` is for at most " max-made " things the work really produced from what it used up (a carved joint leaves \"Beef bone and trimmings\"; the bone simmered makes \"Beef stock\"), each with a name, a description and, if anything about its state is notable, its `aspects` (keys and short phrases, as above). Give `in`, the id of a listed `container`, to put one there (the stock in the saucepan). Nothing is made without something used up.
 - A thing listed with `in` is inside another of the things listed. The work may or may not have touched it: leave it out if it didn't.
-- Luck is a roll from 1 to 100, and 50 is ordinary: low luck means mishaps (a slip, a breakage), high luck means it went unusually well.
+- Luck is a roll from 1 to 100, and 50 is ordinary: low luck can mean mishaps (a slip, a breakage), high luck can mean it went unusually well. The roll alone does not require a change.
 - The summary is one or two sentences, past tense, third person, for the people present, at most " max-summary " characters."))
 
 (def ^:private pretty (json/object-mapper {:pretty true}))
@@ -866,31 +909,36 @@
           things)))
 
 (defn judge-request
-  "The judge's request for `job`: {:messages :tools}. It holds only the
-  scenario's :judge-brief (under :items), the time, the worker's name and
-  persona, the place, what they were doing, the minutes worked and whether
-  they stopped early, the luck roll, and the judged things (`things`, see
-  `judged-things`): the room, if the job named it, with its id, name,
-  description and aspects, and each item in reach with its id, name,
-  description and aspects, the container it's in when that's in reach too,
-  and whether it's consumable or a container."
-  [scenario world job {:keys [minutes stopped-early? luck]} things]
+  "The scene judge's request, including only the worker's shared recent lines
+  supplied by the engine through prompt/scene-recent."
+  [scenario world job {:keys [minutes stopped-early? luck recent]}]
   (let [worker (w/agent world (:actor job))
-        brief (when-let [f (get-in scenario [:items :judge-brief])] (f world))]
+        brief (when-let [f (get-in scenario [:items :judge-brief])] (f world))
+        suggested (get-in scenario [:items :aspect-keys])
+        {:keys [place focus also-here stores people]} (scene world job)
+        scene-json {:place (dissoc place :room?)
+                    :focus (judged-json focus)
+                    :also_here (judged-json also-here)
+                    :stores (mapv #(assoc (store-view (:place job) %) :keeps (get-in % [:store :keeps])) stores)
+                    :people people :recent (vec (take-last 10 recent))}]
     {:tools [judge-tool]
      :messages
      [{:role "system"
-       :content (str judge-instructions (when-not (str/blank? brief) (str "\n\n## The setting\n" brief)))}
+       :content (str judge-instructions
+                     (when (seq suggested)
+                       (str "\n\n## Suggested aspect keys\n"
+                            (str/join "\n" (for [[k gloss] (sort-by key suggested)] (str "- " (name k) ": " gloss)))))
+                     (when-not (str/blank? brief) (str "\n\n## The setting\n" brief)))}
       {:role "user"
-       :content (str "# The work\n\n"
+       :content (str "# The activity\n\n"
                      "- Time: " (clock/label (:clock world) (:round world)) "\n"
                      "- Worker: " (:name worker) (when-not (str/blank? (:persona worker)) (str ". " (:persona worker))) "\n"
                      "- Place: " (:name (space/location world (:place job)) (:place job)) "\n"
                      "- Doing: " (:doing job) "\n"
                      "- Time worked: " minutes " minutes" (if stopped-early? "; they stopped early" ", as planned") "\n"
                      "- Luck: " luck "\n\n"
-                     "## The things worked on\n```json\n"
-                     (json/write-value-as-string (judged-json things) pretty)
+                     "## The scene\n```json\n"
+                     (json/write-value-as-string scene-json pretty)
                      "\n```\n\nCall `judge` now.")}]}))
 
 (defn- ids-or-none [items] (if (seq items) (str/join ", " (map :id items)) "none"))
@@ -938,20 +986,23 @@
                    ": change one it has instead, or remove one with the value \"\""))))
 
 (defn- use-up-problem
-  "Why the judge can't use up the ids `gone`, or nil: each must be a
-  consumable item in `reach`, not fixed, and everything in it used up too."
-  [reach gone]
+  "Why the judge can't use up `gone`: only consumables in the scene, not fixed,
+  with all real descendants used up too, including any hidden or beyond the cap."
+  [world reach gone]
   (let [usable (filter #(and (:consumable? %) (not (:fixed? %))) reach)
         bad (remove (set (map :id usable)) gone)
         gone? (set gone)
+        shown? (set (map :id reach))
         [box left] (first (for [it reach
-                                :when (gone? (:id it))
-                                :let [left (remove #(gone? (:id %)) (filter #(= (:id it) (:in %)) reach))]
-                                :when (seq left)]
-                            [it left]))]
+                               :when (gone? (:id it))
+                               :let [left (remove #(gone? (:id %)) (within world (:id it)))]
+                               :when (seq left)]
+                           [it left]))]
     (cond
       (seq bad) (str "you may use up only consumable items among these: " (ids-or-none usable)
                      "; not " (str/join ", " bad))
+      (some #(not (shown? (:id %))) left)
+      (str "the " (:name box) " (" (:id box) ") still holds things not shown here; leave it, or name it with `on` next time")
       box (str "the " (:name box) " (" (:id box) ") still holds " (ids-or-none left)
                ": use those up too, or don't use it up"))))
 
@@ -990,7 +1041,7 @@
   `use-up-problem`), and things made need something used up (see
   `made-problem`). Other keys are dropped, and unchanged aspects, or changes
   to things used up, left out. A nil :to removes the aspect."
-  [arguments things]
+  [world arguments things]
   (let [{:keys [args error]} (a/decode-args {:args judge-schema} arguments)
         changes (decoded-changes (:changes args))
         by-id (into {} (map (juxt :id identity)) things)
@@ -998,7 +1049,7 @@
         made (made-entries (:made args))]
     (if-let [problem (or error
                          (change-problem things changes)
-                         (use-up-problem things gone)
+                         (use-up-problem world things gone)
                          (made-problem things gone made))]
       {:error problem}
       (cond-> {:summary (:summary args)
@@ -1017,14 +1068,14 @@
   :replies [...]}, where :replies are the messages to send back (a reply to
   each tool call, or a reminder if it made none). Only the first `judge`
   call counts. `things` are the judged things (see `judged-things`)."
-  [response things]
-  (adjudication/answer "judge" response #(verdict % things)))
+  [response world things]
+  (adjudication/answer "judge" response #(verdict world % things)))
 
 (defn mock-judge
   "The judge in mock runs, a mock policy for calls with role :judge: every
-  judged thing (`:things`, see `judged-things`) gets the cleanliness \"just
-  seen to\", and the summary only says the work is over."
-  [{:keys [world job things stopped-early?]}]
+  focused thing gets the cleanliness \"just seen to\". No focus means no
+  changes: a quiet pastime is a normal result. The summary only says it ended."
+  [{:keys [world job stopped-early?]}]
   {:tool :judge
-   :args {:changes (mapv (fn [t] {:thing (:id t) :aspect "cleanliness" :value "just seen to"}) things)
+   :args {:changes (mapv (fn [t] {:thing (:id t) :aspect "cleanliness" :value "just seen to"}) (focus-things world job))
           :summary (neutral-summary world job stopped-early?)}})

@@ -69,10 +69,9 @@
 (deftest the-judge-sees-what-is-consumable
   (let [run (start)
         world (e/world run)
-        user (:content (second (:messages (items/judge-request (:scenario run) world job {:minutes 60 :luck 50}
-                                                               (items/judged-things world job)))))
-        judged (json/read-value (second (re-find #"(?s)```json\n(.*)\n```" user)) json/keyword-keys-object-mapper)
-        system (:content (first (:messages (items/judge-request (:scenario run) world job {:minutes 60} []))))]
+        user (:content (second (:messages (items/judge-request (:scenario run) world job {:minutes 60 :luck 50}))))
+        judged (:focus (json/read-value (second (re-find #"(?s)```json\n(.*)\n```" user)) json/keyword-keys-object-mapper))
+        system (:content (first (:messages (items/judge-request (:scenario run) world job {:minutes 60}))))]
     (is (= {"beef" [true nil] "saucepan" [nil true] "bag" [true true] "bun" [true nil] "clock" [nil nil]}
            (select-keys (into {} (map (juxt :id (juxt :consumable :container))) judged)
                         ["beef" "saucepan" "bag" "bun" "clock"])))
@@ -85,7 +84,7 @@
   (let [run (start)
         world (e/world run)
         reach (items/judged-things world job)
-        judge #(items/judgement (judge-says %) reach)
+        judge #(items/judgement (judge-says %) world reach)
         error #(:error (judge (assoc % :summary "Done.")))]
     (testing "a good answer: what's used up, and what's made from it; a change to a used-up item is dropped"
       (is (= {:summary "The beef went into stock." :changes [{:item "saucepan" :aspect :cleanliness :from "clean" :to "greasy"}]
@@ -140,7 +139,7 @@
   (let [run (start)
         world (e/world run)
         reach (items/judged-things world job)
-        verdict-of #(:verdict (items/judgement (judge-says %) reach))
+        verdict-of #(:verdict (items/judgement (judge-says %) world reach))
         done (items/work-done world job {:minutes 60 :stopped-early? false :luck 50}
                               (verdict-of {:used-up ["beef"] :made [stock bones] :summary "Ben made stock of the beef."}))
         after (w/apply-event world done)]
@@ -226,4 +225,48 @@
         (let [r2 (start {:world-file path})]
           (is (= (map #(dissoc % :touched) (items/all world)) (items/all (e/world r2))))
           (e/stop-run r2))))
+    (e/stop-run run)))
+
+(deftest dining-uses-up-an-unfocused-joint
+  (let [judge (fn [_] {:tool :judge :args {:used-up ["beef"] :summary "Ben ate the joint."}})
+        policy (fn [{:keys [role agent-id world] :as ctx}]
+                 (cond (= :judge role) (judge ctx)
+                       (and (= "ben" agent-id) (= 1 (:round world)))
+                       {:tool :spend-time :args {:doing "dining"}}
+                       :else (hamlet/mock-policy ctx)))
+        run (rounds! (start {:llm-impl (llm/mock policy)}) 2)
+        [done] (of-type run :item/work-done)
+        call (first (filter #(= "judge" (:agent %)) (store/read-llm (:dir run))))
+        scene (json/read-value (second (re-find #"(?s)```json\n(.*)\n```" (get-in call [:messages 1 :content])))
+                               json/keyword-keys-object-mapper)]
+    (is (empty? (:focus scene)))
+    (is (some #(and (= "beef" (:id %)) (:consumable %)) (:also_here scene)))
+    (is (= [{:item "beef" :name "Rib of beef"}] (get-in done [:data :used-up])))
+    (is (nil? (items/item (e/world run) "beef")))
+    (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+    (e/stop-run run)))
+
+(deftest using-up-a-container-never-orphans-unseen-contents
+  (let [run (start)
+        world (e/world run)
+        hidden (w/apply-event world {:type :item/added :data {:item {:id "secret" :name "Secret" :desc "Hidden."
+                                                                    :in "bag" :consumable? true}}})
+        ;; Use a closed consumable bag, then an open one whose contents exceed the scene cap.
+        hidden (assoc-in hidden [:items "bag" :container] :closed)
+        activity (assoc job :items [] :doing "dining")
+        attempt (fn [world] (items/judgement (judge-says {:used-up ["bag"] :summary "Eaten."}) world
+                                              (items/judged-things world activity)))
+        generic "the Paper bag (bag) still holds things not shown here; leave it, or name it with `on` next time"]
+    (is (= generic (:error (attempt hidden))))
+    (is (not (str/includes? (:error (attempt hidden)) "secret")))
+    (let [extra (for [i (range 15)] {:id (str "crumb-" i) :name (str "Crumb " i) :desc "A crumb."
+                                     :in "bag" :consumable? true})
+          crowded (reduce w/apply-event world (items/init-events extra))]
+      (is (= generic (:error (attempt crowded)))))
+    (let [things (items/judged-things hidden (assoc activity :items ["bag"]))
+          result (items/judgement (judge-says {:used-up ["bag" "bun" "secret"] :summary "Used it all."}) hidden things)
+          done (items/work-done hidden activity {:minutes 30} (:verdict result))
+          after (w/apply-event hidden done)]
+      (is (nil? (:error result)))
+      (is (every? #(nil? (items/item after %)) ["bag" "bun" "secret"])))
     (e/stop-run run)))

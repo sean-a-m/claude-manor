@@ -9,8 +9,8 @@
   holds only the rules, and briefs and tool docs say nothing a world file
   could make false. Areas are the locations' :domains. `walk` (free) goes
   anywhere in the current area; `travel` (a turn) goes to another area.
-  `sleep` and `spend-time` occupy an agent for several rounds at no model
-  cost; `rouse` asks someone busy whether to stop. :architect? false leaves Mr Pugh out,
+  `sleep` and `spend-time` occupy an agent for several rounds without turns;
+  activities are judged when they end. `rouse` asks someone busy whether to stop. :architect? false leaves Mr Pugh out,
   and :housemaid? false leaves the housemaid, Nellie, out.
   An agent with a :routine in the world file (Mr Pugh) hibernates whenever
   nobody else is near: the routine says where they are and what they're doing,
@@ -31,7 +31,6 @@
             [manor.worldfile :as worldfile])
   (:import (java.time LocalTime)))
 
-(def max-pastime-hours 4)
 (def max-sleep-hours 12)
 (def max-call 300)
 
@@ -211,14 +210,6 @@
     :effect (fn [world actor {:keys [until]}]
               [(b/occupy world actor "asleep" (clock/round-at (:clock world) (:round world) until) {:asleep? true})])}
 
-   {:name :spend-time
-    :doc (str "Spend from half an hour to " max-pastime-hours " hours on a pastime here. activity is a short phrase, "
-              "at most 80 characters, that reads after \"is\", e.g. \"reading the newspapers\". You get no turns until it's over.")
-    :args [:map [:activity [:string {:min 3 :max 80}]] [:hours [:double {:min 0.5 :max max-pastime-hours}]]]
-    :effect (fn [world actor {:keys [activity hours]}]
-              [(b/occupy world actor activity
-                         (+ (:round world) (clock/rounds-for (:clock world) (* 60 hours))))])}
-
    {:name :rouse
     :kind :free
     :doc "Interrupt someone here who is asleep or busy (use their id). They get a turn and decide whether to stop."
@@ -337,12 +328,12 @@
          "To talk something over with people here, `converse` draws up to " conversation/max-others " of them into a conversation within your turn: "
          "you each speak in turn, up to " conversation/passes " times, so nobody waits a turn for each answer, and then you carry on with your turn. "
          "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). You get no turns while asleep or busy, unless someone uses `rouse` to interrupt you. On that turn, `carry-on` ignores them; any other accepted action means you stop. "
-         "Use `spend-time` for longer pastimes (half an hour to " max-pastime-hours " hours). `note` keeps private notes. "
-         "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows them in detail, with their descriptions, owners and aspects (how clean they are, what needs mending, and so on), along with the room and what the people here carry, so use it to examine something closely, not routinely on arrival. The room's own aspects (its floor, hearth and air) are under `here` in your view. "
+         "Use `spend-time {doing, hours, on?}` for work or longer pastimes (half an hour to " items/max-work-hours " hours). `note` keeps private notes. "
+         "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows them in detail, with their descriptions, owners and aspects (how clean they are, what needs mending, and so on), along with the room and what the people here carry, so use it to examine something closely, not routinely on arrival. The room's own aspects (its floor, hearth and air) and the stores in scope are under `here` in your view. A store holds everything it keeps unless its aspects say otherwise; `look` shows what it keeps. "
          "The house has the ordinary things a house like it keeps: everyday things (cloths, paper, pans, salt, matches and the like) can be assumed to be to hand unless you've been told otherwise. The things listed in your view are the notable ones, not everything there is. "
          "Some things hold others: what's in an open one is listed under its `contents`, and one marked `closed` shows what's inside only when you `open` it. "
          "You can `take` things out of either, and `put-in` puts something into one. "
-         "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn; `work-on` spends time doing something to things here or that you carry, or to the room itself (use its id), and its results show when you finish. "
+         "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn; `spend-time` spends time on work or pastimes; optionally name things here or carried, the room itself, or stores in scope with `on`. Its results show when you finish. "
          "If you are waiting on someone or nothing needs doing, `pass` is the way to wait a turn; you act again next turn. "
          "Opening hours are shown in your view where a place has them. "
          "Purchases and commissions are paid from the household account (`household` in your view). There is no engine-enforced spending restriction by role: whether you should spend depends on your station, instructions and relationships. At an open shop, ask the shopkeeper with `say` for portable goods and a quantity; there is no fixed catalogue. The shopkeeper checks availability and quotes a firm price. Accept an offer made for you with `buy {quote-id}`, from `offers` in your view. Payment is separate from asking; no bargaining, bulk counters or delivery. Prices are old sterling: £1 = 20 shillings = 240 pence (12d = 1s). "
@@ -463,19 +454,19 @@
   {"lord-claudeworth"
    {"08:00" [[:walk {:to "dining-room"}]
              [:say {:text "I have made up my mind: this house is too small for us, and I mean to enlarge it. I shall see Pugh, the architect, this morning."}]]
-    "08:30" [[:spend-time {:activity "breakfasting" :hours 1}]]
+    "08:30" [[:spend-time {:doing "breakfasting" :hours 1}]]
     "09:30" [[:travel {:to "architects-office"}]]
     "10:00" [[:say {:text "Good morning, Mr Pugh. I want Claudeworth made a proper seat: a library to begin with. What do you advise?"}]]
     "10:30" [[:say {:text "A library beside the study, then. Please draw it for me."}]]
     "11:00" [[:commission {:plan-id "library"}]]
     "11:30" [[:travel {:to "carriage-sweep"}]]
-    "12:00" [[:walk {:to "study"}] [:spend-time {:activity "attending to estate business" :hours 1}]]
-    "13:00" [[:walk {:to "dining-room"}] [:spend-time {:activity "lunching" :hours 1}]]
-    "14:00" [[:walk {:to "study"}] [:spend-time {:activity "reading the newspapers" :hours 4}]]
+    "12:00" [[:walk {:to "study"}] [:spend-time {:doing "attending to estate business" :hours 1}]]
+    "13:00" [[:walk {:to "dining-room"}] [:spend-time {:doing "lunching" :hours 1}]]
+    "14:00" [[:walk {:to "study"}] [:spend-time {:doing "reading the newspapers" :hours 4}]]
     "18:00" [[:walk {:to "drawing-room"}]
              [:say {:text "Pugh is keen. He talks a great deal about proportion, but I think he is our man."}]]
-    "18:30" [[:walk {:to "dining-room"}] [:spend-time {:activity "dining" :hours 2}]]
-    "20:30" [[:walk {:to "drawing-room"}] [:spend-time {:activity "smoking a cigar over a novel" :hours 2}]]
+    "18:30" [[:walk {:to "dining-room"}] [:spend-time {:doing "dining" :hours 2}]]
+    "20:30" [[:walk {:to "drawing-room"}] [:spend-time {:doing "smoking a cigar over a novel" :hours 2}]]
     "22:30" [[:walk {:to "earls-bedroom"}] [:sleep {:until "07:30"}]]
     "07:00" [[:say {:text "Thank you, Hale. Another day of it, then."}]]}
 
@@ -483,36 +474,36 @@
    {"08:00" [[:walk {:to "dining-room"}]
              [:converse {:with ["lord-claudeworth"]
                          :text "Enlarge it? Then I expect to be consulted on every room, Claudeworth."}]]
-    "08:30" [[:spend-time {:activity "breakfasting" :hours 1}]]
+    "08:30" [[:spend-time {:doing "breakfasting" :hours 1}]]
     "09:30" [[:open {:container "sideboard"}] [:take {:item "silver-candlesticks"}] [:walk {:to "drawing-room"}]
              [:put-down {:item "silver-candlesticks"}] [:look {}]
              [:call {:text "Nellie! The candlesticks are in the drawing room when you have a moment." :to "nellie"}]
-             [:spend-time {:activity "going over the household accounts" :hours 4}]]
+             [:spend-time {:doing "going over the household accounts" :hours 4}]]
     "13:30" [[:travel {:to "abbey-church"}]]
-    "14:00" [[:spend-time {:activity "sitting quietly in the abbey church" :hours 1.5}]]
+    "14:00" [[:spend-time {:doing "sitting quietly in the abbey church" :hours 1.5}]]
     "15:30" [[:travel {:to "general-store"}]]
     "16:00" [[:request-goods {:item "feather duster" :qty 1}]]
     "16:30" [[:accept-offer {:item "feather duster"}]]
     "17:00" [[:travel {:to "carriage-sweep"}]]
     "17:30" [[:walk {:to "drawing-room"}] [:give {:item "feather-duster" :to "nellie"}]
-             [:spend-time {:activity "writing letters" :hours 1.5}]]
+             [:spend-time {:doing "writing letters" :hours 1.5}]]
     "19:00" [[:say {:text "I hope Mr Pugh understands that the drawing room is mine to decide."}]]
-    "19:30" [[:walk {:to "dining-room"}] [:spend-time {:activity "dining" :hours 2}]]
-    "21:30" [[:walk {:to "drawing-room"}] [:spend-time {:activity "reading a novel" :hours 1}]]
+    "19:30" [[:walk {:to "dining-room"}] [:spend-time {:doing "dining" :hours 2}]]
+    "21:30" [[:walk {:to "drawing-room"}] [:spend-time {:doing "reading a novel" :hours 1}]]
     "22:30" [[:walk {:to "countess-bedroom"}] [:sleep {:until "07:30"}]]}
 
    "hale"
    {"08:00" [[:walk {:to "dining-room"}] [:say {:text "Good morning, my lord. Good morning, my lady."}]]
-    "08:30" [[:spend-time {:activity "breakfasting" :hours 1}]]
-    "09:30" [[:walk {:to "study"}] [:spend-time {:activity "writing letters" :hours 2}]]
+    "08:30" [[:spend-time {:doing "breakfasting" :hours 1}]]
+    "09:30" [[:walk {:to "study"}] [:spend-time {:doing "writing letters" :hours 2}]]
     "11:30" [[:travel {:to "general-store"}]]
     "12:00" [[:request-goods {:item "tin of silver polish" :qty 1}]]
     "12:30" [[:accept-offer {:item "tin of silver polish"}]]
     "13:00" [[:travel {:to "carriage-sweep"}]]
-    "13:30" [[:walk {:to "dining-room"}] [:spend-time {:activity "lunching" :hours 0.5}]]
-    "14:00" [[:walk {:to "study"}] [:spend-time {:activity "filing correspondence" :hours 4}]]
-    "18:00" [[:spend-time {:activity "copying letters" :hours 2}]]
-    "20:00" [[:spend-time {:activity "reading" :hours 2}]]
+    "13:30" [[:walk {:to "dining-room"}] [:spend-time {:doing "lunching" :hours 0.5}]]
+    "14:00" [[:walk {:to "study"}] [:spend-time {:doing "filing correspondence" :hours 4}]]
+    "18:00" [[:spend-time {:doing "copying letters" :hours 2}]]
+    "20:00" [[:spend-time {:doing "reading" :hours 2}]]
     "22:00" [[:walk {:to "secretarys-room"}] [:sleep {:until "06:30"}]]
     "06:30" [[:walk {:to "earls-bedroom"}] [:rouse {:who "lord-claudeworth"}]
              [:say {:text "Good morning, my lord. It is half past six."}]]}
@@ -520,32 +511,32 @@
    "nellie"
    {"08:00" [[:walk {:to "kitchen"}] [:say {:text "Morning. Fires, then the dining room."}]]
     "09:00" [[:walk {:to "dining-room"}]
-             [:work-on {:items ["family-portrait"] :doing "dusting the dining room and the portrait" :hours 1}]]
+             [:spend-time {:on ["family-portrait"] :doing "dusting the dining room and the portrait" :hours 1}]]
     "10:00" [[:walk {:to "drawing-room"}]
-             [:work-on {:items ["silver-candlesticks"] :doing "polishing the silver candlesticks" :hours 1.5}]]
+             [:spend-time {:on ["silver-candlesticks"] :doing "polishing the silver candlesticks" :hours 1.5}]]
     "11:30" [[:take {:item "silver-candlesticks"}] [:walk {:to "dining-room"}]
              [:put-in {:item "silver-candlesticks" :container "sideboard"}] [:walk {:to "kitchen"}]
              [:take {:item "blacking-brushes"}]
-             [:work-on {:items ["kitchen-range" "blacking-brushes"] :doing "blacking the kitchen range" :hours 2}]]
+             [:spend-time {:on ["kitchen-range" "blacking-brushes"] :doing "blacking the kitchen range" :hours 2}]]
     "13:30" [[:put-in {:item "blacking-brushes" :container "kitchen-dresser"}] [:walk {:to "entrance-hall"}]
-             [:work-on {:items ["entrance-hall" "stags-head"] :doing "dusting the hall and the stag's head" :hours 1}]]
+             [:spend-time {:on ["entrance-hall" "stags-head"] :doing "dusting the hall and the stag's head" :hours 1}]]
     "14:30" [[:walk {:to "drawing-room"}]]
-    "18:00" [[:work-on {:items ["china-cabinet"] :doing "dusting the china cabinet and the glass with her new duster" :hours 1}]]
+    "18:00" [[:spend-time {:on ["china-cabinet"] :doing "dusting the china cabinet and the glass with her new duster" :hours 1}]]
     "21:30" [[:walk {:to "maids-room"}] [:sleep {:until "06:30"}]]}
 
    "pugh"
-   {"08:00" [[:walk {:to "architects-lodgings"}] [:spend-time {:activity "breakfasting" :hours 1}]]
+   {"08:00" [[:walk {:to "architects-lodgings"}] [:spend-time {:doing "breakfasting" :hours 1}]]
     "09:00" [[:walk {:to "architects-office"}] [:pass {}]]
     "10:00" [[:consult-references {:query "library study"}] [:price-list {}]
              [:say {:text "An honour, my lord. A library on the garden side would answer admirably, provided we mind the proportions."}]]
     "10:30" [[:draw-plans {:for "lord-claudeworth" :name "Library" :floor "ground"
                            :desc "A panelled library with shelves and a reading table." :connects-to ["study"] :size "large"}]
              [:show-plans {:plan-id "library"}]
-             [:spend-time {:activity "at his drawing board" :hours 2}]]
-    "12:30" [[:walk {:to "architects-lodgings"}] [:spend-time {:activity "lunching" :hours 1}]]
-    "13:30" [[:walk {:to "architects-office"}] [:spend-time {:activity "at his drawing board" :hours 4}]]
-    "17:30" [[:spend-time {:activity "tidying the office" :hours 0.5}]]
-    "18:00" [[:walk {:to "architects-lodgings"}] [:spend-time {:activity "reading by the fire" :hours 4}]]
+             [:spend-time {:doing "at his drawing board" :hours 2}]]
+    "12:30" [[:walk {:to "architects-lodgings"}] [:spend-time {:doing "lunching" :hours 1}]]
+    "13:30" [[:walk {:to "architects-office"}] [:spend-time {:doing "at his drawing board" :hours 4}]]
+    "17:30" [[:spend-time {:doing "tidying the office" :hours 0.5}]]
+    "18:00" [[:walk {:to "architects-lodgings"}] [:spend-time {:doing "reading by the fire" :hours 4}]]
     "22:00" [[:sleep {:until "07:30"}]]}})
 
 (defn- scripted-done
@@ -630,7 +621,10 @@
    :offline-stubs building/offline-stubs
    :mcp-servers building/mcp-servers
    :systems [building/construction]
-   :items {:judge-brief judge-brief}
+   :items {:judge-brief judge-brief
+           :aspect-keys {:cleanliness "how clean" :repair "damage and needed repairs"
+                         :state "lit, hot, cooking, carved" :amount "how much remains, or parcel quantity"
+                         :stock "general level of supplies" :lacking "notable absences"}}
    :exclude-actions #{:move}
    :hibernate hibernate
    :observe observe

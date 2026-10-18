@@ -121,3 +121,28 @@
           (is (map? (try (a/->tool action) (catch Exception ex (ex-message ex))))
               (str (name (:name action)) " should become a tool")))
         (e/stop-run run)))))
+
+(deftest claudeworth-judged-mock-day-stays-quiet
+  (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true
+                                      :run-id (str (gensym "claudeworth-activities-"))})]
+    (try
+      (let [world (e/world run)
+            pantry (items/item world "pantry-shelves")]
+        (is (items/store? pantry))
+        (is (= ["pantry-shelves"] (map :id (items/stores-for world "kitchen")))))
+      (e/auto! run 47)
+      (is (= :idle (e/wait-idle run 120000)))
+      (let [world (e/world run)
+            events (e/events run)
+            calls (store/read-llm (:dir run))
+            begun (into {} (for [event events :when (= :item/work-begun (:type event))]
+                             [(get-in event [:data :id]) (:data event)]))
+            pastimes (filter #(and (= :item/work-done (:type %))
+                                   (empty? (:items (begun (get-in % [:data :job]))))) events)]
+        (is (= 47 (:round world)))
+        (is (seq pastimes))
+        (is (every? #(every? empty? ((juxt :changes :used-up :made) (:data %))) pastimes))
+        (is (not-any? #(#{:action/forfeited :item/judge-failed} (:type %)) events))
+        (is (not-any? #(re-find #"^(error:|rejected:)" (:content % "")) (mapcat :replies calls)))
+        (is (= world (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))

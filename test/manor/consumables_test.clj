@@ -60,8 +60,8 @@
 (defn- judge-says [args]
   {:tool-calls [{:id "j1" :name "judge" :arguments (json/write-value-as-string args)}]})
 
-(def stock {:name "Beef stock" :desc "A rich brown stock." :aspects {:state "simmering"} :in "saucepan"})
-(def bones {:name "Beef bones" :desc "The rib bones, picked clean." :aspects {:state "picked clean"}})
+(def stock {:consumable true :name "Beef stock" :desc "A rich brown stock." :aspects {:state "simmering"} :in "saucepan"})
+(def bones {:consumable true :name "Beef bones" :desc "The rib bones, picked clean." :aspects {:state "picked clean"}})
 
 ;; ---------------------------------------------------------------------------
 ;; The judge's answer
@@ -115,7 +115,7 @@
     (testing "made things need a name and a description within the limits; aspects are optional, and checked"
       (is (error {:used-up ["beef"] :made [(dissoc bones :desc)]}))
       (is (error {:used-up ["beef"] :made [(assoc bones :name (apply str (repeat 61 "x")))]}))
-      (is (= [{:name "Beef bones" :desc "The rib bones, picked clean."}]
+      (is (= [{:consumable true :name "Beef bones" :desc "The rib bones, picked clean."}]
              (:made (:verdict (judge {:used-up ["beef"] :made [(dissoc bones :aspects)] :summary "x"})))))
       (is (= {:picked-state "clean"}
              (:aspects (first (:made (:verdict (judge {:used-up ["beef"] :made [(assoc bones :aspects {"picked_state" "clean"})] :summary "x"})))))))
@@ -144,7 +144,7 @@
                               (verdict-of {:used-up ["beef"] :made [stock bones] :summary "Ben made stock of the beef."}))
         after (w/apply-event world done)]
     (testing "the data names what was used up and holds the new items"
-      (is (= [{:item "beef" :name "Rib of beef"}] (get-in done [:data :used-up])))
+      (is (= [{:item "beef" :name "Rib of beef" :fate "used up while making stock"}] (get-in done [:data :used-up])))
       (is (= [{:id "beef-stock" :name "Beef stock" :desc "A rich brown stock." :aspects {:state "simmering"}
                :consumable? true :owner "ada" :in "saucepan"}
               {:id "beef-bones" :name "Beef bones" :desc "The rib bones, picked clean." :aspects {:state "picked clean"}
@@ -169,8 +169,8 @@
         (is (some #(= [{:id "beef-stock" :name "Beef stock"}] (:contents %)) (get-in ben [:location :here :items])))
         (is (not-any? #(= "beef" (:id %)) (:items (prompt/default-gm-view after))))))
     (testing "made from something the worker carried: the worker holds it"
-      (let [d (items/work-done world job {:minutes 30 :luck 50}
-                               (verdict-of {:used-up ["apple"] :made [{:name "Apple core" :desc "A core." :aspects {:state "brown"}}]
+      (let [d (items/work-done world (assoc job :items ["apple"]) {:minutes 30 :luck 50}
+                               (verdict-of {:used-up ["apple"] :made [{:consumable true :name "Apple core" :desc "A core." :aspects {:state "brown"}}]
                                             :summary "Ben ate the apple."}))]
         (is (= {:holder "ben" :consumable? true} (select-keys (first (get-in d [:data :made])) [:holder :consumable? :place])))
         (is (= ["apple-core" "pipe"] (map :id (items/held-by (w/apply-event world d) "ben"))))))
@@ -223,7 +223,7 @@
         (is (= {:in "saucepan" :consumable? true} (select-keys (by-id "beef-stock") [:in :consumable?])))
         (is (str/includes? (slurp path) "{:id \"beef-stock\" :name \"Beef stock\" :in \"saucepan\" :owner \"Ada\" :consumable? true"))
         (let [r2 (start {:world-file path})]
-          (is (= (map #(dissoc % :touched) (items/all world)) (items/all (e/world r2))))
+          (is (= (map #(dissoc % :touched) (items/all world)) (map #(dissoc % :touched) (items/all (e/world r2)))))
           (e/stop-run r2))))
     (e/stop-run run)))
 
@@ -241,7 +241,7 @@
                                json/keyword-keys-object-mapper)]
     (is (empty? (:focus scene)))
     (is (some #(and (= "beef" (:id %)) (:consumable %)) (:also_here scene)))
-    (is (= [{:item "beef" :name "Rib of beef"}] (get-in done [:data :used-up])))
+    (is (= [{:item "beef" :name "Rib of beef" :fate "used up while dining"}] (get-in done [:data :used-up])))
     (is (nil? (items/item (e/world run) "beef")))
     (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
     (e/stop-run run)))
@@ -270,3 +270,85 @@
       (is (nil? (:error result)))
       (is (every? #(nil? (items/item after %)) ["bag" "bun" "secret"])))
     (e/stop-run run)))
+
+(deftest drawing-absorbing-and-fates
+  (let [run (start)
+        world (reduce w/apply-event (e/world run)
+                      (items/init-events
+                       [{:id "pantry" :name "Pantry shelves" :desc "Shelves of provisions." :place "shop" :fixed? true
+                         :store {:keeps "food and utensils" :serves ["hall"]}}
+                        {:id "remote" :name "Remote store" :desc "Distant supplies." :place "farm" :fixed? true :store {:keeps "food"}}
+                        {:id "tin" :name "Dripping tin" :desc "A tin." :place "hall" :drawn-from "pantry"}]))
+        activity (assoc job :items [] :doing "putting things away")
+        check (fn [activity args]
+                (items/judgement (judge-says (assoc args :summary "Things were put away.")) world (items/judged-things world activity)))
+        tin {:name "Dripping tin" :desc "A tin of dripping." :consumable false :from "pantry" :aspects {:state "full"}}]
+    (try
+      (testing "draw from an in-scope serving store without using anything up"
+        (let [{:keys [verdict error]} (check activity {:made [tin]})
+              event (items/work-done world activity {:minutes 30} verdict)
+              made (first (get-in event [:data :made]))]
+          (is (nil? error))
+          (is (= {:holder "ben" :drawn-from "pantry" :consumable? false}
+                 (select-keys made [:holder :place :drawn-from :consumable?])))
+          (is (= {:state "full"} (:aspects made)))
+          (is (= "Dripping tin" (get (items/names (w/apply-event world event)) [:item (:id made)])))
+          ))
+      (testing "placement in a container, at a named place-bound focus, or in the hands"
+        (doseq [[focus entry expected] [[["saucepan"] (assoc tin :in "saucepan") {:in "saucepan"}]
+                                       [["hall"] tin {:place "hall"}]
+                                       [["beef"] tin {:place "hall"}]
+                                       [["apple"] tin {:holder "ben"}]
+                                       [[] (assoc tin :consumable true) {:holder "ben"}]]]
+          (let [activity (assoc activity :items focus)
+                done (items/work-done world activity {:minutes 30} (:verdict (check activity {:made [entry]})))
+                made (first (get-in done [:data :made]))]
+            (is (= expected (select-keys made [:in :place :holder])))
+            (is (= (not (:consumable entry)) (contains? made :drawn-from))))))
+      (testing "only in-scope stores authorize drawing, and making still needs something used up"
+        (is (:error (check activity {:made [(assoc tin :from "remote")]})))
+        (is (:error (check activity {:made [(assoc tin :from "saucepan")]})))
+        (is (:error (check activity {:made [(dissoc tin :from)]})))
+        (is (:error (check activity {:made [(dissoc tin :consumable)]}))))
+      (testing "absorb only eligible visible things into in-scope stores"
+        (doseq [thing ["woodpile" "pipe" "pantry" "clock" "remote" "unknown"]]
+          (is (:error (check activity {:absorbed [{:thing thing :into "pantry"}]})) thing))
+        (is (:error (check activity {:absorbed [{:thing "beef" :into "remote"}]})))
+        (is (:error (check activity {:absorbed [{:thing "beef" :into "saucepan"}]})))
+        (is (:error (check activity {:used-up ["beef"] :absorbed [{:thing "beef" :into "pantry"}]})))
+        (is (:error (check activity {:absorbed [{:thing "beef" :into "pantry"} {:thing "beef" :into "pantry"}]})))
+        (is (:error (check activity {:absorbed [{:thing "beef" :into "pantry"}] :made [(dissoc tin :from)]})))
+        (let [verdict (:verdict (check activity {:absorbed [{:thing "beef" :into "pantry"} {:thing "tin" :into "pantry"}]
+                                                :changes [{:thing "pantry" :aspect "stock" :value "well stocked"}
+                                                          {:thing "beef" :aspect "state" :value "stored"}]}))
+              after (w/apply-event world (items/work-done world activity {:minutes 30} verdict))]
+          (is (= {:name "Rib of beef" :place "hall" :round 0 :fate "put away in the Pantry shelves"}
+                 (get-in after [:items-gone "beef"])))
+          (is (nil? (items/item after "tin")))
+          (is (= "well stocked" (get-in (items/item after "pantry") [:aspects :stock])))
+          (is (= 1 (count (:changes verdict))))))
+      (testing "containers require all world contents absorbed, including hidden contents"
+        (is (:error (check activity {:absorbed [{:thing "bag" :into "pantry"}]})))
+        (let [args {:absorbed [{:thing "bag" :into "pantry"} {:thing "bun" :into "pantry"}]}
+              event (items/work-done world activity {:minutes 30} (:verdict (check activity args)))
+              after (w/apply-event world event)
+              hidden (assoc-in world [:items "bag" :container] :closed)
+              refused (items/judgement (judge-says (assoc args :summary "Put away.")) hidden (items/judged-things hidden activity))]
+          (is (= ["hall" "hall"] (map #(get-in after [:items-gone % :place]) ["bag" "bun"])))
+          (is (:error refused))
+          (is (not (str/includes? (:error refused) "Bun")))))
+      (testing "explicit and default fates, including a carried item's location, keep old lines named"
+        (let [verdict (:verdict (check (assoc activity :items ["apple"]) {:used-up ["beef" "apple"] :fates {"beef" "eaten at supper"}}))
+              after (w/apply-event world (items/work-done world activity {:minutes 30} verdict))]
+          (is (= "eaten at supper" (get-in after [:items-gone "beef" :fate])))
+          (is (= {:name "Apple" :place "hall" :round 0 :fate "used up while putting things away"}
+                 (get-in after [:items-gone "apple"])))
+          (is (= "Ben picks up the rib of beef." (n/describe {:type :item/taken :actor "ben" :data {:item "beef"}} (n/names after))))
+          (is (:error (check activity {:used-up ["beef"] :fates {"apple" "eaten"}})))
+          (is (:error (check activity {:used-up ["beef"] :fates {"beef" ""}})))))
+      (testing "work narration distinguishes things put away and fetched"
+        (let [verdict (:verdict (check activity {:absorbed [{:thing "beef" :into "pantry"}] :made [tin]}))
+              done (items/work-done world activity {:minutes 30} verdict)]
+          (is (= "Ben finishes putting things away. Things were put away. Put away: Rib of beef (in the Pantry shelves). Fetched: Dripping tin."
+                 (n/describe done (n/names (w/apply-event world done)))))))
+      (finally (e/stop-run run)))))

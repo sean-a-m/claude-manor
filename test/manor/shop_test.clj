@@ -101,7 +101,7 @@
             (is (= [{:id "packet-of-needles" :name "packet of needles" :owner "household" :holder "customer"
                      :aspects {:amount "2 × a paper packet of ten needles" :state "new"}
                      :desc "Ten steel sewing needles in a folded paper packet."}]
-                   (items/items-where after #(= "customer" (:holder %))))))
+                   (map #(dissoc % :touched) (items/items-where after #(= "customer" (:holder %)))))))
           (is (str/includes? (shop/buy-reason after "customer" {:quote-id (:id offer)}) "unspent quote"))
           (is (= after (w/replay (store/read-events (:dir run)))))
           (is (not-any? #(= :action/forfeited (:type %)) (e/events run)))
@@ -184,19 +184,19 @@
           (is (= [{:id "plain-household-flour" :name "Plain household flour" :holder "customer" :owner "household"
                    :desc "Fine white flour in a blue paper bag." :aspects {:amount "20 × 1 lb" :state "fresh, dry, unbleached"}
                    :consumable? true}]
-                 (items/held-by after "customer"))))
+                 (map #(dissoc % :touched) (items/held-by after "customer")))))
         (testing "both lines give the amount"
           (is (= "Customer buys Plain household flour (20 × 1 lb) for 3s 4d at the Counter, and takes the goods away." (n/describe (first evs) names)))
           (is (= "Customer now has plain household flour (20 × 1 lb)." (n/describe (second evs) names))))
         (testing "a single unit is just the unit; lasting goods aren't consumable"
           (let [[after] (bought (e/world run) available 1)]
             (is (= [[{:amount "a paper packet of ten needles" :state "new"} nil]]
-                   (map (juxt :aspects :consumable?) (items/held-by after "customer")))))))
+                   (map (juxt :aspects :consumable?) (map #(dissoc % :touched) (items/held-by after "customer"))))))))
       (testing "the longest unit and condition the appraiser may give still fit an item's aspects"
         (let [longest (assoc flour :unit (apply str (repeat shop/max-unit "u"))
                              :condition (apply str (repeat items/max-aspect "c")) :unit-price-pence 1)
               [after] (bought (e/world run) longest shop/max-quantity)
-              [it] (items/held-by after "customer")]
+              [it] (map #(dissoc % :touched) (items/held-by after "customer"))]
           (is (= {:amount (str "20 × " (apply str (repeat shop/max-unit "u"))) :state (apply str (repeat items/max-aspect "c"))}
                  (:aspects it)))))
       (finally (e/stop-run run)))))

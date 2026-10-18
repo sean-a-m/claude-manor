@@ -1,6 +1,6 @@
 # Stores, aspects and the scene judge: design
 
-**Status:** designed (2026-10-17). Phases 0, 1 and 2 done. Each phase below has its own status line;
+**Status:** designed (2026-10-17). Phases 0–3 done. Each phase below has its own status line;
 update it as work lands, so an agent picking this up can tell where to start.
 
 Read `AGENTS.md` first (invariants, run directories, cost rules), then "Items (`manor.items`)" and
@@ -333,7 +333,37 @@ call; parallel batch events in the same order as sequential.
 
 ### Phase 3: promotion and demotion
 
-**Status: not started.**
+**Status: done, mock-tested only (no real run).** Drawing, absorption, fates and the
+opt-in nightly steward are built. Claudeworth enables the steward with the values below.
+Tests cover checks, placement, container safety, fates and old names, selection/caps,
+nightly scheduling/replay, mock effects, correction and cost. Both 48-round Claudeworth
+mock days (normal start and 20:00 start) have no bad replies or judge/steward failures and
+replay equals live. The evening-start day records one steward pass, round 13 (02:00).
+
+Small details and deviations:
+
+- Clarified with the supervisor: skip a partial first day's already-past scheduled time.
+  Use the most recent `:at` at or before now, only if at or after the clock start and not
+  recorded. Starting exactly at `:at` runs immediately. This differs from a literal
+  "first round at or after" on a late initial day.
+- A made entry's `consumable` flag is required. Placement follows this phase, replacing the
+  old rule based on the first used-up thing: a named room or focus lying at a place is
+  place-bound; otherwise new things go to the worker's hands.
+- Work-done data retains all new things in `:made` and adds `:fetched [id ...]` to distinguish
+  drawing in narration, including consumables (which have no `:drawn-from`).
+- Items are touched on addition as well as handling, changes and creation; named work focus
+  and its contents are touched on completion even when aspects were unchanged. Starting
+  round-zero items age from clock start, not an extra round earlier. Export retains
+  `:drawn-from` but drops `:touched`; `:items/stewarded` also refreshes the live exported map.
+- Steward places run sequentially; optional parallelization was unnecessary. Its checked
+  tool shares effect checks with the judge but excludes `made` and restricts aspect changes
+  to candidates. It can discard any absorbable candidate, including a worn drawn utensil.
+  Failures leave things alone and add a system-only `:items/steward-failed` event.
+- The late mock-day check found pre-existing redundant walks to bedrooms on late starts.
+  Only mock sleep scripts now omit such walks when already there; no character tool or
+  ordinary-day choreography changed. The mock judge needs no new behavior and stays quiet.
+- The steward runs immediately after finishing jobs, before bridges and systems: newly
+  handled work is protected, and it sees leftovers before new work begins.
 
 1. **Drawing from a store.** A `made` entry may give `from: <store id>` (a store in scope).
    Without `from`, it needs something used up, as now. Made entries carry `aspects` (instead of

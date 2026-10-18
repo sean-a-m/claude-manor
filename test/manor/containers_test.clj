@@ -322,6 +322,6 @@
         (is (= :closed (:container (by-id "cupboard"))))
         (is (str/includes? (slurp path) "{:id \"shelf\" :name \"Shelf\" :place \"hall\" :fixed? true :container :open"))
         (let [r2 (start {:world-file path})]
-          (is (= (map #(dissoc % :touched) (items/all world)) (items/all (e/world r2))))
+          (is (= (map #(dissoc % :touched) (items/all world)) (map #(dissoc % :touched) (items/all (e/world r2)))))
           (e/stop-run r2))))
     (e/stop-run run)))

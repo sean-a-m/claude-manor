@@ -109,6 +109,7 @@
     (llm/mock (fn [ctx]
                 (case (:role ctx)
                   :judge (judge ctx)
+                  :steward (items/mock-steward ctx)
                   :adjudicator (if-let [mock (get-in scenario [:adjudicators (:task ctx) :mock])]
                                  (mock ctx)
                                  (throw (ex-info "adjudicator needs a mock responder" {:task (:task ctx)})))
@@ -174,7 +175,7 @@
         (swap! (:events run) conj e)
         (store/append-event! (:dir run) e)
         (notify! run {:kind :event :event e})))
-    (when (some #(#{"space" "item"} (namespace (:type %))) events)
+    (when (some #(#{"space" "item" "items"} (namespace (:type %))) events)
       (export-map! run))))
 
 (defn- write-transcript!
@@ -831,6 +832,22 @@
           (finish-job! run work @result))
         (recur (seq (drop (count batch) works)))))))
 
+(defn- run-steward!
+  "After jobs finish, tidy only idle leftovers, before bridges/systems or
+  characters can create new work. The marker is emitted even with no candidates."
+  [run]
+  (let [world @(:world run)
+        config (get-in run [:scenario :items :steward])]
+    (when-let [day (items/steward-day world config)]
+      (emit! run [{:type :items/steward-ran :visible-to :gm :data {:day day}}])
+      (doseq [[place candidates] (items/steward-candidates world config)]
+        (let [request (assoc (items/steward-request world place candidates)
+                             :label "steward" :ctx {:role :steward :world world :place place :candidates candidates})
+              {:keys [verdict failure]} (ask-structured! run "steward" request #(items/stewardship % world place candidates))]
+          (emit! run (cond-> [(items/stewarded @(:world run) place verdict)]
+                       failure (conj {:type :items/steward-failed :visible-to :system
+                                      :data {:place place :reason failure}}))))))))
+
 (defn- run-approved-bridges! [run]
   (doseq [[req-id {:keys [bridge bridge-args action args requester status]}] (:pending-bridges @(:world run))
           :when (= status :approved)]
@@ -899,6 +916,7 @@
                      (when-let [hibernate (:hibernate (:scenario run))]
                        (emit! run (b/hibernations hibernate @(:world run))))
                      ending)))
+    (run-steward! run)
     (run-approved-bridges! run)
     (run-systems! run)
     (doseq [group (schedule run @(:world run))]

@@ -323,7 +323,7 @@
         (is (= (map :id (:items (wf/read-file hamlet-file))) (map :id (:items m))))
         (let [r2 (start {:world-file (str (io/file (:dir run) "map.edn"))})]
           (is (not (contains? (by-id "umbrella") :touched)))
-          (is (= (map #(dissoc % :touched) (items/all world)) (items/all (e/world r2))))
+          (is (= (map #(dissoc % :touched) (items/all world)) (map #(dissoc % :touched) (items/all (e/world r2)))))
           (e/stop-run r2))))
     (e/stop-run run)))
 
@@ -485,7 +485,7 @@
         scene (request-scene request)]
     (is (= ["judge"] (map #(get-in % [:function :name]) (:tools request))))
     (doseq [instruction ["work can't turn a vase into gold" "Most activities change little"
-                         "a pastime often changes nothing" "Empty changes, used-up and made lists are normal"
+                         "a pastime often changes nothing" "Empty changes, used-up, absorbed and made lists are normal"
                          "Do not invent events" "A store holds everything it `keeps`"
                          "Change only the aspects the activity affected" "- cleanliness: how clean"]]
       (is (str/includes? (:content system) instruction)))
@@ -788,7 +788,7 @@
         view #(get-in (prompt/agent-view (:scenario run) % "ben") [:location :here])]
     (is (items/store? pantry))
     (is (not (items/store? (items/item world "clock"))))
-    (is (= [pantry] (items/stores-for world "hall") (items/stores-for world "shop")))
+    (is (= [(assoc pantry :touched 0)] (items/stores-for world "hall") (items/stores-for world "shop")))
     (is (empty? (items/stores-for world "porch")))
     (is (= [{:id "pantry" :name "Pantry shelves" :aspects {:stock "well stocked"} :at "shop"}]
            (:stores (view world))))
@@ -799,7 +799,7 @@
     (is (= "dry goods and preserves"
            (:keeps (first (filter #(= "pantry" (:id %)) (:items (items/look (at world "ben" "shop") "ben")))))))
     (is (nil? (a/check (action run :work-on) world "ben" {:items ["pantry"] :doing "taking stock"})))
-    (is (= [pantry] (items/in-reach world {:items ["pantry"] :place "hall" :actor "ben"})))
+    (is (= [(assoc pantry :touched 0)] (items/in-reach world {:items ["pantry"] :place "hall" :actor "ben"})))
     (is (= {:name "Pantry shelves" :aspects {:stock "well stocked"} :contents []} (items/opened world pantry)))
     (e/stop-run run)))
 

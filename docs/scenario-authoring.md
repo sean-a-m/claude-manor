@@ -524,8 +524,8 @@ id. Objects people can pick up and carry are items (next section).
 Items are things with a description and a few aspects that lie in a place, are carried by
 someone, or are inside another item: a piano, a pocket watch, an umbrella someone bought, the
 silver in the sideboard. They need locations. A scenario
-turns them on with the key `:items`, a map, possibly empty; its optional configuration includes `:judge-brief` and `:aspect-keys` (see
-Work and the judge). Scenarios without it are unchanged.
+turns them on with the key `:items`, a map, possibly empty; its optional configuration includes `:judge-brief`, `:aspect-keys` and `:steward` (see
+Work and the judge, and The nightly steward). Scenarios without it are unchanged.
 
 An item:
 
@@ -543,10 +543,11 @@ An item:
 ```
 
 Ids are kebab-case and unique; at most 60 characters of name. No other keys are allowed (the
-engine adds `:touched`, below). A carried item goes wherever its holder goes, and things in a container go wherever it goes, with
-no events of their own. Only work can remove an item (by using it up); its name stays in the
-world under `:items-gone` (id -> name), so older lines that mention it still read, and
-`fresh-id` never gives its id out again.
+engine adds `:touched` and may add `:drawn-from`, below). A carried item goes wherever its holder goes, and things in a container go wherever it goes, with
+no events of their own. Work and the nightly steward can remove an item by using it up or absorbing it into stock.
+The world retains `:items-gone {id {:name .. :place .. :round .. :fate ..}}`: where it was
+(the holder's place if carried), when it went and what happened to it. `items/names` still
+names old lines, and `fresh-id` never gives an old id out again. Old runs are not migrated.
 
 - **Aspects** say what's notable about a thing's state: a map of at most 4 (`items/max-aspects`)
   keys to phrases of 1-80 characters (`items/max-aspect`). Keys are plain keywords of lower-case
@@ -554,11 +555,15 @@ world under `:items-gone` (id -> name), so older lines that mention it still rea
   `:cleanliness`, `:glass-eye`). The engine checks only the form and the cap; the keys are the
   scenario's choice. Claudeworth uses `:cleanliness`, `:repair`, `:state` (lit, cold, half full),
   `:amount` (a parcel's "20 × 1 lb"), `:stock` and `:lacking`. A thing with nothing notable has no
-  `:aspects`. Only work changes them, one aspect at a time, so unrelated facts survive (see Work
+  `:aspects`. Work (and the optional steward on its candidates) changes them, one aspect at a time, so unrelated facts survive (see Work
   and the judge). Locations have them too (see Locations).
 - **`:touched`** is the round an item was last taken, put down, put in a container, given,
-  changed by work, or made. The reducers set it from `(:round world)`; it isn't part of a world
+  changed, worked on as named focus (including container contents), added or made. The reducers set it from `(:round world)`; it isn't part of a world
   file, and the exported map leaves it out.
+- **`:drawn-from`** is the store id on a non-consumable thing promoted from stock. It lets
+  the judge or steward put the thing back; the exported map retains it. **Absorbable** means
+  not fixed, not a store, and either `:consumable?` or `:drawn-from` (`items/absorbable?`).
+  A watch or the family's silver cannot be absorbed or used up.
 - **Starting items** come from `:init` (`:items`, a vector, holders and owners as ids), or from a
   world file's `:items` (see World files). The engine checks them and adds each with an
   `:item/added` event, visible to the GM, after the agents are spawned.
@@ -739,28 +744,43 @@ container contents. Work may name a store in scope even when it is in another ro
   no stores in scope, ends with a neutral `:item/work-done` and no call. Otherwise the engine
   asks the scene judge and emits `:item/work-done`, seen by the worker and people at the place:
   `{:job :actor :place :doing :minutes :stopped-early? :luck :summary :changes [..]}`, plus
-  `:used-up [{:item :name}]` and `:made [item ...]` (complete new items) when there are some.
+  `:used-up [{:item :name :fate}]`, `:absorbed [{:item :name :into}]`, `:made [item ...]`
+  (complete new items), and `:fetched [id ...]` (which made entries were drawn from stores)
+  when there are some.
   Each change is `{:item id :aspect k :from s :to s}`, or `{:place id ...}` for the room; `:from`
   is nil for a new aspect and `:to` nil for one removed. Its reducer sets or removes each aspect
   (on the item, or on the location under `[:space :locations id :aspects]`), touches the changed
-  items, removes the used-up ones (keeping their names under `:items-gone`), adds the made ones
-  (touched too) and removes the job. Jobs with disjoint scopes (place, stores in scope and focus items’ places) are judged
+  items and named focus, removes used-up and absorbed things (recording their fates), adds the
+  made ones (touched too) and removes the job. Jobs with disjoint scopes (place, stores in scope
+  and focus items’ places) are judged
   concurrently on the pre-batch world; overlapping jobs remain sequential, so a later judge
-  sees an earlier one’s result. Events, usage and call logs stay in due/id order, and on the same aspect the last applied wins. It reads "Nellie
+  sees an earlier one’s result. Events, usage and call logs stay in due/id order; on the same
+  aspect the last applied wins. It reads "Nellie
   finishes sweeping the drawing room and dusting the piano. (Drawing room: swept, the hearth clean;
   Piano: dusted)." (each thing's changes by their new values, which are whole phrases, or "no
   longer lacking" for an aspect `:lacking` removed, hyphens in the key read as spaces;
   "leaves off" when stopped early; the summary is left out when it only repeats the opening),
   followed by "Used up: Rib of beef. Made: Beef stock in the saucepan; Beef bones." when
-  something was.
-- **Consumables.** Work may use up items marked `:consumable?` (food eaten or cooked into
-  something else, fuel burnt, an ingredient used up) and make at most two things from them
-  (`items/max-made`): bones and trimmings from a carved joint, stock from the bones. A made item
-  gets a fresh id, is `:consumable?`, is owned like the first item used up, and is put in the
-  container the judge names (`in`), else carried by the worker if they carried that first item,
-  else at the job's place. A made item may have aspects (`{"state": "simmering"}`), with the same
-  limits. Something partly used isn't used up: the judge rewrites its `:amount` ("about 17 lb
-  left"). Everything else keeps its nature, as before.
+  something was. Absorption and drawing read "Put away: Loaf sugar (in the Pantry shelves).
+  Fetched: Dripping tin."
+- **Promotion, absorption and fates.** Work may use up unfixed items marked `:consumable?`
+  (food eaten or cooked into something else, fuel burnt, an ingredient used up), and make at
+  most two things (`items/max-made`). A `made` entry without `from` requires something used
+  up; with `from` it draws from that store in scope (including one serving this place), with
+  no use-up needed. Each entry gives `name`, `desc`, optional `aspects`, a required boolean
+  `consumable`, optional `from` and optional `in`. Only promote something now important
+  individually, not every utensil used. A made thing gets a fresh id, the consumable flag, and
+  the first used-up thing's owner if any. A non-consumable drawn thing gets `:drawn-from`.
+  Placement: in the named container in reach; otherwise in the worker's hands when no
+  place-bound focus was named, else at the job's place. A place-bound focus is the named
+  room or an item lying at a place (including inside a container), rather than carried.
+  `absorbed: [{thing, into}]` returns an absorbable thing in focus or `also_here` to a store
+  in scope. It is removed, with fate "put away in the <store name>". All real contents of a
+  container must be absorbable and absorbed too, even hidden contents or those beyond the
+  scene cap; otherwise the answer is refused generically. A thing cannot be both absorbed and
+  used up. Store aspects may change in the same answer, but need not.
+  `fates` maps used-up ids to nonblank fate phrases; omissions default to "used up while
+  <doing>". Something partly used is not used up: change its `:amount` ("about 17 lb left").
 - **The judge** is a narrow model call, not the GM and not a bridge; characters never hear of it.
   `items/judge-request` builds it from the optional `:items :judge-brief` (`(fn [world] text)`),
   optional suggested aspect keys with short glosses (`:items {:aspect-keys {:cleanliness "how
@@ -780,7 +800,8 @@ container contents. Work may name a store in scope even when it is in another ro
   ```
 
   Focus includes container contents as above, with `in` only when that container is also in
-  focus; entries mark `consumable: true`, `container: true`, or `room: true` when appropriate.
+  focus; entries mark `consumable: true`, `container: true`, or `room: true` when appropriate,
+  and `drawn_from` names a drawn thing’s store.
   `also_here` has the same item shape, at most 12; stores are excluded from it. No other rooms,
   other people's holdings, or closed-container contents are added to the scene. A focused
   container still includes its contents, open or closed, as before.
@@ -793,7 +814,8 @@ container contents. Work may name a store in scope even when it is in another ro
   it keeps unless its aspects say otherwise. Change only aspects affected by this activity;
   the place's aspects describe the room itself, not its contents.
   It has one required tool, `judge {changes: [{thing, aspect, value}],
-  used-up: [id], made: [{name, desc, aspects, in}], summary}`: each change sets one aspect of one
+  used-up: [id], fates: {id: phrase}, absorbed: [{thing, into}],
+  made: [{name, desc, aspects?, consumable, from?, in?}], summary}`: each change sets one aspect of one
   thing, and `value: ""` removes it. The engine sends it through
   the run's LLM with the model `:judge-model` (a run option; nil means `:model`) and the run's
   `:reasoning` and `:max-tokens`, without holding the world lock. Each call is in `llm.edn` as
@@ -807,13 +829,15 @@ container contents. Work may name a store in scope even when it is in another ro
   has at most 4: change one it has instead, or remove one with the value \"\""); a summary of 1-300
   characters. When the same aspect of a thing comes twice, the last counts. Other keys (a `desc`,
   a `name`) are dropped, so an existing thing's aspects are all that ever change, and unchanged
-  values (or removing an aspect a thing hasn't got) are left out, as are changes to items used
-  up. `used-up` names only consumable, unfixed items in focus or `also_here`, and a container
+  values (or removing an aspect a thing hasn't got) are left out, as are changes to removed
+  items. `used-up` names only consumable, unfixed items in focus or `also_here`, and a container
   only with all its real descendants used up. The check reads the world, not just the scene:
   hidden contents or contents beyond the 12-item cap cannot be orphaned. The rejection names
   no unseen things and suggests naming the container with `on` next time; `made` has at most 2 entries (name 1-60, desc 1-400 characters, optional
-  aspects as above), only with something used up, and an `in` must be a container in reach that
-  isn't used up. A bad answer is sent back with the reason and asked once more. A second bad answer, or an exception, gives `:item/work-done` with no changes and a
+  aspects as above, required consumable flag), each with a store in scope as `from` or
+  something used up. An `in` must be a container in reach that is neither used up nor absorbed.
+  A bad answer is sent back with the reason and asked once more. A second bad answer, or an
+  exception, gives `:item/work-done` with no changes and a
   neutral summary ("Hale finishes dusting the china cabinet."), plus an `:item/judge-failed`
   event (`:visible-to :system`) with the reason. The run isn't paused.
 - **Mock runs:** a call with role `:judge` goes to the scenario's `:mock-judge` if it has one,
@@ -823,6 +847,38 @@ container contents. Work may name a store in scope even when it is in another ro
   `:minutes :stopped-early? :luck :step`, and it returns `{:tool :judge :args {..}}`.
   `items/judgement` takes the response, world and judged things, so every check includes real
   container contents.
+
+#### The nightly steward
+
+Opt in with `:items {:steward {:at "02:00" :idle-hours 6 :max-per-call 8}}`; absent means
+no pass. Claudeworth uses these values. At round start **after ending jobs**, before approved
+bridges and systems, the steward sees leftovers after work and before anyone creates new work.
+It runs when the game clock reaches or crosses `:at`: the most recent scheduled time must be
+at or after the run's clock start and not already recorded. A run starting at 20:00 skips that
+day's already-past 02:00 and runs at the next 02:00; starting exactly at 02:00 runs immediately.
+`:items/steward-ran {:day "1904-10-16"}` records the day under `:items-steward-day` in the
+world, even with no candidates; replay reproduces the once-per-day decision.
+
+Code selects absorbable items not carried or inside closed containers, untouched for at least
+`idle-hours` of game time. Starting items age from the clock start. Candidates are grouped by
+place (place-id order), oldest `:touched` first, id breaking ties, at most `max-per-call` per
+place; excess waits for another night. Places with no candidates cost nothing.
+
+One narrow `ask-structured!` call per place sees only its place, stores in scope and candidates.
+The `steward` tool accepts `changes`, `used-up`, `fates`, `absorbed` and required `summary`,
+never `made`. It may absorb a candidate into a store in scope, use up a candidate with a fate,
+change its aspects or leave it. Even non-consumable drawn candidates may be used up (discarded).
+Only candidates can change; never room or store aspects. Container checks use all world
+contents as for work. Unknown fields are dropped; they cannot create anything.
+
+Calls are logged as agent `"steward"`, use `:judge-model` and count toward cost. The shared
+one-correction lifecycle applies; a final failure leaves things alone and records
+`:items/steward-failed` (`:system`). Every checked result is `:items/stewarded`, GM-only,
+with `{:place :summary :changes}`, plus named `:used-up` and `:absorbed` when nonempty. Its
+reducer records removals and fates, and touches changed candidates. Its short narration is
+"Steward at Kitchen: Idle things were put away." Characters see no steward event.
+The default mock (`items/mock-steward`, role `:steward`, context `:world :place :candidates
+:step`) absorbs everything it safely can into the first store in scope, otherwise leaves it.
 
 Stores of provisions can be consumable items, a parcel each, whose `:amount` the judge rewrites as
 they are used (Claudeworth's purchases).

@@ -586,6 +586,12 @@
                    (into [[:walk {:to (:id client-plan)}]] (get-in day [agent-id time]))
                    :else (get-in day [agent-id time]))
           script (remove-absent-cast world script)
+          ;; A late start may already put someone in their bedroom.
+          script (if (some #(= :sleep (first %)) script)
+                   (remove (fn [[tool {:keys [to]}]]
+                             (and (= :walk tool) (= to (bedroom-of world agent-id))
+                                  (= to (space/location-of world agent-id)))) script)
+                   script)
           script (mapv (fn [[tool args]]
                          [tool (if (and (#{:commission :show-plans} tool) client-plan)
                                  (assoc args :plan-id (:id client-plan)) args)]) script)
@@ -621,7 +627,8 @@
    :offline-stubs building/offline-stubs
    :mcp-servers building/mcp-servers
    :systems [building/construction]
-   :items {:judge-brief judge-brief
+   :items {:steward {:at "02:00" :idle-hours 6 :max-per-call 8}
+           :judge-brief judge-brief
            :aspect-keys {:cleanliness "how clean" :repair "damage and needed repairs"
                          :state "lit, hot, cooking, carved" :amount "how much remains, or parcel quantity"
                          :stock "general level of supplies" :lacking "notable absences"}}

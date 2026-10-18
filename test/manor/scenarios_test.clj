@@ -130,7 +130,7 @@
             pantry (items/item world "pantry-shelves")]
         (is (items/store? pantry))
         (is (= ["pantry-shelves"] (map :id (items/stores-for world "kitchen")))))
-      (e/auto! run 47)
+      (e/auto! run 48)
       (is (= :idle (e/wait-idle run 120000)))
       (let [world (e/world run)
             events (e/events run)
@@ -139,10 +139,29 @@
                              [(get-in event [:data :id]) (:data event)]))
             pastimes (filter #(and (= :item/work-done (:type %))
                                    (empty? (:items (begun (get-in % [:data :job]))))) events)]
-        (is (= 47 (:round world)))
+        (is (= 48 (:round world)))
         (is (seq pastimes))
         (is (every? #(every? empty? ((juxt :changes :used-up :made) (:data %))) pastimes))
-        (is (not-any? #(#{:action/forfeited :item/judge-failed} (:type %)) events))
+        (is (not-any? #(#{:action/forfeited :item/judge-failed :items/steward-failed} (:type %)) events))
         (is (not-any? #(re-find #"^(error:|rejected:)" (:content % "")) (mapcat :replies calls)))
+        (is (= world (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))
+
+
+(deftest claudeworth-evening-mock-day-crosses-steward-time
+  (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true
+                                      :start "1904-10-15T20:00"
+                                      :run-id (str (gensym "claudeworth-steward-night-"))})]
+    (try
+      (e/auto! run 48)
+      (is (= :idle (e/wait-idle run 120000)))
+      (let [world (e/world run)
+            events (e/events run)
+            markers (filter #(= :items/steward-ran (:type %)) events)]
+        (is (= 48 (:round world)))
+        (is (= [[13 "1904-10-16"]] (map (juxt :round #(get-in % [:data :day])) markers)))
+        (is (not-any? #(#{:action/forfeited :item/judge-failed :items/steward-failed} (:type %)) events))
+        (is (not-any? #(re-find #"^(error:|rejected:)" (:content % ""))
+                      (mapcat :replies (store/read-llm (:dir run)))))
         (is (= world (w/replay (store/read-events (:dir run))))))
       (finally (e/stop-run run)))))

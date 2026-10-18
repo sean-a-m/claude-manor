@@ -722,9 +722,8 @@ From phase 2:
 
 From appearance:
 
-11. **Visible-only prose needs review.** Lexical checks catch names, an opening "You", jargon
-    and explicit hidden-trait labels, but cannot prove that arbitrary text reveals no secret or
-    character judgement. Does the real re-polish stay at a glance, and agree with the persona
+11. **Visible-only prose needs review.** Since roadmap C15 the polish checks only lengths and
+    blanks; nothing in code catches an appearance that reveals a secret or judges character. Does the real re-polish stay at a glance, and agree with the persona
     about age, build and visible impairments? Review it before accepting the cast; no extra
     model-based checker is added here.
 12. **Appearance is static.** Clothes and bearing can change during play, but there is no

@@ -1177,12 +1177,10 @@ data, so there's one source and no call.
   appearance}` comes out in the same call. Persona and manner are written to the person in the
   second person ("You are sixteen, small and round-faced ..."; "You seem shy at first ...").
   Code checks the lengths (persona advised 450, accepted to 600; manner at most 200; appearance
-  advised 200, accepted to 300) and nonblank text. Persona and manner must begin with "You" and
-  have no sentence whose subject is He, She or the person's name, and neither may use the
-  record's jargon. Appearance must not begin with "You", contain the person's name (any word
-  except a title), or use that jargon or explicit hidden-trait labels such as "honest", "drinks"
-  or "owes money". Instructions require visible facts only; lexical checks cannot prove that
-  arbitrary prose reveals no secret. A bad answer is sent back once with the reason. The record's
+  advised 200, accepted to 300) and nonblank text, and nothing else: point of view, wording and
+  what an appearance may reveal are set by the instructions and checked by reviewing the result,
+  never by phrase or pattern checks on the prose (see AGENTS.md). Period vocabulary, the
+  phrenologists' included, is welcome. A bad answer is sent back once with the reason. The record's
   facts are stored from the record, never from the model's text. `mock-polish` is the free responder.
 - `(roll-cast! "worlds/claudeworth.edn")` at the REPL (`clj -M:dev`; `{:llm :mock}` for a free
   one) rolls every agent in a world file afresh and writes the results, including `:appearance`,

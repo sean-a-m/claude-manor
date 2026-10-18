@@ -157,38 +157,18 @@
       (is (error (assoc good :persona (apply str "You " (repeat 600 "x")))))
       (is (error (assoc good :manner (apply str (repeat 201 "x")))))
       (is (error (assoc good :manner "   "))))
-    (testing "both are written to the person, in the second person"
-      (is (= "write persona to the person, in the second person: begin it with \"You\""
-             (error (assoc good :persona "Tom Ridding, a groom: a little deaf."))))
-      (is (= "write manner to the person, in the second person: begin it with \"You\""
-             (error (assoc good :manner "A quiet, wary man who looks you over before he speaks.")))))
-    (testing "and never speak of them in the third person after the opening"
-      (doseq [[text found] [["You are a groom. He is a little deaf." "He"]
-                            ["You are a groom; She keeps a tin." "She"]
-                            ["You are a groom. Tom drinks." "Tom"]
-                            ["You are a groom! Mr Ridding drinks." "Mr Ridding"]]]
-        (is (= (str "write persona to the person as \"you\" throughout; don't write \"" found "\" of them")
-               (error (assoc good :persona text)))
-            text))
-      (is (str/includes? (error (assoc good :manner "You seem wary. He looks you over.")) "write manner"))
-      (testing "though others may be named, and words that merely begin like a pronoun or a name are fine"
-        (is (verdict (assoc good :persona "You are a groom. Mrs Webb at the laundry says you drink. Tommy the stable cat follows you. Here you are content.")))))
-    (testing "traits in plain words, never the record's categories"
-      (is (str/includes? (error (assoc good :persona "You have a large Acquisitiveness."))
-                         "Acquisitiveness")))
     (testing "appearance is advised at 200 characters but accepted up to 300"
       (is (= 200 (get-in (people/polish-request {:record record}) [:tools 0 :function :parameters :properties :appearance :maxLength])))
       (is (verdict (assoc good :appearance (apply str (repeat 300 "x")))))
       (doseq [bad [nil "" "   " (apply str (repeat 301 "x"))]]
         (is (error (assoc good :appearance bad)) (pr-str bad)))
       (is (error (dissoc good :appearance))))
-    (testing "appearance is public third-person prose without the person's name or trait labels"
-      (doseq [bad ["You are broad." "you wear spectacles." "A man called Tom." "A Ridding in a patched coat."
-                   "A man with large Acquisitiveness." "A man of high neuroticism." "A phrenological specimen."
-                   "A man of great openness." "A man of high conscientiousness." "An honest man."
-                   "A man who drinks." "A man who owes money."]]
-        (is (error (assoc good :appearance bad)) bad))
-      (is (verdict (assoc good :appearance "A man in spectacles, squinting at the doorway."))))
+    (testing "wording is never pattern-checked: period jargon and any point of view pass"
+      (is (verdict (assoc good :persona "You have a large Acquisitiveness and a small organ of Hope."
+                               :appearance "A man of high colour in a patched coat."))))
+    (testing "the instructions welcome period vocabulary"
+      (is (str/includes? (get-in (people/polish-request {:record record}) [:messages 0 :content])
+                         "Period vocabulary is welcome")))
     (testing "the mock passes its own check"
       (is (:verdict (people/check-polish record (polish-response (:args (people/mock-polish {:record record})))))))))
 
@@ -205,25 +185,25 @@
 (deftest polish-calls-once-and-corrects-once
   (let [input {:setting "A village." :position "groom" :record record}]
     (testing "a bad answer is sent back once with the reason"
-      (let [{:keys [polish calls cost]} (people/polish! (scripted (polish-response (assoc good :persona "Tom is a groom."))
+      (let [{:keys [polish calls cost]} (people/polish! (scripted (polish-response (assoc good :persona "   "))
                                                                   (polish-response good))
                                                         {:model "m"} input)]
         (is (= good polish))
         (is (= 2 (count calls)))
-        (is (str/includes? (:content (last (:messages (second calls)))) "in the second person: begin it with \"You\""))
+        (is (str/includes? (:content (last (:messages (second calls)))) "non-blank"))
         (is (== 0.002 cost))))
     (testing "two bad answers fail"
-      (is (str/includes? (:failure (people/polish! (scripted (polish-response (assoc good :persona "x"))
-                                                             (polish-response (assoc good :persona "y")))
+      (is (str/includes? (:failure (people/polish! (scripted (polish-response (assoc good :persona ""))
+                                                             (polish-response (assoc good :persona "")))
                                                    {} input))
                          "second bad answer")))
     (testing "a bad appearance gets one correction, or fails without keeping private prose"
-      (let [bad (polish-response (assoc good :appearance "You keep your debts secret."))
+      (let [bad (polish-response (assoc good :appearance (apply str (repeat 301 "x"))))
             fixed (people/polish! (scripted bad (polish-response good)) {} input)
             failed (people/polish! (scripted bad bad) {} input)]
         (is (= good (:polish fixed)))
         (is (= 2 (count (:calls fixed))))
-        (is (str/includes? (:content (last (:messages (second (:calls fixed))))) "third person"))
+        (is (str/includes? (:content (last (:messages (second (:calls fixed))))) "appearance"))
         (is (:failure failed))
         (is (nil? (:polish failed)))
         (is (= 2 (count (:calls failed))))))

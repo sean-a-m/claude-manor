@@ -586,6 +586,48 @@ quick restocking absorbs/clears only appropriate stock (without erasing unrelate
 merged put-ins get one call. The real steward model path remains untried: the phase 5 pass had
 no candidates, and its six-hour idle threshold has not changed. No new real run was started.
 
+### Phase 6 real run
+
+`old-test-runs/claudeworth-stores-phase6`: 16:00 Saturday to 02:30 (22 rounds), 374 calls,
+$0.149, 13 errors, 18 rejections, 0 forfeits (phase 5: 30, 16, 1).
+
+- **Work products exist now.** No "made only from" refusals. Made: two lists of matters for
+  Mr Pugh, a note to Mr Pugh, a draft order of works and a fair copy, a memorandum of queries
+  (all held by their writers), a pan of prepared vegetables, a batter pudding and gravy. The cook
+  bought a rib of beef at Hobbs's and roasted it; after dinner it reads "about 2 lb cold beef
+  left". Nobody hunted for a paper they had written.
+- **`find` refused in the shop** once ("this isn't your house to search"); no new `:lacking`
+  entries except the pantry's sugar, which stayed correct (the sugar was quoted but not bought
+  before closing, and the story carried on: Hale is to fetch it at eight).
+- **No carrying contradiction** this time; dishes weren't carried, so the rule wasn't tested
+  hard. `put-in` into a store wasn't used (7 `put-down`s instead), so quick jobs are untested.
+- **The steward ran at 02:00 with no candidates again:** the evening's leftovers were last
+  touched at round 14 (21:30 is 4.5 hours before), under `:idle-hours` 6.
+
+Problems:
+
+- **`find` duplicates things that exist elsewhere.** Lord Claudeworth held "Draft order of
+  works for Pugh & Sons" and "Memorandum of household account queries"; Hale searched the study
+  for each and the oracle made a second copy of both. The local match only covers items lying
+  here, so things carried by people here or lying elsewhere go to the oracle.
+- **`doing` over 200 characters** 10 times (up to 397).
+- **Aspects describe moves the judge can't make:** leftovers lying in the kitchen read "covered
+  and set in the pantry" (the judge could have absorbed them into the pantry shelves, which
+  serve the kitchen).
+
+### Phase 7: fixes from the phase 6 run
+
+**Status: proposed (2026-10-18).**
+
+1. **`find` never duplicates.** The local match also covers things carried by the people here
+   ("Lord Claudeworth has the Draft order of works"). If a tracked item anywhere matches the
+   name, a miss here is a plain "you don't find it here", with no oracle call and nothing
+   recorded: the reply is the same as any miss, so nothing about other rooms leaks.
+2. **`doing` up to 400 characters.**
+3. **The judge absorbs instead of describing a move:** "to put leftovers or supplies away in a
+   store in scope, absorb them; don't describe them as moved while they stay where they are."
+4. **Steward `:idle-hours` 4 in Claudeworth**, so the evening's leftovers are tidied at 02:00.
+
 ### Later, by need
 
 - GM tools to change aspects and stores (roadmap B7's "GM tools to create or alter items"), so

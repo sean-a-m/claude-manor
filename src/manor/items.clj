@@ -372,13 +372,14 @@
 (defn- aspect-name [k] (str/replace (name k) "-" " "))
 
 (defn- change-text
-  "\"cleanliness swept\", or \"no longer lacking\" for an aspect removed."
+  "The new value (\"swept\"), or \"no longer lacking\" for an aspect removed:
+  values are whole phrases, so the key isn't repeated."
   [{:keys [aspect to]}]
-  (if to (str (aspect-name aspect) " " to) (str "no longer " (aspect-name aspect))))
+  (or to (str "no longer " (aspect-name aspect))))
 
 (defn- changes-text
-  "\"Drawing room: cleanliness swept; Piano: cleanliness dusted\": the
-  changes, thing by thing, in the order they come."
+  "\"Drawing room: swept; Piano: dusted\": the changes, thing by thing, in
+  the order they come."
   [names changes]
   (let [thing (fn [{:keys [item place]}] (if item [:item item] [:loc place]))
         by-thing (group-by thing changes)]

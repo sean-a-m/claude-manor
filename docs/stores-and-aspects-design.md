@@ -185,10 +185,10 @@ Real run, `old-test-runs/claudeworth-phase0-everyday-things`: 10 rounds from 16:
 room-conditions R1, with aspects (D2). Built as written, with these small deviations and
 additions:
 
-- Narration shows every change as `aspect value`, so the example reads "(Drawing room:
-  cleanliness swept, the hearth clean; Piano: cleanliness dusted)"; hyphens in keys read as
-  spaces. A removal reads "no longer <aspect>", which suits `:lacking` but reads oddly for
-  others ("no longer hearth").
+- Narration shows each change by its new value, as in the example below ("Piano: dusted"; the
+  worker first wrote "aspect value", changed at review because values are whole phrases). A
+  removal reads "no longer <aspect>", which suits `:lacking` but reads oddly for others ("no
+  longer hearth").
 - Items **made** by work get `:touched` too (they are new; the steward would otherwise see them
   as never handled). The exported map drops `:touched`: it's the run's, not the map's.
 - The judge's and the mock judge's context key is `:things` (the judged things, room
@@ -221,8 +221,8 @@ additions:
    `engine/finish-job!` goes (a room-only job is judged). `in-reach` stays items-only (container
    code depends on it); add `items/judged-things` for reach plus room, used by
    `judge-request`, `verdict` and the mock judge's ctx.
-5. **Narration** (`n/describe :item/work-done`): "(Drawing room: cleanliness swept, the hearth
-   clean; Piano: dusted)". Show `aspect value`, or "no longer <aspect>" for a removal.
+5. **Narration** (`n/describe :item/work-done`): "(Drawing room: swept, the hearth clean;
+   Piano: dusted)". Show the new value, or "no longer <aspect>" for a removal.
 6. **Views.** `look` shows aspects for items and for the place (in `:place`). The per-turn
    `here` view shows the place's aspects (D5). `carrying` shows aspects where it showed the
    condition.

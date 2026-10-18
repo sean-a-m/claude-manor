@@ -444,7 +444,7 @@
                           {:item "pipe" :aspect :cleanliness :from nil :to "just seen to"}]}
                (dissoc (:data done) :job :luck)))
         (is (= #{"ben"} (:visible-to done)))
-        (is (= "Ben finishes polishing the clock. (Grandfather clock: cleanliness just seen to; Pipe: cleanliness just seen to)."
+        (is (= "Ben finishes polishing the clock. (Grandfather clock: just seen to; Pipe: just seen to)."
                (n/describe done (n/names world))))
         (is (empty? (filter item-event? (prompt/visible-events (e/events run) "ada" 1000)))))
       (testing "the judge's usage counts towards the cost, and its call is in llm.edn"
@@ -458,7 +458,7 @@
         (let [text (manor.transcript/render (:dir run))]
           (is (str/includes? text "| judge | 1 | $0.0100 |"))
           (is (str/includes? text "- **judge** judge {"))
-          (is (str/includes? text "Ben finishes polishing the clock. (Grandfather clock: cleanliness just seen to; Pipe: cleanliness just seen to)."))))
+          (is (str/includes? text "Ben finishes polishing the clock. (Grandfather clock: just seen to; Pipe: just seen to)."))))
       (testing "replay gives the same world"
         (is (= world (w/replay (store/read-events (:dir run)))))))
     (e/stop-run run)))
@@ -618,7 +618,7 @@
           (is (= 4 (:round done)))
           (is (= {:minutes 60 :stopped-early? true} (select-keys (:data done) [:minutes :stopped-early?])))
           (is (= {:minutes 60 :stopped-early? true} (select-keys (first @judged) [:minutes :stopped-early?])))
-          (is (= "Ben leaves off winding the clock. (Grandfather clock: cleanliness just seen to)."
+          (is (= "Ben leaves off winding the clock. (Grandfather clock: just seen to)."
                  (n/describe done (n/names (e/world run))))))
         (is (= clock-seen-to (aspects run "clock")))
         (is (empty? (items/jobs (e/world run))))
@@ -697,7 +697,7 @@
       (is (= [{:place "hall" :aspect :cleanliness :from "muddy boot prints by the door" :to "just seen to"}
               {:item "clock" :aspect :cleanliness :from nil :to "just seen to"}]
              (get-in done [:data :changes])))
-      (is (= "Ben finishes sweeping the hall and dusting the clock. (Hall: cleanliness just seen to; Grandfather clock: cleanliness just seen to)."
+      (is (= "Ben finishes sweeping the hall and dusting the clock. (Hall: just seen to; Grandfather clock: just seen to)."
              (n/describe done (n/names (e/world run)))))
       (e/stop-run run)))
   (testing "the room alone is judged too; its other aspects are left alone, and replay agrees"
@@ -713,7 +713,7 @@
       (is (= {:minutes 60 :stopped-early? false :summary "Ben finishes sweeping the hall."
               :changes [{:place "hall" :aspect :cleanliness :from "muddy boot prints by the door" :to "just seen to"}]}
              (select-keys (:data done) [:minutes :stopped-early? :summary :changes])))
-      (is (= "Ben finishes sweeping the hall. (Hall: cleanliness just seen to)." (n/describe done (n/names world))))
+      (is (= "Ben finishes sweeping the hall. (Hall: just seen to)." (n/describe done (n/names world))))
       (is (= {:cleanliness "just seen to" :hearth "cold ash in the grate"} (:aspects (space/location world "hall"))))
       (is (= {:cleanliness "just seen to" :hearth "cold ash in the grate"}
              (get-in (prompt/agent-view (:scenario run) world "ben") [:location :here :aspects]))
@@ -731,7 +731,7 @@
           [done] (of-type run :item/work-done)
           world (e/world run)]
       (is (= {:cleanliness "muddy boot prints by the door" :air "fresh"} (:aspects (space/location world "hall"))))
-      (is (= "Ben finishes clearing the grate. (Hall: no longer hearth, air fresh)." (n/describe done (n/names world))))
+      (is (= "Ben finishes clearing the grate. (Hall: no longer hearth, fresh)." (n/describe done (n/names world))))
       (is (= world (w/replay (store/read-events (:dir run)))))
       (e/stop-run run)))
   (testing "nothing in reach and no room: the work ends with no call"

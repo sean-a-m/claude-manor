@@ -719,9 +719,9 @@ a clock) spends time doing something to things:
   items, removes the used-up ones (keeping their names under `:items-gone`), adds the made ones
   (touched too) and removes the job. Jobs are applied one after another, so a later job's judge
   sees an earlier one's result, and on the same aspect the last applied wins. It reads "Nellie
-  finishes sweeping the drawing room and dusting the piano. (Drawing room: cleanliness swept, the
-  hearth clean; Piano: cleanliness dusted)." (each thing's changes as "aspect value", hyphens
-  read as spaces, or "no longer lacking" for an aspect `:lacking` removed;
+  finishes sweeping the drawing room and dusting the piano. (Drawing room: swept, the hearth clean;
+  Piano: dusted)." (each thing's changes by their new values, which are whole phrases, or "no
+  longer lacking" for an aspect `:lacking` removed, hyphens in the key read as spaces;
   "leaves off" when stopped early; the summary is left out when it only repeats the opening),
   followed by "Used up: Rib of beef. Made: Beef stock in the saucepan; Beef bones." when
   something was.

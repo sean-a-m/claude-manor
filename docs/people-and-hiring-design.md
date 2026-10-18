@@ -465,15 +465,16 @@ An engine-level status alongside `:active` and `:retired`:
 
 From phase 1:
 
-1. **Role `:about` texts still state the old traits,** and some now contradict the rolled cast.
-   The earl's says he is "lazy, and a notorious womanizer", but he rolled average
-   conscientiousness and no Amativeness. The countess's says she is "an angry woman", and
-   Nellie's says she is "somewhat naive and foolish". Phase 2 removes personality from `:about`;
-   until then the agent gets both texts. Should these phrases be removed now, before phase 2?
-2. **Directions in personas get lost.** Hobbs's old persona told him "meat is his trade, not
-   general groceries", and both rolls dropped it (the shared shopkeeper `:about` covers
-   `quote-goods`, but not what he sells). Phase 2 should put each tradesman's trade in the
-   position, or in a field the polish doesn't rewrite.
+1. **Role `:about` texts:** done before merging phase 1. They no longer name their holder or
+   give personality ("lazy, and a notorious womanizer", "an angry woman", "naive and foolish",
+   "proud of your craft" are gone). Standing instructions the rolled personas dropped moved into
+   them: the countess's first concern (a smoothly run house), the cook's being new to the house
+   (inspect the kitchen and pantry, find out the countess's wishes), and the shopkeeper's selling
+   only their own trade ("a butcher sells meat, not general groceries"). Situations stay, such as
+   the earl's plan to enlarge the house; phase 2 decides where situations belong.
+2. **Directions in personas get lost.** The polish rewrites everything, so standing directions
+   must live in `:about` (as now) or in a field the polish doesn't rewrite. Phase 2 should keep
+   it that way.
 3. **Invented details:** the polish adds facts the record doesn't give, such as the countess
    being "past fifty", Hobbs having left "Bramford", or Pugh sending wages home. Most are harmless
    colour. Should the polish be told to add no new facts beyond its notes and record, or is the

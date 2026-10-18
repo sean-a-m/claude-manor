@@ -326,6 +326,17 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   round. The research is in [turn-resolution-research.md](turn-resolution-research.md), with its
   recommended design and open questions. The user wants to see how far stage 1 goes first.
 
+### B11. People, positions and hiring
+
+- **Why:** in `runs/claudeworth-20261018-111357` the earl had Hale find a driver; Hobbs named
+  a man who doesn't exist and wrote him a character, and nobody could be met or engaged.
+- **Design:** [people-and-hiring-design.md](people-and-hiring-design.md), with the user's
+  decisions of 2026-10-18. Four phases: (1) a people server that rolls Big Five temperament and
+  phrenological faculties and a model polish, tried on the existing casts; (2) positions
+  separated from people, a larger catalogue and a higher agent cap, closing C13; (3) a small
+  test world (Ashby Lodge) for short real runs; (4) hiring: `recommend`, `send-for`, `engage`,
+  and an away status. Not started.
+
 ---
 
 ## C. Known issues and small fixes
@@ -383,7 +394,13 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
     The broader optional-character cleanup and old mock-script coupling above remain open.
 
     Done when a character can be added to or removed from the world file with no code change,
-    and the tests prove it.
+    and the tests prove it. Part 1 of B11 does this work.
+
+    More evidence for removing the clerk path: in `runs/claudeworth-20261018-111357` the earl
+    drew four plans and the countess two at the empty office while Pugh was at the house. That
+    left duplicates (`morning-room` and `morning-room-2`, `dining-room-for-fourteen` and `-2`),
+    Pugh truthfully denied holding a morning room plan ("your office has been drawing behind
+    your back"), and the earl and countess argued over whose plan stands.
 14. **Shop quotes inside conversations.** A shopkeeper's speaking turns in a `converse` run with
     `:max-queries 0` (`engine.clj`, the speaking-turn call options), so Briggs can name prices in
     a conversation but can't `quote-goods` until his own turn; customers then wait a turn for
@@ -391,3 +408,7 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
     `quote-goods` prices a whole list, consider letting a shopkeeper's speaking turn make one
     query (a per-role or per-action exemption), or having the conversation's end prompt the
     clerk to quote what was asked for. Watch the cost: each quote is a judge call.
+
+    The same limit stops handovers: in `runs/claudeworth-20261018-111357` Hobbs said "Here it
+    is" of the sealed character he'd written and Hale said "I have it safe", but speaking turns
+    can't `give`, and the item stayed with Hobbs.

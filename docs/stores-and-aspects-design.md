@@ -1,7 +1,6 @@
 # Stores, aspects and the scene judge: design
 
-**Status:** Phases 0–4 and phase 5 content (items 1–4) done; phase 5 real runs await the user's
-go-ahead. Each phase below has its own status line; update it as work lands.
+**Status:** Phases 0–5 done, including the phase 5 real run; phase 6 fixes done (mock-tested). Each phase below has its own status line; update it as work lands.
 
 Read `AGENTS.md` first (invariants, run directories, cost rules), then "Items (`manor.items`)" and
 "Work and the judge" in `docs/scenario-authoring.md`, and `src/manor/items.clj`. This document
@@ -418,12 +417,13 @@ Approved deviations and details:
   are unchanged. Finder failures reply neutrally and consume the accepted per-turn use.
 - Container searches, like `open`, reveal matching contents only in their reply; no persistent
   open/closed state was introduced. Deterministic hits/fates emit nothing and do not move items.
-- Oracle `found` and `lacking` are both required because code decides the outcome. Optional
+- Originally oracle `found` and `lacking` were both required because code decides the outcome
+  (phase 6 makes `lacking` optional and restricts it to store supplies). Optional
   `portable` defaults true; false leaves the thing here (no new size mechanics). Mock items
   lie here when no store is in scope. A found source becomes `:drawn-from`.
 - The roll key uses the live world's next event sequence at on-result time, after usage is
   recorded. Key, roll, likelihood and outcome are recorded, so replay never re-rolls.
-- **Known gap:** four unrelated aspects are never evicted to make room for `:lacking`.
+- **Historical gap (fixed in phase 6):** four unrelated aspects are never evicted to make room for `:lacking`.
   A full selected store falls back to the place; if that is full too, the negative event
   records `what` without changing aspects. A later search may disagree in that rare case.
 - No phase 5 content or mock-day search choreography was added; only the requested short
@@ -526,30 +526,65 @@ What didn't, all fixed in phase 6:
 
 ### Phase 6: fixes from the phase 5 run
 
-**Status: proposed (2026-10-18), awaiting the user's decision.**
+**Status: done (mock-tested; no real-model run).** All six fixes are built. The user's final
+choices supersede the original proposal: no `from: "everyday"` sentinel, no place-level
+absence fallback, and immediate moves with deferred quick judging for store put-ins, rather
+than waiting for another activity/the steward. Claudeworth's steward stays at `:idle-hours 6`.
 
-1. **Work products.** `made` may also come from everyday supplies: an entry with
-   `from: "everyday"` (or no source) is allowed when it is the activity's direct product (a
-   letter, a list, plans, a dish). Instructions: make a thing
-   only if someone will carry, hand over, serve or keep it; otherwise describe the result as an
-   aspect (the table "laid for dinner" on the room). Still at most 2. Made products of writing
-   or drawing are not consumable; dishes are.
-2. **No `find` where goods are for sale or not yours to take:** a scenario hook
-   `:items {:find-allowed? (fn [world actor place])}`; Claudeworth refuses `find` at places
-   with `:services` (shops, the architect's office) with "ask for it here instead".
-3. **`:lacking` only for supplies:** a miss records `:lacking` only on a store the oracle names
-   (`from`); with no store, nothing is recorded (the place fallback goes). The oracle is told a
-   particular thing (a coat, a letter, a joint bought for dinner) is not a supply: rate it on
-   whether it plausibly exists here.
-4. **Carrying is not using up:** the judge's instructions say taking something elsewhere is not
-   using it up; leave it, and the person carries it with `take`. Characters' rules: carry
-   dishes with `take`, serve them with `spend-time ... on` where they're eaten.
-5. **`doing` up to 200 characters** (and the narration still reads after "is").
-6. **Restocking clears lacking:** `put-in` of a consumable into a store container is followed,
-   at the next judging of that store or the steward, by absorption; and the steward's
-   `:idle-hours` drops to 3 in Claudeworth so the night pass catches the afternoon's shopping.
-   (Simpler alternative: `put-in` into a store absorbs at once and clears a matching `:lacking`
-   word, with no model call.)
+1. **Work products.** Source-free `made` entries need nothing used up. The judge decides whether
+   a thing is the activity's direct product from everyday supplies; code still checks the
+   two-item cap, fields, store sources and containers. Instructions distinguish carryable,
+   keepable or servable products from room aspects (a table "laid for dinner"), writing/drawing
+   products (not consumable) from dishes (consumable), and making from drawing from a store.
+2. **Finding permissions.** Generic `:items :find-allowed?` receives world, actor and place id,
+   returning nil or a reason before deterministic lookup or oracle. Claudeworth refuses at
+   any location with nonempty `:services`: "this isn't your house to search; ask for it here
+   instead". Shops and the architect's office both exercise this guard in tests.
+3. **Supply absences only.** The finder supplies optional `lacking` only for a supply a listed
+   store keeps, naming it in `found.from`. Particular coats, letters and purchased joints do
+   not create shortages. A miss without a phrase/source, or on a full store, still records
+   its event but no aspect; there is no room fallback or unrelated-aspect eviction.
+4. **Carrying isn't consumption.** Judge instructions confine activities to one place and say
+   carrying isn't using up: leave the thing where it is, and characters carry it with `take`.
+   Leaving any thing untouched is always valid. Claudeworth says carry dishes with `take`
+   and `walk`, and use them up where eaten. No additional semantic use-up validator was added.
+5. **Longer activities.** `doing` is 3–200 characters for both `spend-time` and `work-on`;
+   boundary tests also check occupations and work-done narration retain the complete phrase.
+6. **Judged restocking.** Free `put-in` moves at once; for stores it also creates a zero-minute
+   `:quick?` job due next round. There is no occupation and it cannot be stopped merely because
+   the actor is not busy with it (nor does it stop another occupation). It uses the existing
+   checked judge, due/id order and disjoint parallel batches. The judge may absorb, change
+   store stock/shortages or other affected aspects, or leave things alone. Ordinary containers
+   remain deterministic. Default mock quick jobs absorb deposited consumables and clear matching
+   whole-word shortage phrases; unrelated shortages survive.
+
+Details and approved deviations:
+
+- Placement needed an explicit choice without a writing classifier: on supervisor approval,
+  a made entry may give optional boolean `held` (true = worker's hands, false = job's place).
+  `in` still wins, and omitting both preserves the previous place-bound-focus default.
+  Instructions say letters/lists/notes are naturally held, dishes and large things aren't.
+- Several put-ins merge per **actor + store + started round**, retaining the first job id and
+  extending focus and doing with a GM-only `:item/work-extended` event. Different workers or
+  stores remain separate jobs. Retired workers still drop their jobs, as before. Quick jobs
+  also work without a clock (the request labels the round rather than a time).
+- Dedicated integration tests exercise restocking rather than changing bundled mock scripts
+  or the all-durable mock shop appraisal (approved: mechanics tests stay independent of live
+  scenario content). Both existing bundled 48-round days, 08:00 and 20:00 starts, remain quiet:
+  no error/rejected replies, forfeits or judge/steward/finder failures; replay equals live.
+  The evening-start steward still runs at round 13 (02:00).
+- Tests cover source-free products, placement/flags, carrying then eating, shop/office refusal,
+  optional and storeless misses, full-store no-fallback, 200/201 boundaries, immediate moves,
+  no occupation, merging, another occupation surviving, ordinary sideboard no-call, and replay.
+
+**What to watch in the next real run:** written products should actually exist and be held;
+laid tables should be aspects, not new furniture; dishes should remain until physically carried
+and eaten, not disappear while "serving elsewhere". If contradictions persist, the user plans
+to loosen the using-up rule further; keep it simple until there is evidence. Check that the
+finder omits non-supply shortages, shop refusals lead to asking rather than repeated queries,
+quick restocking absorbs/clears only appropriate stock (without erasing unrelated lacks), and
+merged put-ins get one call. The real steward model path remains untried: the phase 5 pass had
+no candidates, and its six-hour idle threshold has not changed. No new real run was started.
 
 ### Later, by need
 

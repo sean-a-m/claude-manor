@@ -538,8 +538,9 @@ id. Objects people can pick up and carry are items (next section).
 Items are things with a description and a few aspects that lie in a place, are carried by
 someone, or are inside another item: a piano, a pocket watch, an umbrella someone bought, the
 silver in the sideboard. They need locations. A scenario
-turns them on with the key `:items`, a map, possibly empty; its optional configuration includes `:judge-brief`, `:aspect-keys` and `:steward` (see
-Work and the judge, and The nightly steward). Scenarios without it are unchanged.
+turns them on with the key `:items`, a map, possibly empty; its optional configuration includes
+`:judge-brief`, `:aspect-keys`, `:find-allowed?` and `:steward` (see Finding, Work and the judge,
+and The nightly steward). Scenarios without it are unchanged.
 
 An item:
 
@@ -686,7 +687,10 @@ supports or tests them (a basket's contents don't show in `carrying`).
   with `:closed true` and not their contents. Open containers can be opened too.
 - **`put-in {item container}`** (free): the item is carried by you or could be taken here (so not
   fixed); the container is in reach and is one; the item isn't the container, around it, or
-  already directly in it. Reasons say which. `put-down` still puts what you carry on the floor.
+  already directly in it. Reasons say which. The item moves at once. Into an ordinary container
+  (such as the sideboard), this is deterministic and makes no judge call. Into a store, it also
+  starts a **quick put-away job**, judged at the next round start (see Work and the judge).
+  `put-down` still puts what you carry on the floor.
 - **Hidden contents stay hidden:** reasons that list "items here" list only what can be seen
   (`items/visible-at`), never what's in closed containers. Something inside what another person
   holds is just "not here". But `take` accepts any id in reach, so a guessed id inside a closed
@@ -725,6 +729,10 @@ presence is in doubt. Everyday things merely used in work need no finding: name 
 `doing` instead. `what` is 1–60 characters. Offered with `:items` wherever you have a place,
 not while travelling; it does not end the turn, but is a `:query`, counts against
 `:max-queries`, and has `:per-turn 1` (including deterministic replies).
+A scenario may configure `:items {:find-allowed? (fn [world actor place] ...)}` (place is the
+location id). Return nil to allow, or a reason to refuse **before** any local hit or oracle call.
+Without the hook, finding is allowed. Claudeworth refuses at places with `:services`: goods for
+sale or someone else's supplies must be asked for, not taken through `find`.
 
 1. Code first matches `what` as a case-insensitive substring of item names lying here,
    including inside closed/nested containers. It replies with the name, id and immediate
@@ -737,19 +745,24 @@ not while travelling; it does not end the turn, but is a `:query`, counts agains
    aspects, and stores in scope (id/name/aspects/keeps, plus `at` when elsewhere). All fields,
    especially `what`, are data, never instructions. Recorded `:lacking` is authoritative.
    Its `finder` tool returns `likelihood` (`certain`, `likely`, `even`, `unlikely`,
-   `impossible`), `found {name desc aspects? consumable from? portable?}` and a short
-   `lacking` phrase (1–80 characters). Both outcome descriptions are required: the engine,
-   not the model, decides. `from`, when present, must name a store in scope, including for a
-   negative answer to select which store would keep it. Found names/descriptions/aspects
+   `impossible`), `found {name desc aspects? consumable from? portable?}` and an optional short
+   `lacking` phrase (1–80 characters). `found` is required even for impossible odds:
+   the engine, not the model, decides. The oracle supplies `lacking` only for a missing supply
+   that a listed store would keep, naming that store in `found.from`. For a particular thing
+   (a coat, a letter, a joint bought for dinner), omit `lacking` and rate whether it plausibly
+   exists here. No listed store does not mean no particular thing can exist here.
+   `from`, when present, must name a store in scope; `lacking` without it is refused.
+   Found names/descriptions/aspects
    have the normal item bounds; `consumable` is required, `portable` defaults true.
 3. On the live world the engine rolls `rng/roll world [:find next-event-seq] 100` (0–99)
    against thresholds 100/75/50/25/0. Success emits `:item/found`: a fresh item in the
    finder's hands, or lying here for `portable: false`; `from` becomes `:drawn-from`.
-   Failure emits `:item/not-found`: append `lacking` (or `what`) to the selected store's
-   `:lacking`, else the place's. Semicolon-separated absences drop oldest entries until
-   they fit 80 characters. Never evict an unrelated aspect: a store with four non-lacking
-   aspects falls back to the place; if that too is full, record the failure without an
-   aspect change (a later search may then disagree).
+   Failure always emits `:item/not-found`. Only when the oracle supplied both `lacking` and
+   a store source, append the phrase to that store's `:lacking`. Semicolon-separated absences
+   drop oldest entries until they fit 80 characters. Never evict an unrelated aspect: a store
+   with four non-lacking aspects records no aspect change. Without `lacking` or a store,
+   record no aspect change either; never fall back to the place. A later search may disagree
+   when an absence could not be recorded.
 
 Both outcome events record `what`, place, likelihood, roll key, roll and outcome, visible to
 finder and people here. Success records the complete item and source; failure records its
@@ -768,7 +781,7 @@ not call `find`.
 `spend-time {doing, hours?, on?}` (turn-ending, every role but the GM, offered only with
 `:items` and a clock) spends time on work or a pastime:
 
-- `doing`: 3–120 characters, reading after "is" ("dusting the china cabinet", "resting in the
+- `doing`: 3–200 characters (`items/max-doing`), reading after "is" ("dusting the china cabinet", "resting in the
   garden"). `hours`: optional, 0.5–4, default 0.5; rounds as `clock/rounds-for` gives them,
   at least one. `on`: optional list of up to 6 ids: items here (in a container or not) or carried
   by you, the place you're in, or stores in scope (even in another room). Fixed items are fine;
@@ -781,15 +794,27 @@ not call `find`.
   (`b/occupy`, seen by the room: "Hale is dusting the china cabinet until 15:30") whose `:busy`
   carries the job id as `:job`. The job table is `(:item-jobs world)`, keyed by id (`"job-<seq>"`):
   `{:id :actor :items [..] :doing :place :started round :due round}`. Read it with `items/jobs`.
-- **Nothing changes until the work is over.** At the start of each round, after arrivals,
+- **Quick put-away jobs** come from free `put-in` into a store. The move happens immediately;
+  the job has `:quick? true`, `:store` (the destination id), focus on the item and store,
+  doing "putting the <item> away in the <store>", and `:due` the next round. It creates no
+  occupation: the actor keeps their turn, may leave or start other work, and a missing or
+  different `:busy :job` does not stop it. Further put-ins by the same actor into that store
+  in the same round merge focus and doing in the same job via `:item/work-extended`
+  (`{:job :items :doing}`, GM-only, pure reducer). Different workers or stores stay separate.
+  Quick jobs join ending jobs' usual due/id ordering and parallel batches, with zero minutes
+  and `:stopped-early? false`; unlike ordinary no-time jobs they are judged. The judge can
+  absorb things into stock, clear/change store `:lacking`/`:stock`, change affected aspects,
+  or leave things untouched. Retired workers' jobs are still dropped.
+- **Judged effects wait until the work is over** (a quick put-away job's move already happened). At the start of each round, after arrivals,
   releases and hibernation and before approved bridges and systems, the engine takes the jobs that
   end, in order of `:due` then id (decided on the world as the round starts, before releases):
 
   | Situation | What happens |
   |---|---|
   | the worker has been retired | dropped: `:item/work-ended`, visible to the GM, no call |
-  | the worker's `:busy :job` is no longer this job (they stopped after `rouse`, or something replaced the occupation) | stopped early; minutes worked = (this round − 1 − started) × minutes per round |
-  | `:due` has come | finished; minutes worked = (due − started) × minutes per round |
+  | a quick job's `:due` has come | finished at zero minutes, regardless of occupation |
+  | an ordinary job's worker's `:busy :job` is no longer this job (they stopped after `rouse`, or something replaced the occupation) | stopped early; minutes worked = (this round − 1 − started) × minutes per round |
+  | an ordinary job's `:due` has come | finished; minutes worked = (due − started) × minutes per round |
   | otherwise | still going on |
 
   `carry-on` keeps the occupation and its job, so the work runs to its end.
@@ -799,7 +824,7 @@ not call `find`.
   The **scene** (`items/scene`) always includes the place, focus, up to 12 other visible items
   (not inside closed containers), stores in scope, and people present. **Judged things**
   (`items/judged-things`) are the place, focus, other visible items and stores, once each.
-  With no time worked, the job ends with `:item/work-ended`, seen by the worker and people at
+  With no time worked (except quick put-away jobs), the job ends with `:item/work-ended`, seen by the worker and people at
   the place, and no call. An activity naming nothing, at a place with no aspects, no items and
   no stores in scope, ends with a neutral `:item/work-done` and no call. Otherwise the engine
   asks the scene judge and emits `:item/work-done`, seen by the worker and people at the place:
@@ -825,14 +850,20 @@ not call `find`.
   Fetched: Dripping tin."
 - **Promotion, absorption and fates.** Work may use up unfixed items marked `:consumable?`
   (food eaten or cooked into something else, fuel burnt, an ingredient used up), and make at
-  most two things (`items/max-made`). A `made` entry without `from` requires something used
-  up; with `from` it draws from that store in scope (including one serving this place), with
-  no use-up needed. Each entry gives `name`, `desc`, optional `aspects`, a required boolean
-  `consumable`, optional `from` and optional `in`. Only promote something now important
-  individually, not every utensil used. A made thing gets a fresh id, the consumable flag, and
+  most two things (`items/max-made`). A `made` entry without `from` may be the activity's
+  direct product from everyday supplies, with no tracked source or use-up needed (a letter,
+  a list, plans, a dish). Keep `from` for drawing from a store in scope (including one serving
+  this place), not for making a work product. Each entry gives `name`, `desc`, optional
+  `aspects`, a required boolean `consumable`, optional `from`, `held` and `in`. Writing/drawing
+  products are not consumable; dishes are. Make a thing only if someone will carry, hand over,
+  serve or keep it; otherwise describe the result as an aspect (the room's table "laid for
+  dinner"). Do not promote every utensil used. A made thing gets a fresh id, the consumable flag, and
   the first used-up thing's owner if any. A non-consumable drawn thing gets `:drawn-from`.
-  Placement: in the named container in reach; otherwise in the worker's hands when no
-  place-bound focus was named, else at the job's place. A place-bound focus is the named
+  Placement: `in` a named container in reach takes precedence; otherwise explicit `held: true`
+  puts it in the worker's hands and `held: false` at the job's place. The judge is instructed
+  that things naturally kept about the worker (a letter, a list, a note) are held; dishes and
+  large things aren't. Without either option, keep the deterministic default: in the worker's
+  hands when no place-bound focus was named, else at the job's place. A place-bound focus is the named
   room or an item lying at a place (including inside a container), rather than carried.
   `absorbed: [{thing, into}]` returns an absorbable thing in focus or `also_here` to a store
   in scope. It is removed, with fate "put away in the <store name>". All real contents of a
@@ -841,6 +872,9 @@ not call `find`.
   used up. Store aspects may change in the same answer, but need not.
   `fates` maps used-up ids to nonblank fate phrases; omissions default to "used up while
   <doing>". Something partly used is not used up: change its `:amount` ("about 17 lb left").
+  An activity happens in one place: carrying something elsewhere is not using it up. Leave
+  it where it is; characters carry things with `take` and movement actions, and dishes are
+  used up where eaten. Leaving any thing untouched is always a valid answer.
 - **The judge** is a narrow model call, not the GM and not a bridge; characters never hear of it.
   `items/judge-request` builds it from the optional `:items :judge-brief` (`(fn [world] text)`),
   optional suggested aspect keys with short glosses (`:items {:aspect-keys {:cleanliness "how
@@ -875,7 +909,7 @@ not call `find`.
   the place's aspects describe the room itself, not its contents.
   It has one required tool, `judge {changes: [{thing, aspect, value}],
   used-up: [id], fates: {id: phrase}, absorbed: [{thing, into}],
-  made: [{name, desc, aspects?, consumable, from?, in?}], summary}`: each change sets one aspect of one
+  made: [{name, desc, aspects?, consumable, from?, held?, in?}], summary}`: each change sets one aspect of one
   thing, and `value: ""` removes it. The engine sends it through
   the run's LLM with the model `:judge-model` (a run option; nil means `:model`) and the run's
   `:reasoning` and `:max-tokens`, without holding the world lock. Each call is in `llm.edn` as
@@ -894,15 +928,20 @@ not call `find`.
   only with all its real descendants used up. The check reads the world, not just the scene:
   hidden contents or contents beyond the 12-item cap cannot be orphaned. The rejection names
   no unseen things and suggests naming the container with `on` next time; `made` has at most 2 entries (name 1-60, desc 1-400 characters, optional
-  aspects as above, required consumable flag), each with a store in scope as `from` or
-  something used up. An `in` must be a container in reach that is neither used up nor absorbed.
+  aspects as above, required consumable flag, optional boolean `held`); any `from` must name
+  a store in scope. Source-free products need no use-up; whether they are the activity's
+  direct product is the judge's decision, not a code classifier. An `in` must be a container in reach that is neither used up nor absorbed.
   A bad answer is sent back with the reason and asked once more. A second bad answer, or an
   exception, gives `:item/work-done` with no changes and a
   neutral summary ("Hale finishes dusting the china cabinet."), plus an `:item/judge-failed`
   event (`:visible-to :system`) with the reason. The run isn't paused.
 - **Mock runs:** a call with role `:judge` goes to the scenario's `:mock-judge` if it has one,
   else to `items/mock-judge` (each focused thing gets cleanliness "just seen to"; without `on`
-  it changes nothing and makes nothing), so `:mock-policy` never sees the judge. Its context has
+  it changes nothing and makes nothing). For quick put-away jobs the default mock instead
+  absorbs deposited consumables (only with absorbable consumable contents) and clears matching
+  semicolon-separated shortages using whole-word matches against their names ("sugar" matches
+  "Loaf sugar", but "tea" does not match "meat"). Other shortages survive. Thus
+  `:mock-policy` never sees the judge. Its context has
   `:world :job :things` (all judged things), `:focus` (named things still in reach),
   `:minutes :stopped-early? :luck :step`, and it returns `{:tool :judge :args {..}}`.
   `items/judgement` takes the response, world and judged things, so every check includes real

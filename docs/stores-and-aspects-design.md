@@ -139,8 +139,26 @@ commit them first, or edit around them and say so.
 
 ### Phase 0: content and wording, no engine change
 
-**Status: done (date 2026-10-17), except the optional real run (item 6).** The judge brief is now `claudeworth/judge-brief` (the setting plus the everyday-things sentence), and a
-purchase reads "... at the General store, and takes the goods away."
+**Status: done (2026-10-17), with its real run.** The judge brief is now
+`claudeworth/judge-brief` (the setting plus the everyday-things sentence), and a purchase reads
+"... at the General store, and takes the goods away."
+
+Real run, `old-test-runs/claudeworth-phase0-everyday-things`: 10 rounds from 16:00 Saturday,
+366 calls, $0.134, 6 errors, 13 rejections, 4 forfeits.
+
+- The everyday-things rule was taken up. The cook's thoughts, after looking at the pantry: the
+  condition "says well stocked ... the notable items aren't listed. Fine", and on writing her list,
+  "I need paper. Assume to hand." Nobody searched for cloths, paper or condiments, and `look` was
+  15 of 366 calls.
+- The one authored absence that remains, the `sugar-jar` item ("Not a grain of sugar remains
+  inside"), drove the whole afternoon: the countess demanded a full sugar jar, and the cook,
+  the countess, Daisy and Hale all ended up at Briggs's counter. A single recorded shortage
+  makes a good errand; phase 5 moves it from an item to a store's `:lacking`.
+- The judge wrote conditions over 80 characters twice, and corrected them on the retry. Aspects
+  (phase 1) split such phrases.
+- **New issue, not addressed by this design:** dinner was "served" at 19:00 although nobody
+  cooked it (the cook was at the shop until 18:30). Meals are narrative only. Phase 2's judged
+  pastimes don't fix this by themselves; consider it when phase 5 tunes the cook.
 
 1. **Remove the provisions counter** (D9): `:stores` in `building/initial-state`, the
    `:starting-stores` check in `building/problems`, `:starting-stores` in

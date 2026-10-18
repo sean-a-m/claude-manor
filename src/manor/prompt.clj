@@ -119,8 +119,8 @@ Your view is private. Others only learn what is public or what someone tells the
                                    (when address (str " People address you as " address ".")))
                               (:persona a)
                               (when-not (str/blank? (:manner a)) (str "How strangers see you: " (:manner a)))
-                               (when-not (str/blank? (:appearance a)) (str "What people see: " (:appearance a)))
-                               (people/nature a)]))))
+                              (when-not (str/blank? (:appearance a)) (str "What people see: " (:appearance a)))
+                              (people/nature a)]))))
 
 (defn- agent-request
   "An agent's request: `preamble`, their role, who they are and their

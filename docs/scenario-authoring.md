@@ -525,7 +525,7 @@ Helpers for your actions and views:
 
 **Aspects of a place** (with items, see the next section): a location may have `:aspects`, the
 same keyed phrases as an item's (`{:cleanliness "swept" :hearth "a fire laid"}`, at most 4,
-values 1-80 characters), about the room as a whole: its floor, hearth and air, never the things in
+values 1-200 characters, 80 advised), about the room as a whole: its floor, hearth and air, never the things in
 it. A world file may give them (checked like an item's); afterwards only work changes them (see
 Work and the judge). The per-turn view shows them under `:location :here :aspects`, and `look`
 under `:place`; a place with none shows none.
@@ -565,7 +565,9 @@ The world retains `:items-gone {id {:name .. :place .. :round .. :fate ..}}`: wh
 names old lines, and `fresh-id` never gives an old id out again. Old runs are not migrated.
 
 - **Aspects** say what's notable about a thing's state: a map of at most 4 (`items/max-aspects`)
-  keys to phrases of 1-80 characters (`items/max-aspect`). Keys are plain keywords of lower-case
+  keys to phrases of 1-200 characters (`items/max-aspect`). The judge, steward and finder are
+  told at most 80 (`items/advised-aspect`, also the JSON schemas' `maxLength`), so a model that
+  runs a little over isn't refused; over 200 is. A world file may use up to 200. Keys are plain keywords of lower-case
   letters and hyphens, at most 24 characters, starting with a letter (`items/aspect-key?`;
   `:cleanliness`, `:glass-eye`). The engine checks only the form and the cap; the keys are the
   scenario's choice. Claudeworth uses `:cleanliness`, `:repair`, `:state` (lit, cold, half full),
@@ -758,10 +760,14 @@ sale or someone else's supplies must be asked for, not taken through `find`.
    anything about other rooms. No new item or `:lacking` is recorded; no roll is needed.
    Otherwise its `finder` tool returns `likelihood` (`certain`, `likely`, `even`, `unlikely`,
    `impossible`), `found {name desc aspects? consumable from? portable?}` and an optional short
-   `lacking` phrase (1–80 characters). `likelihood` and `found` are optional in the JSON
+   `lacking` value (advised 80 characters, accepted up to 200). `likelihood` and `found` are optional in the JSON
    schema to allow `existing` alone, but checked as required without it, even for impossible odds:
    the engine, not the model, decides. The oracle supplies `lacking` only for a missing supply
-   that a listed store would keep, naming that store in `found.from`. For a particular thing
+   that a listed store would keep, naming that store in `found.from`. `lacking` is that store's
+   complete new `:lacking` value, not a phrase to append: the absences already recorded plus
+   this one, `; `-separated. If the store's `:lacking` already records this absence in any
+   wording, the oracle omits `lacking`. Deciding what is already listed is the oracle's
+   judgement; code doesn't parse or merge the list. For a particular thing
    (a coat, a letter, a joint bought for dinner), omit `lacking` and rate whether it plausibly
    exists here. No listed store does not mean no particular thing can exist here.
    `from`, when present, must name a store in scope; `lacking` without it is refused.
@@ -771,8 +777,7 @@ sale or someone else's supplies must be asked for, not taken through `find`.
    against thresholds 100/75/50/25/0. Success emits `:item/found`: a fresh item in the
    finder's hands, or lying here for `portable: false`; `from` becomes `:drawn-from`.
    Failure always emits `:item/not-found`. Only when the oracle supplied both `lacking` and
-   a store source, append the phrase to that store's `:lacking`. Semicolon-separated absences
-   drop oldest entries until they fit 80 characters. Never evict an unrelated aspect: a store
+   a store source, set that store's `:lacking` to it. Never evict an unrelated aspect: a store
    with four non-lacking aspects records no aspect change. Without `lacking` or a store,
    record no aspect change either; never fall back to the place. A later search may disagree
    when an absence could not be recorded.
@@ -942,7 +947,7 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
 - **Checks on the answer:** a change names a judged thing ("you may change only these things:
   hall, clock; not umbrella"); its aspect's name is normalised as argument names are
   (`glass_eye` and `glassEye` are `:glass-eye`) and must then be a key (`items/aspect-key?`); a
-  value is at most 80 characters; no thing may end up with more than 4 aspects, counting those
+  value is at most 200 characters (80 advised); no thing may end up with more than 4 aspects, counting those
   it has less those removed ("the Grandfather clock (clock) would have 5 aspects (...); a thing
   has at most 4: change one it has instead, or remove one with the value \"\""); a summary of 1-300
   characters. When the same aspect of a thing comes twice, the last counts. Other keys (a `desc`,

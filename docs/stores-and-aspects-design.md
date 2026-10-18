@@ -78,8 +78,8 @@ On items and on locations, replacing an item's `:condition`:
 :aspects {:cleanliness "dusty" :repair "one glass eye loose"}
 ```
 
-- Keys are keywords matching `^[a-z][a-z-]{0,23}$`; values are strings of 1–80 characters
-  (`items/max-condition` becomes `max-aspect`). At most 4 aspects per thing (`max-aspects`).
+- Keys are keywords matching `^[a-z][a-z-]{0,23}$`; values are strings of 1–200 characters
+  (`items/max-condition` becomes `max-aspect`; models are told 80, `advised-aspect`: phase 8). At most 4 aspects per thing (`max-aspects`).
   `:aspects` is optional; a thing with nothing notable has none.
 - In the judge's JSON, keys are strings; the decoder normalises snake_case to kebab-case, as
   `actions/decode-args` does for arguments.
@@ -693,11 +693,30 @@ No real-model run was started; run one only with the user's go-ahead.
 
 ### Phase 8: fixes from the phase 7 run
 
-**Status: in progress (2026-10-18).**
+**Status: done (mock-tested; no real-model run).** The user's final choices: accept up to
+200 rather than 120, and leave duplicate absences to the oracle rather than code.
 
-1. **Aspect values: soft limit.** The judge, steward and finder are told 80 characters (as
-   now); the engine accepts up to 120; over 120 is refused as now. Same pattern as `doing`.
-2. **`:lacking` never repeats an absence** already listed (case-insensitive).
+1. **Aspect values: soft limit.** The judge, steward, finder and shop appraiser are told 80
+   characters (`items/advised-aspect`, in the instructions and as the JSON schemas'
+   `maxLength`); the engine accepts up to 200 (`items/max-aspect`) everywhere aspects are
+   checked, world files included; over 200 is refused as before. Same pattern as `doing`.
+2. **`:lacking` never repeats an absence, by the oracle's judgement.** Code can't tell
+   "sugar" from "loaf sugar" or "no sugar left", so the finder decides. Its `lacking` is now the
+   store's complete new value (earlier absences plus this one), not a phrase code appends; if
+   the store's lacking already records the absence in any wording, it omits `lacking`. The
+   engine sets the value as given; the old append-and-trim code is gone. The phase 7 case: the
+   finder saw `lacking: "sugar"` and answered `lacking: "sugar"`, which code appended.
+
+Tests cover 200 accepted and 201 refused for judge changes, made and found aspects, the
+finder's `lacking` and world files; the advised 80 in the instructions and tool schemas; and
+replacement rather than appending. Both 48-round bundled mock days passed (08:00: 255 calls,
+774 events, steward round 37; 20:00: 254 calls, 771 events, steward round 13): no
+error/rejected replies, forfeits or failures; replay equals live.
+
+**What to watch in the next real run:** judge failures from aspect length should be gone;
+check whether values drift long now that 81–200 is accepted. When a supply is found missing
+twice, the second miss should omit `lacking` (or restate the same list), and a new absence
+should keep the earlier ones.
 
 ### Later, by need
 

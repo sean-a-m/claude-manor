@@ -28,7 +28,7 @@
    [:item {:optional true} (text-schema items/max-name)]
    [:unit {:optional true} (text-schema max-unit)]
    [:desc {:optional true} (text-schema items/max-desc)]
-   [:condition {:optional true} (text-schema items/max-aspect)]
+   [:condition {:optional true} [:string {:min 1 :max items/max-aspect :json-schema/maxLength items/advised-aspect}]]
    [:consumable {:optional true} :boolean]
    [:unit-price-pence {:optional true} [:int {:min 1 :max max-unit-price}]]])
 

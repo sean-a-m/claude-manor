@@ -57,7 +57,7 @@
            [#(update-in % [:items 0] dissoc :place) "item \"clock\": give exactly one of :place, :holder and :in"]
            [#(assoc-in % [:items 0 :place] "attic") "item \"clock\": unknown location \"attic\""]
            [#(assoc-in % [:items 2 :holder] "Bob") "item \"pipe\": unknown holder \"Bob\""]
-           [#(assoc-in % [:items 0 :aspects :state] (apply str (repeat 81 "x"))) "item \"clock\": {:aspects {:state [\"should be at most 80 characters\"]}}"]
+           [#(assoc-in % [:items 0 :aspects :state] (apply str (repeat 201 "x"))) "item \"clock\": {:aspects {:state [\"should be at most 200 characters\"]}}"]
            [#(assoc-in % [:items 0 :desc] (apply str (repeat 401 "x"))) "item \"clock\": {:desc [\"should be at most 400 characters\"]}"]
            [#(assoc-in % [:items 0 :aspects :state] "") "item \"clock\": {:aspects {:state [\"should be at least 1 character\"]}}"]
            [#(assoc-in % [:items 0 :aspects] {:a "x" :b "x" :c "x" :d "x" :e "x"}) "item \"clock\": {:aspects [\"should have at most 4 elements\"]}"]
@@ -496,6 +496,11 @@
                          "If something isn't put away or consumed, leave it as it is"]]
       (is (str/includes? (:content system) instruction)))
     (is (str/ends-with? (:content system) "## The setting\nA small house."))
+    (testing "aspect values: the judge and steward are told 80 characters; 200 are accepted"
+      (is (str/includes? (:content system) "a short phrase of at most 80 characters"))
+      (is (= {:type "string" :maxLength 80}
+             (get-in (first (:tools request)) [:function :parameters :properties :changes :items :properties :value])))
+      (is (str/includes? items/steward-instructions "values are 1–80 characters")))
     (is (str/includes? (:content user) (str "- Time: Saturday 15 October 1904, 22:30\n"
                                             "- Worker: Ben. A night owl who hates going to bed.\n"
                                             "- Place: Hall\n"
@@ -568,8 +573,10 @@
              (:error (judge {:changes [(change "basket" "state" "dry")] :summary "x"}))))
       (is (= "an aspect's key is lower-case letters and hyphens, at most 24 characters, starting with a letter (cleanliness, glass-eye); not \"glass eye\", \"1st\""
              (:error (judge {:changes [(change "clock" "Glass Eye" "loose") (change "clock" "1st" "x")] :summary "x"}))))
-      (is (str/includes? (:error (judge {:changes [(change "clock" "state" (apply str (repeat 81 "x")))] :summary "x"}))
-                         "changes.0.value is 81 characters; the limit is 80"))
+      (is (str/includes? (:error (judge {:changes [(change "clock" "state" (apply str (repeat 201 "x")))] :summary "x"}))
+                         "changes.0.value is 201 characters; the limit is 200"))
+      (is (nil? (:error (judge {:changes [(change "clock" "state" (apply str (repeat 200 "x")))] :summary "x"})))
+          "over the advised 80 characters is still accepted up to 200")
       (is (str/includes? (:error (judge {:changes [] :summary (apply str (repeat 301 "x"))})) "the limit is 300"))
       (is (:error (judge {:changes []})))
       (is (:error (judge {:changes [{:item "clock" :condition "polished"}] :summary "x"})))

@@ -124,9 +124,11 @@
              (error {:used-up ["beef"] :made [(assoc bones :aspects {"Bone Count" "three"})]})))
       (is (str/includes? (error {:used-up ["beef"] :made [(assoc bones :aspects (zipmap ["a" "b" "c" "d" "e"] (repeat "x")))]})
                          "should have at most 4 elements"))
-      (is (= "made \"Beef bones\": its state is 81 characters; give it 1 to 80"
-             (error {:used-up ["beef"] :made [(assoc bones :aspects {"state" (apply str (repeat 81 "x"))})]})))
-      (is (= "made \"Beef bones\": its state is 0 characters; give it 1 to 80"
+      (is (nil? (error {:used-up ["beef"] :made [(assoc bones :aspects {"state" (apply str (repeat 200 "x"))})]}))
+          "over the advised 80 characters is still accepted up to 200")
+      (is (= "made \"Beef bones\": its state is 201 characters; give it 1 to 200"
+             (error {:used-up ["beef"] :made [(assoc bones :aspects {"state" (apply str (repeat 201 "x"))})]})))
+      (is (= "made \"Beef bones\": its state is 0 characters; give it 1 to 200"
              (error {:used-up ["beef"] :made [(assoc bones :aspects {"state" ""})]}))))
     (testing "the reason goes back to the judge"
       (is (= "error: the Paper bag (bag) still holds bun: use those up too, or don't use it up. Call judge again with a corrected answer."

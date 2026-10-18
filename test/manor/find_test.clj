@@ -74,12 +74,20 @@
                      (assoc-in answer [:found :from] "cupboard")
                      (assoc-in answer [:found :from] "remote")
                      (assoc-in answer [:found :aspects] {:bad! "x"})
-                     (assoc-in answer [:found :aspects] {:stock (apply str (repeat 81 "x"))})
+                     (assoc-in answer [:found :aspects] {:stock (apply str (repeat 201 "x"))})
+                     (assoc answer :lacking (apply str (repeat 201 "x")))
                      (assoc-in answer [:found :aspects] {:a "x" :b "x" :c "x" :d "x" :e "x"})
                      (assoc-in answer [:found :consumable] nil)
                      (assoc answer :lacking " ")]]
           (is (:error (check world bad)) (pr-str bad)))
-        (is (= {:state "ready"} (get-in (check world (assoc-in answer [:found :aspects] {:State "ready"})) [:verdict :found :aspects]))))
+        (is (= {:state "ready"} (get-in (check world (assoc-in answer [:found :aspects] {:State "ready"})) [:verdict :found :aspects])))
+        (testing "aspect values: 80 characters advised, 200 accepted"
+          (is (:verdict (check world (-> answer
+                                         (assoc-in [:found :aspects] {:stock (apply str (repeat 200 "x"))})
+                                         (assoc :lacking (apply str (repeat 200 "x")))))))
+          (is (= {:type "string" :minLength 1 :maxLength 80}
+                 (get-in request [:tools 0 :function :parameters :properties :lacking])))
+          (is (str/includes? items/finder-instructions "values 1–80"))))
       (finally (e/stop-run run)))))
 
 (deftest find-roll-thresholds-and-placement
@@ -161,10 +169,12 @@
                 ev (event world "mustard")]
             (is (nil? (get-in ev [:data :path])))
             (is (= world (w/apply-event world ev)))))
-        (let [ev (event world "mustard")
-              after (w/apply-event world ev)
-              after (w/apply-event after (event after "pickles"))]
-          (is (= "mustard; pickles" (get-in (items/item after "shelves") [:aspects :lacking])))))
+        (testing "lacking replaces the store's value: the finder, not code, keeps or drops earlier absences"
+          (let [after (w/apply-event world (event world "mustard"))
+                after (w/apply-event after (event after "mustard; pickles"))]
+            (is (= "mustard; pickles" (get-in (items/item after "shelves") [:aspects :lacking])))
+            (is (= "pickles" (get-in (items/item (w/apply-event after (event after "pickles")) "shelves") [:aspects :lacking])))))
+        (is (str/includes? items/finder-instructions "If the store's lacking already records this absence, in any wording, omit lacking")))
       (finally (e/stop-run run)))))
 
 (deftest find-limits-availability-and-failure

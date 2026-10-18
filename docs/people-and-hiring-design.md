@@ -87,6 +87,9 @@ Two smaller findings from the same run:
 31. Positions carry forms of address, behind a flag that is easy to turn off, so runs with and
     without explicit forms of address can be compared.
 32. No real runs during development; the user runs them afterwards.
+33. Each person has a public **appearance**: what anyone sees at a glance (age, build, dress,
+    bearing), written by the polish with the persona and shown to others in the view of the people
+    present and in `look`. It never states or names the hidden traits. Built before phase 3.
 
 ## 3. Phase 1: people and traits
 

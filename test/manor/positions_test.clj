@@ -96,7 +96,8 @@
         (is (= :butcher (:role (w/agent world "hobbs"))))
         (doseq [a (w/active-agents world)]
           (is (= (:role a) (:position (positions/post world (:id a)))) (:id a))
-          (is (= 0 (:since (positions/post world (:id a)))))))
+          (is (= 0 (:since (positions/post world (:id a))))))
+        (is (nil? (positions/post world "gm"))))
       (testing "the family and servants are of the household; the tradesmen keep their own"
         (is (= #{"lord-claudeworth" "lady-claudeworth" "hale" "nellie" "mrs-finch" "daisy"}
                (set (filter #(positions/household-member? world %) (map :id (w/active-agents world)))))))

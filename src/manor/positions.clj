@@ -176,15 +176,18 @@
   "The post, bedroom and routine of someone just arrived (`spec` is what
   they were spawned with: a world file's agent, or an operator's spec). The
   post is their role's position, in the household if `spec` says
-  :household, or else if the position's standing is one of the household's."
+  :household, or else if the position's standing is one of the household's.
+  The GM holds no post."
   [world id {:keys [bedroom routine] :as spec}]
   (let [role (:role (w/agent world id))
         h (if (contains? spec :household)
             (:household spec)
             (when (household-standings (get-in world [:state :positions role :standing])) household))]
-    (cond-> [(post-changed world id role {:household h})]
-      bedroom (conj (bedroom-assigned id bedroom))
-      (seq routine) (conj (routine-set id routine)))))
+    (if (= :gm role)
+      []
+      (cond-> [(post-changed world id role {:household h})]
+        bedroom (conj (bedroom-assigned id bedroom))
+        (seq routine) (conj (routine-set id routine))))))
 
 (defmethod n/describe :people/post-changed [{:keys [data]} names]
   (str (n/who names (:id data)) " now holds the post of " (or (:title data) (name (:position data)))

@@ -718,3 +718,11 @@ Decisions for items (done):
     stay in the world so older lines still read. Still open: food eaten at table during a meal
     ("dining on the rib of beef") isn't linked to items, so leftovers remain unless someone works
     on them (roadmap B7).
+40. **Stores, aspects and the scene judge.** Designed (2026-10-17), not built: see
+    [stores-and-aspects-design.md](stores-and-aspects-design.md), from the same run. Things that
+    matter stay items; ambient supplies are stores (fixed items with `:store {:keeps :serves}`)
+    whose aspects say how they stand, and anything a store keeps is assumed present unless they
+    say otherwise. Conditions become keyed aspects on items and rooms (superseding decision 24
+    once built); `spend-time` and `work-on` merge into one judged activity; the judge promotes
+    and demotes things; a steward tidies loose consumables at 02:00; `find` searches here with
+    an engine-rolled oracle. The provisions counter in 6.2 goes.

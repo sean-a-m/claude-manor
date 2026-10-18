@@ -1,6 +1,9 @@
 # Room conditions: build brief
 
-**Status: not started.** R3 needs the user's decision before anyone builds it.
+**Status: superseded (2026-10-17), never built.** Replaced by
+[stores-and-aspects-design.md](../stores-and-aspects-design.md): R1 and R2 became its phases 1 and
+5 (with keyed aspects instead of one condition phrase), and R3 is answered by its phase 2 (judged
+pastimes: use makes mess).
 
 Self-contained instructions for giving **rooms (locations) a condition** that `work-on` can
 change, as items have. Read `AGENTS.md` first (invariants, run directories, cost rules), then

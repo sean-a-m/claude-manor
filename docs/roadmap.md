@@ -246,6 +246,10 @@ things from them.
 
 Follow-ups, by need:
 
+**Next: [stores, aspects and the scene judge](stores-and-aspects-design.md)** (designed
+2026-10-17, phased). It answers the meals, room-conditions and GM-tools follow-ups below, replaces
+item conditions with keyed aspects, and removes the unused provisions counter.
+
 - **Meals aren't linked to items.** Food served at table and eaten during a meal occupation
   ("dining on the rib of beef") is never used up, because a meal is an occupation, not work on
   items, so leftovers can stay in the world. Candidates: a deterministic `use-up`/`eat` action
@@ -255,10 +259,9 @@ Follow-ups, by need:
   in the next real run with purchases.
 - Items getting dirty or wearing out over time: a GM job later, not automatic decay yet.
 - Room conditions: `work-on` accepts the id of the worker's place (done), but places have no
-  `:condition`, so work on the room changes nothing and a room-only job skips the judge. Next:
-  an optional location `:condition`, the room passed to the judge as one more thing, shown by
-  `look`. Only worth it alongside some way for rooms to get dirty again. Plan:
-  [room-conditions-brief.md](room-conditions-brief.md).
+  `:condition`, so work on the room changes nothing and a room-only job skips the judge. Now
+  phases 1 and 5 of the stores design; the earlier
+  [room-conditions brief](archived/room-conditions-brief.md) is superseded.
 - Containers: done (see [the containers brief](archived/containers-brief.md)). Follow-ups:
   locked containers, and perhaps needing to `open` before taking (today a guessed id inside a
   closed container can be taken); carried containers (a basket) aren't forbidden but are

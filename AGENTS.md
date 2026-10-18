@@ -18,6 +18,7 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/scenario-authoring.md` | the complete scenario contract: how to write a scenario |
 | `docs/roadmap.md` | what's left: prioritized tasks with approaches, plus known issues |
 | `docs/claudeworth-design.md` | design, phases and numbered decisions for the Claudeworth Manor scenario |
+| `docs/stores-and-aspects-design.md` | phased plan: stores, keyed aspects, the scene judge, `find`, the steward |
 | `docs/user-todos.md` | the user's own wishlist for later; not agent tasks |
 | `docs/archived/` | finished build briefs and old handoff notes: history, not the present state |
 

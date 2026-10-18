@@ -744,8 +744,9 @@ container contents. Work may name a store in scope even when it is in another ro
   is nil for a new aspect and `:to` nil for one removed. Its reducer sets or removes each aspect
   (on the item, or on the location under `[:space :locations id :aspects]`), touches the changed
   items, removes the used-up ones (keeping their names under `:items-gone`), adds the made ones
-  (touched too) and removes the job. Jobs are applied one after another, so a later job's judge
-  sees an earlier one's result, and on the same aspect the last applied wins. It reads "Nellie
+  (touched too) and removes the job. Jobs with disjoint scopes (place, stores in scope and focus items’ places) are judged
+  concurrently on the pre-batch world; overlapping jobs remain sequential, so a later judge
+  sees an earlier one’s result. Events, usage and call logs stay in due/id order, and on the same aspect the last applied wins. It reads "Nellie
   finishes sweeping the drawing room and dusting the piano. (Drawing room: swept, the hearth clean;
   Piano: dusted)." (each thing's changes by their new values, which are whole phrases, or "no
   longer lacking" for an aspect `:lacking` removed, hyphens in the key read as spaces;

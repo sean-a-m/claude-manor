@@ -923,3 +923,53 @@
     (is (= "shop" (:place (items/item (e/world run) "pantry"))))
     (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
     (e/stop-run run)))
+
+(deftest parallel-ending-jobs
+  (let [works (mapv (fn [id actor place]
+                      {:job {:id id :actor actor :place place :items [] :doing "tidying"}
+                       :outcome :finished :minutes 30 :luck 50})
+                    ["job-a" "job-b"] ["ada" "ben"] ["hall" "bedroom"])
+        go (fn [parallel? works policy]
+             (let [run (start {:llm-impl (llm/mock policy)})
+                   before (count (e/events run))]
+               (try
+                 (if parallel?
+                   (#'e/finish-jobs! run works)
+                   (doseq [work works]
+                     (#'e/finish-job! run work (#'e/job-result run (e/world run) work))))
+                 (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+                 (vec (drop before (e/events run)))
+                 (finally (e/stop-run run)))))
+        policy (fn [{:keys [job world]}]
+                 {:tool :judge :args {:summary "Tidied."
+                                      :changes [{:thing (:place job) :aspect "state"
+                                                 :value (str (get-in world [:space :locations (:place job) :aspects :state]) "x")}]}})]
+    (testing "independent jobs emit exactly the sequential events, including usage"
+      ;; Give both rooms something to judge, through a named place focus.
+      (let [works (mapv #(assoc-in % [:job :items] [(get-in % [:job :place])]) works)]
+        (is (= (go false works policy) (go true works policy)))))
+    (testing "overlapping jobs see their predecessor's changes"
+      (let [works (mapv #(assoc (:job %) :place "hall" :items ["hall"]) works)
+            works (mapv #(hash-map :job % :outcome :finished :minutes 30 :luck 50) works)
+            events (go true works policy)]
+        (is (= ["x" "xx"] (map #(get-in % [:data :changes 0 :to]) (filter #(= :item/work-done (:type %)) events))))))
+    (testing "independent model calls actually overlap, without holding the world lock"
+      (let [arrived (java.util.concurrent.CountDownLatch. 2)
+            overlapped (atom [])
+            works (mapv #(assoc-in % [:job :items] [(get-in % [:job :place])]) works)]
+        (go true works (fn [ctx]
+                         (.countDown arrived)
+                         (swap! overlapped conj (.await arrived 2 java.util.concurrent.TimeUnit/SECONDS))
+                         (policy ctx)))
+        (is (= [true true] @overlapped))))
+    (testing "shared serving stores and focus places conflict"
+      (let [run (start)
+            world (w/apply-event (e/world run)
+                                 {:type :item/added :data {:item {:id "store" :place "hall" :fixed? true
+                                                                :store {:keeps "supplies" :serves ["bedroom"]}}}})
+            a (items/job-scope world {:place "hall"})
+            b (items/job-scope world {:place "bedroom" :items ["store"]})]
+        (is (contains? a [:store "store"]))
+        (is (contains? b [:store "store"]))
+        (is (contains? b [:place "hall"]))
+        (e/stop-run run)))))

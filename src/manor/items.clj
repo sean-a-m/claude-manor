@@ -783,6 +783,17 @@
          (reduce (fn [its it] (if (some #(= (:id it) (:id %)) its) its (conj its it))) [])
          vec)))
 
+(defn job-scope
+  "Places and stores a job can affect, including the places of named focus
+  items (a store may serve several places). Tagged keys avoid id collisions."
+  [world {:keys [place actor] :as job}]
+  (into #{[:place place]}
+        (concat (map #(vector :store (:id %)) (stores-for world place))
+                (for [it (in-reach world job)]
+                  [:place (or (place-of world it)
+                              (space/location-of world (:holder (outermost world it)))
+                              (space/location-of world actor))]))))
+
 (defn empty-activity?
   "An unnamed activity with no place aspects, items here, or stores in scope
   needs only a neutral ending, not a judge call."

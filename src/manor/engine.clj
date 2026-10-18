@@ -22,6 +22,7 @@
   <run-dir>/transcript.md (see manor.transcript), on the executor so it
   sees whole rounds."
   (:require [clojure.string :as str]
+            [clojure.set :as set]
             [manor.actions :as a]
             [manor.bridge :as bridge]
             [manor.builtins :as b]
@@ -324,27 +325,34 @@
 (defn- ask-structured!
   "Shared narrow model-call lifecycle: checked answer, one correction attempt,
   usage/transcript logging and safe failure. The domain owns prompts/checks."
-  [run identity {:keys [messages tools ctx label] :or {label "adjudicator"}} check]
-  (let [opts (:opts run)
+  [run identity {:keys [messages tools ctx label defer-records?] :or {label "adjudicator"}} check]
+  (let [records (atom [])
+        record! (fn [f & args]
+                  (if defer-records?
+                    (swap! records conj #(apply f args))
+                    (apply f args)))
+        opts (:opts run)
         model (or (:judge-model opts) (:model opts))]
-    (try
-      (loop [messages messages, attempt 0]
-        (let [request {:model model :messages messages :tools tools
-                       :max-tokens (:max-tokens opts) :reasoning (:reasoning opts)
-                       :tool-choice (:tool-choice opts)}
-              response (llm/complete (:llm run) (assoc request :ctx (assoc ctx :step attempt)))
-              _ (record-usage! run identity request response)
-              {:keys [verdict error replies]}
-              (try (check response)
-                   (catch Throwable t
-                     (record-call! run identity request response [])
-                     (throw t)))]
-          (record-call! run identity request response replies)
-          (cond verdict {:verdict verdict}
-                (zero? attempt) (recur (into (conj-reply messages (:message response)) replies) 1)
-                :else {:failure (str "a second bad answer: " error)})))
-      (catch Throwable t
-        {:failure (str "the " label " call failed: " (ex-message t))}))))
+    (let [result
+          (try
+            (loop [messages messages, attempt 0]
+              (let [request {:model model :messages messages :tools tools
+                             :max-tokens (:max-tokens opts) :reasoning (:reasoning opts)
+                             :tool-choice (:tool-choice opts)}
+                    response (llm/complete (:llm run) (assoc request :ctx (assoc ctx :step attempt)))
+                    _ (record! record-usage! run identity request response)
+                    {:keys [verdict error replies]}
+                    (try (check response)
+                         (catch Throwable t
+                           (record! record-call! run identity request response [])
+                           (throw t)))]
+                (record! record-call! run identity request response replies)
+                (cond verdict {:verdict verdict}
+                      (zero? attempt) (recur (into (conj-reply messages (:message response)) replies) 1)
+                      :else {:failure (str "a second bad answer: " error)})))
+            (catch Throwable t
+              {:failure (str "the " label " call failed: " (ex-message t))}))]
+      (cond-> result defer-records? (assoc :records @records)))))
 
 (defn- limit-reached
   "Why `action` can't be used again this turn, or nil: its :per-turn uses
@@ -772,30 +780,56 @@
   [run world job work things]
   (let [work (assoc work :recent (prompt/scene-recent world (events run) job))
         request (assoc (items/judge-request (:scenario run) world job work)
-                       :label "judge"
+                       :label "judge" :defer-records? true
                        :ctx (assoc (select-keys work [:minutes :stopped-early? :luck])
                                    :role :judge :world world :job job :things things
                                    :focus (items/focus-things world job)))
         {:keys [verdict] :as result} (ask-structured! run "judge" request #(items/judgement % world things))]
-    (or verdict result)))
+    (assoc result :verdict verdict)))
+
+(defn- job-result
+  "Prepare a job's ending on a snapshot, with model calls and their records
+  deferred from the world. Applying results stays on the round thread."
+  [run world {:keys [job outcome minutes] :as work}]
+  (cond
+    (= :dropped outcome) {:ended :retired}
+    (zero? minutes) {:ended :no-time}
+    (items/empty-activity? world job) {}
+    :else (ask-judge run world job work (items/judged-things world job))))
 
 (defn- finish-job!
-  "Apply the end of one job (see manor.items/ending-jobs): dropped, ended
-  with no time worked, a neutral unnamed activity in an empty place, or judged.
-  The model call is made outside the world lock; the result is built from the world as it is then, so a later
-  job's judge sees this one's result."
-  [run {:keys [job outcome minutes] :as work}]
-  (let [world @(:world run)
-        things (items/judged-things world job)]
-    (cond
-      (= :dropped outcome) (emit! run [(items/work-ended world job :retired)])
-      (zero? minutes) (emit! run [(items/work-ended world job :no-time)])
-      (items/empty-activity? world job) (emit! run [(items/work-done world job work nil)])
-      :else
-      (let [{:keys [failure] :as verdict} (ask-judge run world job work things)]
-        (locking (:world run)
-          (emit! run (cond-> [(items/work-done @(:world run) job work (when-not failure verdict))]
-                       failure (conj (items/judge-failed job failure)))))))))
+  "Record and apply a prepared ending in job order. Build new item ids on
+  the live world, so independent jobs making identically named things agree
+  with sequential judging too."
+  [run {:keys [job] :as work} {:keys [ended verdict failure records]}]
+  (doseq [record! records] (record!))
+  (let [world @(:world run)]
+    (emit! run (if ended
+                 [(items/work-ended world job ended)]
+                 (cond-> [(items/work-done world job work verdict)]
+                   failure (conj (items/judge-failed job failure)))))))
+
+(defn- independent-prefix
+  "The longest consecutive prefix with disjoint scopes. Never move a job
+  past a conflicting predecessor: it must see that predecessor's result."
+  [scope xs]
+  (loop [batch [] used #{} [x & more] xs]
+    (if (and x (empty? (set/intersection used (scope x))))
+      (recur (conj batch x) (into used (scope x)) more)
+      batch)))
+
+(defn- finish-jobs!
+  "Judge independent jobs concurrently on the pre-batch world, then emit
+  all records and endings in the original due/id order, outside model calls."
+  [run works]
+  (loop [works (seq works)]
+    (when works
+      (let [world @(:world run)
+            batch (independent-prefix #(items/job-scope world (:job %)) works)
+            results (mapv #(future (job-result run world %)) batch)]
+        (doseq [[work result] (map vector batch results)]
+          (finish-job! run work @result))
+        (recur (seq (drop (count batch) works)))))))
 
 (defn- run-approved-bridges! [run]
   (doseq [[req-id {:keys [bridge bridge-args action args requester status]}] (:pending-bridges @(:world run))
@@ -857,15 +891,14 @@
   [run]
   (let [round (inc (:round @(:world run)))]
     (emit! run [{:type :round/started :data {:round round} :visible-to :all}])
-    (doseq [work (locking (:world run)
+    (finish-jobs! run (locking (:world run)
                    ;; decided before releases, so a worker whose job is due still holds it
                    (let [ending (items/ending-jobs @(:world run))]
                      (emit! run (space/arrivals @(:world run)))
                      (emit! run (b/releases @(:world run)))
                      (when-let [hibernate (:hibernate (:scenario run))]
                        (emit! run (b/hibernations hibernate @(:world run))))
-                     ending))]
-      (finish-job! run work))
+                     ending)))
     (run-approved-bridges! run)
     (run-systems! run)
     (doseq [group (schedule run @(:world run))]

@@ -1,6 +1,6 @@
 # Stores, aspects and the scene judge: design
 
-**Status:** designed (2026-10-17). Phases 0, 1 and 2a–2c done. Each phase below has its own status line;
+**Status:** designed (2026-10-17). Phases 0, 1 and 2 done. Each phase below has its own status line;
 update it as work lands, so an agent picking this up can tell where to start.
 
 Read `AGENTS.md` first (invariants, run directories, cost rules), then "Items (`manor.items`)" and
@@ -243,7 +243,7 @@ additions:
 
 ### Phase 2: stores, the scene judge, one timed activity
 
-**Status: 2a–2c done, mock-tested only (no real run); 2d not started.** Stores, the scene
+**Status: 2a–2d done, mock-tested only (no real run).** Stores, the scene
 judge, suggested aspect keys and the shared `spend-time` are built. The pantry shelves serve
 the kitchen; the rest of phase 5's content is untouched. Small deviations and safeguards:
 
@@ -268,6 +268,12 @@ the kitchen; the rest of phase 5's content is untouched. Small deviations and sa
   The tool doc no longer says "Most pastimes change nothing" (that's for the judge, and might
   put characters off housework). The rules gained a sentence saying what `stores` in the view
   means.
+
+2d uses consecutive disjoint batches (place, serving stores and focus places). Calls run on
+the pre-batch snapshot; usage events and call logs are deferred and flushed in job order too.
+New item ids are allocated when applying results on the live world, preserving sequential ids.
+Tests compare all ending events with sequential judging, check overlapping changes and shared
+stores, and use a two-call latch to prove independent calls overlap.
 
 **2a. Stores (engine).**
 

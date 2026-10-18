@@ -744,5 +744,5 @@ From phase 3:
     zero-time routes and belong to one walking area; no turn is spent travelling.
 16. **Appearance must travel with the person.** The polish placed Ashby “at the gate” in
     her baseline appearance; that phrase was removed by hand and the instruction tightened.
-    Is an automatic check for fixed locations or passing actions wanted? There is no new
-    lexical or model-based checker in this phase.
+    Settled: no automatic check. The user's guideline (AGENTS.md) rules out phrase and regex
+    checks on model prose; the instruction and review at roll time cover it.

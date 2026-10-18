@@ -414,3 +414,11 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
     The same limit stops handovers: in `runs/claudeworth-20261018-111357` Hobbs said "Here it
     is" of the sealed character he'd written and Hale said "I have it safe", but speaking turns
     can't `give`, and the item stayed with Hobbs.
+15. **Phrase and regex checks on model prose.** These break the user's guideline (AGENTS.md: no
+    hard-coded phrase or regex checks on what models write). All are in the polish
+    (`src/manor/people.clj`): the phrenology jargon list on persona and manner (which also
+    works against the user's wish to keep period jargon), the third-person check (subject He, She
+    or the name; must begin "You"), and `appearance-problem` (begins "You", contains the name,
+    trait words like "drinks" or "honest"). Remove them, keeping the schema and length checks;
+    the instructions and review at roll time remain. Note that the appearance's trait-word check
+    is the only automatic guard against leaking hidden traits into public text.

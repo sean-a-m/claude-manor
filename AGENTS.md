@@ -62,6 +62,11 @@ These came from the design conversation; respect them unless told otherwise.
 - **A minimal web UI:** a control panel and simple diagrams, nothing graphical.
 - **Cost-conscious.** Default model `deepseek/deepseek-v4.1-flash` (about $0.002 per agent per
   round). Always cap real runs with `:max-cost`.
+- **No hard-coded phrase or regex checks on what models write.** Don't judge prose with word
+  lists or patterns ("contains 'at the gate'", "starts with 'You'", "mentions 'drinks'"): they
+  reject good text and miss new wordings. Check structure instead (schemas, lengths, ids that
+  exist, values from a list), shape behaviour with instructions, and review generated content at
+  the point it's made (`git diff` after `roll-cast!`). Regexes on identifiers and formats are fine.
 - The user wants to try **generating other scenarios**. The prerequisites are roadmap section A.
 
 ## Layout

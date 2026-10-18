@@ -676,6 +676,29 @@ The real steward path remains untried: with four idle hours, evening leftovers s
 be candidates at 02:00. Quick put-in restocking also remains untried with a real model.
 No real-model run was started; run one only with the user's go-ahead.
 
+### Phase 7 real run
+
+`old-test-runs/claudeworth-stores-phase7` (with the user's sharper personas, commit 346d79b):
+16:00 Saturday to 02:30, 325 calls, $0.118, 7 errors, 14 rejections, 3 forfeits.
+
+- **The steward's first real call:** one candidate, a wheel of cheese Daisy had found on the
+  pantry shelves; it left it ("still mostly whole and in good order"). Ran once, replayed.
+- **`find`:** 4 calls, no duplicates. Daisy used it to fetch ingredients for the cook ("cheese,
+  butter, onions and a jar of preserve") and got a wheel of cheese; "sugar jar" missed.
+- **Judge failures lost dinner.** Two jobs failed on the second answer, both with an aspect value
+  of 86 characters (the cook's first answer was also cut off mid-JSON after 3,862 reasoning
+  tokens). A failed judgement records nothing, so the cheese and onion pie, potatoes and stewed
+  fruit never existed. Over-long aspect values appeared in every real run (6 here).
+- **`:lacking "sugar; sugar"`:** a miss appended an absence already listed.
+
+### Phase 8: fixes from the phase 7 run
+
+**Status: in progress (2026-10-18).**
+
+1. **Aspect values: soft limit.** The judge, steward and finder are told 80 characters (as
+   now); the engine accepts up to 120; over 120 is refused as now. Same pattern as `doing`.
+2. **`:lacking` never repeats an absence** already listed (case-insensitive).
+
 ### Later, by need
 
 - GM tools to change aspects and stores (roadmap B7's "GM tools to create or alter items"), so

@@ -142,8 +142,8 @@
     (reify llm/LLM
       (complete [_ _] (let [r (first @queue)] (swap! queue rest) r)))))
 
-(def good {:persona "Tom Ridding, a groom: a little deaf in the left ear, and keeps a tin of savings under the boards."
-           :manner "A quiet, wary man who looks you over before he speaks."})
+(def good {:persona "You are a little deaf in the left ear, and you keep a tin of savings under the boards."
+           :manner "You seem quiet and wary, and you look a stranger over before you speak."})
 
 (deftest polish-is-checked
   (let [verdict #(:verdict (people/check-polish record (polish-response %)))
@@ -151,16 +151,29 @@
     (testing "a good answer is kept, trimmed"
       (is (= good (verdict (update good :persona #(str "  " % " "))))))
     (testing "lengths: the model is asked for less persona than is accepted"
-      (is (verdict (assoc good :persona (apply str "Tom Ridding " (repeat 580 "x")))))
+      (is (verdict (assoc good :persona (apply str "You " (repeat 580 "x")))))
       (is (= 450 (get-in (people/polish-request {:record record}) [:tools 0 :function :parameters :properties :persona :maxLength])))
-      (is (error (assoc good :persona (apply str "Tom Ridding " (repeat 600 "x")))))
+      (is (error (assoc good :persona (apply str "You " (repeat 600 "x")))))
       (is (error (assoc good :manner (apply str (repeat 201 "x")))))
       (is (error (assoc good :manner "   "))))
-    (testing "the persona names the person, by any word of the name"
-      (is (str/includes? (error (assoc good :persona "A groom, a little deaf.")) "must name Tom Ridding"))
-      (is (verdict (assoc good :persona "Ridding, a groom."))))
+    (testing "both are written to the person, in the second person"
+      (is (= "write persona to the person, in the second person: begin it with \"You\""
+             (error (assoc good :persona "Tom Ridding, a groom: a little deaf."))))
+      (is (= "write manner to the person, in the second person: begin it with \"You\""
+             (error (assoc good :manner "A quiet, wary man who looks you over before he speaks.")))))
+    (testing "and never speak of them in the third person after the opening"
+      (doseq [[text found] [["You are a groom. He is a little deaf." "He"]
+                            ["You are a groom; She keeps a tin." "She"]
+                            ["You are a groom. Tom drinks." "Tom"]
+                            ["You are a groom! Mr Ridding drinks." "Mr Ridding"]]]
+        (is (= (str "write persona to the person as \"you\" throughout; don't write \"" found "\" of them")
+               (error (assoc good :persona text)))
+            text))
+      (is (str/includes? (error (assoc good :manner "You seem wary. He looks you over.")) "write manner"))
+      (testing "though others may be named, and words that merely begin like a pronoun or a name are fine"
+        (is (verdict (assoc good :persona "You are a groom. Mrs Webb at the laundry says you drink. Tommy the stable cat follows you. Here you are content.")))))
     (testing "traits in plain words, never the record's categories"
-      (is (str/includes? (error (assoc good :persona "Tom Ridding, with large Acquisitiveness."))
+      (is (str/includes? (error (assoc good :persona "You have a large Acquisitiveness."))
                          "Acquisitiveness")))
     (testing "the mock passes its own check"
       (is (:verdict (people/check-polish record (polish-response (:args (people/mock-polish {:record record})))))))))
@@ -168,12 +181,12 @@
 (deftest polish-calls-once-and-corrects-once
   (let [input {:setting "A village." :position "groom" :record record}]
     (testing "a bad answer is sent back once with the reason"
-      (let [{:keys [polish calls cost]} (people/polish! (scripted (polish-response {:persona "no name" :manner "x"})
+      (let [{:keys [polish calls cost]} (people/polish! (scripted (polish-response {:persona "Tom is a groom." :manner "x"})
                                                                   (polish-response good))
                                                         {:model "m"} input)]
         (is (= good polish))
         (is (= 2 (count calls)))
-        (is (str/includes? (:content (last (:messages (second calls)))) "must name Tom Ridding"))
+        (is (str/includes? (:content (last (:messages (second calls)))) "in the second person: begin it with \"You\""))
         (is (== 0.002 cost))))
     (testing "two bad answers fail"
       (is (str/includes? (:failure (people/polish! (scripted (polish-response {:persona "x" :manner "x"})
@@ -305,10 +318,17 @@
           (is (= (apply dissoc a rolled-keys) (apply dissoc b rolled-keys)))
           (is (= (or (:sketch a) (:persona a)) (:sketch b)))
           (is (= (:situation a) (:situation b)))
-          (is (str/starts-with? (:persona b) (:name a)))
+          (is (str/starts-with? (:persona b) "You are the "))
+          (is (str/starts-with? (:manner b) "You "))
           (is (= 5 (count (:temperament b))))
           (is (= 7 (count (:faculties b))))
           (is (<= 1 (count (:circumstances b)) 2))))
+      (testing "seed 1 rolls the traits the cast has now, except Hobbs's, rolled as a shopkeeper before he was a butcher"
+        (let [trait-keys [:sex :temperament :faculties :circumstances]]
+          (doseq [[a b] (map vector (:agents before) (:agents after))]
+            (if (= "Hobbs" (:name a))
+              (is (not= (select-keys a trait-keys) (select-keys b trait-keys)))
+              (is (= (select-keys a trait-keys) (select-keys b trait-keys)) (:name a))))))
       (testing "the rest of the file, comments included, is as it was"
         (is (= (dissoc before :agents) (dissoc after :agents)))
         (is (str/includes? rolled ";; his day when nobody else is in the village")))

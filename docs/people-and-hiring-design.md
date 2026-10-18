@@ -1,7 +1,7 @@
 # People, positions and hiring: design
 
 Status: phases 1–3 are built (sections 3.5, 4.3 and 5.1); the user's short real
-check of phase 3 remains pending. Phase 4 is not built. Four
+check of phase 3 remains pending. Phase 4 is not built: start at section 6.0. Four
 phases, in order:
 
 1. **People and traits**: a people server that generates characters (temperament, faculties,
@@ -581,6 +581,61 @@ during development; the cast roll is recorded separately below.
 
 ## 6. Phase 4: hiring
 
+### 6.0 Start here (state on 2026-10-18, after phases 1–3)
+
+Phase 4 is not started. Sections 6.1–6.5 are the plan; this section says what already exists,
+what must be connected first, how to test, and what the user still has to decide. Read section 2
+(all decisions) and the "as built" notes (3.5, 4.3, phase 3) before writing code.
+
+**Already built and reusable:**
+
+- The people server (`mcp-servers/people/`, babashka, keyless): `generate_people` returns base
+  records (temperament, faculties, circumstances, name, age, sex from the catalogue entry);
+  `reputation {person knower relation seed}` returns what one person knows of another. Both are
+  deterministic from a seed and tested, but **neither is registered for use inside a run** (open
+  question 4): add the server to the scenario's `:mcp-servers`, `:bridges` and `:offline-stubs`,
+  as `building.clj` does for the architect.
+- The polish (`manor.people/polish-request`, `polish!`, `mock-polish`) writes persona, manner and
+  appearance from a base record. It runs only from `roll-cast!` today. In a run it must go through
+  the engine as a scenario adjudicator (the shop appraiser's pattern): the `{:messages :tools :ctx
+  :check}` shape is ready. Its checks are lengths and blanks only (roadmap C15); don't add phrase
+  or regex checks on prose (AGENTS.md).
+- Positions, posts and `:people/post-changed`, bedrooms (`:people/bedroom-assigned`), routines,
+  `:situation`, `:appearance`, the shared catalogue with `:none`, capabilities and the cap of 50
+  (section 4.3). `change-post!` at the REPL is the operator's version of what `engage` does.
+- `spawn-events` keeps `:situation` and `:appearance`, and the scenario-level `:on-spawn` gives a
+  newcomer their post. A candidate spawned at the meeting place should go through it.
+
+**The test bed is Ashby Lodge** (`:lodge`, `resources/worlds/lodge.edn`). Its situations already
+set up the vacancy (the housemaid left; Ward at the shop knows everyone) and tell the cast hiring
+isn't supported yet: remove those lines and the GM brief's equivalent when the actions exist
+(open question 14). Its meeting place is `front-gate`; add `:meeting-place` to the scenario.
+Extend `resources/worlds/lodge-day.edn` so the mock day runs a whole hire (ask at the shop,
+`recommend`, `send-for`, arrival, conversation, `engage`, `accept-place`), and keep replay exact.
+Claudeworth should get the actions too, but verify on the lodge first.
+
+**Rules for whoever builds it:** mock and offline first; `clojure -M:test` before every commit;
+no real simulation runs (decision 32: the user runs them, e.g. `clojure -M:run lodge --max-rounds
+6 --test`); a real call is only allowed when the user's task says so. Leave the clerk path and
+optional characters alone (decision 30).
+
+**Decide with the user before building** (recommendations given):
+
+1. **Candidates' appearance and privacy.** A generated candidate's appearance is written in the
+   same call as their persona, from the full record, and nobody reviews it in a run. Either accept
+   that (instruction only), or write the appearance from only the visible parts of the record
+   (age, sex, position, small senses) in its own short call or field so the hidden traits are
+   never in front of it. *Recommend the structural option*; it fits the guideline and costs one
+   small call per candidate.
+2. **When an unengaged candidate leaves.** Section 6.4 says "at the end of the day". *Recommend*
+   a few rounds after their last conversation, or when sent away, so they don't hang about.
+3. **Spawnable positions** (open question 9). *Recommend* arrivals only through `send-for` for
+   now; the GM stays hands-off.
+4. **Where outdoor servants live** (open question 8). Not needed for the lodge's housemaid;
+   *recommend* deferring until Claudeworth hires a groom or chauffeur.
+5. **Candidates' model and cost cap.** Decision 25 says the default model. Each candidate adds
+   about $0.002 a round while present; the run's `:max-cost` covers it.
+
 ### 6.1 Candidates and the pool
 
 A candidate is a record in `[:state :pool]`: the people server's base record and polished
@@ -716,9 +771,8 @@ From phase 2:
 9. **Nobody is spawnable.** Claudeworth has no `:spawnable?` roles, so the GM still can't spawn,
    and the raised cap only matters for phase 4. Should the catalogue's positions be spawnable, or
    should arrivals only come through `send-for`?
-10. **The second-person check is narrow.** It catches a sentence whose subject is He, She or the
-    person's name, not a "she" in the middle of one. The first real re-polish will show whether
-    that's enough.
+10. **The second-person check is narrow.** *Settled:* removed with the other prose checks
+    (roadmap C15); the instructions ask for the second person.
 
 From appearance:
 

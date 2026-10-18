@@ -335,8 +335,8 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   phrenological faculties and a model polish, tried on the existing casts; (2) positions
   separated from people, a shared catalogue, situations and a higher agent cap (C13 stays separate); (3) a small
   test world (Ashby Lodge) for short real runs; (4) hiring: `recommend`, `send-for`, `engage`,
-  and an away status. Phases 1 and 2 are done (see the design's sections 3.5 and 4.3); phases 3
-  and 4 are not started.
+  and an away status. Phases 1–3 are done; phase 4 is not started: begin at the
+  design's section 6.0.
 
 ---
 

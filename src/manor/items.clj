@@ -578,7 +578,7 @@
 (defn- look-person [world id]
   (let [a (w/agent world id)
         carried (by-name (held-by world id))]
-    (cond-> {:name (:name a)}
+    (cond-> (select-keys a [:name :appearance])
       (:busy a) (assoc :doing (get-in a [:busy :activity]))
       (seq carried) (assoc :carrying (mapv #(select-keys % [:id :name :desc :aspects]) carried)))))
 

@@ -119,7 +119,8 @@ Your view is private. Others only learn what is public or what someone tells the
                                    (when address (str " People address you as " address ".")))
                               (:persona a)
                               (when-not (str/blank? (:manner a)) (str "How strangers see you: " (:manner a)))
-                              (people/nature a)]))))
+                               (when-not (str/blank? (:appearance a)) (str "What people see: " (:appearance a)))
+                               (people/nature a)]))))
 
 (defn- agent-request
   "An agent's request: `preamble`, their role, who they are and their
@@ -235,7 +236,7 @@ You act only by calling tools. You may take a few actions; call `done` when fini
   "What the GM is shown of the world unless a scenario sets :gm-view."
   [world]
   (cond-> {:state (gm-state world)
-           :agents (mapv #(select-keys % [:id :name :role :status :persona :situation :location :travel :busy])
+           :agents (mapv #(select-keys % [:id :name :role :status :persona :appearance :situation :location :travel :busy])
                          (w/agents-in-order world))}
     (space/enabled? world) (assoc :space (:space world))
     (items/enabled? world) (assoc :items (items/gm-view world))

@@ -89,7 +89,8 @@ Two smaller findings from the same run:
 32. No real runs during development; the user runs them afterwards.
 33. Each person has a public **appearance**: what anyone sees at a glance (age, build, dress,
     bearing), written by the polish with the persona and shown to others in the view of the people
-    present and in `look`. It never states or names the hidden traits. Built before phase 3.
+    present and in `look`. It never states or names the hidden traits. Done before phase 3
+    ("Appearance as built", section 4.3).
 
 ## 3. Phase 1: people and traits
 
@@ -462,6 +463,22 @@ a manner whose "your" meant the stranger, and the traits crammed into one line. 
   the server seeds its dice and weights circumstances by position and he is now a butcher (the
   user accepted this; decision 24). A test pins that seed 1 reproduces the whole cast.
 
+**Appearance as built** (decision 33). An optional `:appearance` now sits on each agent and in
+world files: one or two third-person sentences about what a stranger can see, without their name
+or hidden traits. The same polish call writes persona, manner and appearance from the same record
+and notes. Appearance is advised at 200 characters and accepted to 300. Checks reject missing,
+blank or overlong text, an opening "You", the person's name, the existing jargon list and explicit
+hidden-trait labels (including "honest", "drinks" and "owes money"), with the same one correction.
+`mock-polish` supplies deterministic visible prose, and `roll-cast!` writes it alongside the other
+fields without changing the seeded traits. Appearance reaches `people-here`, the `walk` reply,
+`look`'s people, the owner's "What people see:" line after "How strangers see you", and the GM's
+cast view. Tests cover those surfaces, privacy, replay, optional-field compatibility and seed 1.
+
+No product deviations. The existing jargon list is deliberately lexical, not a semantic privacy
+judge; visible-only prose remains an instruction and review requirement. No real model calls or
+runs were made, and Claudeworth's authored file is unchanged: the real re-polish is left for after
+merge, so it has no appearances yet.
+
 Deviations and decisions made while building:
 
 1. **Capabilities are a separate `:needs` key**, not capability keywords in `:roles`. Roles and
@@ -660,3 +677,14 @@ From phase 2:
 10. **The second-person check is narrow.** It catches a sentence whose subject is He, She or the
     person's name, not a "she" in the middle of one. The first real re-polish will show whether
     that's enough.
+
+From appearance:
+
+11. **Visible-only prose needs review.** Lexical checks catch names, an opening "You", jargon
+    and explicit hidden-trait labels, but cannot prove that arbitrary text reveals no secret or
+    character judgement. Does the real re-polish stay at a glance, and agree with the persona
+    about age, build and visible impairments? Review it before accepting the cast; no extra
+    model-based checker is added here.
+12. **Appearance is static.** Clothes and bearing can change during play, but there is no
+    appearance-changing action in this scope. Should temporary visible changes eventually be
+    derived from state rather than rewriting this baseline description?

@@ -143,13 +143,14 @@
       (complete [_ _] (let [r (first @queue)] (swap! queue rest) r)))))
 
 (def good {:persona "You are a little deaf in the left ear, and you keep a tin of savings under the boards."
-           :manner "You seem quiet and wary, and you look a stranger over before you speak."})
+           :manner "You seem quiet and wary, and you look a stranger over before you speak."
+           :appearance "A broad man of thirty-one in a patched coat, with a weathered face and close-cropped hair."})
 
 (deftest polish-is-checked
   (let [verdict #(:verdict (people/check-polish record (polish-response %)))
         error #(:error (people/check-polish record (polish-response %)))]
     (testing "a good answer is kept, trimmed"
-      (is (= good (verdict (update good :persona #(str "  " % " "))))))
+      (is (= good (verdict (update-vals good #(str "  " % " "))))))
     (testing "lengths: the model is asked for less persona than is accepted"
       (is (verdict (assoc good :persona (apply str "You " (repeat 580 "x")))))
       (is (= 450 (get-in (people/polish-request {:record record}) [:tools 0 :function :parameters :properties :persona :maxLength])))
@@ -175,13 +176,26 @@
     (testing "traits in plain words, never the record's categories"
       (is (str/includes? (error (assoc good :persona "You have a large Acquisitiveness."))
                          "Acquisitiveness")))
+    (testing "appearance is advised at 200 characters but accepted up to 300"
+      (is (= 200 (get-in (people/polish-request {:record record}) [:tools 0 :function :parameters :properties :appearance :maxLength])))
+      (is (verdict (assoc good :appearance (apply str (repeat 300 "x")))))
+      (doseq [bad [nil "" "   " (apply str (repeat 301 "x"))]]
+        (is (error (assoc good :appearance bad)) (pr-str bad)))
+      (is (error (dissoc good :appearance))))
+    (testing "appearance is public third-person prose without the person's name or trait labels"
+      (doseq [bad ["You are broad." "you wear spectacles." "A man called Tom." "A Ridding in a patched coat."
+                   "A man with large Acquisitiveness." "A man of high neuroticism." "A phrenological specimen."
+                   "A man of great openness." "A man of high conscientiousness." "An honest man."
+                   "A man who drinks." "A man who owes money."]]
+        (is (error (assoc good :appearance bad)) bad))
+      (is (verdict (assoc good :appearance "A man in spectacles, squinting at the doorway."))))
     (testing "the mock passes its own check"
       (is (:verdict (people/check-polish record (polish-response (:args (people/mock-polish {:record record})))))))))
 
 (deftest polish-calls-once-and-corrects-once
   (let [input {:setting "A village." :position "groom" :record record}]
     (testing "a bad answer is sent back once with the reason"
-      (let [{:keys [polish calls cost]} (people/polish! (scripted (polish-response {:persona "Tom is a groom." :manner "x"})
+      (let [{:keys [polish calls cost]} (people/polish! (scripted (polish-response (assoc good :persona "Tom is a groom."))
                                                                   (polish-response good))
                                                         {:model "m"} input)]
         (is (= good polish))
@@ -189,10 +203,20 @@
         (is (str/includes? (:content (last (:messages (second calls)))) "in the second person: begin it with \"You\""))
         (is (== 0.002 cost))))
     (testing "two bad answers fail"
-      (is (str/includes? (:failure (people/polish! (scripted (polish-response {:persona "x" :manner "x"})
-                                                             (polish-response {:persona "y" :manner "y"}))
+      (is (str/includes? (:failure (people/polish! (scripted (polish-response (assoc good :persona "x"))
+                                                             (polish-response (assoc good :persona "y")))
                                                    {} input))
                          "second bad answer")))
+    (testing "a bad appearance gets one correction, or fails without keeping private prose"
+      (let [bad (polish-response (assoc good :appearance "You keep your debts secret."))
+            fixed (people/polish! (scripted bad (polish-response good)) {} input)
+            failed (people/polish! (scripted bad bad) {} input)]
+        (is (= good (:polish fixed)))
+        (is (= 2 (count (:calls fixed))))
+        (is (str/includes? (:content (last (:messages (second (:calls fixed))))) "third person"))
+        (is (:failure failed))
+        (is (nil? (:polish failed)))
+        (is (= 2 (count (:calls failed))))))
     (testing "only the setting, position, record and notes reach the model"
       (let [{:keys [messages]} (people/polish-request (assoc input :notes "Groom to the earl."))
             sent (json/read-value (:content (second messages)) json/keyword-keys-object-mapper)]
@@ -203,6 +227,7 @@
 
 (def ada-traits
   [[:manner "Brisk with strangers, and plainly busy."]
+   [:appearance "A sturdy woman in a faded apron, with red hands and iron-grey hair."]
    [:sex :female]
    [:temperament {:openness :low :conscientiousness :high :extraversion :average :agreeableness :low :neuroticism :high}]
    [:faculties {"Secretiveness" :large "Cautiousness" :small "Veneration" :large "Hearing" :small
@@ -231,6 +256,7 @@
                            (str "## Who you are\nYou are Ada (id: ada).\n\n"
                                 "An early riser who likes things orderly.\n\n"
                                 "How strangers see you: Brisk with strangers, and plainly busy.\n\n"
+                                "What people see: A sturdy woman in a faded apron, with red hands and iron-grey hair.\n\n"
                                 "### Your nature (known only to you)\n"
                                 "Temperament:\n"
                                 "- Openness: low (curiosity, imagination, willingness to entertain new ideas)\n"
@@ -264,7 +290,8 @@
         (is (= (system-prompt plain "ben") (system-prompt run "ben")))
         (is (str/includes? (system-prompt plain "ben") "## Who you are\nYou are Ben (id: ben).\n\nA night owl who hates going to bed."))
         (is (not (str/includes? (system-prompt plain "ada") "Your nature")))
-        (is (not (str/includes? (system-prompt plain "ada") "How strangers see you"))))
+        (is (not (str/includes? (system-prompt plain "ada") "How strangers see you")))
+        (is (not (str/includes? (system-prompt plain "ada") "What people see"))))
       (finally (e/stop-run run) (e/stop-run plain)))))
 
 ;; ---------------------------------------------------------------------------
@@ -314,12 +341,13 @@
             (is (= "butcher" (:position (:record hobbs)))))))
       (testing "each keeps name, role, sex and the rest; the old persona (or sketch) is the sketch; the traits are rolled"
         (doseq [[a b] (map vector (:agents before) (:agents after))
-                :let [rolled-keys [:persona :sketch :manner :temperament :faculties :circumstances]]]
+                :let [rolled-keys [:persona :sketch :manner :appearance :temperament :faculties :circumstances]]]
           (is (= (apply dissoc a rolled-keys) (apply dissoc b rolled-keys)))
           (is (= (or (:sketch a) (:persona a)) (:sketch b)))
           (is (= (:situation a) (:situation b)))
           (is (str/starts-with? (:persona b) "You are the "))
           (is (str/starts-with? (:manner b) "You "))
+          (is (= (:appearance (:args (people/mock-polish {:record {}}))) (:appearance b)))
           (is (= 5 (count (:temperament b))))
           (is (= 7 (count (:faculties b))))
           (is (<= 1 (count (:circumstances b)) 2))))

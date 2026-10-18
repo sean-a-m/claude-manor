@@ -13,8 +13,9 @@
     :faculties {\"Acquisitiveness\" :large \"Cautiousness\" :small ...}  ; one per group
     :circumstances [\"drinks\" \"owes money\"]
 
-  Only the agent's own prompt shows them (manor.prompt). The polish is one
-  narrow checked model call, like the shop's appraiser; the server makes no
+  A public :appearance describes only what a stranger can see.
+  Only the agent's own prompt shows the hidden traits (manor.prompt). The
+  polish is one narrow checked model call, like the shop's appraiser; the server makes no
   model calls and has no key."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
@@ -82,22 +83,25 @@
 
 ;; ---------------------------------------------------------------------------
 ;; The polish: a base record (plus the setting, the position and any authored
-;; notes) -> {:persona :manner}, checked before it is kept.
+;; notes) -> {:persona :manner :appearance}, checked before it is kept.
 
 (def max-persona 600)
 ;; The persona length the model is asked for. It overshoots a stated limit,
 ;; so it is asked for less than code accepts.
 (def advised-persona 450)
 (def max-manner 200)
+(def advised-appearance 200)
+(def max-appearance 300)
 
 (def polish-schema
   [:map
    [:persona [:string {:min 1 :max max-persona :json-schema/maxLength advised-persona}]]
-   [:manner [:string {:min 1 :max max-manner}]]])
+   [:manner [:string {:min 1 :max max-manner}]]
+   [:appearance [:string {:min 1 :max max-appearance :json-schema/maxLength advised-appearance}]]])
 
 (def instructions
   (str "You write the people of a simulation set in rural England around 1904. Answer with the polish tool. "
-       "From the person's record write two things, both addressed to the person themselves, in the second person. "
+       "From the person's record write persona and manner addressed to the person themselves, in the second person, and a public appearance. "
        "persona: three or four sentences, about " advised-persona " characters and never more than " max-persona ", in the manner of "
        "\"You are forty, broad and slow-spoken, with arms like a navvy's and a soft spot for the stable cat.\" "
        "Begin with \"You\" and speak to them as \"you\" throughout: never he, she or their name (they are told their name "
@@ -110,6 +114,11 @@
        "manner: one sentence, at most " max-manner " characters, on how strangers see them when they meet, also beginning "
        "with \"You\", as in \"You seem shy at first, then answer in a rush and blush.\" "
        "In both, \"you\" and \"your\" always mean the person, never the stranger or anyone else. "
+       "appearance: one or two sentences in the third person, about " advised-appearance " characters, accepted up to " max-appearance ". "
+       "Describe only what a stranger sees at a glance: age, build, face, dress, bearing, and plainly visible physical facts "
+       "such as spectacles, a squint, red hands or a limp. Keep it consistent with the persona and the same record and notes. "
+       "Never include the person's name or begin with You. Never state or name hidden traits: no Big Five or phrenological "
+       "terms, no claims that they drink, are honest, owe money, or have secrets. Show visible details, not character or history. "
        "If notes are given (they may be written in the third person), keep the person's position, age and situation from them (their station, household, "
        "history, duties, present aims, and any directions on their work, such as what they sell and what they don't), but take their character only "
        "from the record: leave out any trait in the notes that the record doesn't give. "
@@ -120,14 +129,18 @@
 
 (def ^:private honorifics #{"Mr" "Mrs" "Miss" "Master" "Lord" "Lady" "Sir" "Dr"})
 
+(defn- name-words
+  "The words of a person's name, without titles."
+  [person-name]
+  (remove #(or (str/blank? %) (honorifics %))
+          (str/split (str/trim (str person-name)) #"\s+")))
+
 (defn- third-person
   "Where `text` speaks of the person in the third person: the first sentence
   or clause whose subject is He, She or their name (any word of it, with or
   without a title), or nil if none is."
   [text person-name]
-  (let [words (->> (str/split (str/trim (str person-name)) #"\s+")
-                   (remove #(or (str/blank? %) (honorifics %)))
-                   (map #(Pattern/quote %)))
+  (let [words (map #(Pattern/quote %) (name-words person-name))
         named (when (seq words)
                 (str "|(?:(?:" (str/join "|" honorifics) ")\\s+)?(?:" (str/join "|" words) ")"))
         opening (re-pattern (str "(?:^|[.!?;:]\\s+)((?:He|She" named ")\\b)"))]
@@ -142,23 +155,38 @@
     (when-let [found (third-person text person-name)]
       (str "write " field " to the person as \"you\" throughout; don't write \"" found "\" of them"))))
 
+(defn- appearance-problem
+  "Why an appearance isn't public, third-person prose, or nil. These lexical
+  checks catch labels, not every possible disclosure; the instructions require
+  visible facts only."
+  [text person-name]
+  (cond
+    (re-find #"(?i)^You\b" text) "write appearance in the third person; don't begin with You"
+    (some #(re-find (re-pattern (str "(?i)\\b" (Pattern/quote %) "\\b")) text)
+          (name-words person-name)) "don't include the person's name in appearance"
+    (or (re-find jargon text)
+        (re-find #"(?i)\b(?:openness|conscientiousness|big five|honest|drinks|owes money)\b" text))
+    "describe only visible facts in appearance, not hidden traits or their names"))
+
 (defn- checked-polish
-  "Raw tool arguments -> {:persona :manner}, trimmed, or {:error}. The record's
+  "Raw tool arguments -> {:persona :manner :appearance}, trimmed, or {:error}. The record's
   facts are stored from the record itself, not from this answer, so the text
-  only has to speak to the person in the second person and keep to plain
-  words and the lengths."
+  checks cover point of view, plain words, names and lengths; the public
+  appearance must describe visible facts only."
   [record raw]
   (let [{:keys [args error]} (a/decode-args {:args polish-schema} raw)
-        {:keys [persona manner] :as answer} (some-> args (select-keys [:persona :manner]) (update-vals str/trim))]
+        {:keys [persona manner appearance] :as answer} (some-> args (select-keys [:persona :manner :appearance]) (update-vals str/trim))]
     (cond
       error {:error error}
-      (some str/blank? [persona manner]) {:error "give a non-blank persona and manner"}
+      (some str/blank? [persona manner appearance]) {:error "give a non-blank persona, manner and appearance"}
       (second-person-problem "persona" persona (:name record))
       {:error (second-person-problem "persona" persona (:name record))}
       (second-person-problem "manner" manner (:name record))
       {:error (second-person-problem "manner" manner (:name record))}
       (re-find jargon (str persona " " manner))
       {:error (str "describe the traits in plain words; don't write \"" (re-find jargon (str persona " " manner)) "\"")}
+      (appearance-problem appearance (:name record))
+      {:error (appearance-problem appearance (:name record))}
       :else answer)))
 
 (defn check-polish
@@ -175,7 +203,7 @@
     {:messages [{:role "system" :content instructions}
                 {:role "user" :content (json/write-value-as-string data)}]
      :tools [{:type "function"
-              :function {:name "polish" :description "The person's persona and manner, written from the record."
+              :function {:name "polish" :description "The person's persona, manner and public appearance, written from the record."
                          :parameters (mjs/transform polish-schema)}}]
      :ctx {:role :adjudicator :task :people/polish :record record}
      :check #(check-polish record %)}))
@@ -183,13 +211,14 @@
 (defn mock-polish
   "A free, deterministic polish for tests and --mock: the record's own
   descriptors, cut to length, after \"You are the <position>.\" Not a
-  production writer."
+  production writer; manner and appearance are fixed plain prose."
   [{:keys [record]}]
   (let [persona (str "You are the " (:position record) ". "
                      (str/join " " (map :text (:temperament record))))]
     {:tool :polish
      :args {:persona (subs persona 0 (min max-persona (count persona)))
-            :manner "You seem civil and plain to strangers."}}))
+            :manner "You seem civil and plain to strangers."
+            :appearance "A slight figure in plain, well-worn clothes, standing with shoulders drawn back."}}))
 
 (defn- conj-reply
   "Add the model's reply, unless it has neither content nor tool calls
@@ -200,7 +229,7 @@
 (defn polish!
   "Make the polish call for `input` (see `polish-request`) with `llm`, with
   one correction attempt. `opts` gives :model, :max-tokens, :reasoning and
-  :tool-choice. Returns {:polish {:persona :manner}} or {:failure reason},
+  :tool-choice. Returns {:polish {:persona :manner :appearance}} or {:failure reason},
   with :calls (each call's messages, response and replies) and :cost (USD)."
   [llm opts input]
   (let [{:keys [messages tools ctx check]} (polish-request input)]
@@ -261,6 +290,7 @@
       (:polish result) (assoc :edits (concat [[:persona (get-in result [:polish :persona])]]
                                              (when-not (str/blank? notes) [[:sketch notes]])
                                              [[:manner (get-in result [:polish :manner])]
+                                              [:appearance (get-in result [:polish :appearance])]
                                               [:sex (:sex t)]
                                               [:temperament (:temperament t)]
                                               [:faculties (:faculties t)]

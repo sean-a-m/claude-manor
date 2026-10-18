@@ -21,8 +21,9 @@
   own :on-spawn events (starting holdings and so on), then the scenario's
   :on-spawn events, `(fn [world id spec])`, which see everything the agent
   was spawned with (a post, a bedroom; see manor.positions). An agent's
-  :situation is kept: only their own prompt shows it."
-  [scenario world {:keys [role name persona model controller location situation] :as spec}]
+  :situation is kept: only their own prompt shows it. The public
+  :appearance is kept too."
+  [scenario world {:keys [role name persona model controller location situation appearance] :as spec}]
   (let [id (unique-id world (slug name))
         location (or location (get-in scenario [:roles role :start-location]))
         agent (cond-> (merge {:id id :name name :role role :persona (or persona "")}
@@ -30,7 +31,8 @@
                 model (assoc :model model)
                 controller (assoc :controller controller)
                 location (assoc :location location)
-                situation (assoc :situation situation))
+                situation (assoc :situation situation)
+                appearance (assoc :appearance appearance))
         spawned {:type :agent/spawned :data {:agent agent} :visible-to :all}
         world' (w/apply-event world spawned)
         on-spawn (get-in scenario [:roles role :on-spawn])

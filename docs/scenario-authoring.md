@@ -92,8 +92,8 @@ option keys pass through, e.g. the village reads `:start-date`.
   Only `:name` and `:role` are required. The id is derived from the name (`"Iris"` → `"iris"`,
   with a `-2` suffix on collisions). `:location` defaults to the role's `:start-location`.
   A spec may also carry a person's hidden traits, `:sex :manner :temperament :faculties
-  :circumstances` (see "People and traits" under World files) and a `:situation` (see "Positions,
-  posts and situations"). Other keys stay off the agent, but the scenario's `:on-spawn` sees
+  :circumstances`, a public `:appearance` (see "People and traits" under World files) and a
+  `:situation` (see "Positions, posts and situations"). Other keys stay off the agent, but the scenario's `:on-spawn` sees
   them all (Claudeworth's reads `:bedroom`, `:routine` and `:household`).
 
 - `:clock`: optional game time, `{:start "1904-10-15T08:00" :minutes-per-round 30}` (see Time).
@@ -1086,9 +1086,15 @@ in `:init`:
 #### People and traits
 
 An agent in a world file may carry a person's traits. They're hidden from everyone but that
-person; no other agent's view or prompt contains them, and the GM's view lists only the persona
-as before. Their own prompt's "Who you are" is laid out like this (a character without traits
-gets just the first line and the persona):
+person; no other agent's view or prompt contains them. The optional `:appearance` is public:
+one or two third-person sentences describing what a stranger sees at a glance (age, build, face,
+dress, bearing, spectacles, a squint, red hands or a limp). It must not include the person's name,
+trait labels, character judgements or secrets: no Big Five or phrenological terms, "drinks",
+"honest" or "owes money". Aim for about 200 characters; up to 300 are accepted.
+
+Other agents see it in `location.people-here`, the `walk` reply and `look`'s people. The GM's
+view lists it with the persona; hidden traits and manner remain excluded as before. The person's
+own prompt's "Who you are" is laid out like this (absent optional fields add nothing):
 
 ```
 ## Who you are
@@ -1097,6 +1103,8 @@ You are Daisy (id: daisy), the scullery maid. People address you as Daisy.
 <persona, in the second person>
 
 How strangers see you: <manner, in the second person>
+
+What people see: <appearance, in the third person>
 
 ### Your nature (known only to you)
 Temperament:
@@ -1121,7 +1129,8 @@ data, so there's one source and no call.
 {:name "Hale" :sex :male :role :secretary :location "secretarys-room"
  :persona "You are twenty-six, neat to the point of fussiness ..."   ; polished: the traits made concrete
  :sketch "Mr Hale, ... a little anxious to please."      ; the authored notes the polish worked from
- :manner "You seem eager and tidy ..."                   ; how strangers see them, at most 200
+ :manner "You seem eager and tidy ..."                   ; private guidance, at most 200
+  :appearance "A young man in a neat dark suit and spectacles, standing very straight." ; public, at most 300
  :temperament {:openness :high :conscientiousness :average :extraversion :low
                :agreeableness :high :neuroticism :average}   ; the Big Five: :low, :average or :high
  :faculties {"Secretiveness" :large "Cautiousness" :small "Veneration" :large "Hearing" :small
@@ -1130,7 +1139,8 @@ data, so there's one source and no call.
 ```
 
 - `load-world` checks these keys (the five axes and their levels, the sizes, `:sex` `:male` or
-  `:female`). Loading never calls the people server or a model: the file holds the result.
+  `:female`, and appearance's nonempty string and 300-character limit). Loading never calls the
+  people server or a model: the file holds the result.
 - `:sketch` is never shown to anyone; it's what `roll-cast!` polishes from when it rolls again.
 - The traits come from the **people server** (`mcp-servers/people/`, babashka, stateless, no
   model, no key). `generate_people {position count area setting seed taken-names sex ages}` rolls
@@ -1146,17 +1156,20 @@ data, so there's one source and no call.
   acquaintance line and which of its traits they know, by relation (`by-sight`, `neighbour`,
   `acquaintance`, `fellow-servant`, `employer`, `family`). Both are deterministic from the seed.
 - The **polish** (`manor.people/polish!`) is one narrow checked model call, like the shop's
-  appraiser: the setting, the position, the base record and any notes go in; `{persona manner}`
-  comes out, both written to the person in the second person ("You are sixteen, small and
-  round-faced ..."; "You seem shy at first ..."). Code checks the lengths (persona at most 600
-  characters, though the model is asked for about 450 because it overshoots a stated limit;
-  manner at most 200), that each begins with "You" and has no sentence whose subject is He, She or
-  the person's name, and that neither uses the record's jargon (faculty or Big Five axis names); a
-  bad answer is sent back once with the reason. The record's facts are stored from
-  the record, never from the model's text. `mock-polish` is the free responder.
+  appraiser: the setting, the position, the base record and any notes go in; `{persona manner
+  appearance}` comes out in the same call. Persona and manner are written to the person in the
+  second person ("You are sixteen, small and round-faced ..."; "You seem shy at first ...").
+  Code checks the lengths (persona advised 450, accepted to 600; manner at most 200; appearance
+  advised 200, accepted to 300) and nonblank text. Persona and manner must begin with "You" and
+  have no sentence whose subject is He, She or the person's name, and neither may use the
+  record's jargon. Appearance must not begin with "You", contain the person's name (any word
+  except a title), or use that jargon or explicit hidden-trait labels such as "honest", "drinks"
+  or "owes money". Instructions require visible facts only; lexical checks cannot prove that
+  arbitrary prose reveals no secret. A bad answer is sent back once with the reason. The record's
+  facts are stored from the record, never from the model's text. `mock-polish` is the free responder.
 - `(roll-cast! "worlds/claudeworth.edn")` at the REPL (`clj -M:dev`; `{:llm :mock}` for a free
-  one) rolls every agent in a world file afresh and writes the results into the file in place,
-  comments and layout kept, for review with `git diff`. Every trait is rolled, with no pins. Each
+  one) rolls every agent in a world file afresh and writes the results, including `:appearance`,
+  into the file in place, comments and layout kept, for review with `git diff`. Every trait is rolled, with no pins. Each
   agent keeps their `:name` and `:sex`; their old `:persona` becomes `:sketch` (an existing
   `:sketch` is used instead), and the polish keeps their position and situation from it but not
   its traits. Their `:situation` is never touched. The server's age, origin and home are dropped

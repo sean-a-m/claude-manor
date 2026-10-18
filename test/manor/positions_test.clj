@@ -1,12 +1,16 @@
 (ns manor.positions-test
   "Positions, posts, situations, capabilities, forms of address and the
   household's bedrooms, on the bundled Claudeworth world (mock and offline)."
-  (:require [clojure.string :as str]
+  (:require [clojure.java.io :as io]
+            [jsonista.core :as json]
+            [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
             [manor.builtins :as b]
             [manor.engine :as e]
             [manor.main :as main]
+            [manor.llm :as llm]
+            [manor.people :as people]
             [manor.positions :as positions]
             [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as cw]
@@ -283,3 +287,53 @@
     (is (= "the world is at its limit of 50 participants" ((:valid? spawn) (world-of 50) "gm" args)))
     (testing "retired agents don't count"
       (is (nil? ((:valid? spawn) (assoc-in (world-of 50) [:agents "a0" :status] :retired) "gm" args))))))
+
+(deftest public-appearance-in-a-mock-meeting
+  (let [dir (doto (store/run-dir (str (gensym "appearance-world-")) true) .mkdirs)
+        file (io/file dir "claudeworth.edn")
+        appearance (get-in (people/mock-polish {:record {:name "Daisy" :position "scullery-maid"}})
+                           [:args :appearance])
+        _ (spit file (wf/set-agent-keys (slurp "resources/worlds/claudeworth.edn") "Daisy"
+                                       [[:appearance appearance]]))
+        policy (fn [{:keys [agent-id step]}]
+                 (if (= "mrs-finch" agent-id)
+                   (case step
+                     0 {:tool :walk :args {:to "scullery"}}
+                     1 {:tool :look :args {}}
+                     {:tool :pass :args {}})
+                   {:tool :pass :args {}}))
+        run (start {:world-file (str file) :llm-impl (llm/mock policy)})]
+    (try
+      (e/step! run)
+      (e/wait-idle run)
+      (let [world (e/world run)
+            daisy (w/agent world "daisy")
+            entry (first (filter #(= "daisy" (:id %))
+                                (get-in (prompt/agent-view (:scenario run) world "mrs-finch")
+                                        [:location :people-here])))
+            calls (filter #(= "mrs-finch" (:agent %)) (store/read-llm (:dir run)))
+            replies (map #(json/read-value (:content (first (:replies %))) json/keyword-keys-object-mapper)
+                         (take 2 calls))
+            walk-entry (first (filter #(= "daisy" (:id %)) (:people-here (first replies))))
+            look-entry (first (filter #(= "Daisy" (:name %)) (:people (second replies))))]
+        (testing "Mrs Finch sees Daisy's appearance in her view, walk reply and look reply"
+          (is (= "scullery" (get-in world [:agents "mrs-finch" :location])))
+          (is (= {:id "daisy" :name "Daisy" :role :scullery-maid :address-as "Daisy" :appearance appearance}
+                 entry))
+          (is (= appearance (:appearance walk-entry)))
+          (is (= appearance (:appearance look-entry)))
+          (is (str/includes? (system-prompt run world "daisy") (str "What people see: " appearance))))
+        (testing "none of Daisy's private fields or their text leak through these public surfaces"
+          (doseq [public [entry walk-entry look-entry]]
+            (is (not-any? #(contains? public %) [:persona :manner :temperament :faculties :circumstances :sketch])))
+          (let [seen (str (whole-prompt run world "mrs-finch") replies)]
+            (doseq [secret (concat (map daisy [:persona :manner]) (:circumstances daisy)
+                                   ["Alimentiveness" "Individuality"])]
+              (is (not (str/includes? seen secret)) secret))))
+        (testing "the GM still sees the cast, including persona and appearance"
+          (let [gm-daisy (first (filter #(= "daisy" (:id %)) (:agents (prompt/default-gm-view world))))]
+            (is (= (:persona daisy) (:persona gm-daisy)))
+            (is (= appearance (:appearance gm-daisy)))
+            (is (seq (prompt/gm-messages (:scenario run) world (e/events run) [] (:opts run))))))
+        (is (= world (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))

@@ -564,6 +564,17 @@ during development; the cast roll is recorded separately below.
 - The free 48-round day exercises conversation, a shop quote/purchase, storing the purchase,
   room and item work, sleep and the nightly steward, with no bad replies or failed calls
   and exact event replay. Lodge is also in the bundled smoke/tool-schema tests.
+- **Cast rolled:** one seed-1 `roll-cast!` using `deepseek/deepseek-v4.1-flash`, three calls,
+  $0.001041078 total, all accepted first try; the unchanged paid record is in
+  `old-test-runs/roll-cast-lodge` in the phase 3 worktree. Ashby is quiet, soft-hearted and
+  untidy; Bell is warm, observant and changeable, fond of a glass; Ward is loud and sociable,
+  with workhouse memories. All three have visible appearances. The only hand correction
+  removes “at the gate” from Ashby's appearance, because it is shown wherever she goes.
+  Polish instructions now explicitly forbid a fixed location or passing action in appearance;
+  this instruction change was checked with the free mock only, not another real call.
+- **Free validation result:** 48 rounds, 134 mock model calls, $0.0000; 0 errors,
+  0 rejections, 0 forfeits; one purchase and 13 completed jobs, exact replay. CLI output
+  (isolated port 18874): round 48, Sunday 16 October 1904, 07:30, idle/manual, $0.0000.
 - No second world was added: Lodge already offers two-person conversation at breakfast and
   single-mechanic checks in the first few rounds, while fixed household fixtures remain the
   mechanics tests' controlled content.
@@ -731,3 +742,7 @@ From phase 3:
 15. **One area, two map labels.** House and shop use `:house` and `:village` domains so the
     shopkeeper's lodgings do not appear among the household's beds. All are connected by
     zero-time routes and belong to one walking area; no turn is spent travelling.
+16. **Appearance must travel with the person.** The polish placed Ashby “at the gate” in
+    her baseline appearance; that phrase was removed by hand and the instruction tightened.
+    Is an automatic check for fixed locations or passing actions wanted? There is no new
+    lexical or model-based checker in this phase.

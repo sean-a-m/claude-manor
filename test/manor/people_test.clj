@@ -192,6 +192,16 @@
     (testing "the mock passes its own check"
       (is (:verdict (people/check-polish record (polish-response (:args (people/mock-polish {:record record})))))))))
 
+(deftest appearance-baseline-instructions
+  (let [input {:setting "A village." :position "groom" :record record}
+        result (people/polish! (llm/mock people/mock-polish) {} input)
+        instructions (get-in result [:calls 0 :messages 0 :content])]
+    (is (str/includes? instructions "Do not place the person somewhere or describe a passing action"))
+    (is (str/includes? instructions "appearance is shown wherever they are"))
+    (is (seq (get-in result [:polish :appearance])))
+    (is (= 1 (count (:calls result))))
+    (is (zero? (:cost result)))))
+
 (deftest polish-calls-once-and-corrects-once
   (let [input {:setting "A village." :position "groom" :record record}]
     (testing "a bad answer is sent back once with the reason"

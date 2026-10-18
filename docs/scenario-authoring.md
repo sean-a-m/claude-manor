@@ -1104,7 +1104,8 @@ remain unassigned if it is to show as free in the household view.
 An agent in a world file may carry a person's traits. They're hidden from everyone but that
 person; no other agent's view or prompt contains them. The optional `:appearance` is public:
 one or two third-person sentences describing what a stranger sees at a glance (age, build, face,
-dress, bearing, spectacles, a squint, red hands or a limp). It must not include the person's name,
+dress, bearing, spectacles, a squint, red hands or a limp). It is shown wherever the person
+is: do not place them at a location or describe a passing action. It must not include the person's name,
 trait labels, character judgements or secrets: no Big Five or phrenological terms, "drinks",
 "honest" or "owes money". Aim for about 200 characters; up to 300 are accepted.
 

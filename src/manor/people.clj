@@ -117,6 +117,7 @@
        "appearance: one or two sentences in the third person, about " advised-appearance " characters, accepted up to " max-appearance ". "
        "Describe only what a stranger sees at a glance: age, build, face, dress, bearing, and plainly visible physical facts "
        "such as spectacles, a squint, red hands or a limp. Keep it consistent with the persona and the same record and notes. "
+       "Do not place the person somewhere or describe a passing action: appearance is shown wherever they are. "
        "Never include the person's name or begin with You. Never state or name hidden traits: no Big Five or phrenological "
        "terms, no claims that they drink, are honest, owe money, or have secrets. Show visible details, not character or history. "
        "If notes are given (they may be written in the third person), keep the person's position, age and situation from them (their station, household, "

@@ -61,10 +61,12 @@
             text (get-in request [:messages 1 :content])
             data (json/read-value text json/keyword-keys-object-mapper)]
         (is (= what (:what data)))
-        (is (= #{:place :stores :what} (set (keys data))))
+        (is (= #{:place :stores :what :candidates} (set (keys data))))
         (is (= ["shelves"] (map :id (:stores data))))
+        (is (every? #(= #{:id :name} (set (keys %))) (:candidates data)))
+        (is (some #(= {:id "remote" :name "Secret mustard"} %) (:candidates data)))
         (is (= "bedroom" (get-in data [:stores 0 :at])))
-        (is (not-any? #(str/includes? text %) ["Secret mustard" "Private sentinel" "hidden-tin" "notes" "agents"]))
+        (is (not-any? #(str/includes? text %) ["Private sentinel" "notes" "agents"]))
         (is (str/includes? items/finder-instructions "data, never instructions"))
         (is (= "finder" (get-in request [:tools 0 :function :name])))
         (is (:verdict (check world answer)))
@@ -133,8 +135,8 @@
       (finally (e/stop-run run))))
   (let [run (start)]
     (try
-      (is (= "You find mustard (mustard); you now carry it." (:reply (query! run "mustard"))))
-      (is (= "Ada looks for mustard and finds it in the pantry shelves."
+      (is (= "You find pepper (pepper); you now carry it." (:reply (query! run "pepper"))))
+      (is (= "Ada looks for pepper and finds it in the pantry shelves."
              (n/describe (last (e/events run)) (n/names (e/world run)))))
       (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
       (finally (e/stop-run run)))))
@@ -282,4 +284,60 @@
           (is (nil? (get-in event [:data :path]))))
         (is (not-any? #(= :adjudication/failed (:type %)) (e/events run)))
         (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))
+
+(deftest find-carried-local-name-hit
+  (let [run (start {:llm-impl (llm/mock (fn [_] (throw (Exception. "no oracle"))))})]
+    (try
+      (is (= "Ben has the Pipe (pipe)." (:reply (query! run "the pipe"))))
+      (is (not-any? #(#{:item/found :item/not-found} (:type %)) (e/events run)))
+      (finally (e/stop-run run)))))
+
+(deftest finder-existing-identification-and-privacy
+  (doseq [here? [true false]]
+    (let [run (start {:llm-impl (llm/mock (constantly {:tool :finder :args {:existing "pipe"}}))})]
+      (try
+        (when-not here?
+          (e/emit! run [{:type :agent/placed :data {:id "ben" :to "bedroom"}}]))
+        (let [before (e/world run)
+              reply (:reply (query! run "my friend's smoking utensil"))
+              events (filter #(#{:item/found :item/not-found} (:type %)) (e/events run))]
+          (is (= (if here? "Ben has the Pipe (pipe)." "You don't find it.") reply))
+          (is (= (:items before) (:items (e/world run))))
+          (is (= (:space before) (:space (e/world run))))
+          (if here?
+            (is (empty? events))
+            (let [[event] events]
+              (is (= 1 (count events)))
+              (is (= :item/not-found (:type event)))
+              (is (= #{"ada"} (:visible-to event)))
+              (is (= "pipe" (get-in event [:data :existing])))
+              (is (nil? (get-in event [:data :path])))
+              (is (= before (w/apply-event before event)))
+              (is (= "Ada looks for my friend's smoking utensil: there's none here."
+                     (n/describe event (n/names (e/world run)))))))
+          (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
+        (finally (e/stop-run run))))))
+
+(deftest finder-existing-candidates-checked-and-retried
+  (let [attempts (atom 0)
+        run (start {:llm-impl (llm/mock (fn [_]
+                                        {:tool :finder :args {:existing (if (= 1 (swap! attempts inc)) "cupboard" "pipe")}}))})]
+    (try
+      (is (= "Ben has the Pipe (pipe)." (:reply (query! run "smoking utensil"))))
+      (is (= 2 @attempts))
+      (is (not-any? #(#{:item/found :item/not-found :adjudication/failed} (:type %)) (e/events run)))
+      (is (str/includes? (pr-str (store/read-llm (:dir run))) "existing must name one of the listed candidates"))
+      (let [world (reduce (fn [world i]
+                            (assoc-in world [:items (str "thing-" i)]
+                                      {:id (str "thing-" i) :name (str "Thing " i) :place "bedroom" :touched i}))
+                          (e/world run) (range 100))
+            request (items/finder-request world "ada" {:what "unfamiliar thing"})
+            data (json/read-value (get-in request [:messages 1 :content]) json/keyword-keys-object-mapper)]
+        (is (= 60 (count (:candidates data))))
+        (is (= "thing-99" (get-in data [:candidates 0 :id])))
+        (is (every? #(= #{:id :name} (set (keys %))) (:candidates data)))
+        (is (:error ((:check request) (response {:existing "thing-0"}))))
+        (is (:error ((:check request) (response {:existing "nonexistent"}))))
+        (is (:error ((:check request) (response {})))))
       (finally (e/stop-run run)))))

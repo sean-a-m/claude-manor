@@ -367,7 +367,7 @@
       (is (= [work-on] (a/available [work-on] world "ada")))
       (is (empty? (a/available [work-on] (dissoc world :clock) "ada")))
       (is (not-any? #(= :work-on (:name %)) (e/all-actions (e/load-scenario :village)))))
-    (testing "the arguments: 1-6 items, doing 3-120 characters, hours 0.5-4"
+    (testing "the arguments: 1-6 items, doing 3-400 characters, hours 0.5-4"
       (is (str/includes? (:error (a/decode-args work-on {:items [] :doing "dusting"})) "items has 0 items"))
       (is (str/includes? (:error (a/decode-args work-on {:items (repeat 7 "clock") :doing "dusting"})) "items has 7 items"))
       (is (:error (a/decode-args work-on {:items ["clock"] :doing "do"})))
@@ -487,7 +487,13 @@
     (doseq [instruction ["work can't turn a vase into gold" "Most activities change little"
                          "a pastime often changes nothing" "Empty changes, used-up, absorbed and made lists are normal"
                          "Do not invent events" "A store holds everything it `keeps`"
-                         "Change only the aspects the activity affected" "- cleanliness: how clean"]]
+                         "Change only the aspects the activity affected" "- cleanliness: how clean"
+                         "An activity happens in one place and you cannot move things"
+                         "When leftovers or supplies are put away into a store in scope"
+                         "absorb them into that store: they join its stock and get a put-away fate"
+                         "Adjust the store's aspects if its stock or lacking changes"
+                         "Never describe a thing as moved or put away in its aspects while leaving it where it is"
+                         "If something isn't put away or consumed, leave it as it is"]]
       (is (str/includes? (:content system) instruction)))
     (is (str/ends-with? (:content system) "## The setting\nA small house."))
     (is (str/includes? (:content user) (str "- Time: Saturday 15 October 1904, 22:30\n"
@@ -831,17 +837,22 @@
            (a/effect-events alias world "ben" {:doing "taking stock" :hours 1 :items ["pantry" "pantry"]})))
     (is (= ["pantry"] (get-in (first (a/effect-events spend world "ben" args)) [:data :items])))
     (is (= {:doing "resting"} (:args (a/decode-args spend {:doing "resting"}))))
-    (doseq [args [{:doing "do"} {:doing (apply str (repeat 201 "x"))}
+    (doseq [args [{:doing "do"} {:doing (apply str (repeat 401 "x"))}
                   {:doing "resting" :hours 0.4} {:doing "resting" :hours 4.1}
                   {:doing "resting" :on (vec (repeat 7 "clock"))}]]
       (is (:error (a/decode-args spend args))))
     (doseq [act [spend alias]
-            :let [doing (str "writing " (apply str (repeat 192 "x")))
+            :let [doing (str "writing " (apply str (repeat 392 "x")))
                   args (cond-> {:doing doing} (= act alias) (assoc :items ["clock"]))
                   {:keys [args error]} (a/decode-args act args)]]
-      (is (= 200 (count doing)))
+      (is (= 400 (count doing)))
+      (is (= {:type "string" :minLength 3 :maxLength 200}
+             (get-in (a/->tool act) [:function :parameters :properties :doing])))
+      (is (str/includes? (get-in (a/->tool act) [:function :description]) "at most 200 characters"))
+      (is (:args (a/decode-args act (assoc args :doing (subs doing 0 200)))))
       (is (nil? error))
-      (is (:error (a/decode-args act (assoc args :doing (str doing "x")))))
+      (is (str/includes? (:error (a/decode-args act (assoc args :doing (str doing "x"))))
+                         "doing is 401 characters; the limit is 400 - shorten it by at least 1"))
       (let [[begun occupied] (a/effect-events act world "ben" args)]
         (is (= doing (get-in occupied [:data :activity])))
         (is (str/includes? (n/describe occupied (n/names world)) (str "Ben is " doing)))

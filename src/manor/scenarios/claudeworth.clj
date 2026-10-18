@@ -627,7 +627,7 @@
    :offline-stubs building/offline-stubs
    :mcp-servers building/mcp-servers
    :systems [building/construction]
-   :items {:steward {:at "02:00" :idle-hours 6 :max-per-call 8}
+   :items {:steward {:at "02:00" :idle-hours 4 :max-per-call 8}
            :find-allowed? (fn [world _ place]
                             (when (seq (:services (space/location world place)))
                               "this isn't your house to search; ask for it here instead"))

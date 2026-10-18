@@ -129,6 +129,8 @@
       (let [world (e/world run)
             stores (items/items-where world items/store?)]
         (is (seq stores))
+        (is (= {:at "02:00" :idle-hours 4 :max-per-call 8}
+               (get-in run [:scenario :items :steward])))
         (is (every? (fn [store]
                       (some #(= (:id store) (:id %))
                             (items/stores-for world (:place store)))) stores)))

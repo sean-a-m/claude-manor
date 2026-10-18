@@ -13,7 +13,11 @@
 (def faculties (data "faculties.edn"))
 (def circumstances (data "circumstances.edn"))
 (def names (data "names.edn"))
-(def positions (data "positions.edn"))
+
+(def default-ages
+  "The ages rolled when a request gives none. The engine passes a position's
+  own :ages and :sex from its catalogue (resources/positions/)."
+  [18 55])
 
 (def settings
   "The settings this server has data for. Another setting would add its own files."
@@ -109,10 +113,9 @@
   [position]
   (keyword (str/replace (str/lower-case (str/trim (str position))) #"[^a-z0-9]+" "-")))
 
-(defn- person [r {:keys [position area sex]} taken]
-  (let [{:keys [ages] fixed :sex} (get-in positions [:positions position] (:default positions))
-        sex (or sex fixed (pick r [:male :female]))
-        [lo hi] ages]
+(defn- person [r {:keys [position area sex ages]} taken]
+  (let [sex (or sex (pick r [:male :female]))
+        [lo hi] (or ages default-ages)]
     {:name (roll-name r sex taken)
      :sex sex
      :age (+ lo (.nextInt r (inc (- hi lo))))
@@ -128,7 +131,7 @@
 
 (defn- checked
   "The request with defaults, or an ex-info saying what is wrong."
-  [{:keys [position count setting seed sex] :as req}]
+  [{:keys [position count setting seed sex ages] :as req}]
   (let [n (or count 1)]
     (cond
       (str/blank? (str position)) (throw (ex-info "position is required, such as \"housemaid\"" {}))
@@ -136,6 +139,8 @@
       (and setting (not (settings setting))) (throw (ex-info (str "unknown setting; known: " (str/join ", " (sort settings))) {}))
       (nil? seed) (throw (ex-info "seed is required" {}))
       (and sex (not (#{"male" "female"} sex))) (throw (ex-info "sex must be \"male\" or \"female\"" {}))
+      (and ages (not (and (sequential? ages) (= 2 (clojure.core/count ages)) (every? nat-int? ages) (apply <= ages))))
+      (throw (ex-info "ages must be [youngest oldest], whole numbers" {}))
       :else (assoc req :count n :position (position-key position) :sex (some-> sex keyword)))))
 
 (defn generate

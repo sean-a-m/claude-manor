@@ -18,19 +18,26 @@
 
 (defn spawn-events
   "Events that add an agent of `role` to the world, followed by the role's
-  own :on-spawn events (starting holdings and so on)."
-  [scenario world {:keys [role name persona model controller location] :as spec}]
+  own :on-spawn events (starting holdings and so on), then the scenario's
+  :on-spawn events, `(fn [world id spec])`, which see everything the agent
+  was spawned with (a post, a bedroom; see manor.positions). An agent's
+  :situation is kept: only their own prompt shows it."
+  [scenario world {:keys [role name persona model controller location situation] :as spec}]
   (let [id (unique-id world (slug name))
         location (or location (get-in scenario [:roles role :start-location]))
         agent (cond-> (merge {:id id :name name :role role :persona (or persona "")}
                              (select-keys spec trait-keys))
                 model (assoc :model model)
                 controller (assoc :controller controller)
-                location (assoc :location location))
+                location (assoc :location location)
+                situation (assoc :situation situation))
         spawned {:type :agent/spawned :data {:agent agent} :visible-to :all}
         world' (w/apply-event world spawned)
-        on-spawn (get-in scenario [:roles role :on-spawn])]
-    (into [spawned] (when on-spawn (on-spawn world' id)))))
+        on-spawn (get-in scenario [:roles role :on-spawn])
+        on-spawn-all (:on-spawn scenario)]
+    (-> [spawned]
+        (into (when on-spawn (on-spawn world' id)))
+        (into (when on-spawn-all (on-spawn-all world' id spec))))))
 
 (defn- active-ids [world] (set (map :id (w/active-agents world))))
 
@@ -200,6 +207,13 @@
     :effect (fn [_ actor {:keys [text]}]
               [{:type :gm/requested :data {:text text} :visible-to #{actor}}])}])
 
+(def default-max-agents
+  "How many active participants the GM's `spawn-agent` may bring the world
+  to, unless a scenario sets :limits :max-agents. Retired agents don't
+  count. It only stops a GM spawning without bound: :max-cost is the real
+  guard."
+  50)
+
 (defn gm-actions
   "The GM's tools. `spawn-agent` is left out when no role is :spawnable?
   (its role enum would be empty, which isn't a valid schema)."
@@ -207,7 +221,7 @@
   (let [spawnable (->> (:roles scenario)
                        (filter (comp :spawnable? val))
                        (map (comp name key)))
-        max-agents (get-in scenario [:limits :max-agents] 10)]
+        max-agents (get-in scenario [:limits :max-agents] default-max-agents)]
     (cond->> [{:name :spawn-agent
       :roles #{:gm}
       :doc "Bring a new participant into the world."

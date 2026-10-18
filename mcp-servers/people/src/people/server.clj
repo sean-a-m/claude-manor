@@ -15,7 +15,8 @@
                                :setting {:type "string" :enum (vec (sort generate/settings))}
                                :seed {:type ["string" "integer"]}
                                :taken-names {:type "array" :items {:type "string"}}
-                               :sex {:type "string" :enum ["male" "female"]}}
+                               :sex {:type "string" :enum ["male" "female"]}
+                               :ages {:type "array" :items {:type "integer"} :minItems 2 :maxItems 2}}
                   :required ["position" "seed"]}}
    {:name "reputation"
     :description "What a knower knows of a person, from how they know them."

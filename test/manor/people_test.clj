@@ -9,6 +9,7 @@
             [manor.llm :as llm]
             [manor.mcp :as mcp]
             [manor.people :as people]
+            [manor.positions :as positions]
             [manor.prompt :as prompt]
             [manor.store :as store]
             [manor.worldfile :as wf]))
@@ -39,7 +40,8 @@
     (with-server
       (fn [call]
         (let [taken ["Lord Claudeworth" "Mrs Finch" "Hale" "Nellie"]
-              args {:position "groom" :count 5 :area "Claudeworth" :seed "s1" :taken-names taken}
+              args {:position "groom" :count 5 :area "Claudeworth" :seed "s1" :taken-names taken
+                    :ages [18 50] :sex "male"}
               people (:people (call "generate_people" args))
               groups (mapv :group (:groups (data "faculties.edn")))
               circumstance-groups (into {} (for [{:keys [group circumstances]} (:groups (data "circumstances.edn"))
@@ -55,7 +57,7 @@
             (is (apply distinct? (map :name people)))
             (doseq [{:keys [name sex age position lives temperament faculties circumstances]} people]
               (is (not-any? taken-words (str/split name #" ")))
-              (is (= "male" sex))                      ; a groom, in 1904
+              (is (= "male" sex))                      ; as asked
               (is (<= 18 age 50))
               (is (= "groom" position))
               (is (str/ends-with? lives ", Claudeworth"))
@@ -77,12 +79,23 @@
                                 p (:people (call "generate_people" {:position "earl" :count 10 :seed seed}))
                                 c (:circumstances p)]
                             (:id c)))))
-          (testing "a requested sex overrides the position's"
-            (is (= #{"female"} (set (map :sex (:people (call "generate_people" {:position "groom" :count 4 :seed 3 :sex "female"}))))))
-            (is (= #{"female"} (set (map :sex (:people (call "generate_people" {:position "Scullery maid" :count 4 :seed 3})))))))
+          (testing "age and sex come from the request: the catalogue's entry, as the engine passes it"
+            (let [catalogue (positions/read-catalogue "positions/england-1904.edn")
+                  maids (:people (call "generate_people"
+                                       (assoc (people/generate-args :scullery-maid (:scullery-maid catalogue)
+                                                                    {:seed 3 :taken-names []})
+                                              :count 10)))]
+              (is (= #{"female"} (set (map :sex maids))))
+              (is (every? #(<= 13 (:age %) 20) maids)))
+            (is (= #{"female"} (set (map :sex (:people (call "generate_people" (people/generate-args :groom {:ages [18 50] :sex :male}
+                                                                                                      {:sex :female :seed 3})))))))
+            (let [anyone (:people (call "generate_people" {:position "groom" :count 10 :seed 4}))]
+              (is (= #{"female" "male"} (set (map :sex anyone))))
+              (is (every? #(<= 18 (:age %) 55) anyone))))
           (testing "bad requests are tool errors"
             (doseq [bad [{:position "groom"} {:position "groom" :seed 1 :count 11}
-                         {:position "groom" :seed 1 :setting "mars-2100"} {:seed 1}]]
+                         {:position "groom" :seed 1 :setting "mars-2100"} {:seed 1}
+                         {:position "groom" :seed 1 :ages [40 20]} {:position "groom" :seed 1 :ages [18]}]]
               (is (thrown? clojure.lang.ExceptionInfo (call "generate_people" bad))))))))))
 
 (deftest people-server-reputation
@@ -260,12 +273,17 @@
         (is (= (mapv :name (:agents before)) (:rolled result)))
         (is (= {} (:failed result)))
         (is (zero? (:cost result)))
-        (is (= 9 (count (:results (edn/read-string (slurp (io/file dir "roll-cast.edn"))))))))
+        (is (= 9 (count (:results (edn/read-string (slurp (io/file dir "roll-cast.edn")))))))
+        (testing "with each position's ages from the catalogue, and the agent's own sex"
+          (let [hobbs (first (filter #(= "Hobbs" (:name %)) (:results (edn/read-string (slurp (io/file dir "roll-cast.edn"))))))]
+            (is (= {:position "butcher" :ages [25 65] :sex "male"} (select-keys (:args hobbs) [:position :ages :sex])))
+            (is (= "butcher" (:position (:record hobbs)))))))
       (testing "each keeps name, role, sex and the rest; the old persona (or sketch) is the sketch; the traits are rolled"
         (doseq [[a b] (map vector (:agents before) (:agents after))
                 :let [rolled-keys [:persona :sketch :manner :temperament :faculties :circumstances]]]
           (is (= (apply dissoc a rolled-keys) (apply dissoc b rolled-keys)))
           (is (= (or (:sketch a) (:persona a)) (:sketch b)))
+          (is (= (:situation a) (:situation b)))
           (is (str/starts-with? (:persona b) (:name a)))
           (is (= 5 (count (:temperament b))))
           (is (= 7 (count (:faculties b))))

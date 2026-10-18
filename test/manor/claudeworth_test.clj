@@ -89,7 +89,7 @@
         (is (str/includes? ps "location \"general-store\": :hours must be two times")))
       (let [ps (str/join "\n" (cw/problems (-> world-file (update :meta dissoc :setting) (update :roles dissoc :earl))))]
         (is (str/includes? ps ":meta :setting must be a paragraph"))
-        (is (str/includes? ps ":roles :earl needs an :about paragraph"))))
+        (is (str/includes? ps "position :earl has no :about paragraph: add it to :roles or the catalogue"))))
     (e/stop-run run)))
 
 ;; ---------------------------------------------------------------------------
@@ -729,7 +729,7 @@
     (testing "the setting and each role's :about are in the brief, before the rules"
       (let [system (:content (first (prompt/agent-messages (:scenario run) world (e/events run) "pugh" {})))]
         (is (str/includes? system (get-in world [:state :setting])))
-        (is (str/includes? system (get-in world [:state :roles :architect :about])))
+        (is (str/includes? system (get-in world [:state :positions :architect :about])))
         (is (str/includes? system "Each turn is half an hour of game time"))
         (is (str/includes? system "at most 1000 characters"))
         (is (str/includes? system "any character can `commission`"))))

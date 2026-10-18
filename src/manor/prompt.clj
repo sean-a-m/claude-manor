@@ -1,8 +1,9 @@
 (ns manor.prompt
   "Builds every model request from scratch each turn. An agent's prompt is
-  made only from: its role brief, its persona and its own traits, its own
-  notes, the scenario's `observe` projection for that agent, and the events
-  visible to it. The full world never goes into an agent prompt."
+  made only from: its role brief, its persona and its own traits, how it is
+  addressed, its own situation, its own notes, the scenario's `observe`
+  projection for that agent, and the events visible to it. The full world
+  never goes into an agent prompt."
   (:require [clojure.string :as str]
             [jsonista.core :as json]
             [manor.clock :as clock]
@@ -10,6 +11,7 @@
             [manor.items :as items]
             [manor.narrate :as narrate]
             [manor.people :as people]
+            [manor.positions :as positions]
             [manor.space :as space]
             [manor.world :as w]))
 
@@ -102,20 +104,24 @@ Your view is private. Others only learn what is public or what someone tells the
   (if (fn? brief) (apply brief args) brief))
 
 (defn- agent-request
-  "An agent's request: `preamble`, their role and who they are, then their
-  view, notes and recent events, and `closing`."
+  "An agent's request: `preamble`, their role, who they are and their
+  situation, then their view, notes and recent events, and `closing`. Their
+  role's :brief comes from the scenario's :roles, or else its :agent-brief."
   [scenario world events agent-id {:keys [event-window]} preamble closing]
   (let [a (w/agent world agent-id)
-        role (get-in scenario [:roles (:role a)])
+        brief (or (get-in scenario [:roles (:role a) :brief]) (:agent-brief scenario))
         view (agent-view scenario world agent-id)
         notes (:notes a)]
     [{:role "system"
       :content (str preamble
-                    "\n\n## Your role\n" (brief-text (:brief role) world agent-id)
+                    "\n\n## Your role\n" (brief-text brief world agent-id)
                     "\n\n## Who you are\nYou are " (:name a) " (id: " agent-id ")."
                     (when-not (str/blank? (:persona a)) (str " " (:persona a)))
                     (when-not (str/blank? (:manner a)) (str "\nTo a stranger you come across as: " (:manner a)))
-                    (when-let [r (people/readings a)] (str "\n" r)))}
+                    (when-let [r (people/readings a)] (str "\n" r))
+                    (when-let [address (positions/addressed-as world agent-id)]
+                      (str "\nPeople address you as " address "."))
+                    (when-not (str/blank? (:situation a)) (str "\n\n## Your situation\n" (:situation a))))}
      {:role "user"
       :content (str "# " (heading world)
                     "\n\n## Your view\n```json\n" (->json view) "\n```"
@@ -201,17 +207,22 @@ You act only by calling tools. You may take a few actions; call `done` when fini
 (defn- gm-state
   "The world's :state for the default GM view, without what the GM brief
   already carries: a :setting, and the GM's own entry in :roles (and
-  :roles, if nothing else is left in it)."
-  [state]
-  (let [roles (dissoc (:roles state) :gm)]
-    (cond-> (dissoc state :setting :roles)
-      (seq roles) (assoc :roles roles))))
+  :roles, if nothing else is left in it). Of :positions, only those someone
+  holds are shown."
+  [world]
+  (let [state (:state world)
+        roles (dissoc (:roles state) :gm)
+        held (set (map :role (w/active-agents world)))
+        positions (select-keys (:positions state) held)]
+    (cond-> (dissoc state :setting :roles :positions)
+      (seq roles) (assoc :roles roles)
+      (seq positions) (assoc :positions positions))))
 
 (defn default-gm-view
   "What the GM is shown of the world unless a scenario sets :gm-view."
   [world]
-  (cond-> {:state (gm-state (:state world))
-           :agents (mapv #(select-keys % [:id :name :role :status :persona :location :travel :busy])
+  (cond-> {:state (gm-state world)
+           :agents (mapv #(select-keys % [:id :name :role :status :persona :situation :location :travel :busy])
                          (w/agents-in-order world))}
     (space/enabled? world) (assoc :space (:space world))
     (items/enabled? world) (assoc :items (items/gm-view world))

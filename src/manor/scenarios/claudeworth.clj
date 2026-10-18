@@ -3,11 +3,12 @@
   village architect, living at and enlarging a manor beside a village and an abbey.
 
   The world is in resources/worlds/claudeworth.edn (run option :world-file
-  overrides it): the map, the clock, the agents and their personas, the
-  things in the house (:items, see manor.items), the setting (:meta
-  :setting) and what each role is (:roles). This namespace
-  holds only the rules, and briefs and tool docs say nothing a world file
-  could make false. Areas are the locations' :domains. `walk` (free) goes
+  overrides it): the map, the clock, the agents with their personas and
+  situations, the things in the house (:items, see manor.items), the setting
+  (:meta :setting), and the positions they hold: the shared catalogue it
+  names (:meta :positions) and its own :roles over it (see manor.positions).
+  This namespace holds only the rules, and briefs and tool docs say nothing
+  a world file could make false. Areas are the locations' :domains. `walk` (free) goes
   anywhere in the current area; `travel` (a turn) goes to another area.
   `sleep` and `spend-time` occupy an agent for several rounds without turns;
   activities are judged when they end. `rouse` asks someone busy whether to stop. :architect? false leaves Mr Pugh out,
@@ -24,6 +25,7 @@
             [manor.conversation :as conversation]
             [manor.items :as items]
             [manor.narrate :as narrate]
+            [manor.positions :as positions]
             [manor.scenarios.building :as building]
             [manor.scenarios.shop :as shop]
             [manor.space :as space]
@@ -250,14 +252,25 @@
            {:to area :place place :minutes (* d (:minutes-per-round c))
             :arrive (clock/short-label c (+ (max 1 round) d) round)}))))
 
+(defn- house-bedrooms
+  "The house's bedrooms, and who sleeps in each (anyone active whose
+  bedroom it is): [{:id :name :sleeps [names]}]."
+  [world]
+  (let [sleepers (group-by #(bedroom-of world (:id %)) (w/active-agents world))]
+    (vec (for [l (sort-by :id (vals (get-in world [:space :locations])))
+               :when (and (= :bedroom (:kind l)) (= :house (:domain l)))]
+           {:id (:id l) :name (:name l) :sleeps (mapv :name (get sleepers (:id l)))}))))
+
 (defn observe
-  "Your bedroom, opening hours where you are, every place by area, where
-  you can walk from here, and the journeys to other areas."
+  "Your bedroom, the house's bedrooms if you're of the household, opening
+  hours where you are, every place by area, where you can walk from here,
+  and the journeys to other areas."
   [world id]
   (let [here (space/location-of world id)
         hours (:hours (space/location world here))]
     (cond-> (-> (merge-with merge (building/observe world id) (shop/observe world id))
                 (update :you assoc :bedroom (bedroom-of world id)))
+      (positions/household-member? world id) (assoc-in [:household :bedrooms] (house-bedrooms world))
       hours (update :here merge {:open (str/join "-" hours) :open-now? (open-now? world hours)})
       true (assoc :places (places world))
       here (assoc :walkable (vec (sort (walkable world here)))
@@ -327,7 +340,7 @@
          "You can speak once a turn, with `say`, `whisper` or `call`, and it doesn't end your turn: speak, then take your action. "
          "To talk something over with people here, `converse` draws up to " conversation/max-others " of them into a conversation within your turn: "
          "you each speak in turn, up to " conversation/passes " times, so nobody waits a turn for each answer, and then you carry on with your turn. "
-         "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). You get no turns while asleep or busy, unless someone uses `rouse` to interrupt you. On that turn, `carry-on` ignores them; any other accepted action means you stop. "
+         "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). Someone who lives in needs a bed in the house: members of the household see the house's bedrooms, and who sleeps in each, under `household.bedrooms` in their view, and whether to share a room or make do is for you to decide. You get no turns while asleep or busy, unless someone uses `rouse` to interrupt you. On that turn, `carry-on` ignores them; any other accepted action means you stop. "
          "`spend-time` spends time on work or pastimes (`spend-time {doing, hours, on?}`, half an hour to " items/max-work-hours " hours); optionally name things here or carried, the room itself, or stores in scope with `on`. Describe everyday tools and supplies in `doing`; they need no item ids. Carry things such as dishes with `take` and `walk`; they are used up where they are eaten, not while being carried. Results show when you finish. `note` keeps private notes. "
          "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows them in detail, with their descriptions, owners and aspects (how clean they are, what needs mending, and so on), along with the room and what the people here carry, so use it to examine something closely, not routinely on arrival. The room's own aspects (its floor, hearth and air) and the stores in scope are under `here` in your view. Supplies are kept in stores (shelves, cupboards), listed under `here.stores`: a store has everything it keeps unless its `stock` or `lacking` says otherwise; `look` shows what it keeps. "
          "The house has the ordinary things a house like it keeps: everyday things (cloths, paper, pans, salt, matches and the like) can be assumed to be to hand unless you've been told otherwise. The things listed in your view are the notable ones, not everything there is. "
@@ -355,12 +368,25 @@
        "\n\nThe house has the ordinary things a house like it keeps: assume the everyday things the work needs (cloths, paper, pans, salt, matches and the like) are to hand unless what you're shown says otherwise. The things listed are the notable ones, not everything there is."
        "\n\nArchitect's plans are kept outside this judgement and are never things: never make plans, drawings or copies of plans. Drawing or copying plans changes nothing here."))
 
-(defn- about [world role] (get-in world [:state :roles role :about]))
+(defn- about [world role] (get-in world [:state :positions role :about]))
+
+(defn- position-line
+  "\"Your position: Private secretary. You live in. You work at: Study
+  (study).\" from the position's title, :sleeps and :workplace."
+  [world {:keys [title sleeps workplace]}]
+  (when title
+    (str "Your position: " title "."
+         (case sleeps :in-house " You live in." :out " You live out." nil)
+         (when (seq workplace)
+           (str " You work at: " (str/join ", " (for [id workplace] (str (loc-name world id) " (" id ")"))) ".")))))
 
 (defn agent-brief
-  "The setting, what this agent's role is, and the rules."
+  "What this agent's position is and its duties, the setting, and the
+  rules. The position is read from the world, so a new one needs no code."
   [world agent-id]
-  (str/join "\n\n" (remove str/blank? [(about world (:role (w/agent world agent-id))) (setting world) (rules world)])))
+  (let [p (positions/position world agent-id)]
+    (str/join "\n\n" (remove str/blank? [(str/join "\n" (remove nil? [(position-line world p) (:about p)]))
+                                         (setting world) (rules world)]))))
 
 (defn gm-brief [world]
   (str/join "\n\n" (remove str/blank? [(setting world) (about world :gm)
@@ -368,24 +394,20 @@
                                        "The engine keeps time and runs the world. Intervene only when asked, and lightly; otherwise call done."])))
 
 (def roles
-  {:earl {:brief agent-brief}
-   :countess {:brief agent-brief}
-   :secretary {:brief agent-brief}
-   :housemaid {:brief agent-brief}
-   :cook {:brief agent-brief}
-   :scullery-maid {:brief agent-brief}
-   :architect {:brief agent-brief}
-   :shopkeeper {:brief agent-brief}
-   :gm {:brief gm-brief}})
+  "Only the GM has a role of its own: everyone else gets `agent-brief`, which
+  reads their position from the world."
+  {:gm {:brief gm-brief}})
 
 ;; ---------------------------------------------------------------------------
 ;; Init
 
 (defn problems
   "The scenario's own checks on a world file: bedrooms, opening hours, the
-  setting, and an :about for every role an agent has."
+  setting, the positions (its catalogue and :roles), with an :about for every
+  position an agent holds, and where they work."
   [{:keys [locations agents meta] :as wf}]
-  (let [by-id (into {} (map (juxt :id identity)) locations)]
+  (let [by-id (into {} (map (juxt :id identity)) locations)
+        table (positions/table wf {})]
     (concat
      (building/problems wf)
      (shop/problems wf)
@@ -403,9 +425,13 @@
        (str "agent " (pr-str name) ": :routine entry " (pr-str entry)
             " needs :from (a time like \"09:00\"), :at (a location id) and :doing (what they're doing there)"))
      (when-not (string? (:setting meta)) [":meta :setting must be a paragraph about the place"])
-     (for [role (distinct (map :role agents))
-           :when (not (string? (get-in wf [:roles role :about])))]
-       (str ":roles " role " needs an :about paragraph")))))
+     (mapcat (fn [[id entry]] (positions/entry-problems id entry)) (sort-by key table))
+     (for [role (distinct (map :role agents)) :when (not (contains? table role))]
+       (str "position " role " has no :about paragraph: add it to :roles or the catalogue"))
+     (for [[id {:keys [workplace]}] (sort-by key table)
+           place workplace
+           :when (not (by-id place))]
+       (str "position " id ": :workplace names unknown location " (pr-str place))))))
 
 (defn- optional-agent-kept?
   "Whether an agent marked :optional? is in this run. The marker names the run
@@ -421,25 +447,24 @@
 (defn init
   "The world file, its agents (without Mr Pugh if :architect? is false,
   without the housemaid if :housemaid? is false, and without anything they
-  hold), its items, and
-  in :state everyone's bedroom and routine, the setting, the roles' :about
-  text and the query limit the rules quote."
+  hold), its items, and in :state the positions (without forms of address if
+  :addressed-as? is false), the setting and the query limit the rules quote.
+  Everyone's post, bedroom and routine are set as they arrive (`on-spawn`)."
   [{:keys [world-file] :as opts}]
   (let [source (or world-file "worlds/claudeworth.edn")
         {wf :world-file :as loaded} (worldfile/load-world source)]
     (when-let [ps (seq (problems wf))]
       (throw (ex-info (str "world file " source " has problems:\n- " (str/join "\n- " ps)) {:problems (vec ps)})))
     (let [agents (filter #(optional-agent-kept? opts %) (:agents loaded))
-          ids (set (map (comp b/slug :name) agents))]
+          ids (set (map (comp b/slug :name) agents))
+          table (positions/table wf opts)]
       (assoc loaded
              :agents (vec agents)
              :items (filterv #(or (nil? (:holder %)) (ids (:holder %))) (:items loaded))
-             :state (merge (building/initial-state wf agents opts)
-                           {:bedrooms (into {} (map (juxt (comp b/slug :name) :bedroom)) agents)
-                            :routines (into {} (for [{:keys [name routine]} agents :when (seq routine)]
-                                                 [(b/slug name) (vec (sort-by :from routine))]))
+             :state (merge (building/initial-state wf agents table opts)
+                           {:positions table
+                            :posts {} :bedrooms {} :routines {}
                             :setting (get-in wf [:meta :setting])
-                            :roles (:roles wf)
                             :quotes {}
                             :max-queries (:max-queries opts 2)})))))
 
@@ -570,7 +595,7 @@
   [day {:keys [world agent-id role used]}]
   (cond
     (= role :gm) {:tool :done}
-    (= role :shopkeeper) (shop/scripted-clerk day (str (now world)) world agent-id used)
+    (positions/capable? world agent-id :shop-clerk) (shop/scripted-clerk day (str (now world)) world agent-id used)
     :else
     (let [time (str (now world))
           architect (building/architect-here world agent-id)
@@ -623,6 +648,8 @@
    :doc "Claudeworth Manor, 1904: a family and their servants, a village architect, a general-store keeper and a butcher, living from day to day."
    :init init
    :roles roles
+   :agent-brief agent-brief
+   :on-spawn positions/starting-events
    :actions (into (into actions building/actions) shop/actions)
    :adjudicators shop/adjudicators
    :bridges building/bridges

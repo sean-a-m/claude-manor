@@ -6,6 +6,7 @@
             [manor.clock :as clock]
             [manor.money :as money]
             [manor.narrate :as n]
+            [manor.positions :as positions]
             [manor.space :as space]
             [manor.world :as w])
   (:import (java.time LocalTime)))
@@ -40,7 +41,7 @@
   (first (remove (set taken) (cons base (map #(str base "-" %) (iterate inc 2))))))
 
 (defn architect-here [world actor]
-  (first (filter #(and (= :architect (:role %)) (space/together? world actor (:id %)))
+  (first (filter #(and (positions/capable? world (:id %) :architect) (space/together? world actor (:id %)))
                  (w/active-agents world))))
 
 (defn- closed [world loc]
@@ -130,7 +131,7 @@
   (or (office-reason world actor)
       (let [architect (architect-here world actor) client (get args :for actor)]
         (cond
-          (= :architect (:role (w/agent world actor)))
+          (positions/capable? world actor :architect)
           (when-not (and (w/active? world client) (space/together? world actor client))
             (str "the client " client " must be present in this office"))
           architect (str (:name architect) " draws the plans here; ask him")
@@ -227,7 +228,7 @@
     :effect (fn [world actor {:keys [plan-id]}]
               (let [p (plan world plan-id) price (:price p)
                     delay (or (get-in world [:state :build-rounds]) (* (clock/rounds-per-day (:clock world)) (:build-days p)))
-                    payee (when (= :architect (:role (w/agent world (:drawn-by p)))) (:drawn-by p))
+                    payee (when (positions/capable? world (:drawn-by p) :architect) (:drawn-by p))
                     room (fresh-id plan-id (concat (keys (get-in world [:space :locations]))
                                                     (map :room (get-in world [:state :works]))))]
                 [{:type :claudeworth/commissioned :visible-to :all
@@ -253,9 +254,9 @@
                    (get-in world [:state :works])))})
 
 (defn observe [world id]
-  (let [role (:role (w/agent world id)) works (get-in world [:state :works])]
+  (let [works (get-in world [:state :works])]
     (cond-> {:household (update (get-in world [:state :household]) :funds money/display)}
-      (= role :architect) (assoc :you {:purse (money/display (get-in world [:state :purses id] 0))})
+      (positions/capable? world id :architect) (assoc :you {:purse (money/display (get-in world [:state :purses id] 0))})
       (seq works) (assoc :building (mapv (fn [work] {:name (:name work)
                                                     :beside (mapv #(loc-name world %) (:connects-to work))
                                                     :finish (clock/short-label (:clock world) (:due work) (:round world))}) works))
@@ -266,10 +267,14 @@
                                       :status (cond (some #(= (:id p) (:plan-id %)) works) "being built"
                                                     (:built? p) "built" :else "drawn"))))))))
 
-(defn initial-state [wf agents opts]
+(defn initial-state
+  "Money, plans and works at the start. `positions` say who is an architect,
+  with a purse for their fees."
+  [wf agents positions opts]
   {:money-unit :old-pence
    :household {:funds (money/pounds->pence (get-in wf [:meta :starting-funds]))}
-   :purses (into {} (for [a agents :when (= :architect (:role a))] [(b/slug (:name a)) 0]))
+   :purses (into {} (for [a agents :when (contains? (get-in positions [(:role a) :capabilities]) :architect)]
+                      [(b/slug (:name a)) 0]))
    :plans {} :works [] :build-rounds (:build-rounds opts)})
 
 (defn problems [{:keys [locations meta]}]

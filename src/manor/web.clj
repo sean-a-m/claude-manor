@@ -11,6 +11,7 @@
             [manor.clock :as clock]
             [manor.engine :as e]
             [manor.narrate :as narrate]
+            [manor.positions :as positions]
             [manor.prompt :as prompt]
             [manor.space :as space]
             [manor.world :as w]
@@ -208,7 +209,8 @@ form.inline{display:inline}")]]
   (let [world (e/world run)
         {:keys [state mode remaining acting awaiting pause-reasons error last-human-feedback]} (e/status run)
         input @(:input run)
-        roles (sort (map name (keys (dissoc (:roles (:scenario run)) :gm))))]
+        ;; the scenario's roles, and the world's positions (manor.positions)
+        roles (sort (map name (keys (dissoc (merge (:roles (:scenario run)) (get-in world [:state :positions])) :gm))))]
     (html
      [:section
       [:h2 "Run"]
@@ -333,7 +335,8 @@ es.addEventListener('status',refresh);
                [:pre (str/join "\n" (map #(str "[r" (:round %) "] " (:text %)) (:notes ag)))]]
               [:section [:h2 "Tools"]
                [:pre (str/join "\n" (map #(str (name (:name %)) " (" (name (a/kind %)) ")")
-                                        (a/available (a/for-role (:actions run) (:role ag)) world id)))]]
+                                        (a/available (a/for-role (:actions run) (:role ag) (positions/capabilities world id))
+                                                     world id)))]]
               [:section [:h2 "Usage"] [:pre (pr-str (get-in world [:usage id]))]]]
              [:div
               [:section [:h2 "Last model call" (when call (str " (round " (:round call) ", " (:model call) ")"))]

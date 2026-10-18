@@ -24,6 +24,7 @@
   Ada saw Ben in the hall in round 4, going to the porch (:went only for
   the one who stayed). `last-seen` reads it for views."
   (:require [manor.clock :as clock]
+            [manor.positions :as positions]
             [manor.world :as w]))
 
 ;; ---------------------------------------------------------------------------
@@ -108,9 +109,14 @@
         (recur (into seen nxt) (into (vec more) nxt)))
       seen)))
 
-(defn- person [world id]
-  (let [a (w/agent world id)]
+(defn- person
+  "Someone in a view of the people here: who they are, how to address them
+  if their position says (manor.positions), and what they're doing."
+  [world id]
+  (let [a (w/agent world id)
+        address (positions/addressed-as world id)]
     (cond-> (select-keys a [:id :name :role])
+      address (assoc :address-as address)
       (:busy a) (assoc :doing (get-in a [:busy :activity])))))
 
 (defn last-seen

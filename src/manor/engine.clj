@@ -32,6 +32,7 @@
             [manor.llm :as llm]
             [manor.mcp :as mcp]
             [manor.narrate :as narrate]
+            [manor.positions :as positions]
             [manor.prompt :as prompt]
             [manor.space :as space]
             [manor.store :as store]
@@ -60,6 +61,7 @@
    :start nil                       ; e.g. "1904-10-15T21:00": start the scenario's clock then
    :auto-delay-ms 0
    :offline? false                  ; use scenario :offline-stubs for bridges
+   :addressed-as? true              ; positions' forms of address in prompts (manor.positions)
    :test? false})                   ; store under test-runs/ (disposable) instead of runs/
 
 (def ^:private non-data-opts [:bridge-stubs :llm-impl])
@@ -554,7 +556,7 @@
   in a simultaneous group, where the others are in their own turns, nor to
   a human seat."
   [run world agent-id {:keys [role simultaneous?]}]
-  (cond->> (a/available (a/for-role (:actions run) role) world agent-id)
+  (cond->> (a/available (a/for-role (:actions run) role (positions/capabilities world agent-id)) world agent-id)
     (or simultaneous? (= :human (:controller (w/agent world agent-id))))
     (remove #(= :converse (a/kind %)))))
 
@@ -1042,6 +1044,27 @@
                    (when (space/location world loc-id)
                      [{:type :agent/placed :data {:id id :to loc-id}
                        :visible-to (conj (space/present world loc-id) id)}]))))
+
+(defn change-post!
+  "Put `id` in the post of `position`, a position of the run's
+  [:state :positions]. Their :role becomes `position`, so their brief and
+  tools follow it. opts: :household (default: the household of their present
+  post) and :terms (free text). They see the change. Throws if there's no
+  such participant or position."
+  ([run id position] (change-post! run id position {}))
+  ([run id position opts]
+   (let [world @(:world run)]
+     (when-not (and (w/active? world id) (not= :gm (:role (w/agent world id))))
+       (throw (ex-info (str "no active participant with id " id) {:id id})))
+     (when-not (contains? (get-in world [:state :positions]) position)
+       (throw (ex-info (str "no position " position " in this run") {:position position})))
+     (operator! run (fn [world]
+                      [(positions/post-changed world id position
+                                               {:household (if (contains? opts :household)
+                                                               (:household opts)
+                                                               (:household (positions/post world id)))
+                                                :terms (:terms opts)
+                                                :visible-to #{id}})])))))
 
 (defn announce!
   "Operator announcement to everyone, or to a set of agent ids."

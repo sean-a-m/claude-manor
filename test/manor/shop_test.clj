@@ -47,6 +47,7 @@
                                 {:id "back-room" :name "Back room" :desc "A quiet room."}]
                     :routes [["counter" "back-room" 0]]}
             :state {:setting "Rural England, 1904." :household {:funds 600 :untouched 7}
+                    :positions {:shopkeeper {:capabilities #{:shop-clerk}}}
                     :quotes {} :money-unit :old-pence}
             :items []})
    :actions shop/actions :adjudicators shop/adjudicators :items {}

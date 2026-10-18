@@ -396,7 +396,7 @@
           occurrences (fn [s sub] (count (re-seq (re-pattern (java.util.regex.Pattern/quote sub)) s)))]
       (is (not (contains? state :setting)))
       (is (not (contains? (:roles state) :gm)))
-      (is (= (get-in world [:state :roles :architect]) (get-in state [:roles :architect])))
+      (is (= (get-in world [:state :positions :architect]) (get-in state [:positions :architect])))
       (is (= (get-in world [:state :bedrooms]) (:bedrooms state)))
       (is (= 1 (occurrences (str/join "\n" (map :content gm-msgs)) (get-in world [:state :setting]))))
       (e/stop-run run)))

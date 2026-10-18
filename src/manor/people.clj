@@ -26,6 +26,7 @@
             [manor.adjudication :as adjudication]
             [manor.llm :as llm]
             [manor.mcp :as mcp]
+            [manor.positions :as positions]
             [manor.worldfile :as worldfile])
   (:import (java.util.regex Pattern)))
 
@@ -182,20 +183,31 @@
           (.exists (io/file "resources" path)) (io/file "resources" path)
           :else (throw (ex-info (str "no world file " path) {:path path})))))
 
+(defn generate-args
+  "The people server's generate_people request for one new holder of
+  `position-id`, whose catalogue entry is `entry`: its ages, and its sex
+  unless `sex` is given."
+  [position-id entry {:keys [sex seed taken-names]}]
+  (let [sex (or sex (:sex entry))]
+    (cond-> {:position (name position-id) :count 1 :setting "england-1900"
+             :seed seed :taken-names (vec taken-names)}
+      (:ages entry) (assoc :ages (:ages entry))
+      sex (assoc :sex (name sex)))))
+
 (defn- roll-one
-  "Roll and polish one agent of the world file `wf`. Returns what happened,
-  with the :edits to write if it worked."
-  [conn llm opts wf {agent-name :name :keys [role sex persona sketch]} seed]
-  (let [position (name role)
-        args (cond-> {:position position :count 1 :setting "england-1900"
-                      :seed (str seed "/" agent-name) :taken-names (mapv :name (:agents wf))}
-               sex (assoc :sex (name sex)))
+  "Roll and polish one agent of the world file `wf`, whose positions are
+  `table`. Returns what happened, with the :edits to write if it worked."
+  [conn llm opts wf table {agent-name :name :keys [role sex persona sketch]} seed]
+  (let [entry (get table role)
+        position (or (some-> (:title entry) str/lower-case) (str/replace (name role) "-" " "))
+        args (generate-args role entry {:sex sex :seed (str seed "/" agent-name)
+                                        :taken-names (map :name (:agents wf))})
         record (-> (mcp/call-tool conn "generate_people" args 20000) :value :people first)
         ;; an authored character keeps their name; their age, origin and home are the sketch's
         authored (-> record (assoc :name agent-name) (dissoc :age :origin :lives))
         notes (or sketch persona)
         result (try (polish! llm opts {:setting (get-in wf [:meta :setting])
-                                       :position (str/replace position "-" " ")
+                                       :position position
                                        :record authored :notes notes})
                     (catch Exception e {:failure (str "the polish call failed: " (ex-message e))}))
         t (traits record)]
@@ -215,9 +227,11 @@
   the file in place (comments and layout kept), for review with git diff.
 
   Every trait is rolled; nothing is pinned (decision 24). Each agent keeps
-  their name and, if the file gives one, their :sex. Their old persona is
+  their name and their :sex (or else their position's); their age is rolled
+  from their position's :ages in the world's catalogue. Their old persona is
   kept as :sketch (an existing :sketch is used instead), and the polish
-  keeps their position and situation from it but not its traits.
+  keeps their position and situation from it but not its traits. Their
+  :situation is never touched.
 
   opts: :llm (a manor.llm/LLM), :model, :max-tokens, :reasoning,
   :tool-choice, :seed (default 1), :only (agent names to roll; default
@@ -231,7 +245,8 @@
         wf (edn/read-string text)
         conn (mcp/connect :people (:people mcp-servers) {:run-id "roll-cast" :run-dir (str dir)})
         agents (cond->> (:agents wf) only (filter (comp (set only) :name)))
-        results (try (mapv #(roll-one conn llm opts wf % seed) agents)
+        table (positions/table wf {})
+        results (try (mapv #(roll-one conn llm opts wf table % seed) agents)
                      (finally (mcp/close! conn)))
         rolled (filter :edits results)]
     (spit file (reduce #(worldfile/set-agent-keys %1 (:name %2) (:edits %2)) text rolled))

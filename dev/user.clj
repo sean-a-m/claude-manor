@@ -9,6 +9,7 @@
     (view \"ana\")  (last-prompt \"ana\")  (world)
     (spawn! {:role :farmer :name \"Eva\" :location \"market\"})  (retire! \"eva\" \"moved away\")
     (place! \"eva\" \"square\")             ; move someone directly
+    (change-post! \"nellie\" :cook)  (change-post! \"nellie\" :none {:household nil})  ; a new position
     (approve! \"req-63\")  (deny! \"req-63\")
     (act! \"eva\" :plant {:grain 3})       ; for a seat with :controller :human
     (load! \"village-20261014-...\")  (branch! 3)
@@ -123,6 +124,9 @@
 (defn update-agent! [id changes] @(e/update-agent! (run) id changes))
 (defn announce! [text] @(e/announce! (run) text))
 (defn place! [id loc-id] @(e/place! (run) id loc-id))
+(defn change-post!
+  ([id position] @(e/change-post! (run) id position))
+  ([id position opts] @(e/change-post! (run) id position opts)))
 (defn approve! [req-id] @(e/approve! (run) req-id))
 (defn deny! [req-id] @(e/deny! (run) req-id))
 (defn act! [id action args] (e/act! (run) id action args))

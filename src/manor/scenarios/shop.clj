@@ -10,6 +10,7 @@
             [manor.items :as items]
             [manor.money :as money]
             [manor.narrate :as n]
+            [manor.positions :as positions]
             [manor.scenarios.building :as building]
             [manor.space :as space]
             [manor.world :as w]))
@@ -116,7 +117,7 @@
 (defn service-reason [world clerk]
   (let [loc (space/location world (space/location-of world clerk))]
     (cond
-      (not (and (w/active? world clerk) (= :shopkeeper (:role (w/agent world clerk))))) "only a shopkeeper can quote goods"
+      (not (and (w/active? world clerk) (positions/capable? world clerk :shop-clerk))) "only someone who keeps a shop can quote goods"
       (not (contains? (:services loc) :general-store)) "go to a general store first"
       (str/blank? (:store-profile loc)) "this store needs a store profile"
       (not (building/open-now? world (:hours loc))) (str "the " (:name loc) " is closed; it is open " (str/join "-" (:hours loc))))))
@@ -221,7 +222,7 @@
              quote-ids))))
 
 (def actions
-  [{:name :quote-goods :kind :query :roles #{:shopkeeper}
+  [{:name :quote-goods :kind :query :roles :all :needs :shop-clerk
     :doc (str "Check whether this store can sell requested portable goods and quote firm prices to a customer here. "
               "Use for (the customer's id) and goods: a list of up to " max-lines " lines, each one kind of goods with item and qty; "
               "quote a whole shopping list in one call. Each line gets its own offer (a quote-id) or refusal, announced at the counter. "

@@ -8,6 +8,8 @@
      :doc     \"Plant grain in your field.\"  ; tool description
      :args    [:map [:grain pos-int?]]      ; malli schema (default [:map])
      :roles   #{:farmer} | :all             ; :all = every non-GM role
+     :needs   :shop-clerk                   ; optional: a capability the agent's
+                                            ; position must give (manor.positions)
      :kind    :final | :free | :query | :act
      :available? (fn [world actor]) => bool ; optional: offer the tool only when true
      :valid?  (fn [world actor args]) => nil or a reason string
@@ -64,19 +66,27 @@
 
 (defn args-schema [action] (or (:args action) [:map]))
 
-(defn allowed? [action role]
-  (let [roles (or (:roles action) :all)]
-    (if (= roles :all)
-      (not= role :gm)
-      (contains? roles role))))
+(defn allowed?
+  "May an agent of `role`, whose position gives them `capabilities`, use
+  `action`? Its :roles must admit the role, and its :needs, if it has one,
+  must be one of the capabilities."
+  ([action role] (allowed? action role #{}))
+  ([action role capabilities]
+   (let [roles (or (:roles action) :all)
+         needs (:needs action)]
+     (and (if (= roles :all)
+            (not= role :gm)
+            (contains? roles role))
+          (or (nil? needs) (contains? (set capabilities) needs))))))
 
 (defn merge-actions
   "Combine action lists; later lists override earlier ones by name."
   [& action-lists]
   (vals (reduce (fn [acc a] (assoc acc (:name a) a)) (array-map) (apply concat action-lists))))
 
-(defn for-role [actions role]
-  (filter #(allowed? % role) actions))
+(defn for-role
+  ([actions role] (for-role actions role #{}))
+  ([actions role capabilities] (filter #(allowed? % role capabilities) actions)))
 
 (defn available
   "Actions whose :available? check passes for `actor` right now. Unavailable

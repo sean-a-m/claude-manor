@@ -45,12 +45,14 @@
 
 (def Agent
   "An agent of a world file. The trait keys (see manor.people) are optional;
-  `roll-cast!` writes them."
+  `roll-cast!` writes them. A :situation is shown only in their own prompt,
+  and nothing rewrites it."
   [:map
    [:name :string]
    [:role :keyword]
    [:location {:optional true} :string]
    [:persona {:optional true} :string]
+   [:situation {:optional true} :string]
    [:sketch {:optional true} :string]
    [:manner {:optional true} :string]
    [:sex {:optional true} [:enum :male :female]]

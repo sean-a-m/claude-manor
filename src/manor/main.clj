@@ -7,7 +7,8 @@
     clojure -M:run village --model openai/gpt-5-mini --max-cost 0.5
     clojure -M:run claudeworth --tool-choice required  force a tool call on every model reply
     clojure -M:run village --mock --offline --test     store under test-runs/ (disposable)
-    clojure -M:run claudeworth --mock --test --start 1904-10-15T21:00"
+    clojure -M:run claudeworth --mock --test --start 1904-10-15T21:00
+    clojure -M:run claudeworth --no-address        no forms of address in prompts"
   (:require [manor.engine :as e]
             [manor.web :as web])
   (:gen-class))
@@ -19,6 +20,7 @@
       (= a "--mock") (recur more (assoc-in acc [:opts :llm] :mock))
       (= a "--offline") (recur more (assoc-in acc [:opts :offline?] true))
       (= a "--test") (recur more (assoc-in acc [:opts :test?] true))
+      (= a "--no-address") (recur more (assoc-in acc [:opts :addressed-as?] false))
       (= a "--load") (recur (rest more) (assoc acc :load (first more)))
       (= a "--port") (recur (rest more) (assoc acc :port (parse-long (first more))))
       (= a "--model") (recur (rest more) (assoc-in acc [:opts :model] (first more)))

@@ -243,7 +243,9 @@ additions:
 
 ### Phase 2: stores, the scene judge, one timed activity
 
-**Status: not started.**
+**Status: 2a done; 2b–2d not started.** Stores are also explicitly checked not to be
+consumable, as required by the data model. Local stores remain in `look.items` for container
+contents as well as `look.stores` for the in-scope supply list.
 
 **2a. Stores (engine).**
 

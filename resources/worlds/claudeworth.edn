@@ -122,7 +122,7 @@
   {:id "table-linen" :name "Table linen" :in "sideboard" :owner "household" :aspects {:state "starched and folded"} :desc "Damask tablecloths and napkins woven with the Claudeworth arms."}
   {:id "kitchen-range" :name "Kitchen range" :place "kitchen" :owner "household" :fixed? true :aspects {:state "cold and unlit"} :desc "A black cast-iron range with two ovens and a boiler."}
   {:id "kitchen-dresser" :name "Kitchen dresser" :place "kitchen" :owner "household" :fixed? true :container :open :aspects {:cleanliness "scrubbed"} :desc "A tall deal dresser with open shelves above a broad worktop."}
-  {:id "pantry-shelves" :name "Pantry shelves" :place "pantry" :owner "household" :fixed? true :container :open :aspects {:stock "well stocked with the household's staples"}
+  {:id "pantry-shelves" :name "Pantry shelves" :place "pantry" :owner "household" :fixed? true :container :open :store {:keeps "dry goods, preserves, condiments, butter and cheese" :serves ["kitchen"]} :aspects {:stock "well stocked with the household's staples"}
    :desc "Stout wooden shelves fixed along the pantry wall, ready for jars, packets and other provisions."}
   {:id "sugar-jar" :name "Sugar jar" :place "kitchen" :owner "household" :container :open :aspects {:state "empty"}
    :desc "An empty white earthenware sugar jar on the kitchen worktop, its lid beside it. Not a grain of sugar remains inside."}

@@ -95,7 +95,10 @@
    [:owner {:optional true} :string]
    [:fixed? {:optional true} :boolean]
    [:consumable? {:optional true} :boolean]
-   [:container {:optional true} [:enum :open :closed]]])
+   [:container {:optional true} [:enum :open :closed]]
+   [:store {:optional true} [:map {:closed true}
+                            [:keeps [:string {:min 1 :max 200}]]
+                            [:serves {:optional true} [:vector :string]]]]])
 
 ;; ---------------------------------------------------------------------------
 ;; Accessors. For now they scan the map; with tens of items that's trivial.
@@ -118,6 +121,23 @@
   "Items lying at `place` (not those carried by people there)."
   [world place]
   (if place (items-where world #(= place (:place %))) []))
+
+(defn store?
+  "Does this item stand for untracked supplies?"
+  [it]
+  (map? (:store it)))
+
+(defn stores-for
+  "Stores at `place` or serving it, in id order."
+  [world place]
+  (if place
+    (items-where world #(and (store? %) (or (= place (:place %))
+                                           (some #{place} (get-in % [:store :serves])))))
+    []))
+
+(defn- store-view [place it]
+  (cond-> (select-keys it [:id :name :aspects])
+    (not= place (:place it)) (assoc :at (:place it))))
 
 (defn held-by [world agent-id] (items-where world #(= agent-id (:holder %))))
 
@@ -211,6 +231,12 @@
                     [(str where "give exactly one of :place, :holder and :in")])
                   (when (and (:place it) (not (contains? places (:place it))))
                     [(str where "unknown location " (pr-str (:place it)))])
+                  (when (and (store? it) (not (:fixed? it)))
+                    [(str where "a store must be :fixed?")])
+                  (when (and (store? it) (:consumable? it))
+                    [(str where "a store cannot be :consumable?")])
+                  (for [place (get-in it [:store :serves]) :when (not (contains? places place))]
+                    (str where "store serves unknown location " (pr-str place)))
                   (when (and (:holder it) (not (contains? holders (:holder it))))
                     [(str where "unknown holder " (pr-str (:holder it)))])
                   (when (and (:in it) (nil? box))
@@ -485,7 +511,8 @@
 (defn- look-item [world it]
   (cond-> (select-keys it [:id :name :desc :aspects])
     (:owner it) (assoc :owner (owner-name world (:owner it)))
-    (:fixed? it) (assoc :fixed? true)))
+    (:fixed? it) (assoc :fixed? true)
+    (store? it) (assoc :keeps (get-in it [:store :keeps]))))
 
 (defn- as-seen
   "`it` as `shape` shows it, and if it's a container, what can be seen of
@@ -519,9 +546,11 @@
   (let [here (space/location-of world actor)
         loc (space/location world here)
         lying (by-name (items-at world here))
+        stores (stores-for world here)
         people (sort (disj (space/present world here) actor))]
     (cond-> {:place (select-keys loc [:name :aspects :detail])}
       (seq lying) (assoc :items (mapv #(as-seen world (partial look-item world) %) lying))
+      (seq stores) (assoc :stores (mapv #(assoc (store-view here %) :keeps (get-in % [:store :keeps])) stores))
       (seq people) (assoc :people (mapv #(look-person world %) people)))))
 
 (defn- work-reason
@@ -536,6 +565,7 @@
       (and holder (space/together? world actor holder)) (str (:name (w/agent world holder)) " is holding the " (:name it))
       (and it (reachable? world actor it)) nil
       (= id here) nil
+      (some #(= id (:id %)) (stores-for world here)) nil
       :else
       (str id " is neither here nor carried by you; this place: " here " (" (:name (space/location world here)) "); "
            (here-list world actor) "; " (carried-list world actor)))))
@@ -649,8 +679,10 @@
   [view world agent-id]
   (let [carried (by-name (held-by world agent-id))
         here (when (get-in view [:location :here]) (space/location-of world agent-id))
-        lying (by-name (items-at world here))]
+        lying (by-name (remove store? (items-at world here)))
+        stores (stores-for world here)]
     (cond-> view
+      (seq stores) (assoc-in [:location :here :stores] (mapv #(store-view here %) stores))
       (seq carried) (assoc-in [:you :carrying] (mapv #(select-keys % [:id :name :aspects]) carried))
       (seq lying) (assoc-in [:location :here :items] (mapv #(as-seen world (fn [it] (select-keys it [:id :name])) %) lying))
       (get-in view [:location :people-here])
@@ -705,7 +737,8 @@
   (->> items
        (keep #(let [it (item world %)
                     o (some->> it (outermost world))]
-                (when (and it (or (= actor (:holder o)) (and place (= place (:place o))))) it)))
+                (when (and it (or (= actor (:holder o)) (and place (= place (:place o)))
+                                                 (some (fn [store] (= (:id it) (:id store))) (stores-for world place)))) it)))
        (mapcat #(cons % (within world (:id %))))
        distinct))
 

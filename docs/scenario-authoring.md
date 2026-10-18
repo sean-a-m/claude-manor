@@ -524,7 +524,7 @@ id. Objects people can pick up and carry are items (next section).
 Items are things with a description and a few aspects that lie in a place, are carried by
 someone, or are inside another item: a piano, a pocket watch, an umbrella someone bought, the
 silver in the sideboard. They need locations. A scenario
-turns them on with the key `:items`, a map, possibly empty; its one key is `:judge-brief` (see
+turns them on with the key `:items`, a map, possibly empty; its optional judge configuration includes `:judge-brief` (see
 Work and the judge). Scenarios without it are unchanged.
 
 An item:
@@ -674,6 +674,28 @@ supports or tests them (a basket's contents don't show in `carrying`).
   and the items in reach for the judge are each job item plus everything `within` it, at any
   depth, open or closed. The judge sees `in` (the container's id) on an item whose container is
   also listed, and may change the aspects of any of them. A container counts as one of the six items.
+
+#### Stores
+
+A store is a fixed item standing for untracked supplies, not an exhaustive inventory:
+
+```clojure
+{:id "pantry-shelves" :name "Pantry shelves" :place "pantry" :fixed? true
+ :desc "Stout shelves of jars, packets and crocks."
+ :store {:keeps "dry goods, preserves, condiments, butter and cheese"
+         :serves ["kitchen"]}
+ :aspects {:stock "well stocked with the household's staples"}}
+```
+
+`:keeps` is 1–200 characters; `:serves` is optional and names known locations. A store must
+be `:fixed?` and cannot be `:consumable?`. It can also be a container of tracked things; all
+container actions still work. `(items/store? it)` identifies stores; `(items/stores-for world
+place)` returns those at the place or serving it, in id order.
+
+Every turn, `:location :here :stores` lists `{:id :name :aspects}`, with `:at` naming the
+location id for stores elsewhere. Stores here are omitted from `here.items`. `look` also shows
+stores in scope with `:keeps`; local stores remain in its detailed items, including their
+container contents. Work may name a store in scope even when it is in another room.
 
 #### Work and the judge
 

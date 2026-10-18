@@ -765,3 +765,44 @@
     (testing "replay gives the same world"
       (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
     (e/stop-run run)))
+
+(def pantry
+  {:id "pantry" :name "Pantry shelves" :desc "Stout shelves."
+   :place "shop" :fixed? true :container :open
+   :store {:keeps "dry goods and preserves" :serves ["hall"]}
+   :aspects {:stock "well stocked"}})
+
+(deftest stores-in-scope
+  (let [run (start)
+        world (w/apply-event (e/world run) {:type :item/added :data {:item pantry}})
+        view #(get-in (prompt/agent-view (:scenario run) % "ben") [:location :here])]
+    (is (items/store? pantry))
+    (is (not (items/store? (items/item world "clock"))))
+    (is (= [pantry] (items/stores-for world "hall") (items/stores-for world "shop")))
+    (is (empty? (items/stores-for world "porch")))
+    (is (= [{:id "pantry" :name "Pantry shelves" :aspects {:stock "well stocked"} :at "shop"}]
+           (:stores (view world))))
+    (is (= [{:id "pantry" :name "Pantry shelves" :aspects {:stock "well stocked"}}]
+           (:stores (view (at world "ben" "shop")))))
+    (is (= ["basket"] (map :id (:items (view (at world "ben" "shop"))))))
+    (is (= "dry goods and preserves" (:keeps (first (:stores (items/look world "ben"))))))
+    (is (= "dry goods and preserves"
+           (:keeps (first (filter #(= "pantry" (:id %)) (:items (items/look (at world "ben" "shop") "ben")))))))
+    (is (nil? (a/check (action run :work-on) world "ben" {:items ["pantry"] :doing "taking stock"})))
+    (is (= [pantry] (items/in-reach world {:items ["pantry"] :place "hall" :actor "ben"})))
+    (is (= {:name "Pantry shelves" :aspects {:stock "well stocked"} :contents []} (items/opened world pantry)))
+    (e/stop-run run)))
+
+(deftest store-checks-and-export
+  (let [good (update (wf/read-file hamlet-file) :items conj pantry)
+        problems #(str/join "\n" (wf/problems (update good :items (fn [its] (conj (pop its) %)))))]
+    (is (empty? (wf/problems good)))
+    (is (str/includes? (problems (dissoc pantry :fixed?)) "a store must be :fixed?"))
+    (is (str/includes? (problems (assoc pantry :consumable? true)) "a store cannot be :consumable?"))
+    (is (str/includes? (problems (assoc-in pantry [:store :serves] ["attic"])) "store serves unknown location \"attic\""))
+    (doseq [keeps ["" (apply str (repeat 201 "x"))]]
+      (is (str/includes? (problems (assoc-in pantry [:store :keeps] keeps)) ":keeps")))
+    (let [file (str (gensym "stores-") ".edn")
+          path (str (io/file store/test-runs-root file))]
+      (store/write-text! store/test-runs-root file (wf/->edn-string good))
+      (is (= good (wf/read-file path))))))

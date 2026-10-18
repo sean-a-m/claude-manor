@@ -48,6 +48,8 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :doc           "..."                    ; optional, informational
    :init          (fn [opts] {...})        ; required, see below
    :roles         {...}                    ; required, see below
+   :agent-brief   (fn [world agent-id] "...")  ; optional: the brief of a role :roles doesn't list
+   :on-spawn      (fn [world id spec] [events])  ; optional: after every spawn (posts, bedrooms)
    :actions       [...]                    ; scenario actions, see below
    :bridges       {...}                    ; optional, real-world calls
    :adjudicators  {...}                    ; optional, narrow internal model queries (see below)
@@ -60,7 +62,7 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :schedule      :round-robin             ; or :simultaneous, or (fn [world] [[ids] ...])
    :gm-triggers   [(fn [world] reason-or-nil) ...]
    :pause-when    (fn [world] reason-or-nil)
-   :limits        {:max-agents 8}          ; GM spawn limit (default 10)
+   :limits        {:max-agents 8}          ; GM spawn limit (default 50 active agents)
    :exclude-actions #{:move}               ; built-in actions to leave out
    :defaults      {:model "..." ...}       ; overrides engine default options for this scenario
    :mock-policy   (fn [ctx] {:tool :dig :args {}})
@@ -90,7 +92,9 @@ option keys pass through, e.g. the village reads `:start-date`.
   Only `:name` and `:role` are required. The id is derived from the name (`"Iris"` → `"iris"`,
   with a `-2` suffix on collisions). `:location` defaults to the role's `:start-location`.
   A spec may also carry a person's hidden traits, `:sex :manner :temperament :faculties
-  :circumstances` (see "People and traits" under World files); other keys are ignored.
+  :circumstances` (see "People and traits" under World files) and a `:situation` (see "Positions,
+  posts and situations"). Other keys stay off the agent, but the scenario's `:on-spawn` sees
+  them all (Claudeworth's reads `:bedroom`, `:routine` and `:household`).
 
 - `:clock`: optional game time, `{:start "1904-10-15T08:00" :minutes-per-round 30}` (see Time).
 - `:items`: optional starting items, used only when the scenario has the `:items` key (see Items).
@@ -121,6 +125,13 @@ from the `:gm` run option (`:llm`, `:human`, or `:off`).
 - `:on-spawn` receives a world that already contains the agent. Return events, e.g. one that sets
   starting holdings privately: `{:type :my/settled :actor id :data {...} :visible-to #{id}}`.
 - A role without `:spawnable? true` can only come from `:init` or an operator `spawn!`.
+- A role `:roles` doesn't list gets the scenario's `:agent-brief`, `(fn [world agent-id] string)`.
+  With positions (see "Positions, posts and situations"), that's how every non-GM role gets its
+  brief: Claudeworth's `:roles` lists only `:gm`, and `agent-brief` reads the agent's position
+  from the world, so a new position needs no code.
+- The scenario's own `:on-spawn`, `(fn [world id spec] [events])`, runs after every spawn (from
+  `:init`, an operator or the GM), after the role's, and gets the whole spawn spec. Claudeworth's
+  is `manor.positions/starting-events`: the agent's post, bedroom and routine.
 
 ### `:actions`
 
@@ -131,6 +142,7 @@ Each action is a map. Each role's actions become that role's LLM tools.
  :doc     "Dig for the treasure where you are."
  :args    [:map [:depth [:int {:min 1 :max 3}]]]   ; malli schema, default [:map]
  :roles   #{:explorer}               ; or :all (every non-GM role, the default)
+ :needs   :shop-clerk                ; optional: a capability the agent's position must give
  :kind    :final                     ; :final (default) | :free | :query | :act (| :converse, built in)
  :available? (fn [world actor] bool) ; optional: leave the tool out of this turn
  :valid?  (fn [world actor args] nil-or-reason-string)
@@ -140,6 +152,14 @@ Each action is a map. Each role's actions become that role's LLM tools.
  :hint    "..."                      ; optional: replaces the kind's hint ("Ends your turn.") in the tool description
  :reply   (fn [world actor args] data)}   ; :free only, optional: the tool result instead of "ok"
 ```
+
+**Roles and capabilities:** an agent gets an action as a tool when its `:roles` admits their role
+and, if it has `:needs`, their position gives that capability (`:capabilities` in
+`[:state :positions]`, see "Positions, posts and situations"). Use `:needs` for what a holder of
+several positions might do: the shop's `quote-goods` is `:roles :all :needs :shop-clerk`, so a
+butcher and a shopkeeper can both quote and an earl can't. Code that treats someone as something
+should ask the same way, `(manor.positions/capable? world id :architect)`, never compare roles.
+`:valid?` should still check it, for a call that reaches the action another way.
 
 **Kinds:**
 
@@ -302,7 +322,7 @@ it isn't an event, so anything that must be remembered or replayed belongs in `:
 | `move` | all | final | follow a route (see Locations); only offered when the agent has a location |
 | `look`, `take`, `put-down`, `give` | all | free | only when the scenario has `:items` (see Items) |
 | `spend-time`, `work-on` (alias) | all | final | only when the scenario has `:items` and the world a clock (see Items) |
-| `spawn-agent` | gm | final | spawn a `:spawnable?` role, optional location; respects `:limits` |
+| `spawn-agent` | gm | final | spawn a `:spawnable?` role, optional location; respects `:limits` (default 50 active agents; retired ones don't count) |
 | `retire-agent` | gm | final | remove an agent |
 | `announce` | gm | final | message to everyone or a list of ids |
 | `ask-human` | gm | final | pause after this round with a question for the operator |
@@ -408,7 +428,8 @@ omniscient; `:space` and `:items` only when the world has them, `:item-jobs` whi
 Override it to
 trim tokens. The default GM view leaves out `:setting` and `:roles :gm` in `:state` (and `:roles`
 if nothing else is in it), which are brief material: put them in the GM's `:brief`. Other roles'
-entries in `:roles` stay.
+entries in `:roles` stay. Of `:positions` it keeps only those an active agent holds, and its
+agents carry their `:situation`.
 
 ### `:systems`
 
@@ -1065,15 +1086,42 @@ in `:init`:
 #### People and traits
 
 An agent in a world file may carry a person's traits. They're hidden from everyone but that
-person: their own prompt ("Who you are") shows the persona, then the manner and a short line of
-the readings; no other agent's view or prompt contains them, and the GM's view lists only the
-persona as before. A character without traits is prompted exactly as one was before.
+person; no other agent's view or prompt contains them, and the GM's view lists only the persona
+as before. Their own prompt's "Who you are" is laid out like this (a character without traits
+gets just the first line and the persona):
+
+```
+## Who you are
+You are Daisy (id: daisy), the scullery maid. People address you as Daisy.
+
+<persona, in the second person>
+
+How strangers see you: <manner, in the second person>
+
+### Your nature (known only to you)
+Temperament:
+- Openness: average (curiosity, imagination, willingness to entertain new ideas)
+- ... all five
+Phrenological faculties:
+- Alimentiveness: large (appetite for food)
+- ... all seven
+Circumstances:
+- a child put out to nurse
+
+## Your situation
+...
+```
+
+The position comes from `[:state :positions]`, and the address line only when the run shows forms
+of address (see "Positions, posts and situations"). Each term's meaning is read from the people
+server's own data files (`:measures` in `temperament.edn`, `:means` in `faculties.edn`), as static
+data, so there's one source and no call.
 
 ```clojure
 {:name "Hale" :sex :male :role :secretary :location "secretarys-room"
- :persona "Mr Hale, the earl's private secretary: ..."   ; polished: the traits made concrete
+ :persona "You are twenty-six, neat to the point of fussiness ..."   ; polished: the traits made concrete
  :sketch "Mr Hale, ... a little anxious to please."      ; the authored notes the polish worked from
- :manner "A quiet young man who ..."                     ; how they come across to a stranger, at most 200
+ :manner "You seem eager and tidy ..."                   ; how strangers see them, at most 200
  :temperament {:openness :high :conscientiousness :average :extraversion :low
                :agreeableness :high :neuroticism :average}   ; the Big Five: :low, :average or :high
  :faculties {"Secretiveness" :large "Cautiousness" :small "Veneration" :large "Hearing" :small
@@ -1085,33 +1133,112 @@ persona as before. A character without traits is prompted exactly as one was bef
   `:female`). Loading never calls the people server or a model: the file holds the result.
 - `:sketch` is never shown to anyone; it's what `roll-cast!` polishes from when it rolls again.
 - The traits come from the **people server** (`mcp-servers/people/`, babashka, stateless, no
-  model, no key). `generate_people {position count area setting seed taken-names sex}` rolls base
-  records from its data files (`temperament.edn`, `faculties.edn`, `circumstances.edn`,
-  `names.edn`, `positions.edn`): a name sharing no word with `taken-names`, sex and an age suited
-  to the position (`sex` overrides), origin, home, five temperament levels, one faculty from each
-  of the seven phrenological groups and one or two circumstances, each with its descriptor text.
-  Circumstances come from different groups, never an `:exclusions` pair, weighted by position.
+  model, no key). `generate_people {position count area setting seed taken-names sex ages}` rolls
+  base records from its data files (`temperament.edn`, `faculties.edn`, `circumstances.edn`,
+  `names.edn`): a name sharing no word with `taken-names`, the `sex` asked for (else either), an
+  age within `ages` (`[youngest oldest]`, else 18 to 55), origin, home, five temperament levels,
+  one faculty from each of the seven phrenological groups and one or two circumstances, each with
+  its descriptor text. Circumstances come from different groups, never an `:exclusions` pair,
+  weighted by position. The engine passes a position's `:ages` and `:sex` from its catalogue
+  entry (`manor.people/generate-args`), so there's one list of positions. The position's name is
+  part of the dice's seed, so a person rolled again for another position comes out different.
   `reputation {person knower relation seed}` says what a knower knows of a base record: an
   acquaintance line and which of its traits they know, by relation (`by-sight`, `neighbour`,
   `acquaintance`, `fellow-servant`, `employer`, `family`). Both are deterministic from the seed.
 - The **polish** (`manor.people/polish!`) is one narrow checked model call, like the shop's
   appraiser: the setting, the position, the base record and any notes go in; `{persona manner}`
-  comes out. Code checks the lengths (persona at most 600 characters, though the model is asked
-  for about 450 because it overshoots a stated limit; manner at most 200), that
-  the persona names the person, and that it doesn't use the record's jargon (faculty or Big Five
-  axis names); a bad answer is sent back once with the reason. The record's facts are stored from
+  comes out, both written to the person in the second person ("You are sixteen, small and
+  round-faced ..."; "You seem shy at first ..."). Code checks the lengths (persona at most 600
+  characters, though the model is asked for about 450 because it overshoots a stated limit;
+  manner at most 200), that each begins with "You" and has no sentence whose subject is He, She or
+  the person's name, and that neither uses the record's jargon (faculty or Big Five axis names); a
+  bad answer is sent back once with the reason. The record's facts are stored from
   the record, never from the model's text. `mock-polish` is the free responder.
 - `(roll-cast! "worlds/claudeworth.edn")` at the REPL (`clj -M:dev`; `{:llm :mock}` for a free
   one) rolls every agent in a world file afresh and writes the results into the file in place,
   comments and layout kept, for review with `git diff`. Every trait is rolled, with no pins. Each
   agent keeps their `:name` and `:sex`; their old `:persona` becomes `:sketch` (an existing
   `:sketch` is used instead), and the polish keeps their position and situation from it but not
-  its traits. The server's age, origin and home are dropped for these authored characters. The
+  its traits. Their `:situation` is never touched. The server's age, origin and home are dropped
+  for these authored characters. The same seed rolls the same traits as long as the agent's name,
+  position and sex are unchanged. The
   default model and settings are the runs' (`deepseek/deepseek-v4.1-flash`, the manor key);
   `{:only ["Hobbs"]}` rolls just the agents named. The
   server log and every call go to `test-runs/roll-cast-<time>/roll-cast.edn`, with the cost. An
   agent whose polish fails is left as it was.
 - Loading, branching and replay never read world files: the starting map is recorded as events.
+
+#### Positions, posts and situations
+
+Who someone is (their persona and traits) is kept apart from the job they hold (their position)
+and from their circumstances in this world (their situation). The code is `manor.positions`.
+
+**Positions** come from a catalogue shared between worlds, `resources/positions/england-1904.edn`
+(a country house and its village in 1904: about 45 positions and `:none`). A world file names it
+in `:meta :positions` and may add or override entries in its own `:roles`, merged key by key over
+the catalogue's (a world without a catalogue has only its `:roles`):
+
+```clojure
+{:meta {:positions "positions/england-1904.edn" ...}
+ :roles {:secretary {:workplace ["study"]}                ; adds a key to the catalogue's entry
+         :ferryman {:title "Ferryman" :standing :villager :sleeps :out
+                    :about "You row people across the river."}   ; a new position
+         :gm {:about "..."}}}                             ; the GM's own text, as before
+```
+
+An entry:
+
+```clojure
+:housemaid {:title "Housemaid"
+            :about "You are in service to the family. Your day is housework: ..."
+            :standing :servant      ; :family :upper-servant :servant :outdoor :tradesman :professional :villager
+            :sleeps :in-house       ; or :out
+            :workplace ["kitchen"]  ; optional location ids; best given in the world file
+            :capabilities #{:shop-clerk}   ; optional: what code treats the holder as
+            :addressed-as "{first-name}"   ; optional; or {:male "Mr {surname}" :female "Mrs {surname}"}
+            :ages [15 30] :sex :female}    ; what the people server rolls for a newcomer
+```
+
+- `:about` is the duties only: no names, personality, situation or forms of address. Write it in
+  the second person, as a brief. Standing directions (what a butcher sells, whom the cook consults)
+  belong here, because the polish rewrites personas and would lose them.
+- The scenario keeps the merged table in `[:state :positions]`. Claudeworth's `problems` checks
+  every entry (`positions/entry-problems`), that every agent's role is a position with an
+  `:about`, and that workplaces are locations.
+- Claudeworth's `agent-brief` begins "Your position: Private secretary. You live in. You work at:
+  Study (study)." and then gives the `:about`, the setting and the rules. `:standing` decides
+  who starts in the household (`positions/household-standings`).
+- `:capabilities` are what code and tools go by (see `:needs` under `:actions`): `:shop-clerk`
+  (quote goods at a shop) and `:architect` (draw plans for clients, earn commission fees). The
+  butcher and the shopkeeper are separate positions with the same capability.
+
+**Forms of address** are behind the run option `:addressed-as?` (default true; CLI
+`--no-address` turns it off), so runs with and without them can be compared. When it's on, an
+agent's own prompt says "People address you as my lord." and the view of the people present gives
+each one's `:address-as`. `{first-name}` and `{surname}` are the first and last words of their
+name, titles aside. When it's off, `positions/table` drops every `:addressed-as`, so no form of
+address appears anywhere; keep them out of `:about` texts and situations for the same reason (name
+people as the world names them: "Pugh", not "Mr Pugh").
+
+**Posts.** An agent's `:role` is the id of the position they hold. `[:state :posts]` says more:
+`{"nellie" {:position :housemaid :household "household" :since 0 :terms nil}}`. One event,
+`:people/post-changed`, sets both, so the brief and the tools follow the post; nothing checks who
+holds what (two cooks, or none, are fine). `(change-post! "nellie" :cook {:terms "..."})` at the
+REPL (`manor.engine/change-post!`) changes a post between rounds; `:household` defaults to their
+present post's, and they see the change. There's no in-game action for it yet.
+
+**Bedrooms and routines** are kept by person in `[:state :bedrooms]` and `[:state :routines]`,
+set by `:people/bedroom-assigned` and `:people/routine-set`. Claudeworth's `:on-spawn` sets an
+agent's post, bedroom and routine from their spawn spec, so `(spawn! {:role :footman :name "James
+Ward" :location "entrance-hall" :bedroom "maids-room"})` gets the footman's brief, a post in the
+household and a bed. Members of the household see the house's bedrooms (`:kind :bedroom`, `:domain
+:house`) and who sleeps in each under `household.bedrooms` in their view. The rules say someone who
+lives in needs a bed; nothing enforces it, and sharing is the agents' call.
+
+**Situations.** An agent's `:situation` in the world file is what is neither their job nor their
+personality: the earl means to enlarge the house, and Pugh is the man to see; the cook has just
+joined. Their own prompt shows it as "## Your situation", after "Who you are"; nobody else's does.
+Neither the polish nor `roll-cast!` rewrites it.
 
 ### Time (`manor.clock`)
 

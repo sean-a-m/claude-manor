@@ -24,7 +24,11 @@ The current cast:
 | Mr Briggs, shopkeeper | `shopkeeper` | general store | checks requested goods and quotes prices; lives above the shop |
 | Mrs Finch, cook | `cook` | kitchen | runs the kitchen, plans meals and arranges provisions |
 | Daisy, scullery maid | `scullery-maid` | scullery | assists the cook with washing up, cleaning and preparation |
-| Mr Hobbs, butcher | `shopkeeper` | butcher's shop | quotes meat purchases using his own shop profile; lives above the shop |
+| Mr Hobbs, butcher | `butcher` | butcher's shop | quotes meat purchases using his own shop profile; lives above the shop |
+
+Each role is a position of the shared catalogue (`resources/positions/england-1904.edn`), and
+each character's plans and newness are their own `:situation` (see
+[people-and-hiring-design.md](people-and-hiring-design.md), phase 2).
 
 The pantry opens off the kitchen; its fixed shelves are an open container and a store of the
 usual provisions, lacking sugar. The kitchen dresser stores everyday kitchen ware; Nellie's

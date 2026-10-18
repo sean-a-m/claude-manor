@@ -1,6 +1,7 @@
 # People, positions and hiring: design
 
-Status: phase 1 is done (section 3.5); phases 2–4 are not built. Four phases, in order:
+Status: phases 1 and 2 are done (sections 3.5 and 4.3); phases 3 and 4 are not built. Four
+phases, in order:
 
 1. **People and traits**: a people server that generates characters (temperament, faculties,
    circumstances, a polished persona), tried first on the existing casts.
@@ -366,6 +367,128 @@ code; an operator `spawn!` with a new position gets a sensible brief; the addres
 ways; the household view shows bedrooms and who sleeps in them; the cap is raised; and mock days
 and replay pass.
 
+### 4.3 Phase 2 as built
+
+Done. The contract is in "Positions, posts and situations" (and "People and traits") in
+`docs/scenario-authoring.md`; the code is `manor.positions`, and the tests are in
+`test/manor/positions_test.clj`.
+
+- **The catalogue** is `resources/positions/england-1904.edn`: the 43 positions of section 4.2
+  and `:none`, each with a title, duties in the style of Claudeworth's old texts, a standing,
+  where the holder sleeps, an optional form of address and capabilities, and the people
+  server's ages and sex. A world file names it in `:meta :positions`; its own `:roles` are merged
+  over it key by key, so a world can add a key (Claudeworth's workplaces), replace a text or add a
+  position. A world without a catalogue (the test fixtures) has only its `:roles`. The merged
+  table is kept in `[:state :positions]` (it was `[:state :roles]`).
+- **The people server** takes `ages` and `sex` in `generate_people`; the engine passes them from
+  the catalogue entry (`manor.people/generate-args`). Its own `positions.edn` is gone, so there is
+  one list.
+- **Briefs:** Claudeworth's code map of roles lists only `:gm`. A role that `:roles` doesn't list
+  gets the scenario's new `:agent-brief`, so every non-GM agent gets `agent-brief`, which reads
+  their position from the world: "Your position: Private secretary. You live in. You work at:
+  Study (study)." and then the duties, the setting and the rules. An operator's `spawn!` of a
+  footman gets a footman's brief (tested).
+- **Situations:** an agent's `:situation` is kept on the agent at spawn and shown only in their own
+  prompt, as "## Your situation" after "Who you are". The GM's view lists it with the persona.
+  `roll-cast!` and the polish never touch it.
+- **Posts:** `:people/post-changed` sets `[:state :posts id]` (`{:position :household :since
+  :terms}`) and the agent's `:role` together. A scenario-level `:on-spawn` (new, `(fn [world id
+  spec])`, run after every spawn) is Claudeworth's `positions/starting-events`: each agent's
+  post, and their bedroom and routine (`:people/bedroom-assigned`, `:people/routine-set`) from
+  their spawn spec. `manor.engine/change-post!` (REPL `change-post!`) changes a post between
+  rounds; the person sees it.
+- **Capabilities:** actions gain `:needs`, one capability the agent's position must give.
+  `quote-goods` is `:roles :all :needs :shop-clerk`, and the shop's own check asks for the
+  capability too. The four `(= :architect (:role ...))` checks in `building` and the clerk path
+  of the mock policy ask `positions/capable?` instead.
+- **Forms of address:** the run option `:addressed-as?` (default true; CLI `--no-address`). On:
+  "People address you as my lord." in the person's own prompt, and `:address-as` for each person
+  in the view of the people present. Off: `positions/table` drops every `:addressed-as`, so the
+  engine shows none, and no duty text or situation contains one (tested over every Claudeworth
+  prompt).
+- **Bedrooms:** members of the household (a post with `:household "household"`) see
+  `household.bedrooms`: every bedroom of the house and who sleeps in it. The rules say someone
+  who lives in needs a bed, and that sharing is theirs to decide. Nothing enforces it.
+- **The cap:** `:max-agents` defaults to 50 (`builtins/default-max-agents`). It counted only
+  active agents already; there's no away status yet.
+
+Where each instruction of the old Claudeworth `:about` texts went:
+
+| Old text | Now |
+|---|---|
+| earl: "You are the Earl of Claudeworth, master of Claudeworth Manor" | duties ("a peer and the master of the house") and the earl's situation ("You are the Earl of Claudeworth, and Claudeworth Manor is your seat") |
+| earl: "the household calls you my lord" | `:addressed-as "my lord"` (the flag) |
+| earl: the house is too small, he means to enlarge it; Mr Pugh is the man to see; Lady Claudeworth will expect to be consulted; Mr Hale can run errands | the earl's situation |
+| countess: "the household calls you my lady" | `:addressed-as "my lady"` |
+| countess: runs the household and its servants | duties |
+| countess: expects to be consulted on what the house needs, how it should look and any alteration; her first concern is a smoothly run house | the countess's situation |
+| secretary: private secretary, serves his lordship (correspondence, errands, arrangements, often in the village), reports back | duties (to "the master of the house"); Hale's situation names Lord Claudeworth |
+| secretary: "(my lord; the countess is my lady)" | the flag: the view of the people present |
+| secretary: "You work in the study" | `:workplace ["study"]` in the world file's `:roles` |
+| housemaid: at Claudeworth Manor, in service to the family | duties ("in service to the family"); Nellie's situation ("the housemaid at Claudeworth Manor") |
+| housemaid: "(my lord and my lady; the secretary is Mr Hale)" | the flag |
+| housemaid: dusting and sweeping the drawing room, the silver, the range, the fires, whatever the countess asks; no money, spends none | duties ("whatever the lady of the house asks") |
+| cook: at Claudeworth Manor, in service to the earl and countess (my lord and my lady) | duties ("in service to the family"), the flag, and Mrs Finch's situation |
+| cook: runs the kitchen; the scullery maid assists, the housemaid has the other rooms; the pantry is a store, shop for what's lacking; consult the countess about meals and spending; buy from the village tradespeople | duties ("the lady of the house") |
+| cook: only recently joined; inspect the kitchen and pantry, find out the countess's wishes, arrange provisions | Mrs Finch's situation |
+| scullery maid: at Claudeworth Manor, junior to the cook, in service to the family (my lord and my lady) | duties, the flag, and Daisy's situation |
+| scullery maid: help the cook (the list), ask the cook, report back; spend-time with `on`; take, give and put-in; errands and spending follow instructions | duties, unchanged |
+| architect: the architect of Pugh & Sons in Claudeworth village; keeps the office, lives in the lodgings above | Pugh's situation, and `:workplace ["architects-office"]` |
+| architect: reference books, plans, commissions; one room at a time, refuse politely saying when; advise on proportion but respect the client's wishes | duties |
+| architect: "You want the manor's custom" | Pugh's situation |
+| architect and shopkeeper: "Address the earl as my lord and the countess as my lady" | the flag: the view of the people present |
+| shopkeeper: "who you are says your trade and premises"; "a butcher sells meat, not general groceries" | two positions: the shopkeeper's duties (a general shop) and the butcher's ("Meat is your trade, not general groceries"); `:workplace` for each; Briggs's and Hobbs's situations say which shop they keep and that they live above it |
+| shopkeeper: serve at the counter with quote-goods, the whole list in one call; never promise or invent a price; no catalogue, bargaining, delivery or credit; goods handed over when bought | the duties of both, word for word |
+
+**Who you are, and the polish in the second person** (the user's addition during phase 2). The
+"Who you are" section read badly: "You are Daisy (id: daisy)." followed by a third-person persona,
+a manner whose "your" meant the stranger, and the traits crammed into one line. Now:
+
+- The first line names the person and their position, with the address line when the flag is on:
+  "You are Daisy (id: daisy), the scullery maid. People address you as Daisy." Then the persona,
+  "How strangers see you: ...", and "### Your nature (known only to you)" with each reading on its
+  own line, the term kept and its meaning added: "- Alimentiveness: large (appetite for food)".
+  The meanings are read from the people server's own data files (`:measures`, `:means`) as
+  static data, so there's one source. A character with no traits gets the old prompt but for the
+  first line.
+- The polish writes both persona and manner to the person, beginning "You". Its check asks for
+  one correction when either doesn't begin with "You", or a sentence's subject is He, She or the
+  person's name. It no longer requires the persona to name the person, since the first line does.
+- Claudeworth's cast wasn't re-rolled (decision 32): its personas stay in the third person until
+  the real re-polish after the merge. With seed 1, `roll-cast!` rolls exactly the traits eight of
+  the nine characters have now (a test pins it). **Hobbs comes out different:** the server seeds
+  its dice and weights circumstances by position, and he is now a butcher, not a shopkeeper. The
+  user accepted this (decision 24: everything is rolled).
+
+Deviations and decisions made while building:
+
+1. **Capabilities are a separate `:needs` key**, not capability keywords in `:roles`. Roles and
+   capabilities stay apart: a world can rename or add a position and keep `:shop-clerk`, a
+   capability can't silently match a role of the same name (`:architect` is both), and `:roles`
+   keeps its meaning for the scenarios without positions.
+2. **A seventh standing, `:professional`,** for the architect, the vicar, the doctor and the
+   schoolmistress, who are neither tradesmen nor villagers.
+3. **Son and daughter of the house are two positions,** so each has its own title and form of
+   address.
+4. **Two new scenario keys:** `:agent-brief` (the brief of a role `:roles` doesn't list) and a
+   scenario-level `:on-spawn` that gets the whole spawn spec. The engine's prompt, view and tool
+   code read `[:state :positions]` by convention; a world without positions behaves as before.
+5. **Who is in the household** is decided at spawn: the spec's `:household` if it has one, else
+   the household (`"household"`) when the position's standing is family or a servant's. Tradesmen
+   and professional men keep their own houses, so Pugh, Briggs and Hobbs don't see the bedrooms.
+6. **Workplaces are in the world file,** not the catalogue, because they name its locations.
+   Claudeworth gives them for the secretary, the architect, the shopkeeper and the butcher.
+7. **Situations name people as the world names them** ("Pugh", "Hale"), not "Mr Pugh", so that
+   with the flag off no form of address appears in what the engine shows. The polished personas
+   still say "Mr Hale" and the like.
+8. **Every household member has a situation,** most just "You are the housemaid at Claudeworth
+   Manor", because the old texts tied each job to the house and the shared duties can't.
+9. **The household test fixtures** have no catalogue; their `:shopkeeper` and `:architect` gained
+   `:capabilities`, and nothing else changed.
+10. **Faculty meanings reworded** where they only repeated the term ("Smell: large (smell)"):
+    the senses, Colouring, and Alimentiveness ("appetite for food"). Only the `:means` text
+    changed, which the dice don't use.
+
 ## 5. Phase 3: a small test world
 
 Decision 20. Real Claudeworth rounds take about 27 seconds with nine agents, and the things to
@@ -500,10 +623,13 @@ From phase 1:
    them: the countess's first concern (a smoothly run house), the cook's being new to the house
    (inspect the kitchen and pantry, find out the countess's wishes), and the shopkeeper's selling
    only their own trade ("a butcher sells meat, not general groceries"). Situations stay, such as
-   the earl's plan to enlarge the house; phase 2 decides where situations belong.
+   the earl's plan to enlarge the house; phase 2 decides where situations belong. *Settled in
+   phase 2:* situations are each agent's own `:situation`, and the texts are the shared duties
+   (section 4.3).
 2. **Directions in personas get lost.** The polish rewrites everything, so standing directions
    must live in `:about` (as now) or in a field the polish doesn't rewrite. Phase 2 should keep
-   it that way.
+   it that way. *Kept in phase 2:* directions are in the duties or the situation, and the polish
+   rewrites neither.
 3. **Invented details:** the polish adds facts the record doesn't give, such as the countess
    being "past fifty", Hobbs having left "Bramford", or Pugh sending wages home. Most are harmless
    colour. Should the polish be told to add no new facts beyond its notes and record, or is the
@@ -512,3 +638,23 @@ From phase 1:
    (`polish-request` already returns the `{:messages :tools :ctx :check}` shape) and needs the
    people server in `:mcp-servers`, `:bridges` and `:offline-stubs`. Phase 1 registers neither,
    because nothing in a run uses them yet.
+
+From phase 2:
+
+5. **One form of address for everyone.** The view gives each person one form, so the countess is
+   shown "my lord" for her husband and the earl "Mr Hale" for his secretary, though they'd say
+   "Claudeworth" and "Hale". Is one form enough, or should it depend on who is speaking?
+6. **"The lady of the house" and "the master of the house".** Shared duties can't name the
+   countess or the earl. Watch whether the housemaid and the cook still take their orders from the
+   countess.
+7. **Situations don't change.** The cook is "recently joined" forever, and the earl still means
+   to enlarge the house after the library is built (decision 27 leaves this for later).
+8. **Living out with nowhere to live.** Outdoor servants (a chauffeur, a groom) sleep `:out`, but
+   Claudeworth has no stable flat or cottage. Phase 4 will need somewhere for them, or a bed in
+   the house.
+9. **Nobody is spawnable.** Claudeworth has no `:spawnable?` roles, so the GM still can't spawn,
+   and the raised cap only matters for phase 4. Should the catalogue's positions be spawnable, or
+   should arrivals only come through `send-for`?
+10. **The second-person check is narrow.** It catches a sentence whose subject is He, She or the
+    person's name, not a "she" in the middle of one. The first real re-polish will show whether
+    that's enough.

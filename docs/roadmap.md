@@ -335,7 +335,8 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   phrenological faculties and a model polish, tried on the existing casts; (2) positions
   separated from people, a shared catalogue, situations and a higher agent cap (C13 stays separate); (3) a small
   test world (Ashby Lodge) for short real runs; (4) hiring: `recommend`, `send-for`, `engage`,
-  and an away status. Phase 1 is done (see the design's section 3.5); phases 2–4 are not started.
+  and an away status. Phases 1 and 2 are done (see the design's sections 3.5 and 4.3); phases 3
+  and 4 are not started.
 
 ---
 
@@ -345,7 +346,8 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
    bridge runs after approval at a later round start, when the world may have changed.
    *Fix:* re-run the action's `:valid?` against the current world in
    `engine/run-approved-bridges!` and emit `:bridge/completed` with an error if it now fails.
-2. **Operator `spawn!` ignores `:limits :max-agents`.** Only the GM's spawn tool checks it.
+2. **Operator `spawn!` ignores `:limits :max-agents`.** Only the GM's spawn tool checks it
+   (default 50 active agents since people phase 2; retired ones don't count).
    Probably fine (the operator is god), but document or enforce it.
 3. **GM triggers fire every round while true.** Each firing costs a GM call. A built-in "edge
    trigger" helper (fire once until the condition clears) would help.

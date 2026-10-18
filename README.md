@@ -70,6 +70,7 @@ real historical weather:
 clojure -M:run village --max-cost 0.50
 clojure -M:run village --model openai/gpt-5-mini
 clojure -M:run --load smoke-llm            # reopen a saved run
+clojure -M:run claudeworth --no-address --max-cost 0.20   # no forms of address in any prompt
 ```
 
 Claudeworth's architect bridge is an MCP server: with `--offline` the engine uses a stub with the
@@ -91,6 +92,7 @@ From the REPL (`clj -M:dev`):
 (view "ana") (last-prompt "ana")
 (spawn! {:role :farmer :name "Eva" :controller :human :location "market"})
 (place! "eva" "square")
+(change-post! "nellie" :cook)   ; a new position: brief and tools follow (worlds with positions)
 (act! "eva" :plant {:grain 3})
 (approve! "req-63")
 (branch! 3)
@@ -103,6 +105,8 @@ From the REPL (`clj -M:dev`):
 `roll-cast!` gives every character in a world file new traits from the people server
 (`mcp-servers/people/`) and a persona written from them, and writes them into the file for review
 with `git diff`; see "People and traits" in [docs/scenario-authoring.md](docs/scenario-authoring.md).
+Positions (a shared catalogue in `resources/positions/`), posts and situations are described
+under "Positions, posts and situations" there.
 
 Whenever a run stops running rounds (it pauses, `auto!`'s rounds are done, a manual step ends,
 `pause!` or `stop-run`), the engine writes `<run-dir>/transcript.md`: each round's events with who
@@ -131,6 +135,7 @@ Passed to `start-run` / `start!` (defaults in `manor.engine/default-opts`):
 | `:start` | | start the scenario's clock at this time, e.g. `"1904-10-15T21:00"` (CLI: `--start`); scenarios with a clock only. People still start where the world puts them |
 | `:build-rounds` | | override the build delay for one run, in rounds (Claudeworth; default one day per build day) |
 | `:housemaid?` / `:architect?` | `true` / `true` | Claudeworth: include Nellie and Mr Pugh; pass `false` to leave either out (REPL options) |
+| `:addressed-as?` | `true` | positions' forms of address in prompts ("People address you as my lord", and how to address each person present); `false` (CLI: `--no-address`) leaves every form of address out, to compare runs with and without |
 | `:max-steps` / `:max-queries` | 10 / 2 | model calls and bridge/adjudication queries per turn (a cost guard, not game time) |
 | `:event-window` | 30 | recent events in each prompt |
 | `:gm-check-in-every` | 0 | rounds between GM check-ins (0 = only when triggered) |

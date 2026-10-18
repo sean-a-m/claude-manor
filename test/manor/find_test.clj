@@ -42,6 +42,7 @@
     (try
       (is (= "The Dripping tin is here (hidden-tin), in the Cupboard (cupboard)." (:reply (query! run "DRIPPING"))))
       (is (= "The Umbrella is here (umbrella)." (:reply (query! run "umbrella"))))
+      (is (= "The Umbrella is here (umbrella)." (:reply (query! run "an umbrella"))) "a leading article is ignored")
       (e/emit! run [{:type :items/stewarded :data {:used-up [{:item "hidden-tin" :name "Dripping tin" :fate "worn out and discarded"}
                                                           {:item "remote" :name "Secret mustard" :fate "eaten at supper"}]}}])
       (is (= "The Dripping tin was worn out and discarded." (:reply (query! run "dripping"))))
@@ -133,7 +134,7 @@
   (let [run (start)]
     (try
       (is (= "You find mustard (mustard); you now carry it." (:reply (query! run "mustard"))))
-      (is (= "Ada looks for mustard and finds one in the pantry shelves."
+      (is (= "Ada looks for mustard and finds it in the pantry shelves."
              (n/describe (last (e/events run)) (n/names (e/world run)))))
       (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
       (finally (e/stop-run run)))))

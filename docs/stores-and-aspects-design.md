@@ -428,6 +428,9 @@ Approved deviations and details:
   records `what` without changing aspects. A later search may disagree in that rare case.
 - No phase 5 content or mock-day search choreography was added; only the requested short
   Claudeworth rules sentence and query-budget wording changed.
+- At review: matching ignores a leading article ("a dripping tin" finds "Dripping tin"), and
+  a find reads "... looks for mustard and finds it in the pantry shelves" ("finds one" read
+  oddly for mass nouns).
 
 - `find {what}`: `what` is 1–60 characters. A non-turn-ending query, once per turn (`:per-turn 1`), not
   while travelling. Its doc: "Look for a particular thing you need to pick up or hand over, or
@@ -455,7 +458,6 @@ Approved deviations and details:
 - Mock: certain for anything, found as a plain item drawn from the first store in scope.
 - Tests: deterministic hit, fate reply, a yes and a no from fixed rolls, `:lacking` recorded
   and consulted, not reporting other rooms, the per-turn limit.
-
 ### Phase 5: Claudeworth content and a real run
 
 **Status: not started.** The rest of the old room-conditions R2, plus stores.

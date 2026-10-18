@@ -1301,8 +1301,13 @@
 - Give found.from as the id of the listed store that would keep it, even when likelihood is impossible; omit it if none fits. portable defaults true (goes into the finder's hands); set false only for furniture-sized things that must lie here.
 - Keep lacking a short name or phrase for the absent thing, not a sentence or instructions.")
 
+(defn- bare
+  "`what` in lower case without a leading article: \"a dripping tin\" -> \"dripping tin\"."
+  [what]
+  (str/replace (str/trim (str/lower-case what)) #"^(a|an|the|some)\s+" ""))
+
 (defn- name-match? [what item-name]
-  (str/includes? (str/lower-case item-name) (str/lower-case what)))
+  (str/includes? (str/lower-case item-name) (bare what)))
 
 (defn- local-find [world actor what]
   (let [place (space/location-of world actor)
@@ -1402,7 +1407,7 @@
     world))
 
 (defmethod n/describe :item/found [{:keys [actor data]} names]
-  (str (n/who names actor) " looks for " (:what data) " and finds one"
+  (str (n/who names actor) " looks for " (:what data) " and finds it"
        (when (:from data) (str " in " (the names (:from data)))) "."))
 
 (defmethod n/describe :item/not-found [{:keys [actor data]} names]

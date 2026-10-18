@@ -284,7 +284,6 @@
       (doseq [[bad diagnostic]
               [[(update world-file :locations update-entry :id "general-store" #(dissoc % :store-profile)) ":store-profile"]
                [(assoc-in world-file [:meta :starting-funds] -1) "starting-funds"]
-               [(assoc-in world-file [:meta :starting-stores] {"gold" -1}) "starting-stores"]
                [(update world-file :locations #(mapv (fn [l] (dissoc l :services)) %)) "architect"]
                [(update world-file :locations update-entry :id "architects-office" #(assoc % :services ["architect"])) ":services"]]]
         (is (str/includes? (str/join "\n" (cw/problems bad)) diagnostic)))
@@ -633,6 +632,11 @@
     (testing "the rules say the item actions are free, and what look shows"
       (is (str/includes? (cw/rules world) "`look` shows them in detail, with their descriptions, conditions and owners"))
       (is (str/includes? (cw/rules world) "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn")))
+    (testing "the rules and the judge both take everyday things as to hand"
+      (let [judge-brief ((get-in (:scenario run) [:items :judge-brief]) world)]
+        (is (str/includes? (cw/rules world) "everyday things (cloths, paper, pans, salt, matches and the like) can be assumed to be to hand"))
+        (is (str/starts-with? judge-brief (get-in world [:state :setting])))
+        (is (str/includes? judge-brief "are to hand unless what you're shown says otherwise"))))
     (e/stop-run run))
   (testing "leaving Mr Pugh out leaves out what he holds"
     (let [with-pugh (update (wf/read-file fixture/world-file) :items conj

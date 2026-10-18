@@ -339,6 +339,7 @@
          "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). You get no turns while asleep or busy, unless someone uses `rouse` to interrupt you. On that turn, `carry-on` ignores them; any other accepted action means you stop. "
          "Use `spend-time` for longer pastimes (half an hour to " max-pastime-hours " hours). `note` keeps private notes. "
          "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows them in detail, with their descriptions, conditions and owners, along with the room and what the people here carry, so use it to examine something closely, not routinely on arrival. "
+         "The house has the ordinary things a house like it keeps: everyday things (cloths, paper, pans, salt, matches and the like) can be assumed to be to hand unless you've been told otherwise. The things listed in your view are the notable ones, not everything there is. "
          "Some things hold others: what's in an open one is listed under its `contents`, and one marked `closed` shows what's inside only when you `open` it. "
          "You can `take` things out of either, and `put-in` puts something into one. "
          "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn; `work-on` spends time doing something to things here or that you carry, or to the room itself (use its id), and its results show when you finish. "
@@ -353,6 +354,12 @@
          building/fee-percent "% on commissions for plans he drew.")))
 
 (defn- setting [world] (get-in world [:state :setting]))
+
+(defn- judge-brief
+  "The setting, and that everyday things are to hand."
+  [world]
+  (str (setting world)
+       "\n\nThe house has the ordinary things a house like it keeps: assume the everyday things the work needs (cloths, paper, pans, salt, matches and the like) are to hand unless what you're shown says otherwise. The things listed are the notable ones, not everything there is."))
 
 (defn- about [world role] (get-in world [:state :roles role :about]))
 
@@ -623,7 +630,7 @@
    :offline-stubs building/offline-stubs
    :mcp-servers building/mcp-servers
    :systems [building/construction]
-   :items {:judge-brief setting}
+   :items {:judge-brief judge-brief}
    :exclude-actions #{:move}
    :hibernate hibernate
    :observe observe

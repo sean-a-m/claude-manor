@@ -735,8 +735,7 @@ a clock) spends time doing something to things:
   (in reach) `:minutes :stopped-early? :luck :step`, and it returns `{:tool :judge :args {..}}`.
 
 Stores of provisions can be consumable items, a parcel each, whose condition the judge rewrites as
-they are used (Claudeworth's purchases), or counters in your `:state` when nothing should handle
-them as things.
+they are used (Claudeworth's purchases).
 
 ### World files (`manor.worldfile`)
 

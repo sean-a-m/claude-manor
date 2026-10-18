@@ -46,7 +46,7 @@
                                  :store-profile profile :hours ["08:00" "18:00"]}
                                 {:id "back-room" :name "Back room" :desc "A quiet room."}]
                     :routes [["counter" "back-room" 0]]}
-            :state {:setting "Rural England, 1904." :household {:funds 600 :stores {"untouched" 7}}
+            :state {:setting "Rural England, 1904." :household {:funds 600 :untouched 7}
                     :quotes {} :money-unit :old-pence}
             :items []})
    :actions shop/actions :adjudicators shop/adjudicators :items {}
@@ -95,7 +95,7 @@
         (rounds! run 2)
         (let [after (e/world run)]
           (is (= 594 (get-in after [:state :household :funds])))
-          (is (= {"untouched" 7} (get-in after [:state :household :stores])))
+          (is (= 7 (get-in after [:state :household :untouched])))
           (is (empty? (get-in after [:state :quotes])))
           (testing "one parcel for the whole quantity, the amount leading its condition"
             (is (= [{:id "packet-of-needles" :name "packet of needles" :owner "household" :holder "customer"
@@ -186,7 +186,7 @@
                    :consumable? true}]
                  (items/held-by after "customer"))))
         (testing "both lines give the amount"
-          (is (= "Customer buys Plain household flour (20 × 1 lb) for 3s 4d at the Counter." (n/describe (first evs) names)))
+          (is (= "Customer buys Plain household flour (20 × 1 lb) for 3s 4d at the Counter, and takes the goods away." (n/describe (first evs) names)))
           (is (= "Customer now has plain household flour (20 × 1 lb)." (n/describe (second evs) names))))
         (testing "a single unit is just the unit; lasting goods aren't consumable"
           (let [[after] (bought (e/world run) available 1)]

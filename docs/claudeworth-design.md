@@ -222,7 +222,7 @@ in a fraction of a second.
 
 ### 6.2 Money
 
-- `:state :household {:funds 720000 :stores {"provisions" 2}}`: £3000 in old pence.
+- `:state :household {:funds 720000}`: £3000 in old pence.
 - All characters see it and can spend from it; social authority is left to the agents.
 - The architect has a private purse and earns a fee (10% of each commission) on plans he drew:
   an in-world reason to encourage bigger, grander works.

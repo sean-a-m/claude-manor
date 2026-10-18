@@ -139,7 +139,8 @@ commit them first, or edit around them and say so.
 
 ### Phase 0: content and wording, no engine change
 
-**Status: not started.**
+**Status: done (date 2026-10-17), except the optional real run (item 6).** The judge brief is now `claudeworth/judge-brief` (the setting plus the everyday-things sentence), and a
+purchase reads "... at the General store, and takes the goods away."
 
 1. **Remove the provisions counter** (D9): `:stores` in `building/initial-state`, the
    `:starting-stores` check in `building/problems`, `:starting-stores` in

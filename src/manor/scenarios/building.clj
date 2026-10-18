@@ -264,8 +264,7 @@
 
 (defn initial-state [wf agents opts]
   {:money-unit :old-pence
-   :household {:funds (money/pounds->pence (get-in wf [:meta :starting-funds]))
-               :stores (or (get-in wf [:meta :starting-stores]) {})}
+   :household {:funds (money/pounds->pence (get-in wf [:meta :starting-funds]))}
    :purses (into {} (for [a agents :when (= :architect (:role a))] [(b/slug (:name a)) 0]))
    :plans {} :works [] :build-rounds (:build-rounds opts)})
 
@@ -273,10 +272,6 @@
   (concat
    (when-not (and (integer? (:starting-funds meta)) (<= 0 (:starting-funds meta)))
      [":meta :starting-funds must be non-negative integer pounds"])
-   (when-not (and (map? (:starting-stores meta {}))
-                  (every? (fn [[item qty]] (and (short-text? item 60) (integer? qty) (<= 0 qty)))
-                          (:starting-stores meta)))
-     [":meta :starting-stores must map non-empty item names to non-negative integer quantities"])
    (for [loc locations :when (and (contains? loc :services)
                                   (not (and (set? (:services loc)) (every? keyword? (:services loc)))))]
      (str "location " (:id loc) ": :services must be a set of keywords"))

@@ -128,7 +128,7 @@
 
 (defmethod n/describe :claudeworth/bought [{:keys [actor data]} names]
   (str (n/who names actor) " buys " (:item data) " (" (amount (:qty data) (:unit data)) ") for "
-       (money/display (:price data)) " at the " (n/place names (:location data)) "."))
+       (money/display (:price data)) " at the " (n/place names (:location data)) ", and takes the goods away."))
 
 (defn offer-events [world clerk {:keys [for item qty] :as args} result]
   ;; Recheck against the current world before recording an offer.

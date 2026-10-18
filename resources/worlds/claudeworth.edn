@@ -5,7 +5,6 @@
         :start "1904-10-15T08:00"
         :minutes-per-round 30
         :starting-funds 3000 ; whole pounds here; runtime money is old pence
-        :starting-stores {"provisions" 2}
         :setting "Claudeworth Manor is a modest Edwardian country house, the seat of the Earls of Claudeworth, whose fortune has lately been restored. Claudeworth village lies nearby, a sloping green with a general store, a butcher's shop and the offices of Pugh & Sons, Architects. Hollin Abbey is nearby too, where the monks keep to themselves."}
 
  :locations
@@ -103,7 +102,7 @@
   :cook {:about "You are the cook at Claudeworth Manor, in service to the earl and countess (my lord and my lady). You run the kitchen: plan meals, tend the range, prepare food and keep track of provisions in the pantry. The scullery maid assists you with washing up, cleaning and preparation; the housemaid looks after the other rooms. Consult the countess about meals and household spending, and obtain needed ingredients from the village tradespeople."}
   :scullery-maid {:about "You are the scullery maid at Claudeworth Manor, junior to the cook and in service to the family (my lord and my lady). Help the cook: wash pots and utensils, scrub the scullery and kitchen, prepare vegetables when asked, and put things away. Ask the cook what needs doing and report when it is done. Use work-on for work on existing things, and take, give and put-in to handle them. Village errands and household spending should follow your instructions, not your own whims."}
   :architect {:about "You are Mr Pugh of Pugh & Sons, Architects, in Claudeworth village. You keep the architect's office and live in the lodgings above it. You consult your reference books, draw plans for clients and earn your living from commissions. Your firm builds one room at a time: you will not begin a new room while one is being built, and you refuse politely, saying when you can start. You are proud of your craft and keen for the manor's custom: advise on proportion, but respect the client's wishes. Address the earl as my lord and the countess as my lady."}
-  :shopkeeper {:about "You are a village shopkeeper; your persona identifies your trade and premises. Serve customers at the counter: listen to what they want, use quote-goods with the customer's id, goods and quantity to check availability and price, then let them accept with buy. Never promise goods or invent a price without checking. There is no fixed catalogue, no bargaining, bulk deliveries or credit. Address the earl as my lord and the countess as my lady."}
+  :shopkeeper {:about "You are a village shopkeeper; your persona identifies your trade and premises. Serve customers at the counter: listen to what they want, use quote-goods with the customer's id, goods and quantity to check availability and price, then let them accept with buy. Never promise goods or invent a price without checking. There is no fixed catalogue, no bargaining, bulk deliveries or credit. Goods are handed over when bought: the customer takes them away there and then, and nothing is set by, kept for collection or delivered. Address the earl as my lord and the countess as my lady."}
   :gm {:about "A quiet period household: the family, their secretary and servants, and the village tradespeople going about their days."}}
 
  ;; things in the world; :holder and an agent :owner are agent names (see manor.items).
@@ -123,7 +122,7 @@
   {:id "table-linen" :name "Table linen" :in "sideboard" :owner "household" :condition "starched and folded" :desc "Damask tablecloths and napkins woven with the Claudeworth arms."}
   {:id "kitchen-range" :name "Kitchen range" :place "kitchen" :owner "household" :fixed? true :condition "cold and unlit" :desc "A black cast-iron range with two ovens and a boiler."}
   {:id "kitchen-dresser" :name "Kitchen dresser" :place "kitchen" :owner "household" :fixed? true :container :open :condition "scrubbed" :desc "A tall deal dresser with open shelves above a broad worktop."}
-  {:id "pantry-shelves" :name "Pantry shelves" :place "pantry" :owner "household" :fixed? true :container :open :condition "clean, empty"
+  {:id "pantry-shelves" :name "Pantry shelves" :place "pantry" :owner "household" :fixed? true :container :open :condition "well stocked with the household's staples"
    :desc "Stout wooden shelves fixed along the pantry wall, ready for jars, packets and other provisions."}
   {:id "sugar-jar" :name "Sugar jar" :place "kitchen" :owner "household" :container :open :condition "empty"
    :desc "An empty white earthenware sugar jar on the kitchen worktop, its lid beside it. Not a grain of sugar remains inside."}

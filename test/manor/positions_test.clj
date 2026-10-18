@@ -228,7 +228,7 @@
         (is (str/includes? (system-prompt run world "mrs-finch") "People address you as Mrs Finch."))
         (is (str/includes? (system-prompt run world "nellie") "People address you as Nellie."))
         (is (= [{:id "lord-claudeworth" :name "Lord Claudeworth" :role :earl :address-as "my lord" :carrying ["Pocket watch"]}]
-               (get-in (prompt/agent-view (:scenario run) world "hale") [:location :people-here])))
+               (map #(dissoc % :appearance) (get-in (prompt/agent-view (:scenario run) world "hale") [:location :people-here]))))
         (is (= "Mr Hale" (:address-as (first (get-in (prompt/agent-view (:scenario run) world "lord-claudeworth")
                                                      [:location :people-here])))))
         (finally (e/stop-run run)))))
@@ -240,7 +240,7 @@
                 :let [text (whole-prompt run world (:id a))]]
           (is (not (re-find #"(?i)my lord|my lady|address" text)) (:id a)))
         (is (= [{:id "lord-claudeworth" :name "Lord Claudeworth" :role :earl :carrying ["Pocket watch"]}]
-               (get-in (prompt/agent-view (:scenario run) world "hale") [:location :people-here])))
+               (map #(dissoc % :appearance) (get-in (prompt/agent-view (:scenario run) world "hale") [:location :people-here]))))
         (finally (e/stop-run run))))))
 
 ;; ---------------------------------------------------------------------------

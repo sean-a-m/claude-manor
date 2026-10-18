@@ -337,10 +337,11 @@
          "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn. "
          "If you are waiting on someone or nothing needs doing, `pass` is the way to wait a turn; you act again next turn. "
          "Opening hours are shown in your view where a place has them. "
-         "Purchases and commissions are paid from the household account (`household` in your view). There is no engine-enforced spending restriction by role: whether you should spend depends on your station, instructions and relationships. At an open shop, ask the shopkeeper with `say` for portable goods and a quantity; there is no fixed catalogue. The shopkeeper checks availability and quotes a firm price. Accept an offer made for you with `buy {quote-id}`, from `offers` in your view. Payment is separate from asking; no bargaining, bulk counters or delivery. Prices are old sterling: £1 = 20 shillings = 240 pence (12d = 1s). "
+         "Purchases and commissions are paid from the household account (`household` in your view). There is no engine-enforced spending restriction by role: whether you should spend depends on your station, instructions and relationships. At an open shop, ask the shopkeeper with `say` for portable goods and quantities; there is no fixed catalogue. The shopkeeper checks availability and quotes firm prices, a whole shopping list in one `quote-goods`. Accept offers made for you with `buy {quote-ids}`, from `offers` in your view: one `buy` can take the whole list. Payment is separate from asking; no bargaining, bulk counters or delivery. Prices are old sterling: £1 = 20 shillings = 240 pence (12d = 1s). "
          "Building is arranged at the architect's office while it is open, not at the house: talk at home is for deciding what you want. "
          "At the office you can search reference books (`consult-references`), ask for the `price-list` and have plans drawn (`draw-plans`); any character can `commission` a plan they hold, but should judge whether they have the social authority to do so. `show-plans` shares plans with everyone present, anywhere. "
-         "A reference lookup, the price list, each draft, each shop quote and `find` all count towards your " max-queries " queries a turn, even if asked for at once; once you reach " max-queries ", take your action and query again next turn. "
+         "Plans are a special case: they are not things, so they are never carried, given, fetched, copied, lost or searched for. Once plans are drawn, the architect and the client both hold them, and anyone they are shown to holds them too; `plans` in your view lists the plans you hold, and those are all you need. "
+         "A reference lookup, the price list, each draft, each `quote-goods` (however many goods it lists) and `find` all count towards your " max-queries " queries a turn, even if asked for at once; once you reach " max-queries ", take your action and query again next turn. "
          "Only one room is built at a time: `commission` is refused while a room is being built (see `building` for the work in hand and when it finishes), so the next room must wait until the present one is finished. "
          "Commissioning pays from the household; the room appears at the completion time in `building`. The architect earns "
          building/fee-percent "% on commissions for plans he drew.")))
@@ -351,7 +352,8 @@
   "The setting, and that everyday things are to hand."
   [world]
   (str (setting world)
-       "\n\nThe house has the ordinary things a house like it keeps: assume the everyday things the work needs (cloths, paper, pans, salt, matches and the like) are to hand unless what you're shown says otherwise. The things listed are the notable ones, not everything there is."))
+       "\n\nThe house has the ordinary things a house like it keeps: assume the everyday things the work needs (cloths, paper, pans, salt, matches and the like) are to hand unless what you're shown says otherwise. The things listed are the notable ones, not everything there is."
+       "\n\nArchitect's plans are kept outside this judgement and are never things: never make plans, drawings or copies of plans. Drawing or copying plans changes nothing here."))
 
 (defn- about [world role] (get-in world [:state :roles role :about]))
 

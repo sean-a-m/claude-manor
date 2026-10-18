@@ -83,7 +83,10 @@
   (str "The draft could not be stored: " (:reason data)))
 (defmethod n/describe :claudeworth/plans-drawn [{:keys [actor data]} names]
   (str (n/who names actor) " has plans drawn for " (get-in data [:plan :name])
-       " (" (get-in data [:plan :id]) "), " (money/display (get-in data [:plan :price])) "."))
+       " (" (get-in data [:plan :id]) "), " (money/display (get-in data [:plan :price])) "; "
+       (let [holders (sort (get-in data [:plan :holders]))]
+         (str (str/join " and " (map #(n/who names %) holders))
+              (if (next holders) " now hold them." " now holds them.")))))
 (defmethod n/describe :claudeworth/plans-shown [{:keys [actor data]} names]
   (str (n/who names actor) " spreads out the plans for " (:plan-id data) " for the room to see."))
 (defmethod n/describe :claudeworth/commissioned [{:keys [data]} names]

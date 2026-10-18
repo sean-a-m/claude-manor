@@ -237,15 +237,16 @@ in a fraction of a second.
 ### 6.3 The store
 
 Mr Briggs keeps the general store, with a routine and lodgings above it. Ask him for goods
-with `say`; he uses `quote-goods {for item qty}`. A narrow engine-run adjudicator checks whether
-this kind of store in rural England in 1904 could plausibly stock the request, then prices it
-in old pence. Its prompt includes the actual store's `:store-profile`, name/description,
+with `say`; he uses `quote-goods {for goods}`, where `goods` lists up to 10 lines of `{item qty}`
+(a whole shopping list). One narrow engine-run adjudicator call checks, line by line, whether
+this kind of store in rural England in 1904 could plausibly stock each request, then prices it
+in old pence (decision 41). Its prompt includes the actual store's `:store-profile`, name/description,
 setting/date and goods/quantity, not the full world or household wealth.
 
-A checked offer or refusal is announced to people at the counter. A quote fixes buyer, clerk,
-shop, quantity, item details and price. The customer accepts with `buy {quote-id}`: code checks
-funds, co-location, opening hours and that the quote is unspent, then deducts money, consumes
-the quote and creates one portable parcel carried by the buyer, owned by the household, with the
+Each checked offer or refusal is announced to people at the counter. A quote fixes buyer, clerk,
+shop, quantity, item details and price. The customer accepts with `buy {quote-ids}`, up to 10
+quotes at once: code checks funds for the total, co-location, opening hours and that each quote
+is unspent, then deducts money, consumes the quotes and creates for each one portable parcel carried by the buyer, owned by the household, with the
 amount bought and the appraised condition as its aspects, `{:amount "20 × 1 lb" :state "fresh,
 dry"}` (decisions 39 and 40). There is
 no fixed inventory, bulk counter purchasing, delivery, bargaining or clock expiry on offers.
@@ -261,7 +262,7 @@ consult-references (query, at the office)  ── MCP consult_references ──>
 draw-plans (query, at the office, open hours)
    └─ bridge :architect/draft ── MCP draft_plans ──> drafted room + price
         └─ on-result: :claudeworth/plans-drawn   (plan stored, id "plan-123", visible to drawer and client)
-show-plans {plan-id} (free)        shares a plan with everyone in the room
+show-plans {plan-id} (free)        shares a plan with everyone in the room (they hold it too)
 commission {plan-id} (final, at the office, open hours)
    └─ checks: plan exists, you are family or secretary, funds cover the price
    └─ :claudeworth/commissioned   (money moves; works complete at round + 48 × build-days)
@@ -285,6 +286,10 @@ construction system (every round)
 
   The server's draft is treated as untrusted input and checked against the same list before the
   plan is stored.
+- **Plans are not items** (decision 42). A drawn plan is held at once by the architect and the
+  client, and by anyone it is shown to; it is never carried, given, copied, lost or searched for.
+  The rules say so, the plans-drawn line names who holds it, and the work judge is told never to
+  make plans or copies of them.
 - Plans don't go stale: rooms are never removed, so a plan's connections stay valid. Only one
   work is under way at a time: a commission is refused while any room is being built, and the next
   room is commissioned once the present work is finished.
@@ -348,8 +353,8 @@ map; places, journeys and opening hours reach agents through their view.
 | `spend-time {doing hours on?}` | all | final | anywhere; work and pastimes, judged on completion |
 | `sleep {until}` | all | final | in a bedroom |
 | `rouse {who}` | all | free | same room, target occupied |
-| `quote-goods {for item qty}` | shopkeeper | query | general-store service, customer present, open hours |
-| `buy {quote-id}` | all | final | original store, buyer and clerk present, open hours |
+| `quote-goods {for goods}` | shopkeeper | query | general-store service, customer present, open hours; up to 10 lines |
+| `buy {quote-ids}` | all | final | original store, buyer and clerk present, open hours; up to 10 quotes |
 | `consult-references {query}` | all | query | architect's office |
 | `draw-plans {...}` | architect, or a client when no architect is present | query | architect's office, open hours |
 | `show-plans {plan-id}` | all | free | anywhere; shares a plan you can see with the room |
@@ -739,3 +744,19 @@ Decisions for items (done):
     promotes and demotes things; a steward tidies loose consumables at 02:00; `find` searches
     here with an engine-rolled oracle. The provisions counter is removed. Four stores and room
     aspects supply the household; no cellar or coal-hole was added, as neither is on the map.
+41. **A shopping list is quoted and bought at once.** Done. In `runs/claudeworth-20261018-100848`
+    Daisy spent two and a half hours at Briggs's counter on an eight-item list and bought two:
+    each quote was one query (two a turn) and each `buy` took one quote and ended her turn. The
+    cast noticed ("Two at a time is all my book-keeping allows"; "I can only settle one paper at
+    a time") and worked around it with a single "whole list" quote, which would have been one
+    parcel for six kinds of goods. Now `quote-goods {for goods}` prices up to 10 lines in one
+    appraisal (one model call, one query), each line its own offer or refusal, and
+    `buy {quote-ids}` accepts up to 10 quotes in one turn, checked as a whole, one parcel per
+    quote. Still open: quoting during a conversation (roadmap C14).
+42. **Plans are a special case, not items.** Done (wording only). In the same run Pugh told Hale
+    to take the ballroom sheet; there was nothing to take, so the countess decided a sheet was
+    lost, Hale searched the plan chests and the work judge made a "Fresh ballroom sheet" item
+    beside the real plan. Plans stay records held by the architect, the client and anyone shown
+    them: the rules now say they are never carried, given, copied, lost or searched for, the
+    plans-drawn line names who holds them, and the judge brief says never to make plans or copies.
+    Making plans real items (linked by plan id) is a later design decision for the user.

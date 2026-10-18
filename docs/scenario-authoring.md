@@ -226,8 +226,10 @@ separately from character `:mock-policy`; supply a responder for every task used
 Claudeworth's `manor.scenarios.shop` is an example. Every appraisal receives the actual
 location's `:store-profile` (required, non-blank, at most 2000 characters), name/description,
 setting/date and goods/quantity. It refuses unsuitable stock before pricing. The checked
-response creates a buyer-bound quote; `buy {quote-id}` separately debits money and creates
-one portable item, a parcel of the whole quantity, with two aspects: `:amount`, the amount
+response creates a buyer-bound quote for each line of a request (`quote-goods {for goods}` takes
+up to 10 lines in one appraisal and one query; its `:reply` tells the clerk each quote id or
+refusal); `buy {quote-ids}` separately debits money for up to 10 quotes at once, checked as a
+whole, and creates for each quote one portable item, a parcel of the whole quantity, with two aspects: `:amount`, the amount
 bought ("20 × 1 lb"), where work can later say what's left, and `:state`, the appraiser's
 `condition` ("fresh, dry"). It is `:consumable?` when the appraiser says the goods are used up in
 use (food, fuel, soap; not tools or crockery). The appraiser's `unit` (at most 30 characters) is

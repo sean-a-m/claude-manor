@@ -384,3 +384,10 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
 
     Done when a character can be added to or removed from the world file with no code change,
     and the tests prove it.
+14. **Shop quotes inside conversations.** A shopkeeper's speaking turns in a `converse` run with
+    `:max-queries 0` (`engine.clj`, the speaking-turn call options), so Briggs can name prices in
+    a conversation but can't `quote-goods` until his own turn; customers then wait a turn for
+    the offers (seen in `runs/claudeworth-20261018-100848`, rounds 13–14). Now that one
+    `quote-goods` prices a whole list, consider letting a shopkeeper's speaking turn make one
+    query (a per-role or per-action exemption), or having the conversation's end prompt the
+    clerk to quote what was asked for. Watch the cost: each quote is a judge call.

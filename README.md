@@ -20,8 +20,8 @@ changes their aspects (and the room's) when it ends, through a separate judge mo
 consumables (food, fuel) and make things from them. The kitchen has a pantry
 with container shelves and a scullery; the cook and scullery maid sleep in the upstairs servants'
 quarters. Mr Briggs at the general store and Mr Hobbs at the butcher's check requested portable
-goods with an adjudicator grounded in their own shop's profile and offer a firm quote; the buyer
-accepts with `buy {quote-id}`. There is no fixed catalogue or bulk delivery. Claudeworth money
+goods with an adjudicator grounded in their own shop's profile and offer firm quotes, a whole
+shopping list in one `quote-goods`; the buyer accepts any number of them with one `buy {quote-ids}`. There is no fixed catalogue or bulk delivery. Claudeworth money
 uses old pence internally (£1 = 240d), shown as pounds, shillings and pence. Start a fresh run:
 old Claudeworth runs are not compatible with this store/currency change.
 

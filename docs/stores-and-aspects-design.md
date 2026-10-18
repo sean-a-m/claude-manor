@@ -263,6 +263,11 @@ the kitchen; the rest of phase 5's content is untouched. Small deviations and sa
 - A job whose named focus has gone still has its local scene judged; the old nothing-in-reach
   shortcut no longer applies. Only an unnamed activity in an empty, aspectless, storeless
   place skips the judge, with a neutral work-done summary (or no-time/retired as before).
+- At review: Claudeworth excludes the `work-on` alias (`:exclude-actions`), so characters see
+  one timed action, not two; the alias stays in the engine for other scenarios and its tests.
+  The tool doc no longer says "Most pastimes change nothing" (that's for the judge, and might
+  put characters off housework). The rules gained a sentence saying what `stores` in the view
+  means.
 
 **2a. Stores (engine).**
 

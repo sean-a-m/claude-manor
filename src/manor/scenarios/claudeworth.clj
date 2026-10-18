@@ -330,7 +330,7 @@
          "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). You get no turns while asleep or busy, unless someone uses `rouse` to interrupt you. On that turn, `carry-on` ignores them; any other accepted action means you stop. "
          "Use `spend-time {doing, hours, on?}` for work or longer pastimes (half an hour to " items/max-work-hours " hours). `note` keeps private notes. "
          "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows them in detail, with their descriptions, owners and aspects (how clean they are, what needs mending, and so on), along with the room and what the people here carry, so use it to examine something closely, not routinely on arrival. The room's own aspects (its floor, hearth and air) and the stores in scope are under `here` in your view. A store holds everything it keeps unless its aspects say otherwise; `look` shows what it keeps. "
-         "The house has the ordinary things a house like it keeps: everyday things (cloths, paper, pans, salt, matches and the like) can be assumed to be to hand unless you've been told otherwise. The things listed in your view are the notable ones, not everything there is. "
+         "The house has the ordinary things a house like it keeps: everyday things (cloths, paper, pans, salt, matches and the like) can be assumed to be to hand unless you've been told otherwise. The things listed in your view are the notable ones, not everything there is. Supplies are kept in stores (shelves, cupboards), listed under `stores` in your view: a store has everything it keeps unless its `stock` or `lacking` says otherwise. "
          "Some things hold others: what's in an open one is listed under its `contents`, and one marked `closed` shows what's inside only when you `open` it. "
          "You can `take` things out of either, and `put-in` puts something into one. "
          "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn; `spend-time` spends time on work or pastimes; optionally name things here or carried, the room itself, or stores in scope with `on`. Its results show when you finish. "
@@ -625,7 +625,7 @@
            :aspect-keys {:cleanliness "how clean" :repair "damage and needed repairs"
                          :state "lit, hot, cooking, carved" :amount "how much remains, or parcel quantity"
                          :stock "general level of supplies" :lacking "notable absences"}}
-   :exclude-actions #{:move}
+   :exclude-actions #{:move :work-on}
    :hibernate hibernate
    :observe observe
    :mock-policy mock-policy

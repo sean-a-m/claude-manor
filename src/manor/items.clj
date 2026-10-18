@@ -604,7 +604,7 @@
                "hours is half an hour to " max-work-hours ", default half an hour. "
                "Optionally name up to " max-work-items " things with " (if alias? "items" "on")
                ": items here or carried, this place's id, or stores in scope. Working on a container includes its contents. "
-               "You get no turns until it ends; results show when you finish. Most pastimes change nothing.")
+               "You get no turns until it ends; results show when you finish.")
      :args [:map
             [(if alias? :items :on) (if alias? {} {:optional true})
              [:vector {:min (if alias? 1 0) :max max-work-items} :string]]

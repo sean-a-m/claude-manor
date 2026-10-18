@@ -16,7 +16,7 @@ example), `quiz` (each contestant has a private, persistent pi assistant reached
 architect, general store and butcher: half-hour turns, sleep and pastimes, items to carry, inspect,
 put away and work on, plans and rooms built over a delay; the architect is a babashka MCP server;
 its world is `resources/worlds/claudeworth.edn`). Work on items
-changes their condition when it ends, through a separate judge model call, which may also use up
+changes their aspects (and the room's) when it ends, through a separate judge model call, which may also use up
 consumables (food, fuel) and make things from them. The kitchen has a pantry
 with container shelves and a scullery; the cook and scullery maid sleep in the upstairs servants'
 quarters. Mr Briggs at the general store and Mr Hobbs at the butcher's check requested portable

@@ -243,7 +243,8 @@ A checked offer or refusal is announced to people at the counter. A quote fixes 
 shop, quantity, item details and price. The customer accepts with `buy {quote-id}`: code checks
 funds, co-location, opening hours and that the quote is unspent, then deducts money, consumes
 the quote and creates one portable parcel carried by the buyer, owned by the household, with the
-amount bought leading its condition (decision 39). There is
+amount bought and the appraised condition as its aspects, `{:amount "20 × 1 lb" :state "fresh,
+dry"}` (decisions 39 and 40). There is
 no fixed inventory, bulk counter purchasing, delivery, bargaining or clock expiry on offers.
 Availability is semantic plausibility, not a finite stock ledger. Opening hours are unchanged.
 
@@ -616,9 +617,12 @@ Decisions for items (done):
     like `manor.space`. Items load from the world file and export to `map.edn`; purchases create
     carried items. Existing household counters remain, but new store purchases are portable
     objects only (decision 36 supersedes the old bulk-buying path).
-24. **Conditions are free text.** A short phrase of at most 80 characters describes an item's
-    state. Work changes only conditions, never names or descriptions (but it may use up
-    consumable items and make new ones from them: decision 39).
+24. **Conditions are free text.** Superseded by aspects (decision 40, built in phase 1 of
+    [stores-and-aspects-design.md](stores-and-aspects-design.md)): an item or a room has at most
+    four keyed phrases of at most 80 characters (`{:cleanliness "dusty" :repair "one glass eye
+    loose"}`), and the judge changes one aspect at a time. What still holds: work changes only
+    aspects, never names or descriptions (but it may use up consumable items and make new ones
+    from them: decision 39).
 25. **A separate judge is asked when work ends.** This is a narrow engine-run model call, not
     the GM or a bridge, and characters never hear of it. It sees the job, the worker, the items'
     current conditions and the time actually worked, including an early stop after `rouse`.
@@ -704,7 +708,8 @@ Decisions for items (done):
     (`runs/claudeworth-20261017-172705`) showed two gaps. Buying 20 × 1 lb of flour made twenty
     unlabelled items (twenty events in the window, 54 `put-in` calls to shelve the groceries, the
     cast reading "19 flour" as nineteen stone); now a purchase is one item that keeps the goods'
-    name, with the amount leading its condition ("20 × 1 lb; fresh, dry"). The amount isn't in the
+    name, with the amount leading its condition ("20 × 1 lb; fresh, dry"; since decision 40, its
+`:amount` aspect). The amount isn't in the
     name because names never change, while the judge rewrites the condition as it's used ("about
     17 lb left"); room views list names only, so a parcel shows once and `look` gives the amount.
     And a rib of beef roasted, carved, served and boiled for stock stayed in the world for good.
@@ -718,7 +723,8 @@ Decisions for items (done):
     stay in the world so older lines still read. Still open: food eaten at table during a meal
     ("dining on the rib of beef") isn't linked to items, so leftovers remain unless someone works
     on them (roadmap B7).
-40. **Stores, aspects and the scene judge.** Designed (2026-10-17), not built: see
+40. **Stores, aspects and the scene judge.** Designed (2026-10-17); phase 1 (aspects on items
+    and rooms) is built, the rest isn't: see
     [stores-and-aspects-design.md](stores-and-aspects-design.md), from the same run. Things that
     matter stay items; ambient supplies are stores (fixed items with `:store {:keeps :serves}`)
     whose aspects say how they stand, and anything a store keeps is assumed present unless they

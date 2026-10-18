@@ -225,9 +225,9 @@ pi state on branches is for the GM/orchestrator to handle later; no cost limits 
 ### B7. State held by locations: largely done
 
 `manor.items` is an opt-in engine module: items at places, carried by people or inside
-containers, free-text conditions, `take`, `put-down`, `give`, `look`, `open`, `put-in`, and timed
-`work-on` jobs. A separate judge decides
-condition changes when work ends, using the time actually worked. Claudeworth has starting
+containers, keyed aspects on items and places (stores design phase 1), `take`, `put-down`,
+`give`, `look`, `open`, `put-in`, and timed `work-on` jobs. A separate judge decides
+aspect changes when work ends, using the time actually worked. Claudeworth has starting
 items, shop purchases and a mock day that uses them. Resources and prices remain the scenario's
 job (`:state` keyed by location id).
 
@@ -240,15 +240,16 @@ smoke/replay checks. Claudeworth now also has a cook, scullery maid, pantry shel
 quarters and a butcher reusing the profile-grounded shop service (design decision 38).
 See [the store brief](archived/general-store-brief.md) and Claudeworth design decision 36. Old-run compatibility is intentionally not maintained.
 
-Consumables: done (Claudeworth design decision 39). A purchase is one parcel with its amount in
-its condition; items may be `:consumable?`; the work judge may use them up and make at most two
+Consumables: done (Claudeworth design decision 39). A purchase is one parcel with its amount as
+an aspect; items may be `:consumable?`; the work judge may use them up and make at most two
 things from them.
 
 Follow-ups, by need:
 
 **Next: [stores, aspects and the scene judge](stores-and-aspects-design.md)** (designed
-2026-10-17, phased). It answers the meals, room-conditions and GM-tools follow-ups below, replaces
-item conditions with keyed aspects, and removes the unused provisions counter.
+2026-10-17, phased; phases 0 and 1 done). It answers the meals, room-conditions and GM-tools
+follow-ups below, replaces item conditions with keyed aspects (done), and removes the unused
+provisions counter (done).
 
 - **Meals aren't linked to items.** Food served at table and eaten during a meal occupation
   ("dining on the rib of beef") is never used up, because a meal is an occupation, not work on
@@ -258,9 +259,8 @@ item conditions with keyed aspects, and removes the unused provisions counter.
 - The shop appraiser's `consumable` flag isn't yet seen against a real model; check its choices
   in the next real run with purchases.
 - Items getting dirty or wearing out over time: a GM job later, not automatic decay yet.
-- Room conditions: `work-on` accepts the id of the worker's place (done), but places have no
-  `:condition`, so work on the room changes nothing and a room-only job skips the judge. Now
-  phases 1 and 5 of the stores design; the earlier
+- Room conditions: places have `:aspects` and work on the room is judged (stores design phase 1,
+  done); Claudeworth's rooms get starting aspects in phase 5. The earlier
   [room-conditions brief](archived/room-conditions-brief.md) is superseded.
 - Containers: done (see [the containers brief](archived/containers-brief.md)). Follow-ups:
   locked containers, and perhaps needing to `open` before taking (today a guessed id inside a

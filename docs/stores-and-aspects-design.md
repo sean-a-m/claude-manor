@@ -1,6 +1,6 @@
 # Stores, aspects and the scene judge: design
 
-**Status:** designed (2026-10-17). No phase started. Each phase below has its own status line;
+**Status:** designed (2026-10-17). Phases 0 and 1 done. Each phase below has its own status line;
 update it as work lands, so an agent picking this up can tell where to start.
 
 Read `AGENTS.md` first (invariants, run directories, cost rules), then "Items (`manor.items`)" and
@@ -181,7 +181,28 @@ Real run, `old-test-runs/claudeworth-phase0-everyday-things`: 10 rounds from 16:
 
 ### Phase 1: aspects on items and places
 
-**Status: not started.** The engine part of the old room-conditions R1, with aspects (D2).
+**Status: done (2026-10-17), mock-tested only (no real run).** The engine part of the old
+room-conditions R1, with aspects (D2). Built as written, with these small deviations and
+additions:
+
+- Narration shows every change as `aspect value`, so the example reads "(Drawing room:
+  cleanliness swept, the hearth clean; Piano: cleanliness dusted)"; hyphens in keys read as
+  spaces. A removal reads "no longer <aspect>", which suits `:lacking` but reads oddly for
+  others ("no longer hearth").
+- Items **made** by work get `:touched` too (they are new; the steward would otherwise see them
+  as never handled). The exported map drops `:touched`: it's the run's, not the map's.
+- The judge's and the mock judge's context key is `:things` (the judged things, room
+  included), not `:items`. The room entry has id, name, desc and aspects, not its `:detail`.
+- The place's aspects are added in `space/view`, so Claudeworth's `walk` reply shows them too.
+- A location's aspects are checked by `worldfile/problems` with a message naming the location
+  (`Location` itself takes any value there), rather than by the `Location` schema.
+- Made items' aspect values are length-checked in code (`made-problem`), not by the decode
+  schema: malli's strip-extra-keys transformer silently drops `map-of` entries that fail it.
+- `actions/kebab-key` is public now; the judge uses it for aspect names.
+- The suggested `:items {:aspect-keys ...}` (Data model) isn't built; it isn't in this phase's
+  list. The judge's instructions name cleanliness, repair, state, amount and stock as examples.
+- Claudeworth's rooms start with no aspects (phase 5); the hamlet fixture's hall has two, for
+  the tests.
 
 1. **Data and checks.** `items/Item` swaps `:condition` for optional `:aspects`
    (`Aspects` schema: map, key regex, value 1–80, at most `max-aspects`). `worldfile/Location`

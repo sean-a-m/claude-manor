@@ -213,11 +213,11 @@ Claudeworth's `manor.scenarios.shop` is an example. Every appraisal receives the
 location's `:store-profile` (required, non-blank, at most 2000 characters), name/description,
 setting/date and goods/quantity. It refuses unsuitable stock before pricing. The checked
 response creates a buyer-bound quote; `buy {quote-id}` separately debits money and creates
-one portable item, a parcel of the whole quantity: its condition starts with the amount bought
-("20 × 1 lb; fresh, dry"), where work can later say what's left, and it is `:consumable?` when
-the appraiser says the goods are used up in use (food, fuel, soap; not tools or crockery). The
-appraiser's `unit` (at most 30 characters) and `condition` (at most 40) are short so the parcel's
-condition always fits. No fixed inventory, bulk counters, delivery or bargaining. Amounts are integer
+one portable item, a parcel of the whole quantity, with two aspects: `:amount`, the amount
+bought ("20 × 1 lb"), where work can later say what's left, and `:state`, the appraiser's
+`condition` ("fresh, dry"). It is `:consumable?` when the appraiser says the goods are used up in
+use (food, fuel, soap; not tools or crockery). The appraiser's `unit` (at most 30 characters) is
+short so the amount fits an aspect; its `condition` is at most 80. No fixed inventory, bulk counters, delivery or bargaining. Amounts are integer
 old pence; world-file starting funds and architect bridge prices remain authored in pounds.
 All Claudeworth characters can buy and commission from the shared household account and
 see its balance. There is no spender-role allowlist: authority to spend is a social decision
@@ -509,12 +509,19 @@ Helpers for your actions and views:
 | `(space/location world loc)` | `{:id :name :desc}` |
 | `(space/last-seen world id)` | where `id` last saw each active person not with them, most recent first |
 
+**Aspects of a place** (with items, see the next section): a location may have `:aspects`, the
+same keyed phrases as an item's (`{:cleanliness "swept" :hearth "a fire laid"}`, at most 4,
+values 1-80 characters), about the room as a whole: its floor, hearth and air, never the things in
+it. A world file may give them (checked like an item's); afterwards only work changes them (see
+Work and the judge). The per-turn view shows them under `:location :here :aspects`, and `look`
+under `:place`; a place with none shows none.
+
 State that belongs to a location (prices, opening rules) goes in your `:state`, keyed by location
 id. Objects people can pick up and carry are items (next section).
 
 ### Items (`manor.items`)
 
-Items are things with a description and a condition that lie in a place, are carried by
+Items are things with a description and a few aspects that lie in a place, are carried by
 someone, or are inside another item: a piano, a pocket watch, an umbrella someone bought, the
 silver in the sideboard. They need locations. A scenario
 turns them on with the key `:items`, a map, possibly empty; its one key is `:judge-brief` (see
@@ -525,7 +532,7 @@ An item:
 ```clojure
 {:id "china-cabinet" :name "China cabinet"
  :desc "A glass-fronted walnut cabinet of Meissen figures."   ; 1-400 characters, never changes
- :condition "dusty, the glass smeared"                        ; 1-80 characters
+ :aspects {:cleanliness "dusty" :repair "the glass cracked"}  ; optional (see Aspects)
  :place "drawing-room"      ; exactly one of :place (a location id)
  ;; :holder "hale"          ;   or :holder (an agent id)
  ;; :in "sideboard"         ;   or :in (the id of a container item)
@@ -535,12 +542,23 @@ An item:
  :container :open}          ; optional: it holds things (see Containers)
 ```
 
-Ids are kebab-case and unique; at most 60 characters of name. No other keys are allowed. A
-carried item goes wherever its holder goes, and things in a container go wherever it goes, with
+Ids are kebab-case and unique; at most 60 characters of name. No other keys are allowed (the
+engine adds `:touched`, below). A carried item goes wherever its holder goes, and things in a container go wherever it goes, with
 no events of their own. Only work can remove an item (by using it up); its name stays in the
 world under `:items-gone` (id -> name), so older lines that mention it still read, and
 `fresh-id` never gives its id out again.
 
+- **Aspects** say what's notable about a thing's state: a map of at most 4 (`items/max-aspects`)
+  keys to phrases of 1-80 characters (`items/max-aspect`). Keys are plain keywords of lower-case
+  letters and hyphens, at most 24 characters, starting with a letter (`items/aspect-key?`;
+  `:cleanliness`, `:glass-eye`). The engine checks only the form and the cap; the keys are the
+  scenario's choice. Claudeworth uses `:cleanliness`, `:repair`, `:state` (lit, cold, half full),
+  `:amount` (a parcel's "20 × 1 lb") and `:stock`. A thing with nothing notable has no
+  `:aspects`. Only work changes them, one aspect at a time, so unrelated facts survive (see Work
+  and the judge). Locations have them too (see Locations).
+- **`:touched`** is the round an item was last taken, put down, put in a container, given,
+  changed by work, or made. The reducers set it from `(:round world)`; it isn't part of a world
+  file, and the exported map leaves it out.
 - **Starting items** come from `:init` (`:items`, a vector, holders and owners as ids), or from a
   world file's `:items` (see World files). The engine checks them and adds each with an
   `:item/added` event, visible to the GM, after the agents are spawned.
@@ -579,21 +597,24 @@ world under `:items-gone` (id -> name), so older lines that mention it still rea
   | `:item/put-in` | `{:item :into}` | everyone here | "Nellie puts the silver candlesticks in the sideboard." |
   | `:item/given` | `{:item :to}` | everyone here | "Hale gives the pocket watch to Lord Claudeworth." |
 
+  The last four also set the item's `:touched`.
+
 - **Actions** (all free, every role but the GM; merged before your own actions, so you can
   override or exclude them):
-  - `look {}`: replies (see `:reply` under `:actions`) with the place, the items lying here in
-    detail and the other people here with what they carry, and records nothing. Empty parts are
-    left out, as are `:detail`, `:owner`, `:fixed?` and `:doing` when absent; agent owners show
-    as names. Refused while travelling. Conditions, descriptions and owners come **only** from
-    `look`: the view lists items here by name. Say in the brief that it is for examining
+  - `look {}`: replies (see `:reply` under `:actions`) with the place (its name, aspects and
+    detail), the items lying here in detail and the other people here with what they carry, and
+    records nothing. Empty parts are left out, as are `:aspects`, `:detail`, `:owner`, `:fixed?`
+    and `:doing` when absent; agent owners show as names. Refused while travelling. The aspects,
+    descriptions and owners of items here come **only** from `look`: the view lists items here by
+    name (the place's own aspects are in the view too). Say in the brief that it is for examining
     something closely, not a routine arrival action (Claudeworth's `rules` does).
 
     ```clojure
-    {:place {:name "Drawing room" :detail "..."}
-     :items [{:id "piano" :name "Piano" :desc "..." :condition "a little out of tune"
+    {:place {:name "Drawing room" :aspects {:cleanliness "dusty"} :detail "..."}
+     :items [{:id "piano" :name "Piano" :desc "..." :aspects {:repair "a little out of tune"}
               :owner "household" :fixed? true}]
      :people [{:name "Hale" :doing "dusting the china cabinet"
-               :carrying [{:id "pocket-notebook" :name "Pocket notebook" :desc "..." :condition "half full"}]}]}
+               :carrying [{:id "pocket-notebook" :name "Pocket notebook" :desc "..." :aspects {:state "half full"}}]}]}
     ```
   - `take {item}`: the item lies where you are, directly or in a container (at any depth, open
     or closed, without opening it first), and isn't fixed. Taking something you don't own is
@@ -601,16 +622,16 @@ world under `:items-gone` (id -> name), so older lines that mention it still rea
   - `open {container}` and `put-in {item container}`: see Containers.
   - `put-down {item}`: you carry it; it's left where you are.
   - `give {item to}`: you carry it, and `to` is someone else here.
-- **Views:** the engine adds to every agent's view `:you :carrying [{:id :name :condition}]`,
+- **Views:** the engine adds to every agent's view `:you :carrying [{:id :name :aspects}]`,
   `:location :here :items [{:id :name}]` (names only; containers as in Containers) and
   `:carrying ["Umbrella" ...]` on each of `:people-here`, each left out when empty. The default
   GM view gets `:items`.
 - **`:detail`** is an optional location key: a paragraph about the room that only `look` shows,
-  never the view (which has `:id :name :desc`). Keep the `:desc` short and put what someone
+  never the view (which has `:id :name :desc`, and `:aspects` if the place has any). Keep the `:desc` short and put what someone
   would notice on looking round in `:detail`; in a world file it goes last, after `:desc`. Things
   people could use or carry belong in items, not in either text.
 - Say in a brief that things are under `items` in the view and what you carry under `carrying`,
-  that `look` shows their descriptions, conditions and owners (and the room's `:detail`), so it
+  that `look` shows their descriptions, aspects and owners (and the room's `:detail`), so it
   is for examining something closely rather than looking routinely on arrival, that some things
   hold others (open ones list `contents`, closed ones show them only to `open`; `take` works on
   either, `put-in` puts things in), that `look`, `open`, `take`, `put-in`, `put-down` and `give`
@@ -640,7 +661,7 @@ supports or tests them (a basket's contents don't show in `carrying`).
   container's contents are listed, however many.
 - **`open {container}`** (free, reply-only, records nothing, so nobody else learns anything):
   the container is here, in a container here, or carried, and has `:container`. The reply is
-  `{:name :condition :contents [...]}`, each item as `look` shows it, inner closed containers
+  `{:name :aspects :contents [...]}` (`:aspects` only if it has some), each item as `look` shows it, inner closed containers
   with `:closed true` and not their contents. Open containers can be opened too.
 - **`put-in {item container}`** (free): the item is carried by you or could be taken here (so not
   fixed); the container is in reach and is one; the item isn't the container, around it, or
@@ -652,7 +673,7 @@ supports or tests them (a basket's contents don't show in `carrying`).
 - **Work on a container reaches its contents:** `work-on` accepts things inside containers here,
   and the items in reach for the judge are each job item plus everything `within` it, at any
   depth, open or closed. The judge sees `in` (the container's id) on an item whose container is
-  also listed, and may change any of them. A container counts as one of the six items.
+  also listed, and may change the aspects of any of them. A container counts as one of the six items.
 
 #### Work and the judge
 
@@ -662,10 +683,9 @@ a clock) spends time doing something to things:
 - `items`: 1-6 item ids, each lying where you are (in a container or not) or carried by you
   (fixed items are fine), or the id of the place you're in, for work on the room itself
   (sweeping, airing); duplicates are dropped. A rejected id gets a reason that lists this place's
-  id, the items here and what you carry.
-  Places have no condition yet, so the room's id is kept in the job's `:items` but never goes to
-  the judge (`items/place-worked?` says whether a job named its place). `doing`: 3-120 characters, reading after "is" ("dusting the china
-  cabinet"). `hours`: optional, 0.5 to 4, default 0.5; rounds as `clock/rounds-for` gives them,
+  id, the items here and what you carry. The room's id stays in the job's `:items`
+  (`items/place-worked?` says whether a job named its place), and the room goes to the judge.
+  `doing`: 3-120 characters, reading after "is" ("dusting the china cabinet"). `hours`: optional, 0.5 to 4, default 0.5; rounds as `clock/rounds-for` gives them,
   at least one.
 - Its effect is a job, `:item/work-begun` (visible to the GM; data: the job), and an occupation
   (`b/occupy`, seen by the room: "Hale is dusting the china cabinet until 15:30") whose `:busy`
@@ -683,58 +703,75 @@ a clock) spends time doing something to things:
   | otherwise | still going on |
 
   `carry-on` keeps the occupation and its job, so the work runs to its end.
-- For a stopped or finished job, the items **in reach** are the job's items still lying at the
-  job's place (in a container or not), or carried by the worker, each followed by everything
-  inside it. If none are and the job didn't name its place, or no time was worked, the job ends with
-  `:item/work-ended`, seen by the worker and the people at the place ("Hale leaves off dusting the
-  china cabinet before getting anywhere."), and no call. If only the room is left (the job named
-  its place and no item is in reach), it's `:item/work-done` with no changes and a neutral
-  summary ("Nellie finishes sweeping the hall."), and no call. Otherwise the engine asks **the judge**
-  and emits `:item/work-done`, seen by the worker and the people at the place:
-  `{:job :actor :place :doing :minutes :stopped-early? :luck :summary :changes [{:item :from :to}]}`,
-  plus `:used-up [{:item :name}]` and `:made [item ...]` (complete new items) when there are some.
-  Its reducer sets each `:to` condition, removes the used-up items (keeping their names under
-  `:items-gone`), adds the made ones and removes the job. Jobs are applied one after another,
-  so a later job's judge sees an earlier one's result, and on the same item the last applied wins.
-  It reads "Hale finishes dusting the china cabinet. The glass is clean. (China cabinet: clean,
-  one figure chipped)." ("leaves off" when stopped early; the summary is left out when it only
-  repeats the opening), followed by "Used up: Rib of beef. Made: Beef stock in the saucepan;
-  Beef bones." when something was.
+- For a stopped or finished job, the items **in reach** (`items/in-reach`) are the job's items
+  still lying at the job's place (in a container or not), or carried by the worker, each followed
+  by everything inside it. The **judged things** (`items/judged-things`) are the job's place, if
+  the job named it, followed by the items in reach. If there are none (no item in reach and the
+  room not named), or no time was worked, the job ends with `:item/work-ended`, seen by the
+  worker and the people at the place ("Hale leaves off dusting the china cabinet before getting
+  anywhere."), and no call. Otherwise the engine asks **the judge**, even for the room alone, and
+  emits `:item/work-done`, seen by the worker and the people at the place:
+  `{:job :actor :place :doing :minutes :stopped-early? :luck :summary :changes [..]}`, plus
+  `:used-up [{:item :name}]` and `:made [item ...]` (complete new items) when there are some.
+  Each change is `{:item id :aspect k :from s :to s}`, or `{:place id ...}` for the room; `:from`
+  is nil for a new aspect and `:to` nil for one removed. Its reducer sets or removes each aspect
+  (on the item, or on the location under `[:space :locations id :aspects]`), touches the changed
+  items, removes the used-up ones (keeping their names under `:items-gone`), adds the made ones
+  (touched too) and removes the job. Jobs are applied one after another, so a later job's judge
+  sees an earlier one's result, and on the same aspect the last applied wins. It reads "Nellie
+  finishes sweeping the drawing room and dusting the piano. (Drawing room: cleanliness swept, the
+  hearth clean; Piano: cleanliness dusted)." (each thing's changes as "aspect value", hyphens
+  read as spaces, or "no longer lacking" for an aspect `:lacking` removed;
+  "leaves off" when stopped early; the summary is left out when it only repeats the opening),
+  followed by "Used up: Rib of beef. Made: Beef stock in the saucepan; Beef bones." when
+  something was.
 - **Consumables.** Work may use up items marked `:consumable?` (food eaten or cooked into
   something else, fuel burnt, an ingredient used up) and make at most two things from them
   (`items/max-made`): bones and trimmings from a carved joint, stock from the bones. A made item
   gets a fresh id, is `:consumable?`, is owned like the first item used up, and is put in the
   container the judge names (`in`), else carried by the worker if they carried that first item,
-  else at the job's place. Something partly used isn't used up: the judge rewrites its condition
-  ("about 17 lb left"). Everything else keeps its nature, as before.
+  else at the job's place. A made item may have aspects (`{"state": "simmering"}`), with the same
+  limits. Something partly used isn't used up: the judge rewrites its `:amount` ("about 17 lb
+  left"). Everything else keeps its nature, as before.
 - **The judge** is a narrow model call, not the GM and not a bridge; characters never hear of it.
   `manor.items/judge-request` builds it from only: the scenario's `:judge-brief` (`(fn [world]
   text)` under `:items`, optional; Claudeworth gives its setting paragraph), the time, the
   worker's name and persona, the place's name, what they were doing, the minutes worked and
   whether they stopped early, a luck roll (1-100, 50 ordinary, from `manor.rng` with the key
-  `[:judge job-id]`), and each item in reach with its id, name, description and condition (and `in`
-  when its container is in reach too, `consumable: true` and `container: true` when they are). It has
-  one required tool, `judge {changes: [{item, condition}], used-up: [id], made: [{name, desc,
-  condition, in}], summary}`. The engine sends it through
+  `[:judge job-id]`), and the judged things: the room first, if the job named it, as `{id, name,
+  desc, aspects, room: true}` (not its `:detail`), then each item in reach with its id, name,
+  description and aspects (and `in` when its container is in reach too, `consumable: true` and
+  `container: true` when they are). Its instructions say to change only the aspects the work
+  affected and leave the others alone, and that the room entry describes the room as a whole,
+  not the things in it. It has one required tool, `judge {changes: [{thing, aspect, value}],
+  used-up: [id], made: [{name, desc, aspects, in}], summary}`: each change sets one aspect of one
+  thing, and `value: ""` removes it. The engine sends it through
   the run's LLM with the model `:judge-model` (a run option; nil means `:model`) and the run's
   `:reasoning` and `:max-tokens`, without holding the world lock. Each call is in `llm.edn` as
   agent `"judge"` and its usage is an `:llm/usage` event, so it counts towards `:max-cost`;
   replay uses the recorded events and never calls it.
-- **Checks on the answer:** only items in reach; conditions 1-80 characters; a summary of 1-300
-  characters; other keys (a `desc`, a `name`) are dropped, so an existing item's condition is all
-  that ever changes, and unchanged conditions are left out, as are changes to items used up.
-  `used-up` names only consumable, unfixed items in reach, and a container only with everything
-  in it; `made` has at most 2 entries (name 1-60, desc 1-400, condition 1-80 characters), only
-  with something used up, and an `in` must be a container in reach that isn't used up. A bad answer is sent back with the reason and asked once
-  more. A second bad answer, or an exception, gives `:item/work-done` with no changes and a
+- **Checks on the answer:** a change names a judged thing ("you may change only these things:
+  hall, clock; not umbrella"); its aspect's name is normalised as argument names are
+  (`glass_eye` and `glassEye` are `:glass-eye`) and must then be a key (`items/aspect-key?`); a
+  value is at most 80 characters; no thing may end up with more than 4 aspects, counting those
+  it has less those removed ("the Grandfather clock (clock) would have 5 aspects (...); a thing
+  has at most 4: change one it has instead, or remove one with the value \"\""); a summary of 1-300
+  characters. When the same aspect of a thing comes twice, the last counts. Other keys (a `desc`,
+  a `name`) are dropped, so an existing thing's aspects are all that ever change, and unchanged
+  values (or removing an aspect a thing hasn't got) are left out, as are changes to items used
+  up. `used-up` names only consumable, unfixed items in reach, and a container only with
+  everything in it; `made` has at most 2 entries (name 1-60, desc 1-400 characters, optional
+  aspects as above), only with something used up, and an `in` must be a container in reach that
+  isn't used up. A bad answer is sent back with the reason and asked once more. A second bad answer, or an exception, gives `:item/work-done` with no changes and a
   neutral summary ("Hale finishes dusting the china cabinet."), plus an `:item/judge-failed`
   event (`:visible-to :system`) with the reason. The run isn't paused.
 - **Mock runs:** a call with role `:judge` goes to the scenario's `:mock-judge` if it has one,
-  else to `items/mock-judge` (every item in reach becomes "just seen to"; the summary only says
-  the work is over), so `:mock-policy` never sees the judge. Its context has `:world :job :items`
-  (in reach) `:minutes :stopped-early? :luck :step`, and it returns `{:tool :judge :args {..}}`.
+  else to `items/mock-judge` (every judged thing gets the cleanliness "just seen to"; the summary
+  only says the work is over), so `:mock-policy` never sees the judge. Its context has `:world
+  :job :things` (the judged things) `:minutes :stopped-early? :luck :step`, and it returns `{:tool
+  :judge :args {..}}`.
 
-Stores of provisions can be consumable items, a parcel each, whose condition the judge rewrites as
+Stores of provisions can be consumable items, a parcel each, whose `:amount` the judge rewrites as
 they are used (Claudeworth's purchases).
 
 ### World files (`manor.worldfile`)
@@ -753,13 +790,14 @@ in `:init`:
 {:meta {:name "Hamlet" :start "1904-10-15T21:00" :minutes-per-round 30}   ; :start is optional
  :locations [{:id "hall" :name "Hall" :desc "A small hall."
               :detail "Coats on pegs and a worn rug."  ; optional, shown only by look (see Items)
+              :aspects {:cleanliness "muddy"}         ; optional (see Locations)
               :connects-to ["bedroom" "porch"]      ; next door (:travel 0); either side is enough
               :domain :house :kind :hall}           ; other keys are kept on the location
              ...]
  :routes [["porch" "green" 1]]                     ; journeys, as in :space
  :agents [{:name "Ada" :role :resident :location "hall"}]
  :items [{:id "pipe" :name "Pipe" :holder "Ben" :owner "Ben"   ; optional, see Items
-          :condition "still warm" :desc "A briar pipe."}]
+          :aspects {:state "still warm"} :desc "A briar pipe."}]
  :shop {...}}                                       ; your own sections, from :world-file
 ```
 
@@ -772,7 +810,8 @@ in `:init`:
   `"household"`, are kept). Each item is checked: its fields and lengths, a unique id, exactly one
   of `:place` (a location of the file) and `:holder` (an agent of the file). A scenario that leaves
   out one of the file's agents should leave out the items that agent holds (Claudeworth's
-  `:architect? false` and the housemaid do).
+  `:architect? false` and the housemaid do). A location's `:aspects` are checked the same way
+  ("location \"hall\": {:aspects {:hearth [\"should be at least 1 character\"]}}").
 - `:domain` groups locations into areas on the control panel's map (house, village, ...).
 - The file is a **template**: nothing writes to it. The engine saves a copy as
   `<run-dir>/world-start.edn`. Whenever the map changes, it writes the live map back in the same

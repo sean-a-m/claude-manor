@@ -460,7 +460,7 @@ Approved deviations and details:
   and consulted, not reporting other rooms, the per-turn limit.
 ### Phase 5: Claudeworth content and a real run
 
-**Status: content (items 1–4) done; real runs (item 5) pending the user's go-ahead.**
+**Status: done, with its real run; its findings are phase 6.**
 Four household stores, the pantry's sugar shortage, aspects on all sixteen indoor house places,
 new-room aspects, and tidied rules/role wording are built. Nellie's range-blacking names the
 range and her cupboard in scope. Mock days (08:00 and 20:00 starts, 48 rounds each) have no
@@ -490,6 +490,66 @@ store smoke check is generic. No mechanics or fixtures changed; no real runs wer
    everyday things, `find` calls per turn (too many means its salience is too high), judge-made
    items during pastimes (D3's risk), the beef's life ending in a fate, store aspects that read
    sensibly, and `error:`/`rejected:` counts. Move the runs to `old-test-runs/`.
+
+Real run, `old-test-runs/claudeworth-stores-phase5`: 10 rounds from 16:00 Saturday, then
+continued to 02:30 (22 rounds) for the steward; 363 calls, $0.137, 30 errors, 16 rejections,
+1 forfeit. What worked:
+
+- The sugar shortage drove a short errand: the cook reported it, bought loaf sugar at Briggs's
+  (he was out of lump sugar), and shelved it. No hunts for cloths, pans or condiments.
+- The judge held back: 13 of 28 judged jobs changed nothing; pastimes stayed quiet; room and
+  range aspects changed sensibly ("Kitchen range: lit and drawing well").
+- Fates read well ("Clear soup: carried to the drawing room and served at the family's supper").
+- The steward ran once, at round 21 (02:00), with replay intact. It had no candidates: the one
+  loose consumable (the loaf sugar, shelved at round 11) was idle 5 hours, under `:idle-hours` 6.
+  So the steward's model call is still untried against a real model.
+
+What didn't, all fixed in phase 6:
+
+- **Work products can't exist.** The judge tried to make Pugh's working drawings, the
+  countess's shopping list, a laid table, soup and pudding, a cold collation and a sealed note;
+  5+4 answers were refused ("things are made only from consumable items the work used up"),
+  since everyday supplies (paper, ink, ingredients) are neither consumables in reach nor a store
+  in scope. The judge then made nothing, and characters went looking for the papers they had
+  just written: 4 of the 7 `find` calls were for the household list (three times) and a sealed
+  note. This is the "missing things" drama the design set out to remove.
+- **`find` in a shop** ("lump sugar on the shelves" at Briggs's): a yes would have handed over
+  the shop's goods unpaid.
+- **`:lacking` collected non-supplies:** "no coat here", "household list on the writing table",
+  "joint of meat or roast" (on the pantry room, not its shelves), "lump sugar" on the shop.
+- **Carrying used things up:** taking the soup and pudding to the drawing room was judged as
+  using them up (the judge can't move things), so they were gone before supper.
+- **`doing` over 120 characters** 15 times: the rules now ask characters to describe their
+  tools and supplies in it.
+- **Lacking not cleared on restocking:** the pantry kept `:lacking "sugar"` with the sugar on it,
+  because `put-in` isn't judged and the steward hadn't absorbed it yet.
+
+### Phase 6: fixes from the phase 5 run
+
+**Status: proposed (2026-10-18), awaiting the user's decision.**
+
+1. **Work products.** `made` may also come from everyday supplies: an entry with
+   `from: "everyday"` (or no source) is allowed when it is the activity's direct product (a
+   letter, a list, plans, a dish, a mended thing's offcut is not). Instructions: make a thing
+   only if someone will carry, hand over, serve or keep it; otherwise describe the result as an
+   aspect (the table "laid for dinner" on the room). Still at most 2. Made products of writing
+   or drawing are not consumable; dishes are.
+2. **No `find` where goods are for sale or not yours to take:** a scenario hook
+   `:items {:find-allowed? (fn [world actor place])}`; Claudeworth refuses `find` at places
+   with `:services` (shops, the architect's office) with "ask for it here instead".
+3. **`:lacking` only for supplies:** a miss records `:lacking` only on a store the oracle names
+   (`from`); with no store, nothing is recorded (the place fallback goes). The oracle is told a
+   particular thing (a coat, a letter, a joint bought for dinner) is not a supply: rate it on
+   whether it plausibly exists here.
+4. **Carrying is not using up:** the judge's instructions say taking something elsewhere is not
+   using it up; leave it, and the person carries it with `take`. Characters' rules: carry
+   dishes with `take`, serve them with `spend-time ... on` where they're eaten.
+5. **`doing` up to 200 characters** (and the narration still reads after "is").
+6. **Restocking clears lacking:** `put-in` of a consumable into a store container is followed,
+   at the next judging of that store or the steward, by absorption; and the steward's
+   `:idle-hours` drops to 3 in Claudeworth so the night pass catches the afternoon's shopping.
+   (Simpler alternative: `put-in` into a store absorbs at once and clears a matching `:lacking`
+   word, with no model call.)
 
 ### Later, by need
 

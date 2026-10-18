@@ -333,7 +333,7 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
 - **Design:** [people-and-hiring-design.md](people-and-hiring-design.md), with the user's
   decisions of 2026-10-18. Four phases: (1) a people server that rolls Big Five temperament and
   phrenological faculties and a model polish, tried on the existing casts; (2) positions
-  separated from people, a larger catalogue and a higher agent cap, closing C13; (3) a small
+  separated from people, a shared catalogue, situations and a higher agent cap (C13 stays separate); (3) a small
   test world (Ashby Lodge) for short real runs; (4) hiring: `recommend`, `send-for`, `engage`,
   and an away status. Phase 1 is done (see the design's section 3.5); phases 2–4 are not started.
 

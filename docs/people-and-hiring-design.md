@@ -4,8 +4,8 @@ Status: phase 1 is done (section 3.5); phases 2–4 are not built. Four phases, 
 
 1. **People and traits**: a people server that generates characters (temperament, faculties,
    circumstances, a polished persona), tried first on the existing casts.
-2. **Positions**: separate who someone is from the position they hold, with a larger catalogue of
-   positions and a higher agent cap. This closes roadmap C13.
+2. **Positions**: separate who someone is from the position they hold, with a shared catalogue
+   of positions, a situation for each character and a higher agent cap.
 3. **A small test world**: a cottage-sized world on Claudeworth's mechanics, so traits and hiring
    can be tried in real runs of a minute or two.
 4. **Hiring**: find a candidate, meet them, engage them or send them away, with an away status
@@ -76,6 +76,16 @@ Two smaller findings from the same run:
 24. The existing characters are rolled with no pins; fixes come later if needed.
 25. Generated people use the same default model as everyone else (`deepseek/deepseek-v4.1-flash`).
 26. The pool holds 40 people.
+27. Each character gets a `:situation` field for what is neither their job nor their personality
+    (the earl means to enlarge the house; the cook has just joined). How a situation changes
+    during a run is a later question.
+28. The butcher and the shopkeeper become separate positions.
+29. The catalogue of positions is shared between worlds, so small test worlds can reuse it.
+30. The clerk path and the optional characters (`:architect?`, `:housemaid?`) are left alone for
+    now, to be dealt with separately; roadmap C13 stays open.
+31. Positions carry forms of address, behind a flag that is easy to turn off, so runs with and
+    without explicit forms of address can be compared.
+32. No real runs during development; the user runs them afterwards.
 
 ## 3. Phase 1: people and traits
 
@@ -270,11 +280,16 @@ Deviations and decisions made while building:
 | Thing | What it is | Where it lives |
 |---|---|---|
 | **Person** | name, sex, age, origin, traits, persona | the agent (and, for candidates, the pool record) |
-| **Position** | a job in the world: title, duties, standing, workplace, capabilities | a catalogue in the world file |
+| **Position** | a job in the world: title, duties, standing, workplace, address, capabilities | a shared catalogue, which a world file can add to |
+| **Situation** | what is neither job nor personality: plans, newness, who to see | the agent, in the world file |
 | **Post** | that this person holds this position, for whom, since when, on what terms | state, changed by events |
 | **Reputation** | what someone knows of a person | a record per knower, given privately |
 
-**Positions.** The world file's `:roles` becomes a catalogue of positions, each with:
+**Positions.** The catalogue is a shared data file (decision 29), for example
+`resources/positions/england-1904.edn`. A world file names the catalogue it uses and may add or
+override entries in its own `:roles`. The people server's age and sex ranges move into the same
+entries (the engine passes them in the request), so there is one list of positions, not two.
+Each position has:
 
 - `:title` ("Housemaid"), and `:about`: generic duties with no names or personality ("Your day is
   housework: dusting and sweeping…")
@@ -282,6 +297,11 @@ Deviations and decisions made while building:
   This informs forms of address and who sleeps where.
 - `:workplace` (optional location ids) and `:sleeps` (`:in-house` or `:out`)
 - `:capabilities` (optional): what code treats the holder as (`:shop-clerk`, `:architect`).
+- `:addressed-as` (optional): how the holder is addressed ("my lord", "Mr" plus surname, a
+  Christian name). With the address flag on (decision 31), a person's own prompt says how they
+  are addressed and everyone's view of the people around them shows how to address each one.
+  With it off, no form of address appears anywhere, including the `:about` texts, and the agents
+  decide for themselves. It's a run option (`:addressed-as?`, default on) with a CLI flag.
 
 One position is `:none` (no post; a villager between places), so candidates and the dismissed
 have one.
@@ -313,6 +333,15 @@ now. Either `:roles` takes capability keywords and `actions/allowed?` looks them
 position, or the agent's capabilities are a separate set and actions gain a `:needs` key. The
 code that checks `(= :architect (:role ...))` checks the capability instead.
 
+**Situations** (decision 27). Each agent may have `:situation` in the world file, shown in their
+own prompt as "Your situation", after "Who you are". The polish never rewrites it. Claudeworth's
+situations come out of yesterday's stopgap role texts: the earl's plan to enlarge the house and
+Pugh as the man to see, the countess's wish to be consulted about it, the cook's being new to the
+house, Hale's errands for the earl.
+
+**The butcher** (decision 28) gets its own position, `:butcher`, beside `:shopkeeper`; both have
+the `:shop-clerk` capability, and each states its own trade in its duties.
+
 **Briefs.** The scenario's code map of roles goes away: every non-GM agent gets `agent-brief`,
 which reads the position's `:about` from state. A position added to the world file needs no
 code.
@@ -327,15 +356,15 @@ the agents' call.
 ones. Every active agent who isn't asleep, busy or hibernating costs about $0.002 a round, so
 `:max-cost` is the real guard.
 
-**A world without an architect** must work (the building actions say there's no architect
-rather than failing), because phase 3's world has none. Roadmap C13 currently says the
-architect is required in Claudeworth; that can stay true of Claudeworth's world file while the
-mechanics stop depending on it.
+**The clerk path and optional characters stay as they are** (decision 30). A world with no
+architect already runs through the clerk path; phase 2 doesn't change that, and roadmap C13 stays
+open.
 
-Phase 2 is done when `:about` texts contain no names or personality; a position added to the
-world file needs no code; an operator `spawn!` with a new position gets a sensible brief; the
-household view shows bedrooms and who sleeps in them; a world with no architect runs; mock days
-and replay pass; and roadmap C13 is closed.
+Phase 2 is done when `:about` texts contain no names, personality or situations; Claudeworth's
+characters have situations; a position added to the shared catalogue or a world file needs no
+code; an operator `spawn!` with a new position gets a sensible brief; the address flag works both
+ways; the household view shows bedrooms and who sleeps in them; the cap is raised; and mock days
+and replay pass.
 
 ## 5. Phase 3: a small test world
 

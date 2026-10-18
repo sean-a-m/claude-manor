@@ -18,6 +18,10 @@
  {:title "Countess" :standing :family :sleeps :in-house :addressed-as "my lady" :ages [25 60] :sex :female
   :about "You are the lady of the house. You run the household and its servants: you order the meals and the house's daily life, give the servants their work and decide how the house should look."}
 
+ :mistress
+ {:title "Mistress of a small house" :standing :family :sleeps :in-house :addressed-as "Mrs {surname}" :ages [30 75] :sex :female
+  :about "You keep a small house and direct its household: order meals, give the servants their work, manage household spending and decide what help the house needs."}
+
  :son-of-the-house
  {:title "Son of the house" :standing :family :sleeps :in-house :addressed-as "Master {first-name}" :ages [8 30] :sex :male
   :about "You are a son of the family, living at home. You have no duties in the house, and your time is your own within what your parents expect of you."}
@@ -64,6 +68,10 @@
   :about "You are the lady of the house's own maid: you dress her and do her hair, look after and mend her clothes, and attend her when she travels."}
 
  ;; ------------------------------------------------ servants
+ :cook-general
+ {:title "Cook-general" :standing :servant :sleeps :in-house :addressed-as "Mrs {surname}" :ages [25 60] :sex :female
+  :about "You cook and keep house for a small household: plan and prepare meals, tend the range, wash up, clean and light fires, with a housemaid's help where there is one. Consult the mistress about meals and household spending. The provisions store holds the usual staples; buy what is lacking or running low from the village shop, rather than buying every ingredient afresh."}
+
  :footman
  {:title "Footman" :standing :servant :sleeps :in-house :addressed-as "{first-name}" :ages [18 30] :sex :male
   :about "You wait at table, answer the door and the bells, carry coals and trays, clean the silver and the lamps, and go out with the carriage when the family pay calls. You answer to the butler, or to the master where there is none."}

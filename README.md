@@ -25,6 +25,16 @@ shopping list in one `quote-goods`; the buyer accepts any number of them with on
 uses old pence internally (£1 = 240d), shown as pounds, shillings and pence. Start a fresh run:
 old Claudeworth runs are not compatible with this store/currency change.
 
+`lodge` is Ashby Lodge: a widow, her cook-general and the shopkeeper across the street,
+on the same household, stores, shop and work-judge mechanics. All places are a free walk apart;
+the maid's room is vacant. Its rolled cast lives in `resources/worlds/lodge.edn`, with a free
+scripted day in `lodge-day.edn`. There is no architect or building business; hiring comes later.
+
+`lodge` is Ashby Lodge: a widow, her cook-general and the shopkeeper across the street,
+on the same household, stores, shop and work-judge mechanics. All places are a free walk apart;
+the maid's room is vacant. Its rolled cast lives in `resources/worlds/lodge.edn`, with a free
+scripted day in `lodge-day.edn`. There is no architect or building business; hiring comes later.
+
 ## MCP bridges
 
 Agents can reach MCP servers through in-game actions: the engine is the MCP client, and each
@@ -60,6 +70,7 @@ Free and offline (scripted agents, synthetic weather, stub architect):
 clojure -M:run treasure --mock
 clojure -M:run village --mock --offline
 clojure -M:run claudeworth --mock --offline   # the scripted Claudeworth day
+clojure -M:run lodge --mock --offline --test # a free day: open the panel, Auto 48 rounds
 # open http://localhost:8080
 ```
 
@@ -72,6 +83,19 @@ clojure -M:run village --model openai/gpt-5-mini
 clojure -M:run --load smoke-llm            # reopen a saved run
 clojure -M:run claudeworth --no-address --max-cost 0.20   # no forms of address in any prompt
 ```
+
+For a short real feature check:
+
+```sh
+clojure -M:run lodge --max-rounds 6 --test
+```
+
+Open the panel and click **Auto**. Lodge starts at 08:00 with the vacancy already pressing,
+and defaults to a $0.10 cost cap. Three characters for six rounds should take roughly 1–2 minutes
+and cost about $0.04–$0.08 including modest conversation/judging; this is an estimate, not a
+measured real run. Read `test-runs/<id>/transcript.md` afterwards and keep the paid run by moving
+its directory to `old-test-runs/<descriptive-name>` before running the tests. Use `--port N` if
+8080 is occupied; never send commands to an unrelated panel.
 
 Claudeworth's architect bridge is an MCP server: with `--offline` the engine uses a stub with the
 same three tools, so the whole building slice runs free. `:build-rounds` (a run option, REPL only)
@@ -132,6 +156,7 @@ Passed to `start-run` / `start!` (defaults in `manor.engine/default-opts`):
 | `:offline?` | `false` | use the scenario's bridge stubs |
 | `:test?` | `false` | store the run under `test-runs/` (disposable) instead of `runs/` |
 | `:max-cost` | `1.0` | USD; the run pauses when reached |
+| `:max-rounds` | | pause at this round (CLI: `--max-rounds N`); use a small cap for real checks |
 | `:start` | | start the scenario's clock at this time, e.g. `"1904-10-15T21:00"` (CLI: `--start`); scenarios with a clock only. People still start where the world puts them |
 | `:build-rounds` | | override the build delay for one run, in rounds (Claudeworth; default one day per build day) |
 | `:housemaid?` / `:architect?` | `true` / `true` | Claudeworth: include Nellie and Mr Pugh; pass `false` to leave either out (REPL options) |

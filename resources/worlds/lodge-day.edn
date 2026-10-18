@@ -1,0 +1,33 @@
+;; A free day: talk over the vacancy, shop, put supplies away, work and sleep.
+;; request-goods/accept-offer are mock-only markers translated by the shop policy.
+{"mrs-ashby"
+ {"08:00" [[:walk {:to "kitchen"}]
+           [:converse {:with ["mrs-bell"] :text "The maid has gone. Can we manage breakfast while I ask at the shop about a girl?"}]]
+  "08:30" [[:walk {:to "general-store"}]
+           [:say {:text "Good morning. My housemaid left last night; I shall want a girl. Have you heard any news?"}]]
+  "09:00" [[:walk {:to "front-gate"}] [:spend-time {:doing "watching the village street" :hours 0.5}]]
+  "09:30" [[:walk {:to "parlour"}]
+           [:spend-time {:doing "writing letters" :hours 1}]]
+  "11:00" [[:spend-time {:on ["candlesticks"] :doing "polishing the brass candlesticks" :hours 0.5}]]
+  "13:00" [[:spend-time {:doing "taking luncheon" :hours 1}]]
+  "15:00" [[:spend-time {:doing "reading by the window" :hours 2}]]
+  "18:00" [[:spend-time {:doing "eating supper" :hours 1}]]
+  "22:00" [[:walk {:to "mistress-bedroom"}] [:sleep {:until "07:00"}]]}
+
+ "mrs-bell"
+ {"08:00" [[:look {}]
+           [:spend-time {:on ["kitchen-range"] :doing "lighting the range and preparing breakfast" :hours 0.5}]]
+  "08:30" [[:walk {:to "general-store"}]
+           [:request-goods {:item "packet of tea" :qty 1}]]
+  "09:00" [[:accept-offer {:item "packet of tea"}]]
+  "09:30" [[:walk {:to "kitchen"}]
+           [:put-in {:item "packet-of-tea" :container "provisions-cupboard"}]
+           [:spend-time {:on ["kitchen"] :doing "sweeping the kitchen floor" :hours 0.5}]]
+  "10:00" [[:walk {:to "maids-room"}]
+           [:spend-time {:on ["maids-room"] :doing "sweeping the empty maid's room" :hours 0.5}]]
+  "11:30" [[:walk {:to "kitchen"}]
+           [:spend-time {:on ["provisions-cupboard" "kitchen-range"] :doing "preparing luncheon" :hours 1}]]
+  "14:00" [[:walk {:to "hall"}]
+           [:spend-time {:on ["hall" "cleaning-cupboard"] :doing "sweeping the hall and putting the cleaning things in order" :hours 1}]]
+  "17:00" [[:walk {:to "kitchen"}] [:spend-time {:doing "preparing supper" :hours 1}]]
+  "21:30" [[:walk {:to "cooks-room"}] [:sleep {:until "06:30"}]]}}

@@ -284,5 +284,6 @@
    (for [loc locations :when (and (contains? loc :services)
                                   (not (and (set? (:services loc)) (every? keyword? (:services loc)))))]
      (str "location " (:id loc) ": :services must be a set of keywords"))
-   (when-not (some #(and (set? (:services %)) (contains? (:services %) :architect) (:hours %)) locations)
+   (when (and (some #(and (set? (:services %)) (contains? (:services %) :architect)) locations)
+              (not (some #(and (set? (:services %)) (contains? (:services %) :architect) (:hours %)) locations)))
      ["at least one architect service needs :hours"])))

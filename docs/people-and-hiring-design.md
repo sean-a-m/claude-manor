@@ -1,6 +1,7 @@
 # People, positions and hiring: design
 
-Status: phases 1 and 2 are done (sections 3.5 and 4.3); phases 3 and 4 are not built. Four
+Status: phases 1–3 are built (sections 3.5, 4.3 and 5.1); the user's short real
+check of phase 3 remains pending. Phase 4 is not built. Four
 phases, in order:
 
 1. **People and traits**: a people server that generates characters (temperament, faculties,
@@ -514,7 +515,7 @@ Decision 20. Real Claudeworth rounds take about 27 seconds with nine agents, and
 test (does a trait show in behaviour? does a hire go through?) happen in the first few rounds of
 a small world as well as a large one.
 
-**Ashby Lodge** (a working name): a bundled scenario on Claudeworth's mechanics, built the way the
+**Ashby Lodge**: a bundled scenario on Claudeworth's mechanics, built the way the
 test-only `household` scenario is (`(assoc cw/scenario :name :lodge :defaults {:world-file
 "worlds/lodge.edn"} ...)`), so every Claudeworth mechanic it uses is the production one.
 
@@ -523,8 +524,8 @@ test-only `household` scenario is (`(assoc cw/scenario :name :lodge :defaults {:
   front gate as the meeting place, and the village shop across the street.
 - **Cast of three,** rolled by the people server (decision 19): Mrs Ashby, a widow who keeps
   the house; her cook-general; and the shopkeeper, who knows everyone.
-- **The situation,** given in the mistress's starting notes: the maid gave notice and left last
-  night; a girl is wanted. The household's positions list shows the vacancy.
+- **The situation,** in each character's `:situation`, not starting notes: the maid gave notice
+  and left last night; a girl is wanted. The household bedroom view shows the free maid's room.
 - **A mock day** (`resources/worlds/lodge-day.edn`) so it runs free and is in the `bundled`
   smoke tests.
 
@@ -536,6 +537,36 @@ seconds a round, so roughly a minute and a half and a few cents.
 
 Phase 3 is done when `clojure -M:run lodge --mock --offline --test` runs its day, the
 scenario is in the smoke tests, and one short real run's transcript has been read.
+
+### 5.1 Phase 3 as built
+
+Done for implementation and free checks; the short real simulation and reading its transcript
+are the user's remaining acceptance check (decision 32). No deliberate real simulation was run
+during development; the cast roll is recorded separately below.
+
+- `:lodge` associates over `cw/scenario`. Its own world and scripted day are
+  `resources/worlds/lodge.edn` and `lodge-day.edn`; all connections are zero-time walks,
+  including crossing the street to the shop. The three characters start where the morning's
+  business is, at 08:00, with a $0.10 default cap. The shared positions catalogue gains
+  `:mistress` and `:cook-general`, whose duties apply to other small households too.
+- The vacancy is in `:situation`, never starting notes, and the maid's bed is unassigned.
+  A cook's room and shopkeeper's lodgings were added so the existing characters have beds
+  without occupying the vacancy. The bedrooms shown to household members exclude the shop's.
+- `:exclude-actions` removes `consult-references`, `price-list`, `draw-plans`, `show-plans`
+  and `commission`. The shared validator now permits a world with no architect service;
+  when an office exists its checks and rules text are unchanged. Shared rules omit the
+  architecture-only instructions in a world without an office. The clerk path and optional
+  character options are untouched (decision 30).
+- `--max-rounds N` exposes the existing run cap. Quick check:
+  `clojure -M:run lodge --max-rounds 6 --test`, then **Auto** in the panel. Expect roughly
+  1–2 minutes and $0.04–$0.08 for three agents, conversations and judging included; these
+  estimates await the user's real run. Hiring itself is not implemented.
+- The free 48-round day exercises conversation, a shop quote/purchase, storing the purchase,
+  room and item work, sleep and the nightly steward, with no bad replies or failed calls
+  and exact event replay. Lodge is also in the bundled smoke/tool-schema tests.
+- No second world was added: Lodge already offers two-person conversation at breakfast and
+  single-mechanic checks in the first few rounds, while fixed household fixtures remain the
+  mechanics tests' controlled content.
 
 ## 6. Phase 4: hiring
 
@@ -688,3 +719,15 @@ From appearance:
 12. **Appearance is static.** Clothes and bearing can change during play, but there is no
     appearance-changing action in this scope. Should temporary visible changes eventually be
     derived from state rather than rewriting this baseline description?
+
+From phase 3:
+
+13. **The user's real acceptance run is pending.** Does the three-person lodge actually stay
+    within the estimated minute or two and a few cents when conversation and the judge are
+    included? Read its transcript before treating the timing estimate as measured.
+14. **The vacancy is setup, not hiring state.** There is no vacancy registry, candidate,
+    recommendation or engagement yet. Phase 4 must remove the temporary “not yet supported”
+    guidance from Lodge's situations and GM brief when those actions exist.
+15. **One area, two map labels.** House and shop use `:house` and `:village` domains so the
+    shopkeeper's lodgings do not appear among the household's beds. All are connected by
+    zero-time routes and belong to one walking area; no turn is spent travelling.

@@ -292,7 +292,7 @@
       (doseq [[bad diagnostic]
               [[(update world-file :locations update-entry :id "general-store" #(dissoc % :store-profile)) ":store-profile"]
                [(assoc-in world-file [:meta :starting-funds] -1) "starting-funds"]
-               [(update world-file :locations #(mapv (fn [l] (dissoc l :services)) %)) "architect"]
+               [(update world-file :locations update-entry :id "architects-office" #(dissoc % :hours)) "architect"]
                [(update world-file :locations update-entry :id "architects-office" #(assoc % :services ["architect"])) ":services"]]]
         (is (str/includes? (str/join "\n" (cw/problems bad)) diagnostic)))
       (doseq [[field value] [[:from "9am"] [:at "nowhere"] [:doing " "]]]

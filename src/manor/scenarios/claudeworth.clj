@@ -330,7 +330,8 @@
   "How actions work, for every role."
   [world]
   (let [turn (duration (:minutes-per-round (:clock world)))
-        max-queries (get-in world [:state :max-queries] 2)]
+        max-queries (get-in world [:state :max-queries] 2)
+        architect? (some #(contains? (:services %) :architect) (vals (get-in world [:space :locations])))]
     (str "Each turn is " turn " of game time, and you take one turn-ending action per turn. "
          "`walk` takes you at once to any place under `walkable` in your view, and doesn't end your turn: walk, then act there. Its reply shows the place, who is there and what is there, so you needn't `look` on arriving. "
          "`travel` goes to another area: use a place id from `places`, or an area name. It takes your turn; `journeys` "
@@ -350,14 +351,18 @@
          "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn. "
          "If you are waiting on someone or nothing needs doing, `pass` is the way to wait a turn; you act again next turn. "
          "Opening hours are shown in your view where a place has them. "
-         "Purchases and commissions are paid from the household account (`household` in your view). There is no engine-enforced spending restriction by role: whether you should spend depends on your station, instructions and relationships. At an open shop, ask the shopkeeper with `say` for portable goods and quantities; there is no fixed catalogue. The shopkeeper checks availability and quotes firm prices, a whole shopping list in one `quote-goods`. Accept offers made for you with `buy {quote-ids}`, from `offers` in your view: one `buy` can take the whole list. Payment is separate from asking; no bargaining, bulk counters or delivery. Prices are old sterling: £1 = 20 shillings = 240 pence (12d = 1s). "
-         "Building is arranged at the architect's office while it is open, not at the house: talk at home is for deciding what you want. "
-         "At the office you can search reference books (`consult-references`), ask for the `price-list` and have plans drawn (`draw-plans`); any character can `commission` a plan they hold, but should judge whether they have the social authority to do so. `show-plans` shares plans with everyone present, anywhere. "
-         "Plans are a special case: they are not things, so they are never carried, given, fetched, copied, lost or searched for. Once plans are drawn, the architect and the client both hold them, and anyone they are shown to holds them too; `plans` in your view lists the plans you hold, and those are all you need. "
-         "A reference lookup, the price list, each draft, each `quote-goods` (however many goods it lists) and `find` all count towards your " max-queries " queries a turn, even if asked for at once; once you reach " max-queries ", take your action and query again next turn. "
-         "Only one room is built at a time: `commission` is refused while a room is being built (see `building` for the work in hand and when it finishes), so the next room must wait until the present one is finished. "
-         "Commissioning pays from the household; the room appears at the completion time in `building`. The architect earns "
-         building/fee-percent "% on commissions for plans he drew.")))
+         (if architect? "Purchases and commissions" "Purchases")
+         " are paid from the household account (`household` in your view). There is no engine-enforced spending restriction by role: whether you should spend depends on your station, instructions and relationships. At an open shop, ask the shopkeeper with `say` for portable goods and quantities; there is no fixed catalogue. The shopkeeper checks availability and quotes firm prices, a whole shopping list in one `quote-goods`. Accept offers made for you with `buy {quote-ids}`, from `offers` in your view: one `buy` can take the whole list. Payment is separate from asking; no bargaining, bulk counters or delivery. Prices are old sterling: £1 = 20 shillings = 240 pence (12d = 1s). "
+         (when architect?
+           (str "Building is arranged at the architect's office while it is open, not at the house: talk at home is for deciding what you want. "
+                "At the office you can search reference books (`consult-references`), ask for the `price-list` and have plans drawn (`draw-plans`); any character can `commission` a plan they hold, but should judge whether they have the social authority to do so. `show-plans` shares plans with everyone present, anywhere. "
+                "Plans are a special case: they are not things, so they are never carried, given, fetched, copied, lost or searched for. Once plans are drawn, the architect and the client both hold them, and anyone they are shown to holds them too; `plans` in your view lists the plans you hold, and those are all you need. "))
+         (if architect? "A reference lookup, the price list, each draft, each `quote-goods`" "Each `quote-goods`")
+         " (however many goods it lists) and `find` all count towards your " max-queries " queries a turn, even if asked for at once; once you reach " max-queries ", take your action and query again next turn. "
+         (when architect?
+           (str "Only one room is built at a time: `commission` is refused while a room is being built (see `building` for the work in hand and when it finishes), so the next room must wait until the present one is finished. "
+                "Commissioning pays from the household; the room appears at the completion time in `building`. The architect earns "
+                building/fee-percent "% on commissions for plans he drew.")))))
 
 (defn- setting [world] (get-in world [:state :setting]))
 

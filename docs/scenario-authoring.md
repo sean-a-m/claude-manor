@@ -1,13 +1,20 @@
 # Scenario authoring guide
 
-This is the complete contract between a scenario and the engine as it stands today. Three working
-scenarios ship with the engine:
+This is the complete contract between a scenario and the engine as it stands today. Bundled
+examples include:
 
 - `src/manor/scenarios/treasure.clj`: small, about 100 lines. Start here and copy it.
 - `src/manor/scenarios/village.clj`: full-featured. Economy, bridges, an act bridge, systems, GM
   triggers, locations, mock policy.
 - `src/manor/scenarios/quiz.clj`: an MCP bridge. Each contestant messages a private,
   persistent pi assistant through the pi MCP server.
+
+`src/manor/scenarios/lodge.clj` is a small production household built by associating over
+`claudeworth/scenario`, with its own world (`resources/worlds/lodge.edn`), mock day
+(`lodge-day.edn`), defaults and excluded architecture tools. It reuses the shop, stores, work
+judge, positions and posts without copying mechanics. Its missing maid is each character's
+`:situation`, not starting notes. The shared catalogue includes `:mistress` (of a small house)
+and `:cook-general` for this sort of household.
 
 `test/manor/scenarios/prize.clj` is a 22-line minimal scenario used by the tests (no locations,
 simultaneous turns). `test/manor/scenarios/hamlet.clj` is a small test scenario loaded from a
@@ -63,7 +70,7 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :gm-triggers   [(fn [world] reason-or-nil) ...]
    :pause-when    (fn [world] reason-or-nil)
    :limits        {:max-agents 8}          ; GM spawn limit (default 50 active agents)
-   :exclude-actions #{:move}               ; built-in actions to leave out
+   :exclude-actions #{:move}               ; actions to leave out (built-in or scenario)
    :defaults      {:model "..." ...}       ; overrides engine default options for this scenario
    :mock-policy   (fn [ctx] {:tool :dig :args {}})
    :mock-judge    (fn [ctx] {:tool :judge :args {..}})  ; optional, the judge in mock runs (see Items)
@@ -330,7 +337,8 @@ it isn't an event, so anything that must be remembered or replayed belongs in `:
 | `done` | gm | final | end the GM's intervention |
 
 Override a built-in by defining an action with the same `:name`, or leave it out with
-`:exclude-actions #{:move :whisper}`. Don't exclude `done`: the GM needs it.
+`:exclude-actions #{:move :whisper}`. Exclusion applies to scenario actions too, so a world
+reusing a larger scenario can omit tools that make no sense there. Don't exclude `done`: the GM needs it.
 
 ### One home per fact
 
@@ -1083,6 +1091,14 @@ in `:init`:
   names again) whenever an item changes hands. A run can start from an exported map
   (`{:world-file "runs/<id>/map.edn"}`), and `(export-map! path)` at the REPL writes one anywhere.
 
+Claudeworth-derived worlds may omit architect services altogether (as Lodge does). If an
+architect service exists, the existing check still requires at least one with opening hours;
+all supplied hours are checked. With no architect service, the shared brief omits building-only
+instructions. Exclude the five architecture actions in that scenario as well; this does not
+change the clerk path at an existing office or the optional-character options. Each starting
+character still needs a bedroom, including living-out shopkeepers; the empty maid's room must
+remain unassigned if it is to show as free in the household view.
+
 #### People and traits
 
 An agent in a world file may carry a person's traits. They're hidden from everyone but that
@@ -1265,6 +1281,8 @@ If `:init` returns a `:clock`, rounds have times. Round 1 starts at `:start`, an
   `(clock/round-at c round "07:00")` (the round when someone waiting until 07:00 acts again),
   `(clock/rounds-for c minutes)`, `(clock/rounds-per-day c)`, `(clock/hh-mm? s)`.
 - The clock is in the world (`(:clock world)`), so actions and views can use it.
+- The run option `:max-rounds` (CLI: `--max-rounds N`) pauses at that round, independently of
+  the clock; use it with `:max-cost` for short real checks.
 - The run option `:start` (CLI: `--start 1904-10-15T21:00`) replaces the clock's `:start` for one
   run and keeps its `:minutes-per-round`, so you can begin near what you want to test (bedtime,
   say). It's checked like the clock, and a scenario without a clock refuses it. Only the time

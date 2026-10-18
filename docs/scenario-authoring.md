@@ -89,6 +89,8 @@ option keys pass through, e.g. the village reads `:start-date`.
   `{:name "Iris" :role :explorer :persona "..." :location "camp" :model "..." :controller :human}`.
   Only `:name` and `:role` are required. The id is derived from the name (`"Iris"` → `"iris"`,
   with a `-2` suffix on collisions). `:location` defaults to the role's `:start-location`.
+  A spec may also carry a person's hidden traits, `:sex :manner :temperament :faculties
+  :circumstances` (see "People and traits" under World files); other keys are ignored.
 
 - `:clock`: optional game time, `{:start "1904-10-15T08:00" :minutes-per-round 30}` (see Time).
 - `:items`: optional starting items, used only when the scenario has the `:items` key (see Items).
@@ -1053,11 +1055,60 @@ in `:init`:
   `:architect? false` and the housemaid do). A location's `:aspects` are checked the same way
   ("location \"hall\": {:aspects {:hearth [\"should be at least 1 character\"]}}").
 - `:domain` groups locations into areas on the control panel's map (house, village, ...).
-- The file is a **template**: nothing writes to it. The engine saves a copy as
+- The file is a **template**: no run writes to it (only the REPL's `roll-cast!` does, see below).
+  The engine saves a copy as
   `<run-dir>/world-start.edn`. Whenever the map changes, it writes the live map back in the same
   format to `<run-dir>/map.edn` (output only), and the live items with it (holders and owners as
   names again) whenever an item changes hands. A run can start from an exported map
   (`{:world-file "runs/<id>/map.edn"}`), and `(export-map! path)` at the REPL writes one anywhere.
+
+#### People and traits
+
+An agent in a world file may carry a person's traits. They're hidden from everyone but that
+person: their own prompt ("Who you are") shows the persona, then the manner and a short line of
+the readings; no other agent's view or prompt contains them, and the GM's view lists only the
+persona as before. A character without traits is prompted exactly as one was before.
+
+```clojure
+{:name "Hale" :sex :male :role :secretary :location "secretarys-room"
+ :persona "Mr Hale, the earl's private secretary: ..."   ; polished: the traits made concrete
+ :sketch "Mr Hale, ... a little anxious to please."      ; the authored notes the polish worked from
+ :manner "A quiet young man who ..."                     ; how they come across to a stranger, at most 200
+ :temperament {:openness :high :conscientiousness :average :extraversion :low
+               :agreeableness :high :neuroticism :average}   ; the Big Five: :low, :average or :high
+ :faculties {"Secretiveness" :large "Cautiousness" :small "Veneration" :large "Hearing" :small
+             "Form" :large "Number" :moderate "Causality" :small}  ; one per group: :small, :moderate, :large
+ :circumstances ["reads and writes well" "owes money"]}   ; one or two
+```
+
+- `load-world` checks these keys (the five axes and their levels, the sizes, `:sex` `:male` or
+  `:female`). Loading never calls the people server or a model: the file holds the result.
+- `:sketch` is never shown to anyone; it's what `roll-cast!` polishes from when it rolls again.
+- The traits come from the **people server** (`mcp-servers/people/`, babashka, stateless, no
+  model, no key). `generate_people {position count area setting seed taken-names sex}` rolls base
+  records from its data files (`temperament.edn`, `faculties.edn`, `circumstances.edn`,
+  `names.edn`, `positions.edn`): a name sharing no word with `taken-names`, sex and an age suited
+  to the position (`sex` overrides), origin, home, five temperament levels, one faculty from each
+  of the seven phrenological groups and one or two circumstances, each with its descriptor text.
+  Circumstances come from different groups, never an `:exclusions` pair, weighted by position.
+  `reputation {person knower relation seed}` says what a knower knows of a base record: an
+  acquaintance line and which of its traits they know, by relation (`by-sight`, `neighbour`,
+  `acquaintance`, `fellow-servant`, `employer`, `family`). Both are deterministic from the seed.
+- The **polish** (`manor.people/polish!`) is one narrow checked model call, like the shop's
+  appraiser: the setting, the position, the base record and any notes go in; `{persona manner}`
+  comes out. Code checks the lengths (persona at most 600 characters, manner at most 200), that
+  the persona names the person, and that it doesn't use the record's jargon (faculty or Big Five
+  axis names); a bad answer is sent back once with the reason. The record's facts are stored from
+  the record, never from the model's text. `mock-polish` is the free responder.
+- `(roll-cast! "worlds/claudeworth.edn")` at the REPL (`clj -M:dev`; `{:llm :mock}` for a free
+  one) rolls every agent in a world file afresh and writes the results into the file in place,
+  comments and layout kept, for review with `git diff`. Every trait is rolled, with no pins. Each
+  agent keeps their `:name` and `:sex`; their old `:persona` becomes `:sketch` (an existing
+  `:sketch` is used instead), and the polish keeps their position and situation from it but not
+  its traits. The server's age, origin and home are dropped for these authored characters. The
+  default model and settings are the runs' (`deepseek/deepseek-v4.1-flash`, the manor key); the
+  server log and every call go to `test-runs/roll-cast-<time>/roll-cast.edn`, with the cost. An
+  agent whose polish fails is left as it was.
 - Loading, branching and replay never read world files: the starting map is recorded as events.
 
 ### Time (`manor.clock`)

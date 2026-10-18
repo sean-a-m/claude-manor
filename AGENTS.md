@@ -77,6 +77,7 @@ src/manor/
   items.clj      items, carrying, look, work-on jobs, judge requests and checked condition changes
   adjudication.clj  shared checked-tool-response parser (work judge and scenario adjudication queries)
   money.clj      Claudeworth sterling: integer old pence, pounds/shillings/pence formatting
+  people.clj     people and traits: the polish (checked persona call), the prompt's readings line, roll-cast!
   prompt.clj     builds agent/GM requests; agent-view = observe + identity + location
   llm.clj        LLM protocol; OpenRouter (JDK HTTP) and Mock (scenario policy) implementations
   bridge.clj     bridge executor: timeout, truncation, stubs, MCP tools; never throws
@@ -99,8 +100,9 @@ src/manor/
 resources/worlds/ world files on the classpath; claudeworth.edn is Claudeworth's fresh world
 mcp-servers/pi/server.mjs  pi as an MCP server: send_message {session, message}; Node, no deps
 mcp-servers/architect/  the architect MCP server: babashka, stateless, reference/price/draft tools
+mcp-servers/people/     the people MCP server: babashka, stateless, generate_people and reputation from data files
 config/        mcp.example.edn; mcp.edn is local and gitignored (the user's sets pi-sandbox)
-dev/user.clj     REPL helpers (start! step! auto! feed view last-prompt transcript! spawn! approve! act! ...)
+dev/user.clj     REPL helpers (start! step! auto! feed view last-prompt transcript! spawn! approve! act! roll-cast! ...)
 test/            engine, conversation, space, items, MCP, clock, world-file, panel, transcript, Claudeworth and scenario smoke tests;
                  test scenarios prize.clj and hamlet.clj (world file test/fixtures/hamlet.edn);
                  household.clj reuses Claudeworth mechanics with fixed household.edn / household-day.edn fixtures;

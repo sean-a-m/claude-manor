@@ -1,14 +1,15 @@
 (ns manor.prompt
   "Builds every model request from scratch each turn. An agent's prompt is
-  made only from: its role brief and persona, its own notes, the scenario's
-  `observe` projection for that agent, and the events visible to it. The
-  full world never goes into an agent prompt."
+  made only from: its role brief, its persona and its own traits, its own
+  notes, the scenario's `observe` projection for that agent, and the events
+  visible to it. The full world never goes into an agent prompt."
   (:require [clojure.string :as str]
             [jsonista.core :as json]
             [manor.clock :as clock]
             [manor.conversation :as conversation]
             [manor.items :as items]
             [manor.narrate :as narrate]
+            [manor.people :as people]
             [manor.space :as space]
             [manor.world :as w]))
 
@@ -112,7 +113,9 @@ Your view is private. Others only learn what is public or what someone tells the
       :content (str preamble
                     "\n\n## Your role\n" (brief-text (:brief role) world agent-id)
                     "\n\n## Who you are\nYou are " (:name a) " (id: " agent-id ")."
-                    (when-not (str/blank? (:persona a)) (str " " (:persona a))))}
+                    (when-not (str/blank? (:persona a)) (str " " (:persona a)))
+                    (when-not (str/blank? (:manner a)) (str "\nTo a stranger you come across as: " (:manner a)))
+                    (when-let [r (people/readings a)] (str "\n" r)))}
      {:role "user"
       :content (str "# " (heading world)
                     "\n\n## Your view\n```json\n" (->json view) "\n```"

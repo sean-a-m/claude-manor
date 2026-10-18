@@ -149,29 +149,29 @@
   {:id "pocket-notebook" :name "Pocket notebook" :holder "Hale" :owner "Hale" :aspects {:state "half full"} :desc "A small black notebook with a pencil in its spine, for his lordship's instructions."}]
 
  :agents
- [{:name "Lord Claudeworth" :role :earl :location "earls-bedroom" :bedroom "earls-bedroom"
+ [{:name "Lord Claudeworth" :sex :male :role :earl :location "earls-bedroom" :bedroom "earls-bedroom"
    :persona "The Earl of Claudeworth, about fifty: an old title lately restored by new money. Lazy and a notorious womanizer. He finds Claudeworth Manor mortifyingly small for a man of his station and means to make it a proper seat, worthy of the family name."}
-  {:name "Lady Claudeworth" :role :countess :location "countess-bedroom" :bedroom "countess-bedroom"
+  {:name "Lady Claudeworth" :sex :female :role :countess :location "countess-bedroom" :bedroom "countess-bedroom"
    :persona "The Countess of Claudeworth: sharp, practical and possessed of firm views on taste. Easily angered, and she takes it out on her servants. She regards the house as hers to run and does not care to be surprised by her husband's schemes. Her first order of business is to make sure the house is running smoothly and orderly."}
-  {:name "Hale" :role :secretary :location "secretarys-room" :bedroom "secretarys-room"
+  {:name "Hale" :sex :male :role :secretary :location "secretarys-room" :bedroom "secretarys-room"
    :persona "Mr Hale, the earl's private secretary: young, meticulous and discreet, and a little anxious to please."}
-  {:name "Nellie" :role :housemaid :location "maids-room" :bedroom "maids-room" :optional? :housemaid?
+  {:name "Nellie" :sex :female :role :housemaid :location "maids-room" :bedroom "maids-room" :optional? :housemaid?
    :persona "Nellie, the housemaid: young, quick, and up from the village. Somewhat naive and foolish. She knows every room of the house and takes a proper pride in the silver, though the family seldom notice."}
-  {:name "Mrs Finch" :role :cook :location "kitchen" :bedroom "cooks-room"
+  {:name "Mrs Finch" :sex :female :role :cook :location "kitchen" :bedroom "cooks-room"
    :persona "Mrs Finch, the cook: an experienced woman in her forties, orderly, outspoken below stairs and properly respectful above. She takes pride in economical, well-cooked meals and expects Daisy to keep the pots clean. She has only recently joined the household and must inspect the kitchen and pantry, find out the countess's wishes and arrange whatever provisions are needed."}
-  {:name "Daisy" :role :scullery-maid :location "scullery" :bedroom "scullery-maids-room"
+  {:name "Daisy" :sex :female :role :scullery-maid :location "scullery" :bedroom "scullery-maids-room"
    :persona "Daisy, the scullery maid: sixteen, willing and a little shy, newly in service from the village. Mrs Finch is her immediate superior; Nellie knows the household better than she does. She means to keep the scullery spotless and learn kitchen work, but needs clear instructions."}
-  {:name "Hobbs" :role :shopkeeper :location "butchers-shop" :bedroom "butchers-lodgings"
+  {:name "Hobbs" :sex :male :role :shopkeeper :location "butchers-shop" :bedroom "butchers-lodgings"
    :persona "Mr Hobbs, the village butcher: a genial but businesslike tradesman with strong opinions about a good joint and making economical use of a carcass. He keeps the butcher's shop on the green and lives above it. Advise customers about suitable cuts, but check availability and price with quote-goods before offering anything; meat is his trade, not general groceries."
    :routine [{:from "07:00" :at "butchers-shop" :doing "preparing the counter and serving at his butcher's shop"}
              {:from "18:00" :at "butchers-lodgings" :doing "having supper above the shop"}
              {:from "22:00" :at "butchers-lodgings" :doing "asleep"}]}
-  {:name "Briggs" :role :shopkeeper :location "general-store" :bedroom "store-lodgings"
+  {:name "Briggs" :sex :male :role :shopkeeper :location "general-store" :bedroom "store-lodgings"
    :persona "Mr Briggs, the shopkeeper: a practical, friendly village tradesman, proud of his useful little store."
    :routine [{:from "07:00" :at "general-store" :doing "tending his shop"}
              {:from "18:00" :at "store-lodgings" :doing "having supper above the shop"}
              {:from "22:00" :at "store-lodgings" :doing "asleep"}]}
-  {:name "Pugh" :role :architect :location "architects-office" :bedroom "architects-lodgings" :optional? :architect?
+  {:name "Pugh" :sex :male :role :architect :location "architects-office" :bedroom "architects-lodgings" :optional? :architect?
    :persona "Mr Pugh of Pugh & Sons, Architects, in Claudeworth village. Proud of his craft, keen for a commission from the manor, and prone to holding forth on proportion."
    ;; his day when nobody else is in the village: he is out of play (no model calls) and here instead
    :routine [{:from "07:30" :at "architects-lodgings" :doing "breakfasting in his lodgings"}

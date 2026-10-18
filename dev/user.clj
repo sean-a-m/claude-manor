@@ -14,11 +14,15 @@
     (load! \"village-20261014-...\")  (branch! 3)
     (export-map! \"resources/worlds/grown.edn\")  ; the live map as a world file
     (transcript!)  (transcript! \"claudeworth-...\")  (transcript! id {:test? true})  ; <run-dir>/transcript.md
+    (roll-cast! \"worlds/claudeworth.edn\")              ; roll and polish a world file's cast (real model)
+    (roll-cast! \"worlds/claudeworth.edn\" {:llm :mock}) ; free: the mock polish
     (start! :village {:llm :mock :offline? true :test? true})  ; under test-runs/
     (clean-test-runs!)                ; delete everything under test-runs/"
   (:require [clojure.pprint :refer [pprint]]
             [manor.engine :as e]
+            [manor.llm :as llm]
             [manor.narrate :as n]
+            [manor.people :as people]
             [manor.prompt :as prompt]
             [manor.store :as store]
             [manor.transcript :as transcript]
@@ -139,3 +143,21 @@
   ([] (transcript/write! (:dir (run))))
   ([id] (transcript! id {}))
   ([id {:keys [test?]}] (transcript/write! (store/run-dir id test?))))
+
+(defn roll-cast!
+  "Roll every character in the world file at `path` afresh with the people
+  server and polish each into a persona, writing the results into the file
+  for review with git diff (see manor.people/roll-cast!). Uses the run
+  defaults' model and the manor key, unless {:llm :mock}. Its log and every
+  call go to test-runs/roll-cast-<time>/ (move a real one to old-test-runs/).
+  Prints and returns what was rolled and what it cost."
+  ([path] (roll-cast! path {}))
+  ([path opts]
+   (let [dir (store/run-dir (store/new-run-id :roll-cast) true)
+         result (people/roll-cast! path (merge (select-keys e/default-opts [:model :max-tokens :reasoning :tool-choice])
+                                               (dissoc opts :llm)
+                                               {:llm (if (= :mock (:llm opts)) (llm/mock people/mock-polish) (llm/openrouter))
+                                                :dir dir}))]
+     (println "Rolled" (count (:rolled result)) "people; cost $" (:cost result) "; record in" (str dir))
+     (when (seq (:failed result)) (println "Failed:" (:failed result)))
+     result)))

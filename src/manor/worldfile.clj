@@ -20,7 +20,8 @@
   Items name their :holder (and an :owner who is an agent) by agent name;
   loading turns those into agent ids, and exporting turns them back.
   `load-world` reads and checks a file and returns the parts a scenario's
-  :init needs. The file is a template: nothing writes to it. The engine keeps
+  :init needs. The file is a template: no run writes to it (`set-agent-keys`
+  is for the REPL's roll-cast!, see manor.people). The engine keeps
   a copy of it in the run directory (world-start.edn) and writes the live map
   back in the same format (map.edn) whenever the map changes, see `export`."
   (:require [clojure.edn :as edn]
@@ -42,12 +43,29 @@
    [:aspects {:optional true} :any]          ; checked by `problems`, for a readable message
    [:connects-to {:optional true} [:vector :string]]])
 
+(def Agent
+  "An agent of a world file. The trait keys (see manor.people) are optional;
+  `roll-cast!` writes them."
+  [:map
+   [:name :string]
+   [:role :keyword]
+   [:location {:optional true} :string]
+   [:persona {:optional true} :string]
+   [:sketch {:optional true} :string]
+   [:manner {:optional true} :string]
+   [:sex {:optional true} [:enum :male :female]]
+   [:temperament {:optional true}
+    [:map-of [:enum :openness :conscientiousness :extraversion :agreeableness :neuroticism]
+     [:enum :low :average :high]]]
+   [:faculties {:optional true} [:map-of :string [:enum :small :moderate :large]]]
+   [:circumstances {:optional true} [:vector :string]]])
+
 (def WorldFile
   [:map
    [:meta {:optional true} :map]
    [:locations [:vector {:min 1} Location]]
    [:routes {:optional true} [:vector [:vector :any]]]
-   [:agents {:optional true} [:vector [:map [:name :string] [:role :keyword] [:location {:optional true} :string]]]]
+   [:agents {:optional true} [:vector Agent]]
    [:items {:optional true} [:vector :map]]])
 
 ;; ---------------------------------------------------------------------------
@@ -218,6 +236,99 @@
   "One item per line: :id and :name first, :aspects and :desc last."
   [it]
   (str "{" (str/join " " (for [k item-key-order :when (contains? it k)] (str (pr-str k) " " (pr-str (get it k))))) "}"))
+
+;; ---------------------------------------------------------------------------
+;; Editing a world file's text in place, so its comments and layout survive
+
+(defn- skip-blank
+  "The index of the next form at or after `i`: past whitespace, commas and comments."
+  [^String s i]
+  (loop [i i]
+    (cond
+      (>= i (count s)) i
+      (or (Character/isWhitespace (.charAt s i)) (= \, (.charAt s i))) (recur (inc i))
+      (= \; (.charAt s i)) (recur (let [j (.indexOf s "\n" (int i))] (if (neg? j) (count s) j)))
+      :else i)))
+
+(def ^:private closing #{\} \] \)})
+
+(defn- form-end
+  "The index just past the form that starts at `i`: a string, a collection
+  (whose strings and comments are skipped) or a token."
+  [^String s i]
+  (let [c (.charAt s i)]
+    (cond
+      (= c \") (loop [j (inc i)]
+                 (case (.charAt s j) \\ (recur (+ j 2)) \" (inc j) (recur (inc j))))
+      (= c \#) (form-end s (inc i))
+      (#{\{ \[ \(} c) (loop [j (skip-blank s (inc i))]
+                       (if (closing (.charAt s j)) (inc j) (recur (skip-blank s (form-end s j)))))
+      :else (loop [j i]
+              (if (or (= j (count s))
+                      (let [d (.charAt s j)]
+                        (or (Character/isWhitespace d) (closing d) (#{\, \; \" \{ \[ \(} d))))
+                j
+                (recur (inc j)))))))
+
+(defn- children
+  "[start end] of each form in the collection whose opening bracket is at `open`."
+  [^String s open]
+  (loop [i (skip-blank s (inc open)), acc []]
+    (if (closing (.charAt s i))
+      acc
+      (let [j (form-end s i)] (recur (skip-blank s j) (conj acc [i j]))))))
+
+(defn- entries
+  "[[key-start key-end] [value-start value-end]] for each entry of the map at `open`."
+  [s open]
+  (partition 2 (children s open)))
+
+(defn- agent-open
+  "Where the map of the agent called `agent-name` starts in world file text `s`."
+  [^String s agent-name]
+  (let [[_ [agents-open]] (first (filter (fn [[[a b]]] (= ":agents" (subs s a b))) (entries s (skip-blank s 0))))]
+    (or (when agents-open
+          (ffirst (filter (fn [[a b]] (= agent-name (:name (edn/read-string (subs s a b)))))
+                          (children s agents-open))))
+        (throw (ex-info (str "no agent called " agent-name " in the world file") {:agent agent-name})))))
+
+(defn- value-str
+  "`v` as EDN, with a map's entries on one line and no commas."
+  [v]
+  (if (map? v)
+    (str "{" (str/join " " (for [[k x] v] (str (pr-str k) " " (pr-str x)))) "}")
+    (pr-str v)))
+
+(defn- set-agent-key
+  "Set one key of an agent: replace its value where it stands, or else add it
+  on a line of its own after the key `after` (or the agent's last key)."
+  [^String s agent-name after k v]
+  (let [open (agent-open s agent-name)
+        es (entries s open)
+        entry (fn [k] (first (filter (fn [[[a b]]] (= (pr-str k) (subs s a b))) es)))]
+    (if-let [[_ [a b]] (entry k)]
+      (str (subs s 0 a) (value-str v) (subs s b))
+      (let [[[key-start] [_ value-end]] (or (entry after) (last es))
+            line-start #(inc (.lastIndexOf s "\n" (int %)))
+            indent (if (= (line-start key-start) (line-start open))
+                     (inc (- open (line-start open)))
+                     (- key-start (line-start key-start)))]
+        (str (subs s 0 value-end) "\n" (apply str (repeat indent \space))
+             (pr-str k) " " (value-str v) (subs s value-end))))))
+
+(defn set-agent-keys
+  "World file text `s` with the agent called `agent-name` given each [key
+  value] of `kvs`. A key the agent has keeps its place; new keys go on lines
+  of their own after its :persona (or its last key), in the order given.
+  Everything else in the text, comments and layout included, is untouched."
+  [s agent-name kvs]
+  (first (reduce (fn [[s after] [k v]]
+                   (let [had? (contains? (edn/read-string (subs s (agent-open s agent-name)
+                                                                (form-end s (agent-open s agent-name))))
+                                         k)]
+                     [(set-agent-key s agent-name after k v) (if had? after k)]))
+                 [s :persona]
+                 kvs)))
 
 (defn ->edn-string
   "A world file as readable EDN: sections in a fixed order, one location and

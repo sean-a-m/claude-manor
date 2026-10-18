@@ -46,6 +46,7 @@ See "MCP bridges" in [docs/scenario-authoring.md](docs/scenario-authoring.md).
 - Node.js and pi for the pi MCP server (the `quiz` scenario and the tests)
 - Babashka for the architect MCP server (the `claudeworth` scenario and its tests). The server is
   started lazily per run; without babashka, run Claudeworth with `--offline` for the stub.
+  Babashka also runs the people server, which `roll-cast!` uses (and its tests).
 - An OpenRouter key in `MANOR_OPENROUTER_API_KEY` for real runs. Manor reads no other key: it
   doesn't fall back to `OPENROUTER_API_KEY` or pi's `~/.pi/agent/auth.json`, so its runs can have
   their own guardrails and budget. Mock runs need no key. The pi MCP server runs `pi`, which
@@ -95,7 +96,13 @@ From the REPL (`clj -M:dev`):
 (branch! 3)
 (transcript!)           ; rewrite <run-dir>/transcript.md now
 (transcript! "claudeworth-20261015-101500" {:test? true})   ; any saved run, e.g. an old one
+(roll-cast! "worlds/claudeworth.edn")                 ; roll and polish a world file's cast (a few cents)
+(roll-cast! "test-runs/x/claudeworth.edn" {:llm :mock})   ; free, with the mock polish
 ```
+
+`roll-cast!` gives every character in a world file new traits from the people server
+(`mcp-servers/people/`) and a persona written from them, and writes them into the file for review
+with `git diff`; see "People and traits" in [docs/scenario-authoring.md](docs/scenario-authoring.md).
 
 Whenever a run stops running rounds (it pauses, `auto!`'s rounds are done, a manual step ends,
 `pause!` or `stop-run`), the engine writes `<run-dir>/transcript.md`: each round's events with who

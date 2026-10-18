@@ -12,13 +12,18 @@
   (let [taken (set (keys (:agents world)))]
     (first (remove taken (cons base (map #(str base "-" %) (iterate inc 2)))))))
 
+(def trait-keys
+  "A person's hidden traits (see manor.people): only their own prompt shows them."
+  [:sex :manner :temperament :faculties :circumstances])
+
 (defn spawn-events
   "Events that add an agent of `role` to the world, followed by the role's
   own :on-spawn events (starting holdings and so on)."
-  [scenario world {:keys [role name persona model controller location]}]
+  [scenario world {:keys [role name persona model controller location] :as spec}]
   (let [id (unique-id world (slug name))
         location (or location (get-in scenario [:roles role :start-location]))
-        agent (cond-> {:id id :name name :role role :persona (or persona "")}
+        agent (cond-> (merge {:id id :name name :role role :persona (or persona "")}
+                             (select-keys spec trait-keys))
                 model (assoc :model model)
                 controller (assoc :controller controller)
                 location (assoc :location location))

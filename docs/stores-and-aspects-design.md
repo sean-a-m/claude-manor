@@ -530,7 +530,7 @@ What didn't, all fixed in phase 6:
 
 1. **Work products.** `made` may also come from everyday supplies: an entry with
    `from: "everyday"` (or no source) is allowed when it is the activity's direct product (a
-   letter, a list, plans, a dish, a mended thing's offcut is not). Instructions: make a thing
+   letter, a list, plans, a dish). Instructions: make a thing
    only if someone will carry, hand over, serve or keep it; otherwise describe the result as an
    aspect (the table "laid for dinner" on the room). Still at most 2. Made products of writing
    or drawing are not consumable; dishes are.

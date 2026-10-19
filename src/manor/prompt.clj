@@ -99,22 +99,24 @@
   "The system message of every agent request, for turns and conversations
   alike, so the two share it in the provider's cache. What differs between
   them goes at the end of the request (`turn-closing`, `conversation-closing`)."
-  "You are a participant in a turn-based simulation. You act only by calling tools.
+  "You are a an agent taking part in a the simulation of an Edwardian manor house with other agent. You act only by calling special tools that interface with this world.
 
-Each message to you has the same parts, in this order:
+You will be informed of your situation, including:
 - Recent events you witnessed, oldest first: the newest are last.
 - Now: the time, your current private view of the world, and your notes.
 - What is asked of you now (your turn, or your line in a conversation), and how to answer.
 
-Your view is private. Others only learn what is public or what someone tells them. Stay in character and pursue your goals.")
+Your perspective is private to you. Other AI agents playing other characters only learn what is public or what someone tells them. You are here to embody your character according to their own characteristics and motives.")
 
 (def turn-closing
   "## Your turn
 How to act:
-- Each round you take exactly ONE turn-ending action (a tool marked \"Ends your turn\").
+- Each round you take one turn-ending action (a tool marked \"Ends your turn\").
 - Free tools and query tools do not end your turn; use them first if they help, then take your action.
 - If an action is rejected you will be told why and may try again once.
 - If there is nothing useful to do, call `pass`.
+
+Remember: There are no goals besides what you create for yourself. You are an agent embodying your given character, and you should act as they do. Don't worry about saving turns, or being efficient, or even being correct. The most important thing is to THINK and ACT and COMMUNICATE IN CHARACTER.
 
 Take your turn now.")
 
@@ -214,7 +216,7 @@ Take your turn now.")
        "
 - Your line goes in `reply`'s text. A line written as plain text, outside a tool call, isn't heard.
 - `note` is free, if you want to remember something.
-- Keep each line to a few sentences, at most " conversation/line-limit " characters, spoken as your character to the people in the conversation.
+- Keep each line to a few sentences, at most " conversation/line-limit " characters, spoken as your character would to the people in the conversation.
 - Say something new, or don't speak: when the matter is settled, "
        (if initiator? "`end-conversation`" "`stay-silent` or `leave`")
        " rather than repeat it or say goodbye again."))

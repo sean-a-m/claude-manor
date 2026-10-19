@@ -3,6 +3,7 @@
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.engine :as e]
             [manor.items :as items]
+            [manor.hiring :as hiring]
             [manor.prompt :as prompt]
             [manor.scenarios.building :as building]
             [manor.scenarios.claudeworth :as cw]
@@ -60,7 +61,13 @@
             events (e/events run)
             calls (store/read-llm (:dir run))]
         (is (= 48 (:round world)))
-        (doseq [type [:conversation/started :claudeworth/goods-quoted :claudeworth/bought
+        (let [p (first (vals (hiring/pool world))) id (:agent-id p)]
+          (is (= :engaged (:status p)))
+          (is (= :housemaid (:role (w/agent world id))))
+          (is (= "maids-room" (get-in world [:state :bedrooms id])))
+          (is (= "Sunday afternoons free." (get-in world [:state :posts id :conditions]))))
+        (doseq [type [:people/recommended :people/sent-for :people/arrived :people/offered
+                      :conversation/started :claudeworth/goods-quoted :claudeworth/bought
                       :item/put-in :item/work-done :items/steward-ran]]
           (is (some #(= type (:type %)) events) (name type)))
         (is (some #(= "judge" (:agent %)) calls))

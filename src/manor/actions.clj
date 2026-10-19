@@ -36,7 +36,12 @@
      :on-result   (fn [world actor args result]) => [events]
 
      ;; :query only: internal adjudication instead of :bridge
-     :adjudicate  :shop/appraise}           ; key in scenario :adjudicators
+     :adjudicate  :shop/appraise            ; key in scenario :adjudicators
+
+     ;; :query only: compose engine-owned calls instead of either above
+     :query-fn (fn [world actor args services] result)}
+     ;; services: :bridge (fn [bridge-id args]), :adjudicate (fn [task-id args]).
+     ;; Intermediate records stay operator-only; use :reply to project the result.
 
   Kinds:
     :final  the agent's action for the round; ends the turn

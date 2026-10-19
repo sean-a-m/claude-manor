@@ -118,6 +118,16 @@
 (defmethod apply-event :agent/retired [world {:keys [data]}]
   (assoc-in world [:agents (:id data) :status] :retired))
 
+(defmethod apply-event :people/departed [world {:keys [data]}]
+  (update-in world [:agents (:id data)]
+             #(-> % (assoc :status :away) (dissoc :location :travel :busy))))
+
+(defmethod apply-event :people/returned [world {:keys [data]}]
+  ;; Retired is permanent; only away people can return.
+  (if (= :away (:status (agent world (:id data))))
+    (update-in world [:agents (:id data)] assoc :status :active :location (:at data))
+    world))
+
 (defmethod apply-event :agent/updated [world {:keys [data]}]
   (update-in world [:agents (:id data)] merge (:changes data)))
 

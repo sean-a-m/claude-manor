@@ -138,10 +138,12 @@
 (defn post-changed
   "Event: `id` now holds `position`, in `household` (nil for none), on
   `terms` (free text, or nil). It changes their :role to match."
-  [world id position {:keys [household terms visible-to]}]
+  [world id position {:keys [household terms conditions employer visible-to]}]
   {:type :people/post-changed :visible-to (or visible-to :gm)
-   :data {:id id :position position :title (get-in world [:state :positions position :title])
-          :household household :terms terms}})
+   :data (cond-> {:id id :position position :title (get-in world [:state :positions position :title])
+                  :household household :terms terms}
+           conditions (assoc :conditions conditions)
+           employer (assoc :employer employer))})
 
 (defn bedroom-assigned
   "Event: `id` sleeps in `bedroom` (a location id), or in none if nil."
@@ -157,7 +159,8 @@
 (defmethod w/apply-event :people/post-changed [world {:keys [round data]}]
   (let [{:keys [id position household terms]} data]
     (-> world
-        (assoc-in [:state :posts id] {:position position :household household :since round :terms terms})
+        (assoc-in [:state :posts id] (merge {:position position :household household :since round :terms terms}
+                                                 (select-keys data [:conditions :employer])))
         (assoc-in [:agents id :role] position))))
 
 (defmethod w/apply-event :people/bedroom-assigned [world {:keys [data]}]

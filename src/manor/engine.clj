@@ -255,6 +255,35 @@
 
 (declare ask-structured!)
 
+(defn- query-services
+  "Engine-owned I/O for a composed query. Raw intermediate records are operator-only;
+  only the query's checked projection is returned to its caller."
+  [run actor]
+  (let [budget! #(when-let [cap (get-in run [:opts :max-cost])]
+                  (when (>= (w/total-cost @(:world run)) cap)
+                    (throw (ex-info "The run's cost limit has been reached." {}))))]
+    {:bridge (fn [bridge-name args]
+               (budget!)
+               (let [{:keys [result error cost]} (bridge/call (:scenario run) (:opts run) (bridge-ctx run) bridge-name args)]
+                 (emit! run [{:type :bridge/called :actor actor :visible-to :system
+                              :data {:bridge bridge-name :args args :result result :error error}}])
+                 (record-bridge-cost! run actor bridge-name cost)
+                 (when error (throw (ex-info error {})))
+                 result))
+     :adjudicate (fn [task args]
+                   (budget!)
+                   (let [spec (get-in run [:scenario :adjudicators task])
+                         {:keys [messages tools ctx check result] :as request} ((:request spec) @(:world run) actor args)]
+                     (if (contains? request :result)
+                       result
+                       (let [{:keys [verdict failure]}
+                             (ask-structured! run (str "adjudicator/" (subs (str task) 1))
+                                              {:messages messages :tools tools :ctx (assoc ctx :role :adjudicator :task task)
+                                               :model (get-in run [:opts :model]) :before-call budget!}
+                                              (or check (:check spec)))]
+                         (when failure (throw (ex-info failure {})))
+                         verdict))))}))
+
 (defn- run-query!
   "Run a bridge or internal adjudication query during a turn. Only checked
   adjudication results reach :on-result; technical failures have no effects."
@@ -266,9 +295,13 @@
             world @(:world run)
             task (:adjudicate action)
             spec (get-in run [:scenario :adjudicators task])
-            bargs (when-not task ((or (:bridge-args action) (fn [_ _ args] args)) world actor args))
+            composed (:query-fn action)
+            bargs (when-not (or task composed) ((or (:bridge-args action) (fn [_ _ args] args)) world actor args))
             {:keys [result error cost] :as res}
-            (if task
+            (cond
+              composed (try {:result (composed world actor args (query-services run actor))}
+                            (catch Exception e {:error "The enquiry failed; try again later." :failure (ex-message e)}))
+              task
               (let [{:keys [messages tools ctx result check] :as request} ((:request spec) world actor args)]
                 (if (contains? request :result)
                   {:result result}
@@ -280,12 +313,12 @@
                     (if failure
                       {:error (or (:failure-reply spec) "The enquiry failed; try again later.") :failure failure}
                       {:result verdict}))))
-              (bridge/call (:scenario run) (:opts run) (bridge-ctx run) (:bridge action) bargs))]
+              :else (bridge/call (:scenario run) (:opts run) (bridge-ctx run) (:bridge action) bargs))]
         (locking (:world run)
-          (if task
+          (if (or task composed)
             (when error
               (emit! run [{:type :adjudication/failed :visible-to :system
-                           :data {:task task :caller actor :reason (:failure res)}}]))
+                           :data {:task (or task (:name action)) :caller actor :reason (:failure res)}}]))
             (do (emit! run [{:type :bridge/called :actor actor :visible-to #{actor}
                             :data {:bridge (:bridge action) :args bargs :result result :error error}}])
                 (record-bridge-cost! run actor (:bridge action) cost)))
@@ -341,17 +374,18 @@
 (defn- ask-structured!
   "Shared narrow model-call lifecycle: checked answer, one correction attempt,
   usage/transcript logging and safe failure. The domain owns prompts/checks."
-  [run identity {:keys [messages tools ctx label defer-records?] :or {label "adjudicator"}} check]
+  [run identity {:keys [messages tools ctx label defer-records? model before-call] :or {label "adjudicator"}} check]
   (let [records (atom [])
         record! (fn [f & args]
                   (if defer-records?
                     (swap! records conj #(apply f args))
                     (apply f args)))
         opts (:opts run)
-        model (or (:judge-model opts) (:model opts))]
+        model (or model (:judge-model opts) (:model opts))]
     (let [result
           (try
             (loop [messages messages, attempt 0]
+              (when before-call (before-call))
               (let [request {:model model :messages messages :tools tools
                              :max-tokens (:max-tokens opts) :reasoning (:reasoning opts)
                              :tool-choice (:tool-choice opts)}

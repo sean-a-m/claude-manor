@@ -24,6 +24,8 @@
             [manor.clock :as clock]
             [manor.conversation :as conversation]
             [manor.items :as items]
+            [manor.hiring :as hiring]
+            [manor.people :as people]
             [manor.narrate :as narrate]
             [manor.positions :as positions]
             [manor.scenarios.building :as building]
@@ -269,7 +271,8 @@
   (let [here (space/location-of world id)
         hours (:hours (space/location world here))]
     (cond-> (-> (merge-with merge (building/observe world id) (shop/observe world id))
-                (update :you assoc :bedroom (bedroom-of world id)))
+                (update :you assoc :bedroom (bedroom-of world id))
+                (assoc :hiring (hiring/observe world id)))
       (positions/household-member? world id) (assoc-in [:household :bedrooms] (house-bedrooms world))
       hours (update :here merge {:open (str/join "-" hours) :open-now? (open-now? world hours)})
       true (assoc :places (places world))
@@ -332,7 +335,7 @@
   (let [turn (duration (:minutes-per-round (:clock world)))
         max-queries (get-in world [:state :max-queries] 2)
         architect? (some #(contains? (:services %) :architect) (vals (get-in world [:space :locations])))]
-    (str "Each turn is " turn " of game time, and you take one turn-ending action per turn. "
+    (str hiring/rules "\n\nEach turn is " turn " of game time, and you take one turn-ending action per turn. "
          "`walk` takes you at once to any place under `walkable` in your view, and doesn't end your turn: walk, then act there. Its reply shows the place, who is there and what is there, so you needn't `look` on arriving. "
          "`travel` goes to another area: use a place id from `places`, or an area name. It takes your turn; `journeys` "
          "in your view shows how long each journey takes, and a longer one leaves you travelling until you arrive. "
@@ -358,7 +361,7 @@
                 "At the office you can search reference books (`consult-references`), ask for the `price-list` and have plans drawn (`draw-plans`); any character can `commission` a plan they hold, but should judge whether they have the social authority to do so. `show-plans` shares plans with everyone present, anywhere. "
                 "Plans are a special case: they are not things, so they are never carried, given, fetched, copied, lost or searched for. Once plans are drawn, the architect and the client both hold them, and anyone they are shown to holds them too; `plans` in your view lists the plans you hold, and those are all you need. "))
          (if architect? "A reference lookup, the price list, each draft, each `quote-goods`" "Each `quote-goods`")
-         " (however many goods it lists) and `find` all count towards your " max-queries " queries a turn, even if asked for at once; once you reach " max-queries ", take your action and query again next turn. "
+         " (however many goods it lists), `recommend` and `find` all count towards your " max-queries " queries a turn, even if asked for at once; once you reach " max-queries ", take your action and query again next turn. "
          (when architect?
            (str "Only one room is built at a time: `commission` is refused while a room is being built (see `building` for the work in hand and when it finishes), so the next room must wait until the present one is finished. "
                 "Commissioning pays from the household; the room appears at the completion time in `building`. The architect earns "
@@ -600,7 +603,8 @@
   [day {:keys [world agent-id role used]}]
   (cond
     (= role :gm) {:tool :done}
-    (positions/capable? world agent-id :shop-clerk) (shop/scripted-clerk day (str (now world)) world agent-id used)
+    (and (positions/capable? world agent-id :shop-clerk)
+         (nil? (get-in day [agent-id (str (now world))]))) (shop/scripted-clerk day (str (now world)) world agent-id used)
     :else
     (let [time (str (now world))
           architect (building/architect-here world agent-id)
@@ -649,17 +653,18 @@
 ;; ---------------------------------------------------------------------------
 
 (def scenario
-  {:name :claudeworth
+  (hiring/install
+   {:name :claudeworth
    :doc "Claudeworth Manor, 1904: a family and their servants, a village architect, a general-store keeper and a butcher, living from day to day."
    :init init
    :roles roles
    :agent-brief agent-brief
    :on-spawn positions/starting-events
-   :actions (into (into actions building/actions) shop/actions)
-   :adjudicators shop/adjudicators
-   :bridges building/bridges
-   :offline-stubs building/offline-stubs
-   :mcp-servers building/mcp-servers
+   :actions (vec (concat actions building/actions shop/actions hiring/actions))
+   :adjudicators (merge shop/adjudicators hiring/adjudicators)
+   :bridges (merge building/bridges hiring/bridges)
+   :offline-stubs (merge building/offline-stubs hiring/offline-stubs)
+   :mcp-servers (merge building/mcp-servers people/mcp-servers)
    :systems [building/construction]
    :items {:steward {:at "02:00" :idle-hours 4 :max-per-call 8}
            :find-allowed? (fn [world _ place]
@@ -673,4 +678,5 @@
    :hibernate hibernate
    :observe observe
    :mock-policy mock-policy
-   :mock-conversation mock-conversation})
+   :mock-conversation mock-conversation}
+   "carriage-sweep"))

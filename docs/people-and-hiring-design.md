@@ -1,7 +1,7 @@
 # People, positions and hiring: design
 
-Status: phases 1–3 are built (sections 3.5, 4.3 and 5.1); the user's short real
-check of phase 3 remains pending. Phase 4 is not built: start at section 6.0. Four
+Status: phases 1–4 are built (sections 3.5, 4.3, 5.1 and 6.6). Free mock/offline
+checks pass; real simulation acceptance runs are left to the user. Four
 phases, in order:
 
 1. **People and traits**: a people server that generates characters (temperament, faculties,
@@ -583,7 +583,7 @@ during development; the cast roll is recorded separately below.
 
 ### 6.0 Start here (state on 2026-10-18, after phases 1–3)
 
-Phase 4 is not started. Sections 6.1–6.5 are the plan; this section says what already exists,
+Historical handoff, now implemented: see section 6.6 for the outcome. Sections 6.1–6.5 are the plan; this section says what already existed,
 what must be connected first, how to test, and what the user still has to decide. Read section 2
 (all decisions) and the "as built" notes (3.5, 4.3, phase 3) before writing code.
 
@@ -619,7 +619,7 @@ no real simulation runs (decision 32: the user runs them, e.g. `clojure -M:run l
 6 --test`); a real call is only allowed when the user's task says so. Leave the clerk path and
 optional characters alone (decision 30).
 
-**Decide with the user before building** (recommendations given):
+**Clarifications accepted by the user before building** (all five recommendations below):
 
 1. **Candidates' appearance and privacy.** A generated candidate's appearance is written in the
    same call as their persona, from the full record, and nobody reviews it in a run. Either accept
@@ -701,8 +701,8 @@ work judge can be shown what the writer knows.
   bedroom given in the offer if there is one (unchecked, decision 12), and marks the record
   `:engaged`.
 - `send-away {who}`, or the candidate's own `take-leave`, emits `:people/departed`. The record goes
-  back to the pool marked as seen at the house. A candidate still unengaged at the end of the day
-  leaves on their own.
+  back to the pool marked as seen at the house. A candidate still unengaged leaves three rounds after arrival or their last
+  conversation, whichever is later (the user's clarification replaces end-of-day departure).
 
 ### 6.5 The away status
 
@@ -716,6 +716,61 @@ An engine-level status alongside `:active` and `:retired`:
   `:none` plus departed. A dismissed servant can come back as a candidate elsewhere, or as gossip.
 - Unlike hibernation, which keeps a routine character in the world (off-stage but placed), an
   away person is out of the world.
+
+### 6.6 Phase 4 as built
+
+Implemented in `manor.hiring`, shared by Claudeworth and Lodge. Only mock/offline
+validation was run; the user will do real runs. No generated cast files were re-polished.
+
+- **Recommendations:** `recommend {position for}` costs one query slot. It reuses an
+  available candidate in the same walking area, or asks the people MCP server for one,
+  writes their appearance, polishes their private persona and asks for a reputation.
+  The two character-writer calls use the run's default model, not `:judge-model`.
+  The engine records every bridge/model call and cost. Failures publish no partial person;
+  the run's `:max-cost` is checked between component calls.
+- **Privacy:** appearance has its own short call receiving only age, sex, position and
+  names of small external senses. No hidden descriptors, biography, persona, notes, manner
+  or full world reach it. The private polish sees this appearance for consistency; its own
+  returned appearance is discarded. Neither call adds prose-pattern checks. Full records,
+  intermediate bridge results and private spawn data are operator-only events. Only the
+  recommender receives their sampled reputation; recommender and asker receive the name,
+  candidate id, sought position and explicit `send-for` directions.
+- **Pool:** `[:state :pool]` holds at most 40 records in creation order. Eviction removes
+  the oldest pooled/away record not belonging to an active agent. Sent-for, present and
+  engaged people are protected; a fully protected pool refuses a new recommendation.
+  A repeated recommendation reuses the stored reputation for that knower. Proximity uses
+  the connected walking area, so Lodge's house/shop domain labels do not divide neighbours.
+- **Visits:** `send-for {candidate}` is final and requires a current recommendation. Arrival
+  is next round at `:meeting-place` (`front-gate` at Lodge, `carriage-sweep` at Claudeworth),
+  before turns, through `spawn-events` and the scenario's `:on-spawn`. Pending arrivals wait
+  if the active-agent cap is full. A newcomer holds `:none`, inherits the run's model and
+  knows who summoned them. No catalogue position becomes GM-spawnable. Timed appointments
+  beyond next-round arrival are not implemented.
+- **Offers:** `engage {who position terms? bedroom?}` is final; any character may offer a
+  present candidate a non-GM position. It replaces an earlier offer. `decline-place {reason?}`
+  is free; haggling is ordinary conversation. `accept-place {conditions?}` is final, sets the
+  role and post together, records employer/terms/conditions, optionally assigns the named
+  bedroom and marks the candidate engaged. Both parties retain the agreement in their
+  view. Bedroom existence/kind is checked, not availability or sharing; no bed is required
+  by code. Acceptance replaces the temporary applicant situation with the new appointment.
+- **Leaving:** `send-away {who}` and `take-leave` are final, for unengaged candidates.
+  Otherwise a candidate leaves at the start of the third round after arrival or their last
+  conversation. All conversation participants refresh that timestamp, not just the initiator.
+  `:people/departed` makes an agent `:away`, clears location/travel/occupation and stops turns;
+  offers close, notes and history remain. Another `send-for` returns the same agent/id with
+  those memories through `:people/returned`. Retired people cannot return. Hired staff are
+  not subject to the visitor timeout; dismissal and outdoor lodging remain deferred.
+- **Written characters:** `spend-time` may name a known `candidate`. The job snapshots only
+  the writer's knowledge for the scene judge. Items made by that job carry `:candidate-id`;
+  they are ordinary items and must actually be handed over with `give`, not conversational
+  promises. This is not a reference-verification or automatic knowledge-sharing mechanic.
+- **Validation:** Lodge's mock day now recommends at 08:30, sends for the candidate at 09:00,
+  interviews/offers/accepts at 09:30, and assigns the maid's room. The full 48-round day still
+  exercises shopping, work and sleep, with exact replay and no rejected calls or forfeits.
+  Dedicated tests cover visible-only appearance input, private events/views, reuse and FIFO,
+  refusal/replacement/conditions, departure/return/memory, conversation grace, retired exclusion,
+  cap-blocked arrivals, failed bridge/polish rollback, cost-limit interruption and written
+  reference context. The user's real-run and transcript review remain pending.
 
 ## 7. What this reuses
 
@@ -750,10 +805,9 @@ From phase 1:
    being "past fifty", Hobbs having left "Bramford", or Pugh sending wages home. Most are harmless
    colour. Should the polish be told to add no new facts beyond its notes and record, or is the
    colour wanted?
-4. **The polish has no in-run registration yet.** Phase 4 will need it as a scenario adjudicator
-   (`polish-request` already returns the `{:messages :tools :ctx :check}` shape) and needs the
-   people server in `:mcp-servers`, `:bridges` and `:offline-stubs`. Phase 1 registers neither,
-   because nothing in a run uses them yet.
+4. **In-run registration: settled in phase 4.** The polish and visible-only appearance writer
+   are scenario adjudicators; the people server is registered in `:mcp-servers`, `:bridges`
+   and `:offline-stubs`. The offline stubs are free fixtures and start no external process.
 
 From phase 2:
 
@@ -765,18 +819,18 @@ From phase 2:
    countess.
 7. **Situations don't change.** The cook is "recently joined" forever, and the earl still means
    to enlarge the house after the library is built (decision 27 leaves this for later).
-8. **Living out with nowhere to live.** Outdoor servants (a chauffeur, a groom) sleep `:out`, but
-   Claudeworth has no stable flat or cottage. Phase 4 will need somewhere for them, or a bed in
-   the house.
-9. **Nobody is spawnable.** Claudeworth has no `:spawnable?` roles, so the GM still can't spawn,
-   and the raised cap only matters for phase 4. Should the catalogue's positions be spawnable, or
-   should arrivals only come through `send-for`?
+8. **Living out with nowhere to live.** Deferred by the user: outdoor servants (a chauffeur,
+   a groom) sleep `:out`, but Claudeworth has no stable flat or cottage. The user will try their
+   own runs before deciding on housing.
+9. **Nobody is GM-spawnable.** Settled: new in-game people arrive only through `send-for`.
+   Catalogue positions remain non-spawnable. The operator's explicit spawn command is unchanged.
 10. **The second-person check is narrow.** *Settled:* removed with the other prose checks
     (roadmap C15); the instructions ask for the second person.
 
 From appearance:
 
-11. **Visible-only prose needs review.** Since roadmap C15 the polish checks only lengths and
+11. **Visible-only prose needs review for authored cast rolls.** Runtime candidates now use
+    a separate visible-input-only appearance writer (section 6.6). Since roadmap C15 the polish checks only lengths and
     blanks; nothing in code catches an appearance that reveals a secret or judges character. Does the real re-polish stay at a glance, and agree with the persona
     about age, build and visible impairments? Review it before accepting the cast; no extra
     model-based checker is added here.
@@ -789,9 +843,9 @@ From phase 3:
 13. **The user's real acceptance run is pending.** Does the three-person lodge actually stay
     within the estimated minute or two and a few cents when conversation and the judge are
     included? Read its transcript before treating the timing estimate as measured.
-14. **The vacancy is setup, not hiring state.** There is no vacancy registry, candidate,
-    recommendation or engagement yet. Phase 4 must remove the temporary “not yet supported”
-    guidance from Lodge's situations and GM brief when those actions exist.
+14. **The vacancy is setup, not a registry.** Hiring is implemented; the temporary “not yet
+    supported” guidance has been replaced in Lodge's situations and GM brief. Vacancies remain
+    social context, not a separately enforced registry.
 15. **One area, two map labels.** House and shop use `:house` and `:village` domains so the
     shopkeeper's lodgings do not appear among the household's beds. All are connected by
     zero-time routes and belong to one walking area; no turn is spent travelling.

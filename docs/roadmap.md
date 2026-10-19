@@ -335,8 +335,10 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   phrenological faculties and a model polish, tried on the existing casts; (2) positions
   separated from people, a shared catalogue, situations and a higher agent cap (C13 stays separate); (3) a small
   test world (Ashby Lodge) for short real runs; (4) hiring: `recommend`, `send-for`, `engage`,
-  and an away status. Phases 1–3 are done; phase 4 is not started: begin at the
-  design's section 6.0.
+  and an away status. **Phases 1–4 implemented**; see the design's section 6.6 for hiring.
+  Lodge's mock/offline day completes an interview and hire with conditions and a bedroom;
+  tests cover privacy, pool bounds, refusal/return, departure timing, caps, failures and replay.
+  Real simulation acceptance runs remain with the user; outdoor housing and dismissal are deferred.
 
 ---
 

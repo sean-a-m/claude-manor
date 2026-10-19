@@ -130,8 +130,10 @@
   [events id]
   (filter #(= id (get-in % [:data :conversation])) events))
 
-(defmethod w/apply-event :conversation/started [world {:keys [actor round]}]
-  (assoc-in world [:agents actor :conversed-round] round))
+(defmethod w/apply-event :conversation/started [world {:keys [actor round data]}]
+  (reduce #(assoc-in %1 [:agents %2 :last-conversation-round] round)
+          (assoc-in world [:agents actor :conversed-round] round)
+          (:members data)))
 
 (defn- and-list [xs]
   (if (next xs) (str (str/join ", " (butlast xs)) " and " (last xs)) (first xs)))

@@ -271,6 +271,23 @@ co-location and opening-hours checks still apply. The GM is not a character and 
 receive these actions.
 Old Claudeworth runs are intentionally unsupported after this contract change.
 
+#### Composed queries
+
+A query needing several dependent bridge/adjudicator calls may supply
+`:query-fn (fn [world actor args services] result)` instead of `:bridge` or `:adjudicate`.
+`services` contains two engine-owned callbacks: `(bridge bridge-id args)` returns bridge data;
+`(adjudicate task-id args)` builds the registered request and returns only a checked verdict.
+They throw on failure, check the run budget before each component, and record all calls and
+usage. Intermediate bridge events are **operator-only**, not visible to the calling character.
+Composed adjudicators use the run's `:model` (candidate generation must not inherit a work
+judge override). One composed action uses one query slot; each model may have one correction.
+
+The function must not mutate world state or do I/O directly. Its result goes to the usual
+`:on-result`, and its `:reply` should project only what the caller may know. An exception
+emits an operator-only `:adjudication/failed` and returns a neutral error without running
+`:on-result`. `manor.hiring/recommend!` is the example: generate a record, write a public
+appearance from visible fields, polish privately, and obtain a private sampled reputation.
+
 #### Replies and arguments
 
 An accepted free action replies `"ok"`, or, if it has a `:reply`, whatever that returns: a string
@@ -1196,6 +1213,57 @@ data, so there's one source and no call.
   agent whose polish fails is left as it was.
 - Loading, branching and replay never read world files: the starting map is recorded as events.
 
+#### Runtime candidates and hiring
+
+Claudeworth and Lodge include `manor.hiring`. A derivative scenario with another entrance
+should call `(hiring/install scenario "entrance-id")`: it sets `:meeting-place`, initial
+state's meeting place/cap, the visit system and the writing-job extension. A new scenario
+must also include `hiring/actions`, `hiring/adjudicators`, `hiring/bridges`,
+`hiring/offline-stubs`, `people/mcp-servers`, `positions/starting-events` as `:on-spawn`,
+and project `hiring/observe` into its own observation (Claudeworth uses `:hiring`).
+Its positions must include `:none`; its meeting place must exist.
+
+- `recommend {position for}`: one query, one candidate. Both parties must be present.
+  Reuse a pooled/away person seeking that position in the same walking area, else generate
+  one through the people server. The raw record is kept in `[:state :pool]`, never in a
+  character's observation. The pool limit is 40, FIFO among pooled/away records not owned
+  by active agents; sent-for/here/engaged records cannot be evicted. A fully protected pool
+  refuses new recommendations. Known names, candidate ids, positions and `send-for`
+  instructions go only to the two parties. The sampled reputation belongs only to the
+  recommender, who then chooses what to say.
+- Runtime appearance uses `people/appearance-request`: **only** age, sex, position and small
+  sense names reach it, including mock context. It never sees private descriptors or prose.
+  The private polish sees the approved appearance for consistency; its own appearance output
+  is discarded. These calls use the run's default model and normal cost budget, with checked
+  lengths/blanks and one correction, never lexical prose checks. Offline bridge fixtures and
+  mock adjudicators keep `--mock --offline` entirely free.
+- `send-for {candidate}` is final. Only someone who knows the current pool record may call it.
+  Arrival is next round at the meeting place, before turns, if the active-agent cap has room
+  (otherwise it waits). The visitor is spawned through the scenario hook with role `:none`,
+  own traits and a private situation naming their summoner. Their model inherits `:model`.
+  Private spawn data is operator-only; a separate arrival event goes to those at the entrance
+  and the summoner. No GM-spawnable positions are added.
+- `engage {who position terms? bedroom?}` is final and replaces any previous offer. Anyone
+  may offer a present candidate any non-GM position; no authority, sex or vacancy restriction.
+  `who` is the arrived agent id, not the pool id. `accept-place {conditions?}` is final;
+  `decline-place {reason?}` is free. Discuss a new offer to haggle. Acceptance changes role/post,
+  marks the pool entry engaged, records employer, terms and conditions, and optionally assigns
+  the named bedroom. A bedroom must exist and be a bedroom, but occupancy and the need for a
+  bed are not enforced. No wages or conditions are mechanically enforced. Both parties can
+  see the agreed post later; a candidate's temporary situation becomes their appointment.
+- `send-away {who}` and the candidate's `take-leave` are final and end an unengaged visit.
+  Otherwise, departure is at the start of the third round after arrival or the last conversation
+  the candidate participated in. `:people/departed {id reason towards}` makes them `:away`,
+  clears location/travel/occupation and stops turns/calls; their notes and history survive.
+  The offer closes and the pool entry becomes `:away`. Another `send-for` uses
+  `:people/returned {id at}` to restore the same agent, not a duplicate. Retired agents never
+  return. Engaged staff have no visitor timeout; dismissal and outdoor lodging are deferred.
+- A written reference is ordinary work: `spend-time {doing hours? candidate?}` may name a known
+  candidate. Its job snapshots only the writer's known identity/reputation into `:reference`,
+  which reaches the scene judge. All items made by that job carry `:candidate-id`, shown in
+  detailed item views and preserved in export/replay. Give the paper with the ordinary `give`
+  action. The link does not grant its reader a recommendation or verify the prose.
+
 #### Positions, posts and situations
 
 Who someone is (their persona and traits) is kept apart from the job they hold (their position)
@@ -1253,7 +1321,8 @@ people as the world names them: "Pugh", not "Mr Pugh").
 `:people/post-changed`, sets both, so the brief and the tools follow the post; nothing checks who
 holds what (two cooks, or none, are fine). `(change-post! "nellie" :cook {:terms "..."})` at the
 REPL (`manor.engine/change-post!`) changes a post between rounds; `:household` defaults to their
-present post's, and they see the change. There's no in-game action for it yet.
+present post's, and they see the change. Hiring's `accept-place` also changes a post and
+records optional `:employer` and `:conditions`; there is no general in-game post-changing action.
 
 **Bedrooms and routines** are kept by person in `[:state :bedrooms]` and `[:state :routines]`,
 set by `:people/bedroom-assigned` and `:people/routine-set`. Claudeworth's `:on-spawn` sets an

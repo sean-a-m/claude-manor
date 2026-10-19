@@ -105,6 +105,7 @@
    [:fixed? {:optional true} :boolean]
    [:consumable? {:optional true} :boolean]
    [:drawn-from {:optional true} :string]
+   [:candidate-id {:optional true} :string]
    [:container {:optional true} [:enum :open :closed]]
    [:store {:optional true} [:map {:closed true}
                             [:keeps [:string {:min 1 :max 200}]]
@@ -554,7 +555,7 @@
   (or (:name (w/agent world owner)) owner))
 
 (defn- look-item [world it]
-  (cond-> (select-keys it [:id :name :desc :aspects])
+  (cond-> (select-keys it [:id :name :desc :aspects :candidate-id])
     (:owner it) (assoc :owner (owner-name world (:owner it)))
     (:fixed? it) (assoc :fixed? true)
     (store? it) (assoc :keeps (get-in it [:store :keeps]))))
@@ -580,7 +581,7 @@
         carried (by-name (held-by world id))]
     (cond-> (select-keys a [:name :appearance])
       (:busy a) (assoc :doing (get-in a [:busy :activity]))
-      (seq carried) (assoc :carrying (mapv #(select-keys % [:id :name :desc :aspects]) carried)))))
+      (seq carried) (assoc :carrying (mapv #(select-keys % [:id :name :desc :aspects :candidate-id]) carried)))))
 
 (defn look
   "What `actor` sees on looking around: the place (with its :aspects and
@@ -879,8 +880,9 @@
 (defn empty-activity?
   "An unnamed activity with no place aspects, items here, or stores in scope
   needs only a neutral ending, not a judge call."
-  [world {:keys [place items]}]
-  (and (empty? items)
+  [world {:keys [place items reference]}]
+  (and (nil? reference)
+       (empty? items)
        (empty? (:aspects (space/location world place)))
        (empty? (items-at world place))
        (empty? (stores-for world place))))
@@ -915,6 +917,7 @@
                      it (new-item world
                                   (cond-> (assoc (select-keys m [:name :desc :aspects]) :consumable? consumable)
                                     (:owner first-used) (assoc :owner (:owner first-used))
+                                    (:reference job) (assoc :candidate-id (get-in job [:reference :candidate-id]))
                                     (and from (not consumable)) (assoc :drawn-from from)
                                     in (assoc :in in)
                                     (and (not in) held?) (assoc :holder actor)
@@ -1035,7 +1038,8 @@
                     :focus (judged-json focus)
                     :also_here (judged-json also-here)
                     :stores (mapv #(assoc (store-view (:place job) %) :keeps (get-in % [:store :keeps])) stores)
-                    :people people :recent (vec (take-last 10 recent))}]
+                    :people people :recent (vec (take-last 10 recent))}
+        scene-json (cond-> scene-json (:reference job) (assoc :reference (:reference job)))]
     {:tools [judge-tool]
      :messages
      [{:role "system"

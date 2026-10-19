@@ -39,7 +39,8 @@
             [manor.transcript :as transcript]
             [manor.world :as w]
             [manor.worldfile :as worldfile])
-  (:import (java.util.concurrent ExecutorService Future TimeUnit)))
+  (:import (java.time Instant)
+           (java.util.concurrent ExecutorService Future TimeUnit)))
 
 (def default-opts
   {:seed 1
@@ -340,24 +341,38 @@
   (emit! run [{:type :llm/usage :actor agent-id :visible-to :system
                :data (assoc (:usage response) :agent agent-id :model (:model request))}]))
 
+(defn- complete!
+  "Make a model call. The response gets :at, the instant (ISO-8601, UTC) the
+  call was sent."
+  [run request]
+  (let [at (str (Instant/now))]
+    (assoc (llm/complete (:llm run) request) :at at)))
+
 (defn- record-call!
   "Log a model call to llm.edn. `replies` are the messages the engine added
   after the response (tool replies and any reminder), so a turn's last call
   has its replies too. The character's private :thoughts, if the model
   returned any, are kept here only; they're never sent back to the model.
-  `extra` is merged into the entry, e.g. a speaking turn's :conversation."
+  :at is when the call was sent (see `complete!`), :tool-digests fingerprint
+  the tools sent (`llm/tool-digests`), and :provider and :generation-id are
+  there when the provider gives them. `extra` is merged into the entry,
+  e.g. a speaking turn's :conversation."
   ([run agent-id request response replies] (record-call! run agent-id request response replies nil))
   ([run agent-id request response replies extra]
-   (let [entry (merge {:agent agent-id
-                       :round (:round @(:world run))
-                       :model (:model request)
-                       :messages (:messages request)
-                       :tools (mapv #(get-in % [:function :name]) (:tools request))
-                       :response (:message response)
-                       :thoughts (:thoughts response)
-                       :finish-reason (:finish-reason response)
-                       :usage (:usage response)
-                       :replies replies}
+   (let [entry (merge (cond-> {:agent agent-id
+                               :round (:round @(:world run))
+                               :at (:at response)
+                               :model (:model request)
+                               :messages (:messages request)
+                               :tools (mapv #(get-in % [:function :name]) (:tools request))
+                               :tool-digests (llm/tool-digests (:tools request))
+                               :response (:message response)
+                               :thoughts (:thoughts response)
+                               :finish-reason (:finish-reason response)
+                               :usage (:usage response)
+                               :replies replies}
+                        (:provider response) (assoc :provider (:provider response))
+                        (:generation-id response) (assoc :generation-id (:generation-id response)))
                       extra)]
      (store/append-llm! (:dir run) entry)
      (swap! (:last-calls run) assoc agent-id entry))))
@@ -389,7 +404,7 @@
               (let [request {:model model :messages messages :tools tools
                              :max-tokens (:max-tokens opts) :reasoning (:reasoning opts)
                              :tool-choice (:tool-choice opts)}
-                    response (llm/complete (:llm run) (assoc request :ctx (assoc ctx :step attempt)))
+                    response (complete! run (assoc request :ctx (assoc ctx :step attempt)))
                     _ (record! record-usage! run identity request response)
                     {:keys [verdict error replies]}
                     (try (check response)
@@ -570,10 +585,10 @@
         (let [request {:model model :messages messages :tools tools
                        :max-tokens (:max-tokens opts) :reasoning (:reasoning opts)
                        :tool-choice (:tool-choice opts)}
-              response (llm/complete (:llm run)
-                                     (assoc request :ctx (merge {:world @(:world run) :agent-id agent-id
-                                                                 :step step :used (:used st)}
-                                                                ctx)))
+              response (complete! run
+                                  (assoc request :ctx (merge {:world @(:world run) :agent-id agent-id
+                                                              :step step :used (:used st)}
+                                                             ctx)))
               _ (record-usage! run agent-id request response)
               st' (try (handle-response run agent-id by-name call-opts st response)
                        (catch Throwable t

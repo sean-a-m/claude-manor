@@ -9,15 +9,23 @@
   Response: {:message {...assistant message, OpenAI wire format...}
              :content \"...\" :tool-calls [{:id :name :arguments}]
              :thoughts \"...\"                 ; the character's private thoughts, if it returns any
-             :usage {:prompt-tokens :completion-tokens :thought-tokens :cost}}
+             :usage {:prompt-tokens :completion-tokens :thought-tokens :cost
+                     :cached-tokens :cache-write-tokens}   ; the cache counts if the provider gives them
+             :provider \"...\" :generation-id \"...\"}     ; OpenRouter's provider and id, if given
 
   A model may return the character's private thoughts beside its reply. They
   are recorded (llm.edn, the transcript) and never sent back: `:message` is
   what the engine sends. The run option `:reasoning` is the provider's own
-  deliberation setting."
+  deliberation setting.
+
+  `tool-digests` fingerprints the tools of a request, so a log can show
+  which tool definitions stayed the same from one call to the next (what a
+  provider's prompt cache depends on)."
   (:require [clojure.string :as str]
             [jsonista.core :as json]
-            [manor.http :as http]))
+            [manor.http :as http])
+  (:import (java.nio.charset StandardCharsets)
+           (java.security MessageDigest)))
 
 (defprotocol LLM
   (complete [this request]))
@@ -41,18 +49,39 @@
         usage (:usage resp)]
     (when-let [err (:error resp)]
       (throw (ex-info (str "OpenRouter error: " (or (:message err) (pr-str err))) {:error err})))
-    {:message (select-keys msg [:role :content :tool_calls])   ; what goes back to the model
-     :content (:content msg)
-     :thoughts (not-empty (:reasoning msg))                   ; the wire field; recorded, never sent back
-     :finish-reason (get-in resp [:choices 0 :finish_reason])
-     :tool-calls (mapv (fn [tc] {:id (:id tc)
-                                 :name (get-in tc [:function :name])
-                                 :arguments (get-in tc [:function :arguments])})
-                       (:tool_calls msg))
-     :usage {:prompt-tokens (:prompt_tokens usage)
-             :completion-tokens (:completion_tokens usage)
-             :thought-tokens (get-in usage [:completion_tokens_details :reasoning_tokens])
-             :cost (:cost usage)}}))
+    (cond->
+     {:message (select-keys msg [:role :content :tool_calls])   ; what goes back to the model
+      :content (:content msg)
+      :thoughts (not-empty (:reasoning msg))                   ; the wire field; recorded, never sent back
+      :finish-reason (get-in resp [:choices 0 :finish_reason])
+      :tool-calls (mapv (fn [tc] {:id (:id tc)
+                                  :name (get-in tc [:function :name])
+                                  :arguments (get-in tc [:function :arguments])})
+                        (:tool_calls msg))
+      :usage (let [{:keys [cached_tokens cache_write_tokens]} (:prompt_tokens_details usage)]
+               (cond-> {:prompt-tokens (:prompt_tokens usage)
+                        :completion-tokens (:completion_tokens usage)
+                        :thought-tokens (get-in usage [:completion_tokens_details :reasoning_tokens])
+                        :cost (:cost usage)}
+                 cached_tokens (assoc :cached-tokens cached_tokens)
+                 cache_write_tokens (assoc :cache-write-tokens cache_write_tokens)))}
+      (:provider resp) (assoc :provider (:provider resp))
+      (:id resp) (assoc :generation-id (:id resp)))))
+
+(defn tool-digests
+  "A fingerprint of each tool in `tools` (tool definitions as sent, e.g.
+  {:type \"function\" :function {...}}), in order: {:name :hash :chars}, where
+  :hash is the first 16 hex characters of the SHA-256 of the tool's compact
+  JSON (as the request body writes it) and :chars is that JSON's length."
+  [tools]
+  (let [sha (MessageDigest/getInstance "SHA-256")]
+    (mapv (fn [tool]
+            (let [s (json/write-value-as-string tool)
+                  digest (.digest sha (.getBytes s StandardCharsets/UTF_8))]
+              {:name (get-in tool [:function :name])
+               :hash (subs (apply str (map #(format "%02x" %) digest)) 0 16)
+               :chars (count s)}))
+          tools)))
 
 (defn- retryable? [{:keys [status]}]
   (or (nil? status) (= status 429) (>= status 500)))
@@ -109,6 +138,6 @@
                                :function {:name (:name call) :arguments (:arguments call)}}]}
        :content say
        :tool-calls [call]
-       :usage {:prompt-tokens 0 :completion-tokens 0 :cost 0}})))
+       :usage {:prompt-tokens 0 :completion-tokens 0 :cached-tokens 0 :cost 0}})))
 
 (defn mock [policy] (->Mock (or policy (constantly nil))))

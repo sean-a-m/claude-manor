@@ -65,9 +65,20 @@
        (str "  - engine: " (one-line (:content m))))
      (when (and (nil? next-call) forfeited?) ["  - _turn forfeited: no valid action taken_"]))))
 
+(defn- cached-share
+  "The percentage of prompt tokens served from the provider's cache, over
+  the `calls` that report :cached-tokens, or \"–\" when none do (older runs)
+  or they have no prompt tokens (mock runs)."
+  [calls]
+  (let [reported (filter (comp :cached-tokens :usage) calls)
+        prompt (reduce + 0 (keep (comp :prompt-tokens :usage) reported))]
+    (if (pos? prompt)
+      (format "%.0f%%" (* 100.0 (/ (reduce + 0 (keep (comp :cached-tokens :usage) reported)) prompt)))
+      "–")))
+
 (defn- summary-lines
-  "Calls and cost per agent, error and rejection replies, and forfeits.
-  `pairs` are [call next-call-of-its-turn]."
+  "Calls, cost and cached share of the prompt per agent, error and rejection
+  replies, and forfeits. `pairs` are [call next-call-of-its-turn]."
   [pairs events]
   (let [reply-texts (for [[call next-call] pairs
                           m (replies call next-call)
@@ -75,9 +86,10 @@
                       (str (:content m)))
         count-of (fn [prefix] (count (filter #(str/starts-with? % prefix) reply-texts)))]
     (concat
-     ["| agent | calls | cost |" "|---|---|---|"]
+     ["| agent | calls | cost | cached |" "|---|---|---|---|"]
      (for [[agent cs] (sort-by key (group-by :agent (map first pairs)))]
-       (format "| %s | %d | $%.4f |" agent (count cs) (double (reduce + 0 (keep (comp :cost :usage) cs)))))
+       (format "| %s | %d | $%.4f | %s |" agent (count cs) (double (reduce + 0 (keep (comp :cost :usage) cs)))
+               (cached-share cs)))
      [""
       (str "Engine replies: " (count-of "error:") " errors, " (count-of "rejected:") " rejections"
            (when-not (every? (comp recorded? first) pairs)

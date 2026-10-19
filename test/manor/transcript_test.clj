@@ -5,7 +5,8 @@
             [manor.engine :as e]
             [manor.store :as store]
             [manor.transcript :as transcript])
-  (:import (java.util.concurrent TimeUnit)))
+  (:import (java.time Instant)
+           (java.util.concurrent TimeUnit)))
 
 ;; All runs here use {:test? true}, so they live under test-runs/.
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
@@ -19,7 +20,8 @@
       (is (= (str (io/file (:dir run) "transcript.md")) path))
       (is (str/starts-with? md (str "# Transcript of " (:dir run))))
       (is (str/includes? md "2 rounds, "))
-      (is (str/includes? md "| lord-claudeworth | "))
+      (is (str/includes? md "| agent | calls | cost | cached |"))
+      (is (re-find #"\| lord-claudeworth \| \d+ \| \$0\.0000 \| – \|" md) "mock calls have no prompt tokens to share")
       (is (str/includes? md "## 08:00 (round 1)"))
       (is (str/includes? md "- Lord Claudeworth goes from Earl's bedroom to Dining room.  _[lord-claudeworth]_"))
       (is (str/includes? md "- **lord-claudeworth** walk {\"to\":\"dining-room\"} _($0.0000)_\n  - engine: { \"here\" : { \"id\" : \"dining-room\""))
@@ -28,6 +30,22 @@
       (testing "a turn's last call shows its replies"
         (is (re-find #"- \*\*lord-claudeworth\*\* pass .*\n  - engine: done\n" md))
         (is (not (str/includes? md "didn't record replies")))))
+    (testing "each llm.edn entry has its time and its tools' digests"
+      (let [calls (store/read-llm (:dir run))]
+        (is (seq calls))
+        (doseq [{:keys [at tools tool-digests usage] :as call} calls]
+          (is (inst? (Instant/parse at)))
+          (is (= tools (mapv :name tool-digests)))
+          (is (every? #(re-matches #"[0-9a-f]{16}" (:hash %)) tool-digests))
+          (is (every? (comp pos? :chars) tool-digests))
+          (is (= 0 (:cached-tokens usage)))
+          (is (not (contains? call :provider)))
+          (is (not (contains? call :generation-id))))
+        (testing "a tool sent unchanged in two calls has the same digest"
+          (let [by-name (group-by :name (mapcat :tool-digests calls))
+                pass-digests (set (by-name "pass"))]
+            (is (< 1 (count (by-name "pass"))))
+            (is (= 1 (count pass-digests)))))))
     (testing "runs logged before replies were recorded read them from the next call"
       (let [f (io/file (:dir run) "llm.edn")
             old-style (map #(dissoc % :replies) (store/read-llm (:dir run)))]
@@ -83,3 +101,13 @@
           (is (str/includes? md "  - thoughts: Where is everyone?"))
           (is (str/includes? md ", 300 in thought)")))))
     (e/stop-run run))) 
+
+(deftest cached-share-of-the-prompt
+  (let [share (var-get #'transcript/cached-share)]
+    (is (= "75%" (share [{:usage {:prompt-tokens 1000 :cached-tokens 900}}
+                         {:usage {:prompt-tokens 1000 :cached-tokens 600}}])))
+    (is (= "90%" (share [{:usage {:prompt-tokens 1000 :cached-tokens 900}}
+                         {:usage {:prompt-tokens 500}}]))
+        "calls that don't report a cache count aren't counted")
+    (is (= "–" (share [{:usage {:prompt-tokens 1000}}])) "older runs have no cache counts")
+    (is (= "–" (share [{:usage {:prompt-tokens 0 :cached-tokens 0}}])) "mock calls have no prompt tokens")))

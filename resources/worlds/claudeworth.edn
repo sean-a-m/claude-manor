@@ -144,6 +144,10 @@
   {:id "linen-press" :name "Linen press" :place "gallery" :owner "household" :fixed? true :container :closed :store {:keeps "sheets, pillowcases, towels and household linen"} :aspects {:stock "well stocked with clean, folded linen"}
    :desc "A tall oak press on the landing, with shelves for the household linen."}
   {:id "motor-car" :name "Motor car" :place "carriage-sweep" :owner "household" :fixed? true :aspects {:cleanliness "polished"} :desc "A green Daimler tourer with brass lamps, rather out of place before the house."}
+  {:id "butchers-counter" :name "Butcher's counter" :place "butchers-shop" :owner "Hobbs" :fixed? true :aspects {:cleanliness "scrubbed"} :desc "A stout wooden counter where Mr Hobbs cuts and weighs meat for his customers."}
+  {:id "butchers-day-book" :name "Butcher's day book" :place "butchers-shop" :owner "Hobbs" :aspects {:state "in daily use"} :desc "A ruled, cloth-bound book kept behind the counter, with Mr Hobbs's record of customers' purchases and accounts."}
+  {:id "general-store-counter" :name "General store counter" :place "general-store" :owner "Briggs" :fixed? true :aspects {:repair "worn smooth by use"} :desc "The long wooden counter over which Mr Briggs sells groceries, candles and household necessities."}
+  {:id "briggs-ledger" :name "Mr Briggs's ledger" :place "general-store" :owner "Briggs" :aspects {:state "in daily use"} :desc "A tall, cloth-bound ledger behind the counter, ruled for Mr Briggs's shop accounts."}
   {:id "pocket-watch" :name "Pocket watch" :holder "Lord Claudeworth" :owner "Lord Claudeworth" :aspects {:state "keeping good time"} :desc "A gold half-hunter on a chain, engraved with the Claudeworth arms."}
   {:id "pocket-notebook" :name "Pocket notebook" :holder "Hale" :owner "Hale" :aspects {:state "half full"} :desc "A small black notebook with a pencil in its spine, for his lordship's instructions."}]
 

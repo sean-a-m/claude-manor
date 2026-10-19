@@ -124,9 +124,16 @@ old-test-runs/   kept real-model test runs (gitignored); never delete
 
 ```sh
 clojure -M:test                               # all tests (about 15 seconds, free, offline)
-clojure -M:run village --mock --offline --test   # panel at http://localhost:8080, free, disposable
+clojure -M:run village --mock --offline --test --port 8091   # panel at http://localhost:8091, free, disposable
 clj -M:dev                                    # REPL; see dev/user.clj docstring
 ```
+
+- **Port 8080 is the user's.** They watch their own runs in the panel there, often while agents
+  work. Agents never use 8080: give every `clojure -M:run` a `--port` from 8090–8099 (check it's
+  free with `ss -ltn`), stop the process when done, and never send commands to a panel you didn't
+  start. For a mock check that needs no panel, run it from `clojure -M:dev` with `e/start-run`,
+  `e/auto!`, `e/wait-idle` and `e/stop-run` instead; that opens no port. Pass this rule on to
+  sub-agents.
 
 - **Verify with mock and offline runs first** (free, deterministic). A mock run of a whole day takes
   seconds. Real runs use the user's manor-only OpenRouter key from

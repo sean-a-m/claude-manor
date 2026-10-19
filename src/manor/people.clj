@@ -250,24 +250,23 @@
 (defn- roll-one
   "Roll and polish one agent of the world file `wf`, whose positions are
   `table`. Returns what happened, with the :edits to write if it worked."
-  [conn llm opts wf table {agent-name :name :keys [role sex persona sketch]} seed]
+  [conn llm opts wf table {agent-name :name :keys [role sex]} seed]
   (let [entry (get table role)
         position (or (some-> (:title entry) str/lower-case) (str/replace (name role) "-" " "))
         args (generate-args role entry {:sex sex :seed (str seed "/" agent-name)
                                         :taken-names (map :name (:agents wf))})
         record (-> (mcp/call-tool conn "generate_people" args 20000) :value :people first)
-        ;; an authored character keeps their name; their age, origin and home are the sketch's
-        authored (-> record (assoc :name agent-name) (dissoc :age :origin :lives))
-        notes (or sketch persona)
+        ;; Keep identity and the world's existing home, not old descriptions.
+        ;; Age, origin and all traits come from the freshly generated record.
+        authored (-> record (assoc :name agent-name) (dissoc :lives))
         result (try (polish! llm opts {:setting (get-in wf [:meta :setting])
                                        :position position
-                                       :record authored :notes notes})
+                                       :record authored})
                     (catch Exception e {:failure (str "the polish call failed: " (ex-message e))}))
         t (traits record)]
     (cond-> {:name agent-name :args args :record record :cost (:cost result) :calls (:calls result)}
       (:failure result) (assoc :failure (:failure result))
       (:polish result) (assoc :edits (concat [[:persona (get-in result [:polish :persona])]]
-                                             (when-not (str/blank? notes) [[:sketch notes]])
                                              [[:manner (get-in result [:polish :manner])]
                                               [:appearance (get-in result [:polish :appearance])]
                                               [:sex (:sex t)]
@@ -280,21 +279,22 @@
   server, have the polish write each a persona, and write the results into
   the file in place (comments and layout kept), for review with git diff.
 
-  Every trait is rolled; nothing is pinned (decision 24). Each agent keeps
-  their name and their :sex (or else their position's); their age is rolled
-  from their position's :ages in the world's catalogue. Their old persona is
-  kept as :sketch (an existing :sketch is used instead), and the polish
-  keeps their position and situation from it but not its traits. Their
-  :situation is never touched.
+  Every trait is rolled; nothing is pinned. Names, sex (or the position's
+  default), positions, situations and other setup stay. Age and origin come
+  from the new record; the world's homes stay, so generated :lives is omitted.
+  No previous persona, sketch, manner, appearance or traits reach the polish.
+  A successful roll removes any legacy :sketch rather than preserving it.
 
   opts: :llm (a manor.llm/LLM), :model, :max-tokens, :reasoning,
-  :tool-choice, :seed (default 1), :only (agent names to roll; default
+  :tool-choice, :seed (fresh UUID by default; pass a seed to reproduce traits),
+  :only (agent names to roll; default
   all), and :dir, where the server's log (mcp-people.log) and every call
   (roll-cast.edn) are written. An agent whose polish fails is left as it
-  was. Returns {:rolled [names] :failed {name reason} :cost usd}."
-  [path {:keys [llm seed dir only] :or {seed 1} :as opts}]
+  was. Returns {:seed seed :rolled [names] :failed {name reason} :cost usd}."
+  [path {:keys [llm seed dir only] :as opts}]
   (when-not dir (throw (ex-info "roll-cast! needs a :dir for its log and record" {})))
-  (let [file (world-file-path path)
+  (let [seed (or seed (str (java.util.UUID/randomUUID)))
+        file (world-file-path path)
         text (slurp file)
         wf (edn/read-string text)
         conn (mcp/connect :people (:people mcp-servers) {:run-id "roll-cast" :run-dir (str dir)})
@@ -303,8 +303,13 @@
         results (try (mapv #(roll-one conn llm opts wf table % seed) agents)
                      (finally (mcp/close! conn)))
         rolled (filter :edits results)]
-    (spit file (reduce #(worldfile/set-agent-keys %1 (:name %2) (:edits %2)) text rolled))
+    (spit file (reduce (fn [text {:keys [name edits]}]
+                         (-> text
+                             (worldfile/remove-agent-keys name [:sketch])
+                             (worldfile/set-agent-keys name edits)))
+                       text rolled))
     (spit (io/file dir "roll-cast.edn") (with-out-str (pp/pprint {:path (str file) :seed seed :results results})))
-    {:rolled (mapv :name rolled)
+    {:seed seed
+     :rolled (mapv :name rolled)
      :failed (into {} (for [r results :when (:failure r)] [(:name r) (:failure r)]))
      :cost (reduce + 0 (keep :cost results))}))

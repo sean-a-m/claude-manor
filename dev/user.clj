@@ -154,7 +154,8 @@
   for review with git diff (see manor.people/roll-cast!). Uses the run
   defaults' model and the manor key, unless {:llm :mock}. Its log and every
   call go to test-runs/roll-cast-<time>/ (move a real one to old-test-runs/).
-  Prints and returns what was rolled and what it cost."
+  Each call uses a fresh seed unless :seed is supplied. No old descriptions
+  are reused. Prints and returns the seed, what was rolled and what it cost."
   ([path] (roll-cast! path {}))
   ([path opts]
    (let [dir (store/run-dir (store/new-run-id :roll-cast) true)
@@ -162,6 +163,7 @@
                                                (dissoc opts :llm)
                                                {:llm (if (= :mock (:llm opts)) (llm/mock people/mock-polish) (llm/openrouter))
                                                 :dir dir}))]
-     (println "Rolled" (count (:rolled result)) "people; cost $" (:cost result) "; record in" (str dir))
+     (println "Rolled" (count (:rolled result)) "people; seed" (:seed result)
+              "; cost $" (:cost result) "; record in" (str dir))
      (when (seq (:failed result)) (println "Failed:" (:failed result)))
      result)))

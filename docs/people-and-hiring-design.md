@@ -258,6 +258,34 @@ Deviations and decisions made while building:
 10. **Labels:** "a farm labourer's son" is written "a farm labourer's child", so that it suits
     anyone. Descriptors are written so that they suit a man or a woman.
 
+### 3.6 Fresh personalities on re-roll (supersedes the sketch preservation above)
+
+The user wants completely new personalities, not rewrites of the original descriptions.
+`roll-cast!` now sends the polish only the setting, position and freshly generated record,
+with the existing character's name. It never passes the old sketch, persona, manner,
+appearance, traits, or situation. Generated age and origin are retained; generated home is
+omitted, since homes are already part of the world setup. Name, sex, position, situation,
+bedroom, routine and other authored setup stay unchanged.
+
+Each invocation uses a fresh seed unless an explicit `:seed` is supplied; the seed is returned,
+printed by the REPL helper and recorded in `roll-cast.edn` for reproduction. Persona, manner,
+appearance, temperament, faculties and circumstances are overwritten on success. A successful
+roll removes any legacy sketch; failed characters and unselected characters are untouched.
+The obsolete sketches have been removed from Claudeworth and Lodge. Regression tests inspect
+the actual polish input to prove there is no sketch/persona fallback or other old-character
+input, and exercise seed recording, repeatability, selective rolls and failure preservation.
+Implementation validation used mock writers only.
+
+**User-authorized fresh Claudeworth roll:** all nine characters regenerated successfully on
+first attempts (nine calls), costing $0.011722572, under a $0.20 cap. Seed:
+`92aa754f-65bc-4ad8-ab7e-1bd7cdd1b12b`. The diff was reviewed, and every recorded first-call
+input was checked against only the setting, position and freshly generated record with the
+existing name. No old descriptions or situation were supplied. Names, sex, jobs, situations,
+locations, bedrooms and routines stayed unchanged; Lodge's personalities were not re-rolled.
+The paid record is preserved at
+`old-test-runs/claudeworth-fresh-personalities-roll-cast-20261018-224659/roll-cast.edn`.
+No real simulation was run.
+
 ## 4. Phase 2: positions
 
 ### 4.1 What's tangled now

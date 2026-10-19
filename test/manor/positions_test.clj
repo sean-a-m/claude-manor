@@ -293,8 +293,14 @@
         file (io/file dir "claudeworth.edn")
         appearance (get-in (people/mock-polish {:record {:name "Daisy" :position "scullery-maid"}})
                            [:args :appearance])
+        ;; Own the private sentinels: two rolled characters can legitimately
+        ;; share a circumstance, so the real cast's wording is not a leak test.
         _ (spit file (wf/set-agent-keys (slurp "resources/worlds/claudeworth.edn") "Daisy"
-                                       [[:appearance appearance]]))
+                                       [[:appearance appearance]
+                                        [:persona "Daisy's private persona sentinel."]
+                                        [:manner "Daisy's private manner sentinel."]
+                                        [:circumstances ["Daisy's private circumstance sentinel."]]
+                                        [:faculties {"Private faculty sentinel" :small}]]))
         policy (fn [{:keys [agent-id step]}]
                  (if (= "mrs-finch" agent-id)
                    (case step
@@ -328,7 +334,7 @@
             (is (not-any? #(contains? public %) [:persona :manner :temperament :faculties :circumstances :sketch])))
           (let [seen (str (whole-prompt run world "mrs-finch") replies)]
             (doseq [secret (concat (map daisy [:persona :manner]) (:circumstances daisy)
-                                   ["Alimentiveness" "Individuality"])]
+                                   (keys (:faculties daisy)))]
               (is (not (str/includes? seen secret)) secret))))
         (testing "the GM still sees the cast, including persona and appearance"
           (let [gm-daisy (first (filter #(= "daisy" (:id %)) (:agents (prompt/default-gm-view world))))]

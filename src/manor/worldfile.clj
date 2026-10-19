@@ -53,7 +53,6 @@
    [:location {:optional true} :string]
    [:persona {:optional true} :string]
    [:situation {:optional true} :string]
-   [:sketch {:optional true} :string]
    [:manner {:optional true} :string]
    [:appearance {:optional true} [:string {:min 1 :max 300}]]
    [:sex {:optional true} [:enum :male :female]]
@@ -318,6 +317,24 @@
                      (- key-start (line-start key-start)))]
         (str (subs s 0 value-end) "\n" (apply str (repeat indent \space))
              (pr-str k) " " (value-str v) (subs s value-end))))))
+
+(defn remove-agent-keys
+  "World file text with the named agent's keys removed, leaving other data
+  and comments untouched. Whole entry lines are removed when possible."
+  [s agent-name ks]
+  (reduce
+   (fn [^String s k]
+     (if-let [[[a _] [_ b]] (first (filter (fn [[[a b]]] (= (pr-str k) (subs s a b)))
+                                          (entries s (agent-open s agent-name))))]
+       (let [line-start (inc (.lastIndexOf s "\n" (int a)))
+             newline (.indexOf s "\n" (int b))
+             line-end (if (neg? newline) (count s) newline)
+             own-line? (and (str/blank? (subs s line-start a))
+                            (str/blank? (subs s b line-end)))]
+         (str (subs s 0 (if own-line? line-start a))
+              (subs s (if own-line? (min (count s) (inc line-end)) b))))
+       s))
+   s ks))
 
 (defn set-agent-keys
   "World file text `s` with the agent called `agent-name` given each [key

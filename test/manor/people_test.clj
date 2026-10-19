@@ -308,6 +308,75 @@
     (testing "an unknown agent is an error"
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"no agent called Zed" (wf/set-agent-keys text "Zed" [[:manner "x"]]))))))
 
+(deftest remove-agent-keys-preserves-other-data-and-layout
+  (doseq [text [";; intro\n{:agents [{:name \"Ada\"\n   :sketch \"An old\\\" description\"\n   :persona \"Keep me\"}]}\n"
+                "{:agents [{:sketch \"old\" :name \"Ada\" :persona \"Keep me\"}]}"
+                "{:agents [{:name \"Ada\"\n   :sketch \"old\" ; keep this comment\n   :persona \"Keep me\"}]}"
+                "{:agents [{:name \"Ada\" :sketch \"old\"}]}"
+                "{:agents [{:name \"Ada\" :sketch \"a multiline\ndescription\"}]}"
+                "{:agents [{:name \"Ada\" :persona \"Keep me\"}]}\n"]]
+    (let [edited (wf/remove-agent-keys text "Ada" [:sketch :absent])]
+      (is (= (update-in (edn/read-string text) [:agents 0] dissoc :sketch) (edn/read-string edited)))
+      (is (= edited (wf/remove-agent-keys edited "Ada" [:sketch])))))
+  (let [text "{:agents [{:name \"Ada\"\n   :sketch \"old\"\n   :persona \"Keep me\"}]}\n"]
+    (is (= "{:agents [{:name \"Ada\"\n   :persona \"Keep me\"}]}\n" (wf/remove-agent-keys text "Ada" [:sketch])))))
+
+(deftest reroll-never-feeds-back-old-character-descriptions
+  (let [dir (scratch-dir "fresh-personality")
+        file (io/file dir "world.edn")
+        old {:name "Ada" :role :groom :sex :male :location "stable"
+             :situation "You serve at the stable." :bedroom "room"
+             :persona "old-persona-sentinel" :sketch "original-description-sentinel"
+             :manner "old-manner-sentinel" :appearance "old-appearance-sentinel"
+             :temperament {:openness :high} :faculties {"Hope" :small}
+             :circumstances ["old-circumstance-sentinel"]}
+        template {:meta {:setting "England, 1904."} :roles {:groom {:title "Groom"}}
+                  :agents [old (assoc old :name "Ben")]}
+        requests (atom [])
+        calls (atom [])
+        model (reify llm/LLM
+                (complete [_ request]
+                  (swap! requests conj request)
+                  (polish-response good)))
+        roll (fn [opts] (people/roll-cast! (str file) (merge {:llm model :dir dir :only ["Ada"]} opts)))
+        input #(json/read-value (get-in % [:messages 1 :content]) json/keyword-keys-object-mapper)]
+    (spit file (pr-str template))
+    (with-redefs [mcp/connect (fn [& _] ::fake-connection)
+                  mcp/close! (fn [_])
+                  mcp/call-tool (fn [_ tool args _]
+                                  (swap! calls conj {:tool tool :args args})
+                                  {:value {:people [(assoc record :origin "A newly rolled origin" :lives "A generated cottage")]}})]
+      (let [result (roll {:seed 7})
+            after (edn/read-string (slurp file))
+            expected {:setting "England, 1904." :position "groom"
+                      :record (assoc record :name "Ada" :origin "A newly rolled origin")}]
+        (is (= expected (input (first @requests))))
+        (is (= (:record expected) (get-in (first @requests) [:ctx :record])))
+        (is (= 7 (:seed result)))
+        (is (= 7 (:seed (edn/read-string (slurp (io/file dir "roll-cast.edn"))))))
+        (is (= "7/Ada" (get-in (first @calls) [:args :seed])))
+        (is (= (merge (dissoc old :sketch) good (people/traits record)) (first (:agents after))))
+        (is (= (second (:agents template)) (second (:agents after))))
+        (is (= (dissoc template :agents) (dissoc after :agents)))
+        (roll {:seed 7})
+        (is (= expected (input (second @requests)))))
+      (testing "absent sketch does not make the existing persona a fallback input"
+        (spit file (pr-str (update template :agents #(mapv (fn [a] (dissoc a :sketch)) %))))
+        (roll {:seed 7})
+        (is (= (input (first @requests)) (input (last @requests)))))
+      (testing "each default invocation gets a fresh seed, recorded and returned"
+        (let [a (roll {}) b (roll {})]
+          (is (string? (:seed a)))
+          (is (not= (:seed a) (:seed b)))
+          (is (= (:seed b) (:seed (edn/read-string (slurp (io/file dir "roll-cast.edn"))))))))
+      (testing "a failed polish leaves the selected agent, including legacy keys, untouched"
+        (spit file (pr-str template))
+        (let [result (people/roll-cast! (str file) {:llm (scripted (polish-response {}) (polish-response {}))
+                                                  :dir dir :seed 8 :only ["Ada"]})]
+          (is (= template (edn/read-string (slurp file))))
+          (is (empty? (:rolled result)))
+          (is (= #{"Ada"} (set (keys (:failed result))))))))))
+
 (deftest roll-cast-with-the-mock-polish
   (if-not (bb-available?)
     (println "Skipping roll-cast: bb unavailable")
@@ -315,7 +384,7 @@
           file (io/file dir "claudeworth.edn")
           original (slurp "resources/worlds/claudeworth.edn")
           _ (spit file original)
-          roll #(people/roll-cast! (str file) {:llm (llm/mock people/mock-polish) :dir dir})
+          roll #(people/roll-cast! (str file) {:llm (llm/mock people/mock-polish) :dir dir :seed 1})
           result (roll)
           rolled (slurp file)
           before (edn/read-string original)
@@ -329,11 +398,11 @@
           (let [hobbs (first (filter #(= "Hobbs" (:name %)) (:results (edn/read-string (slurp (io/file dir "roll-cast.edn"))))))]
             (is (= {:position "butcher" :ages [25 65] :sex "male"} (select-keys (:args hobbs) [:position :ages :sex])))
             (is (= "butcher" (:position (:record hobbs)))))))
-      (testing "each keeps name, role, sex and the rest; the old persona (or sketch) is the sketch; the traits are rolled"
+      (testing "each keeps name, role, sex and the rest; no sketch is saved and the traits are rolled"
         (doseq [[a b] (map vector (:agents before) (:agents after))
                 :let [rolled-keys [:persona :sketch :manner :appearance :temperament :faculties :circumstances]]]
           (is (= (apply dissoc a rolled-keys) (apply dissoc b rolled-keys)))
-          (is (= (or (:sketch a) (:persona a)) (:sketch b)))
+          (is (not (contains? b :sketch)))
           (is (= (:situation a) (:situation b)))
           (is (str/starts-with? (:persona b) "You are the "))
           (is (str/starts-with? (:manner b) "You "))
@@ -341,16 +410,17 @@
           (is (= 5 (count (:temperament b))))
           (is (= 7 (count (:faculties b))))
           (is (<= 1 (count (:circumstances b)) 2))))
-      (testing "seed 1 rolls exactly the traits the cast has now"
-        (let [trait-keys [:sex :temperament :faculties :circumstances]]
-          (doseq [[a b] (map vector (:agents before) (:agents after))]
-            (is (= (select-keys a trait-keys) (select-keys b trait-keys)) (:name a)))))
+      (testing "traits are taken from the fresh server record, not the bundled cast"
+        (let [trait-keys [:sex :temperament :faculties :circumstances]
+              results (:results (edn/read-string (slurp (io/file dir "roll-cast.edn"))))]
+          (doseq [[result agent] (map vector results (:agents after))]
+            (is (= (people/traits (:record result)) (select-keys agent trait-keys)) (:name agent)))))
       (testing "the rest of the file, comments included, is as it was"
         (is (= (dissoc before :agents) (dissoc after :agents)))
         (is (str/includes? rolled ";; his day when nobody else is in the village")))
       (testing "the rolled file loads, and loading calls nothing"
         (is (= 9 (count (:agents (wf/load-world (str file)))))))
-      (testing "rolling again with the same seed changes nothing: the sketch is kept"
+      (testing "rolling again with the same explicit seed changes nothing with the mock writer"
         (roll)
         (is (= rolled (slurp file))))
       (testing ":only rolls just the agents named"

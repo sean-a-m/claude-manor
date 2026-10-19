@@ -1185,7 +1185,6 @@ data, so there's one source and no call.
 ```clojure
 {:name "Hale" :sex :male :role :secretary :location "secretarys-room"
  :persona "You are twenty-six, neat to the point of fussiness ..."   ; polished: the traits made concrete
- :sketch "Mr Hale, ... a little anxious to please."      ; the authored notes the polish worked from
  :manner "You seem eager and tidy ..."                   ; private guidance, at most 200
   :appearance "A young man in a neat dark suit and spectacles, standing very straight." ; public, at most 300
  :temperament {:openness :high :conscientiousness :average :extraversion :low
@@ -1198,7 +1197,8 @@ data, so there's one source and no call.
 - `load-world` checks these keys (the five axes and their levels, the sizes, `:sex` `:male` or
   `:female`, and appearance's nonempty string and 300-character limit). Loading never calls the
   people server or a model: the file holds the result.
-- `:sketch` is never shown to anyone; it's what `roll-cast!` polishes from when it rolls again.
+- There is no `:sketch` input. Old descriptions are never used to regenerate a cast;
+  a successful re-roll also removes a legacy `:sketch` if one is present.
 - The traits come from the **people server** (`mcp-servers/people/`, babashka, stateless, no
   model, no key). `generate_people {position count area setting seed taken-names sex ages}` rolls
   base records from its data files (`temperament.edn`, `faculties.edn`, `circumstances.edn`,
@@ -1224,12 +1224,17 @@ data, so there's one source and no call.
   facts are stored from the record, never from the model's text. `mock-polish` is the free responder.
 - `(roll-cast! "worlds/claudeworth.edn")` at the REPL (`clj -M:dev`; `{:llm :mock}` for a free
   one) rolls every agent in a world file afresh and writes the results, including `:appearance`,
-  into the file in place, comments and layout kept, for review with `git diff`. Every trait is rolled, with no pins. Each
-  agent keeps their `:name` and `:sex`; their old `:persona` becomes `:sketch` (an existing
-  `:sketch` is used instead), and the polish keeps their position and situation from it but not
-  its traits. Their `:situation` is never touched. The server's age, origin and home are dropped
-  for these authored characters. The same seed rolls the same traits as long as the agent's name,
-  position and sex are unchanged. The
+  into the file in place, comments and layout kept, for review with `git diff`. Every trait is
+  rolled, with no pins. Names, sex (or the position's default), roles, situations, bedrooms,
+  routines and the rest of the setup stay. Persona, manner, appearance, temperament, faculties
+  and circumstances are replaced. The polish receives only the setting, position and newly
+  generated record with the existing name: no old persona, sketch, manner, appearance, traits
+  or situation. Age and origin are newly generated; the generated home is omitted because
+  the world's housing is already authored. Legacy sketches are removed on successful rolls.
+  Each invocation uses a **fresh seed by default**, returned and saved in `roll-cast.edn`;
+  pass `{:seed 1}` (or another saved seed) to reproduce the traits. The same seed rolls the
+  same traits as long as the agent's name, position, sex and generation data are unchanged;
+  real-model prose can still differ. The
   default model and settings are the runs' (`deepseek/deepseek-v4.1-flash`, the manor key);
   `{:only ["Hobbs"]}` rolls just the agents named. The
   server log and every call go to `test-runs/roll-cast-<time>/roll-cast.edn`, with the cost. An

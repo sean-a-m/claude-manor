@@ -490,21 +490,21 @@
     (testing "everyone is asleep by 23:00 and makes no model call until they wake"
       (doseq [id ["lord-claudeworth" "lady-claudeworth" "hale" "pugh"]
               :let [{slept :round {:keys [until]} :data} (first (sleeps run id))
-                    freed (first (filter #(> (:round %) slept) (by id (of-type run :agent/freed))))
+                    freed (first (filter #(> (:round %) slept) (by id (concat (of-type run :agent/freed) (of-type run :agent/interrupted)))))
                     woke (or (:round freed) until (inc (:round world)))]]
         (is (<= slept 31) id)
         (is (= #{} (set (filter #(< slept % woke) (rounds-called run id)))) id)))
     (testing "Mr Pugh is out of play until the earl comes to the office, and again once the village is empty"
       (let [arrived (:round (first (moves-to run "lord-claudeworth" "architects-office")))
             called (rounds-called run "pugh")]
-        (is (= (inc arrived) (apply min called)))
-        (is (< (count called) 6))
-        (is (= {:activity "asleep" :hibernating? true} (w/busy world "pugh")))
+        (is (= arrived (apply min called)))
+        (is (< (count called) 10))
+        (is (= {:activity "asleep" :until 48 :asleep? true} (w/busy world "pugh")))
         (is (= "architects-lodgings" (space/location-of world "pugh")))))
-    (testing "Hale wakes at 06:30 (round 46), rouses the earl, and the earl acts at 07:00"
+    (testing "Hale wakes at 06:30 (round 46), rouses the earl, and the earl acts that round"
       (is (= 46 (:until (:data (first (sleeps run "hale"))))))
       (is (some #(and (= 46 (:round %)) (= "hale" (get-in % [:data :by]))) (by "lord-claudeworth" (of-type run :agent/interrupted))))
-      (is (contains? (rounds-called run "lord-claudeworth") 47)))
+      (is (contains? (rounds-called run "lord-claudeworth") 46)))
     (testing "the run keeps its starting world and its live map"
       (is (.exists (io/file (:dir run) "world-start.edn")))
       (is (.exists (io/file (:dir run) "map.edn"))))

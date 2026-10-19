@@ -133,18 +133,30 @@
   "Events putting agents out of play or back in, as `hibernate-fn` (the
   scenario's :hibernate) says. Each agent is decided on the world as the
   previous one left it. Travellers, human seats, and agents interrupted or
-  busy with an occupation of their own are left alone."
+  busy with an occupation of their own are left alone. `skip` gives agents
+  released this round a turn before returning to their routine."
+  ([hibernate-fn world] (hibernations hibernate-fn world #{}))
+  ([hibernate-fn world skip]
+   (second
+    (reduce (fn [[world events] a]
+              (let [evs (hibernation-change hibernate-fn world a)]
+                [(reduce w/apply-event world evs) (into events evs)]))
+            [world []]
+            (filter #(and (not (contains? skip (:id %)))
+                          (not (:travel %))
+                          (not= :human (:controller %))
+                          (or (nil? (:busy %))
+                              (and (get-in % [:busy :hibernating?]) (not (get-in % [:busy :interrupted-by])))))
+                    (w/active-agents world))))))
+
+(defn wakings
+  "Events waking uninterrupted hibernators whose routine no longer applies.
+  Unlike `hibernations`, this never puts anyone out of play mid-round."
   [hibernate-fn world]
-  (second
-   (reduce (fn [[world events] a]
-             (let [evs (hibernation-change hibernate-fn world a)]
-               [(reduce w/apply-event world evs) (into events evs)]))
-           [world []]
-           (filter #(and (not (:travel %))
-                         (not= :human (:controller %))
-                         (or (nil? (:busy %))
-                             (and (get-in % [:busy :hibernating?]) (not (get-in % [:busy :interrupted-by])))))
-                   (w/active-agents world)))))
+  (for [{:keys [id busy]} (w/active-agents world)
+        :when (and (:hibernating? busy) (not (:interrupted-by busy))
+                   (nil? (hibernate-fn world id)))]
+    (free world id)))
 
 (def speech-limit
   "The length `say` and `whisper` tell models to keep to. Their schemas allow

@@ -55,8 +55,8 @@
 
 (defn start
   ([] (start {}))
-  ([{:keys [cast appraisal opts policy] :or {cast agents appraisal (constantly {:tool :appraise :args {:lines [available]}})}}]
-   (let [sc (cond-> (assoc-in (scenario cast) [:adjudicators :shop/appraise :mock] appraisal)
+  ([{:keys [cast appraisal opts policy overrides] :or {cast agents appraisal (constantly {:tool :appraise :args {:lines [available]}})}}]
+   (let [sc (cond-> (assoc-in (merge (scenario cast) overrides) [:adjudicators :shop/appraise :mock] appraisal)
               policy (assoc :mock-policy policy))]
      (with-redefs [e/load-scenario (constantly sc)]
        (e/start-run :store-fixture
@@ -425,4 +425,76 @@
       (rounds! run 1)
       (is (empty? (get-in (e/world run) [:state :quotes])))
       (is (not-any? #(= "adjudicator/shop/appraise" (:agent %)) (store/read-llm (:dir run))))
+      (finally (e/stop-run run)))))
+
+(defn- routine-overrides
+  "The fixture clerk tends the counter when nobody is there."
+  [cast]
+  {:hibernate cw/hibernate
+   :actions (vec (concat cw/actions shop/actions))
+   :init (fn [opts]
+           (assoc-in ((:init (scenario cast)) opts) [:state :routines "clerk"]
+                     [{:from "00:00" :at "counter" :doing "tending the shop"}]))})
+
+(deftest arrivals-wake-the-clerk-in-time-to-act
+  (doseq [clerk-first? [false true]]
+    (let [cast (cond-> [{:name "Customer" :role :secretary :location "back-room"}
+                       {:name "Clerk" :role :shopkeeper :location "counter"}]
+                 clerk-first? reverse)
+          run (start {:cast cast :overrides (routine-overrides cast)
+                      :policy (fn [{:keys [agent-id used]}]
+                                (if (and (= "customer" agent-id) (empty? used))
+                                  {:tool :walk :args {:to "counter"}}
+                                  {:tool :pass}))})]
+      (try
+        (rounds! run 1)
+        (let [evs (e/events run)
+              moved (first (filter #(= :agent/moved (:type %)) evs))
+              freed (first (filter #(= :agent/freed (:type %)) evs))
+              passed (filter #(= :agent/passed (:type %)) evs)]
+          (is (= "clerk" (:actor freed)))
+          (is (< (:id moved) (:id freed)))
+          (is (= ["customer" "clerk"] (mapv :actor passed)))
+          (is (= [1 1] (mapv :round passed)))
+          (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
+        (finally (e/stop-run run))))))
+
+(deftest wakings-only-wake-nearby-hibernators
+  (let [run (start {:cast [{:name "Customer" :role :secretary :location "back-room"}
+                           {:name "Clerk" :role :shopkeeper :location "counter"}]})]
+    (try
+      (let [world (assoc-in (e/world run) [:state :routines "clerk"]
+                            [{:from "00:00" :at "counter" :doing "tending the shop"}])
+            hib (w/apply-event world (b/hibernate world "clerk" "tending the shop"))]
+        (doseq [place ["village-green" "other-shop"]]
+          (is (empty? (b/wakings cw/hibernate (assoc-in hib [:agents "customer" :location] place)))))
+        (is (empty? (b/wakings cw/hibernate
+                              (assoc-in world [:agents "customer" :location] "counter")))
+            "a waking pass never hibernates someone who is awake"))
+      (finally (e/stop-run run)))))
+
+(deftest departing-customers-dont-hibernate-the-clerk-mid-round
+  (let [run (start {:overrides (routine-overrides agents)
+                    :policy (fn [{:keys [agent-id used]}]
+                              (if (and (= "customer" agent-id) (empty? used))
+                                {:tool :walk :args {:to "back-room"}}
+                                {:tool :pass}))})]
+    (try
+      (rounds! run 1)
+      (is (nil? (w/busy (e/world run) "clerk")))
+      (is (= ["customer" "clerk"] (mapv :actor (filter #(= :agent/passed (:type %)) (e/events run)))))
+      (finally (e/stop-run run)))))
+
+(deftest released-workers-get-one-turn-before-hibernation
+  (let [cast [{:name "Customer" :role :secretary :location "back-room"}
+              {:name "Clerk" :role :shopkeeper :location "counter"}]
+        run (start {:cast cast :overrides (routine-overrides cast)
+                    :policy (constantly {:tool :pass})})]
+    (try
+      (e/emit! run [(b/occupy (e/world run) "clerk" "writing the account" 1)])
+      (rounds! run 1)
+      (is (nil? (w/busy (e/world run) "clerk")))
+      (rounds! run 1)
+      (is (b/hibernating? (e/world run) "clerk"))
+      (is (= [1] (mapv :round (filter #(and (= :agent/passed (:type %)) (= "clerk" (:actor %))) (e/events run)))))
       (finally (e/stop-run run)))))

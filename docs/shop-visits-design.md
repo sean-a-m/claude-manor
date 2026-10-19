@@ -1,7 +1,8 @@
 # Shop visits in one turn: design
 
-**Status:** proposed, nothing implemented. The empty-shop judge bug (below) is being fixed
-separately with world-file data on branch `shop-counter-items`.
+**Status:** Phase 1 implemented and checked offline. Phase 2 and the real-run check pending.
+The empty-shop judge bug (below) is being fixed separately with world-file data on branch
+`shop-counter-items`.
 
 Read `AGENTS.md` first, then "Conversations", "Hibernation", "Turn order: `:schedule`" and
 "Internal adjudication queries" (the shop's quotes) in `docs/scenario-authoring.md`,
@@ -126,6 +127,9 @@ guide ("Turn order: `:schedule`" and "Hibernation") need updating.
 - An agent whose job ends isn't hibernated that round; next round, idle and alone, they are.
 - `rouse` after the target's slot gives them a turn in the trailing pass.
 - Replay still reproduces the live world (the wakings are ordinary `:agent/freed` events).
+
+Phase 1 also updates existing interruption/day tests: interruptions now get a same-round
+turn, and released routine agents can choose their own sleep instead of hibernating.
 
 ## Phase 2: quoting inside a conversation
 

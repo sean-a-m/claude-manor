@@ -240,7 +240,11 @@
        (if-let [reason (a/check action world actor args)]
          {:rejected reason}
          (do (when-not keep-occupation? (stop-interrupted! run actor action))
-             (emit! run (action-events action @(:world run) actor args))
+             (let [events (action-events action @(:world run) actor args)]
+               (emit! run events)
+               (when (some #(= :agent/moved (:type %)) events)
+                 (when-let [hibernate (:hibernate (:scenario run))]
+                   (emit! run (b/wakings hibernate @(:world run))))))
              {:ok true :world @(:world run)}))))))
 
 (defn- reply-text [data]
@@ -796,9 +800,10 @@
 ;; Rounds
 
 (defn- schedule
-  "Groups of agents to act this round. Travellers and occupied agents are skipped."
+  "Groups of active agents in spawn order, or the scenario's custom groups.
+  Eligibility is checked when each group runs, allowing mid-round wakings."
   [run world]
-  (let [ids (mapv :id (remove #(or (:travel %) (and (:busy %) (not (get-in % [:busy :interrupted-by])))) (w/active-agents world)))
+  (let [ids (mapv :id (w/active-agents world))
         s (or (:schedule (:scenario run)) :round-robin)]
     (cond
       (fn? s) (s world)
@@ -834,7 +839,8 @@
               {:keys [action args]} finals]
         (when-let [reason (:rejected (resolve! run agent-id action args))]
           (emit! run [{:type :action/rejected :actor agent-id :visible-to #{agent-id}
-                       :data {:action (name (:name action)) :reason reason}}]))))))
+                       :data {:action (name (:name action)) :reason reason}}]))))
+    results))
 
 (defn- ask-judge
   "Ask the judge what `job` did to the judged `things` (see
@@ -976,15 +982,26 @@
                    ;; decided before releases, so a worker whose job is due still holds it
                    (let [ending (items/ending-jobs @(:world run))]
                      (emit! run (space/arrivals @(:world run)))
-                     (emit! run (b/releases @(:world run)))
-                     (when-let [hibernate (:hibernate (:scenario run))]
-                       (emit! run (b/hibernations hibernate @(:world run))))
+                     (let [released (b/releases @(:world run))]
+                       (emit! run released)
+                       (when-let [hibernate (:hibernate (:scenario run))]
+                         (emit! run (b/hibernations hibernate @(:world run) (set (map :actor released))))))
                      ending)))
     (run-steward! run)
     (run-approved-bridges! run)
     (run-systems! run)
-    (doseq [group (schedule run @(:world run))]
-      (run-group! run group))
+    (let [acted (reduce (fn [acted group]
+                          (into acted (map :agent-id (run-group! run group))))
+                        #{} (schedule run @(:world run)))]
+      ;; One fixed trailing pass, only for default schedules. A later waking
+      ;; during this pass waits until next round.
+      (when-not (fn? (:schedule (:scenario run)))
+        (let [late (for [{:keys [id travel busy]} (w/active-agents @(:world run))
+                         :when (and (not (contains? acted id)) (not travel)
+                                    (or (nil? busy) (:interrupted-by busy)))]
+                     id)]
+          (doseq [id (vec late)]
+            (run-group! run [id])))))
     (maybe-run-gm! run)
     (emit! run [{:type :round/ended :data {:round round} :visible-to :all}])
     (pause-reasons run)))

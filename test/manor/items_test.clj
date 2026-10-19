@@ -627,25 +627,25 @@
         (e/stop-run run)))))
 
 (deftest stopping-early-or-carrying-on
-  (let [run-with (fn [ben-round-3]
+  (let [run-with (fn [ben-round-2]
                    (let [judged (atom [])
-                         ;; Ada rouses Ben in round 2; in round 3 Ben decides
+                         ;; Ada rouses Ben in round 2; Ben decides in his slot that round
                          policy (scripted {"ada" {1 [{:tool :pass}]
                                                   2 [{:tool :rouse :args {:who "ben"}} {:tool :pass}]}
                                            "ben" {1 [(work ["clock"] "winding the clock" 2)]
-                                                  3 ben-round-3}}
+                                                  2 ben-round-2}}
                                           :judged judged)]
                      [(start {:llm-impl (llm/mock policy)}) judged]))]
     (testing "stopping after the interruption: judged on the time really worked"
       (let [[run judged] (run-with [{:tool :say :args {:text "Coming!"}}])]
-        (rounds! run 3)
+        (rounds! run 2)
         (is (= 1 (count (of-type run :item/work-begun))))
         (is (empty? @judged) "the job is judged as the next round starts")
         (rounds! run 1)
         (let [[done] (of-type run :item/work-done)]
-          (is (= 4 (:round done)))
-          (is (= {:minutes 60 :stopped-early? true} (select-keys (:data done) [:minutes :stopped-early?])))
-          (is (= {:minutes 60 :stopped-early? true} (select-keys (first @judged) [:minutes :stopped-early?])))
+          (is (= 3 (:round done)))
+          (is (= {:minutes 30 :stopped-early? true} (select-keys (:data done) [:minutes :stopped-early?])))
+          (is (= {:minutes 30 :stopped-early? true} (select-keys (first @judged) [:minutes :stopped-early?])))
           (is (= "Ben leaves off winding the clock. (Grandfather clock: just seen to)."
                  (n/describe done (n/names (e/world run))))))
         (is (= clock-seen-to (aspects run "clock")))

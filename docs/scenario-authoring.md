@@ -1406,7 +1406,7 @@ and are freed at the start of that round. This makes nights and long activities 
   narration and also sees the event.
 - `(b/interrupt world id by)` is the event a `rouse` action returns: it marks the occupation
   interrupted (`:interrupted-by`), visible to everyone present plus `by`. The agent gets a turn
-  next round even though busy. In that turn, the built-in `carry-on` returns `(b/resume world id)`,
+  this round if they have not acted yet (with default schedules), even though busy. In that turn, the built-in `carry-on` returns `(b/resume world id)`,
   which keeps the occupation and its original deadline; any other accepted action frees them first
   (the engine does this, so each action needs no rule of its own). A rejected or undecodable call
   does not free them; a forfeit or a failed turn calls `(b/resume world id)`, so the occupation
@@ -1423,7 +1423,8 @@ An agent nobody is near (the village architect on a day without clients) can be 
 with no end time, and woken when someone comes near. Set `:hibernate` to
 `(fn [world agent-id] {:activity "at his drawing board" :location "architects-office"} or nil)`.
 At the start of every round, after travellers arrive and occupations end, the engine asks it about
-each agent who is free or already hibernating:
+each agent who is free or already hibernating, except anyone whose own occupation just ended:
+they get one turn before returning to their routine next round.
 
 - not nil, for an agent who is free: the engine moves them to `:location` (optional; an
   `:agent/moved` that people at both ends see) and occupies them with `(b/hibernate world id
@@ -1438,6 +1439,10 @@ Agents busy on their own account (`sleep`, `spend-time`), travellers, human seat
 agents are left alone. `rouse` works on a hibernating agent as on anyone busy; the agent's view and
 the narration leave out the end time. `(b/hibernating? world id)` tells you whether someone is
 hibernating. Agents are decided one at a time, each on the world as the previous one left it.
+
+After an action emits `:agent/moved`, the engine also checks `(b/wakings hibernate-fn world)`:
+uninterrupted hibernators whose function now returns nil are freed immediately. Nobody is put
+out of play mid-round. A customer can therefore walk in and talk to a clerk at once.
 
 Decide in the function who counts as company, and don't count other hibernating agents, or two
 idle agents keep each other awake. Keep it narrow (Claudeworth counts the agent's place and the
@@ -1489,7 +1494,13 @@ on with it. It uses nobody else's turn either.
   in spawn order afterwards; losers get a private `:action/rejected` event. Free and query actions
   still apply immediately.
 - `(fn [world] [[ids ...] ...])`: custom groups. Use `(manor.world/active-agents world)` (it
-  excludes the GM). Inactive, travelling and occupied agents are filtered out automatically.
+  excludes the GM). Inactive, travelling and occupied agents are filtered out when each group runs.
+
+The defaults schedule all active agents, checking travel and occupation at each group
+(not just at round start). After those groups, one trailing pass gives a turn in spawn order
+to agents now free or interrupted, not travelling, who have not acted this round. Its candidates
+are fixed before the pass: someone woken during it waits until next round. Custom schedule
+functions keep control of their groups and get no trailing pass.
 
 ### GM triggers and pausing
 

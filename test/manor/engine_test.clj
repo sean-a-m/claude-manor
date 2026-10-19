@@ -242,15 +242,8 @@
       @(e/place! run "ada" "bedroom")
       (e/emit! run [(b/occupy (e/world run) "ada" "asleep" 8)])
       (rounds! run 1)
-      (is (= #{"ben"} (set (map first @seen))))
-      (is (= "ben" (:interrupted-by (w/busy (e/world run) "ada"))))
-      (is (= {:activity "asleep" :until "Sun 00:30" :interrupted-by "Ben"}
-             (get-in (prompt/agent-view (:scenario run) (e/world run) "ada") [:you :busy])))
-      ;; No further interruptions: Ben also becomes busy, and must not get a turn.
-      (e/emit! run [(b/occupy (e/world run) "ben" "reading" 8)])
-      (reset! seen [])
-      (rounds! run 1)
-      (is (= ["ada"] (mapv first @seen)))
+      (is (= ["ben" "ada"] (mapv first @seen)) "Ada decides in the trailing pass")
+      (is (= "ben" (:interrupted-by (nth (first (filter #(= "ada" (first %)) @seen)) 2))))
       (if (#{:pass :note :query} decision)
         (let [freed (first (of-type run :agent/freed))]
           (is (nil? (w/busy (e/world run) "ada")))

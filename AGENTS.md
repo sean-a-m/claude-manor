@@ -67,6 +67,11 @@ These came from the design conversation; respect them unless told otherwise.
   reject good text and miss new wordings. Check structure instead (schemas, lengths, ids that
   exist, values from a list), shape behaviour with instructions, and review generated content at
   the point it's made (`git diff` after `roll-cast!`). Regexes on identifiers and formats are fine.
+- **Don't design around server outages.** The MCP servers (people, architect, pi) run on the
+  same machine as the engine, so don't add fallbacks, retries or degraded modes for one being
+  down. If one fails, the existing error handling (a neutral error reply, a pause) is enough;
+  it gets fixed rather than played around. This isn't about a model's bad answers, which the
+  checked-answer retry handles, or the cost cap, which can still stop calls.
 - The user wants to try **generating other scenarios**. The prerequisites are roadmap section A.
 
 ## Layout

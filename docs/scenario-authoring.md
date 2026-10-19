@@ -64,6 +64,7 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :systems       [...]                    ; optional, per-round world processes
    :items         {:judge-brief (fn [world] "...")}   ; optional, turns on items (see Items)
    :hibernate     (fn [world agent-id] {:activity .. :location ..} or nil)  ; optional, see Hibernation
+   :reference     (fn [world agent-id] {...})   ; optional: facts that rarely change, in the system prompt
    :observe       (fn [world agent-id] {...})   ; strongly recommended
    :gm-view       (fn [world] {...})       ; optional, what the GM sees
    :schedule      :round-robin             ; or :simultaneous, or (fn [world] [[ids] ...])
@@ -447,6 +448,28 @@ adds:
 Rules: include only what this agent may know: its own holdings, public facts, and things at its
 location. This is the fog of war. Never return another agent's private data. Keep it compact; it
 is sent on every model call.
+
+### `:reference` and how a request is laid out
+
+The provider caches prompts: a request that starts the same way as an earlier one pays about 2% of
+the input price for the shared start. So requests are laid out with what rarely changes first:
+
+1. the system message: one preamble for turns and conversations alike, the role's `:brief`, who
+   they are, their situation, and `## Reference`, the agent's `:reference` as JSON;
+2. the tools, in declaration order, with actions that have an `:available?` check last;
+3. the user message: the recent events (oldest first), then `# Now:` with the time, the
+   `:observe` view, the notes, and last what is asked now (`## Your turn`, or `## The
+   conversation` with how to answer).
+
+The event window shows at least `:event-window` events and fewer than twice that: its start
+jumps forward only every `:event-window` events, so between jumps it just grows at the end.
+
+`:reference` is `(fn [world agent-id] map)`: what the agent may know that rarely changes, such as
+the places by area or a catalogue of positions. Anything in the system message that changes
+makes the provider re-read everything after it (tools, events and view), so keep what changes
+often in `:observe`, and don't put it in a `:brief` function either. Claudeworth's `reference`
+has its places and hiring's meeting place and positions. The same privacy rule holds as for
+`:observe`: only what this agent may know.
 
 `:gm-view` defaults to `{:state .. :agents [..] :space .. :items [..] :item-jobs [..]}` (the GM is
 omniscient; `:space` and `:items` only when the world has them, `:item-jobs` while work is going on).
@@ -1544,7 +1567,10 @@ update its configuration test, but should not require changing unrelated mechani
 - Returning functions or Java objects in event `:data`: the log can't be written or read back.
 - Tool names with namespaces (`:my/dig`): only the name part is used, so names can collide.
 - Hiding a tool with `:available?` when a `:valid?` reason would teach the model where to go.
-- Long `:observe` maps: they are sent on every model call.
+- Long `:observe` maps: they are sent, at the full input price, on every model call. Move what
+  rarely changes to `:reference`, where the provider's cache makes it cheap.
+- Something that changes often in a `:brief` function or `:reference`: everything after it is read
+  at the full price again.
 - A GM trigger that stays true: a paid GM call every round.
 - `:on-result` events for act bridges without `:actor`.
 - Letting the model choose a session or account id for an MCP tool instead of setting it in

@@ -76,7 +76,9 @@ The scenario boundary is already clean: the engine only reads the keys listed in
 - **Why:** some scenarios need different framing (a debate, a game without speech, a non-human
   world). Today the preamble and built-ins are fixed.
 - **Now:**
-  - `prompt/agent-preamble`, `prompt/gm-preamble` and the "Take your turn now." line are constants.
+  - `prompt/agent-preamble`, `prompt/gm-preamble`, `prompt/turn-closing` and the conversation
+    rules are constants. The agent preamble is shared by turns and conversations so they share the
+    prompt cache; keep it so with any override.
   - Built-ins (`builtins/agent-actions`, `space/actions`, `builtins/gm-actions`) are always merged
     in. Scenarios can override them by name, and remove them with `:exclude-actions` (done
     2026-10-15).
@@ -216,11 +218,12 @@ pi state on branches is for the GM/orchestrator to handle later; no cost limits 
 
 ### B6. Cost and context controls
 
-- Prompt caching hints for providers that support them. The system prompt is already static and
-  first; Anthropic models via OpenRouter need `cache_control` on content blocks.
+- Prompt caching hints for providers that support them. Requests are laid out for prefix caching
+  (stable system message with `:reference`, fixed tool order, a jumping event window, the volatile
+  view last), which DeepSeek's automatic cache uses; Anthropic models via OpenRouter would also need
+  `cache_control` on content blocks.
 - Per-agent token or cost budgets (pause or switch to a cheaper model when exceeded).
 - A fallback model on provider errors.
-- Compact `:observe` JSON (no pretty printing) as an option.
 
 ### B7. State held by locations: largely done
 

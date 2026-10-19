@@ -330,7 +330,7 @@ es.addEventListener('status',refresh);
               [:section [:h2 "Their view of the world"]
                [:pre (if (= :gm (:role ag))
                        "The GM sees the full world state."
-                       (prompt/->json (prompt/agent-view (:scenario run) world id)))]]
+                       (prompt/->pretty-json (prompt/agent-view (:scenario run) world id)))]]
               [:section [:h2 "Notes"]
                [:pre (str/join "\n" (map #(str "[r" (:round %) "] " (:text %)) (:notes ag)))]]
               [:section [:h2 "Tools"]

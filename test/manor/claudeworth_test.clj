@@ -733,10 +733,12 @@
         (is (str/includes? system "Each turn is half an hour of game time"))
         (is (str/includes? system "at most 1000 characters"))
         (is (str/includes? system "any character can `commission`"))))
-    (testing "opening hours appear only in the view, from :hours"
+    (testing "opening hours appear only in the view and the reference, from :hours, not in the brief"
       (doseq [id ["lord-claudeworth" "lady-claudeworth" "hale" "pugh"]
-              :let [system (:content (first (prompt/agent-messages (:scenario run) world (e/events run) id {})))]]
-        (is (not (re-find #"\d\d:\d\d-\d\d:\d\d|09:00|18:00" system)) id)))
+              :let [system (:content (first (prompt/agent-messages (:scenario run) world (e/events run) id {})))
+                    [brief reference] (str/split system #"\n\n## Reference\n")]]
+        (is (not (re-find #"\d\d:\d\d-\d\d:\d\d|09:00|18:00" brief)) id)
+        (is (str/includes? reference "\"id\":\"architects-office\",\"name\":\"Architect's office\",\"open\":\"09:00-18:00\"") id)))
     (testing "the GM brief has the setting too, and the no-income guard"
       (is (str/includes? (:content (first (prompt/gm-messages (:scenario run) world (e/events run) ["test"] {})))
                          (get-in world [:state :setting])))

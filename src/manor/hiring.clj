@@ -302,13 +302,20 @@
     :args [:map] :valid? (fn [world actor _] (present-candidate-reason world actor actor))
     :effect (fn [world actor _] (departure world actor "takes leave"))}])
 
-(defn observe
-  "Only known candidates and the viewer's reputations/agreements, never raw records."
-  [world id]
+(defn reference
+  "What everyone may need and that rarely changes: the meeting place and the
+  positions (anyone may be asked to recommend someone for one). For a
+  scenario's :reference, where the prompt cache can reuse it."
+  [world]
   {:meeting-place (get-in world [:state :meeting-place])
    :positions (mapv (fn [[id p]] {:id id :title (:title p) :sleeps (:sleeps p)})
-                    (sort-by key (dissoc (get-in world [:state :positions]) :gm :none)))
-   :candidates (mapv #(select-keys % [:id :name :seeks :status :agent-id])
+                    (sort-by key (dissoc (get-in world [:state :positions]) :gm :none)))})
+
+(defn observe
+  "Only known candidates and the viewer's reputations/agreements, never raw
+  records. The meeting place and positions are in `reference`."
+  [world id]
+  {:candidates (mapv #(select-keys % [:id :name :seeks :status :agent-id])
                      (filter #(contains? (:known-to %) id) (ordered world)))
    :reputations (get-in world [:state :reputations id] {})
    :place-offers (filterv (fn [offer] (or (= id (:who offer)) (= id (:employer offer))))

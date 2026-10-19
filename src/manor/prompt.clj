@@ -1,9 +1,17 @@
 (ns manor.prompt
   "Builds every model request from scratch each turn. An agent's prompt is
   made only from: its role brief, its persona and its own traits, how it is
-  addressed, its own situation, its own notes, the scenario's `observe`
-  projection for that agent, and the events visible to it. The full world
-  never goes into an agent prompt."
+  addressed, its own situation, its own notes, the scenario's `reference` and
+  `observe` projections for that agent, and the events visible to it. The
+  full world never goes into an agent prompt.
+
+  Requests are laid out for the provider's prompt cache, which reuses the
+  longest start a request shares with an earlier one: what rarely changes
+  comes first (the system message: one preamble for every kind of call, the
+  role, who they are, their situation and the reference), then the tools,
+  then the recent events (a window that only grows between jumps), and last
+  what changes every call: the time, the view, the notes and what is asked
+  of them now."
   (:require [clojure.string :as str]
             [jsonista.core :as json]
             [manor.clock :as clock]
@@ -15,23 +23,44 @@
             [manor.space :as space]
             [manor.world :as w]))
 
-(def ^:private mapper (json/object-mapper {:pretty true}))
+(def ^:private pretty-mapper (json/object-mapper {:pretty true}))
 
-(defn ->json [x] (json/write-value-as-string x mapper))
+(defn ->json
+  "Compact JSON, for what models read: indentation costs tokens."
+  [x]
+  (json/write-value-as-string x))
+
+(defn ->pretty-json
+  "Indented JSON, for people (the control panel)."
+  [x]
+  (json/write-value-as-string x pretty-mapper))
 
 (def ^:private round-markers #{:round/started :round/ended})
 
+(defn- window
+  "The latest of `xs` to show: at least `n` (all of them if there are fewer)
+  and fewer than 2n. The first one shown moves on only every `n` new ones, so
+  between those jumps the window just grows at its end, and a prompt that
+  holds it starts the same way as the last one (the provider's prompt cache
+  can reuse it)."
+  [n xs]
+  (let [extra (- (count xs) n)]
+    (cond (not (pos? n)) ()
+          (pos? extra) (drop (* n (quot extra n)) xs)
+          :else xs)))
+
 (defn visible-events
-  "The last `n` events `viewer` can see, oldest first. Usage bookkeeping is
-  never shown to agents or the GM. With `hide-rounds?`, round start and end
-  markers are left out too (with a clock, every line carries its time)."
+  "The latest events `viewer` can see, oldest first: at least the last `n`
+  and fewer than 2n (see `window`). Usage bookkeeping is never shown to
+  agents or the GM. With `hide-rounds?`, round start and end markers are left
+  out too (with a clock, every line carries its time)."
   ([events viewer n] (visible-events events viewer n false))
   ([events viewer n hide-rounds?]
    (->> events
         (filter #(and (w/visible-to? % viewer)
                       (not= :llm/usage (:type %))
                       (not (and hide-rounds? (round-markers (:type %))))))
-        (take-last n))))
+        (window n))))
 
 (defn- stamp
   "Line prefix for something that happened in `round`: [09:30] with a clock, else [r3]."
@@ -67,15 +96,27 @@
     (str "Round " (:round world))))
 
 (def agent-preamble
-  "You are a participant in a turn-based simulation. Each round you get your current private view of the world and the recent events you witnessed.
+  "The system message of every agent request, for turns and conversations
+  alike, so the two share it in the provider's cache. What differs between
+  them goes at the end of the request (`turn-closing`, `conversation-closing`)."
+  "You are a participant in a turn-based simulation. You act only by calling tools.
 
+Each message to you has the same parts, in this order:
+- Recent events you witnessed, oldest first: the newest are last.
+- Now: the time, your current private view of the world, and your notes.
+- What is asked of you now (your turn, or your line in a conversation), and how to answer.
+
+Your view is private. Others only learn what is public or what someone tells them. Stay in character and pursue your goals.")
+
+(def turn-closing
+  "## Your turn
 How to act:
-- You act only by calling tools. Each round you take exactly ONE turn-ending action (a tool marked \"Ends your turn\").
+- Each round you take exactly ONE turn-ending action (a tool marked \"Ends your turn\").
 - Free tools and query tools do not end your turn; use them first if they help, then take your action.
 - If an action is rejected you will be told why and may try again once.
 - If there is nothing useful to do, call `pass`.
 
-Your view is private. Others only learn what is public or what someone tells them. Stay in character and pursue your goals.")
+Take your turn now.")
 
 (defn agent-view
   "Everything an agent is shown about the world: the scenario's `observe`
@@ -122,45 +163,50 @@ Your view is private. Others only learn what is public or what someone tells the
                               (when-not (str/blank? (:appearance a)) (str "What people see: " (:appearance a)))
                               (people/nature a)]))))
 
+(defn- reference-text
+  "The scenario's :reference for `agent-id`, facts that rarely change (a
+  map, the places, a catalogue), as a system-prompt section, or nil."
+  [scenario world agent-id]
+  (when-let [reference (some-> (:reference scenario) (apply [world agent-id]) not-empty)]
+    (str "\n\n## Reference\nFacts that rarely change:\n```json\n" (->json reference) "\n```")))
+
 (defn- agent-request
-  "An agent's request: `preamble`, their role, who they are and their
-  situation, then their view, notes and recent events, and `closing`. Their
-  role's :brief comes from the scenario's :roles, or else its :agent-brief."
-  [scenario world events agent-id {:keys [event-window]} preamble closing]
+  "An agent's request. The system message: the preamble, their role, who
+  they are, their situation and the reference. The user message: the recent
+  events, then the time, their view and notes, and `closing`. Their role's
+  :brief comes from the scenario's :roles, or else its :agent-brief."
+  [scenario world events agent-id {:keys [event-window]} closing]
   (let [a (w/agent world agent-id)
         brief (or (get-in scenario [:roles (:role a) :brief]) (:agent-brief scenario))
         view (agent-view scenario world agent-id)
         notes (:notes a)]
     [{:role "system"
-      :content (str preamble
+      :content (str agent-preamble
                     "\n\n## Your role\n" (brief-text brief world agent-id)
                     "\n\n## Who you are\n" (who-you-are world agent-id)
-                    (when-not (str/blank? (:situation a)) (str "\n\n## Your situation\n" (:situation a))))}
+                    (when-not (str/blank? (:situation a)) (str "\n\n## Your situation\n" (:situation a)))
+                    (reference-text scenario world agent-id))}
      {:role "user"
-      :content (str "# " (heading world)
+      :content (str "## Recent events you witnessed\n"
+                    (event-lines world
+                                 (visible-events events agent-id (or event-window 30) (some? (:clock world)))
+                                 (narrate/names world))
+                    "\n\n# Now: " (heading world)
                     "\n\n## Your view\n```json\n" (->json view) "\n```"
                     "\n\n## Your notes\n"
                     (if (seq notes)
                       (str/join "\n" (map #(str "- " (stamp world (:round %)) " " (:text %)) (take-last 15 notes)))
                       "(none)")
-                    "\n\n## Recent events you witnessed\n"
-                    (event-lines world
-                                 (visible-events events agent-id (or event-window 30) (some? (:clock world)))
-                                 (narrate/names world))
                     "\n\n" closing)}]))
 
 (defn agent-messages
   [scenario world events agent-id opts]
-  (agent-request scenario world events agent-id opts agent-preamble "Take your turn now."))
+  (agent-request scenario world events agent-id opts turn-closing))
 
-(defn- conversation-preamble [initiator?]
-  (str "You are a participant in a turn-based simulation, and you are in a conversation. "
-       (if initiator?
-         "You started it during your turn: when it's over, you carry on with your turn."
-         "This is not your own turn: talking here doesn't use it up, and doesn't stop anything you are busy with.")
-       "
-
-How to answer:
+(defn- how-to-answer
+  "The rules of a speaking turn, for the conversation's closing."
+  [initiator?]
+  (str "How to answer:
 - Call exactly ONE of "
        (if initiator?
          "`reply` (say your line) or `end-conversation` (end it now)."
@@ -171,9 +217,7 @@ How to answer:
 - Keep each line to a few sentences, at most " conversation/line-limit " characters, spoken as your character to the people in the conversation.
 - Say something new, or don't speak: when the matter is settled, "
        (if initiator? "`end-conversation`" "`stay-silent` or `leave`")
-       " rather than repeat it or say goodbye again.
-
-Your view is private. Others only learn what is public or what someone tells them. Stay in character and pursue your goals."))
+       " rather than repeat it or say goodbye again."))
 
 (defn- and-list [xs]
   (if (next xs) (str (str/join ", " (butlast xs)) " and " (last xs)) (first xs)))
@@ -188,6 +232,10 @@ Your view is private. Others only learn what is public or what someone tells the
         gone (remove (set in) members)
         busy (w/busy world agent-id)]
     (str "## The conversation\n"
+         (if you?
+           "You are in a conversation. You started it during your turn: when it's over, you carry on with your turn."
+           "You are in a conversation. This is not your own turn: talking here doesn't use it up, and doesn't stop anything you are busy with.")
+         "\n\n"
          (if you? "You started a conversation here with " (str (nm initiator) " started a conversation here with "))
          (and-list (map #(if (= % agent-id) "you" (nm %)) (rest members))) ". "
          "Everyone speaks in turn, " (if you? "you" (nm initiator)) " first, up to " conversation/passes
@@ -199,6 +247,7 @@ Your view is private. Others only learn what is public or what someone tells the
            (str "\n\nYou are busy " (:activity busy)
                 (when-let [u (:until busy)] (str " until " (narrate/at names u)))
                 "; talking doesn't stop it."))
+         "\n\n" (how-to-answer you?)
          "\n\n"
          (cond final? "This is your last word: call `reply` with a closing line, or `end-conversation` to end it without one."
                you? (str "Pass " pass " of " conversation/passes ". Your turn: call `reply` with your line, or `end-conversation` to end it now.")
@@ -210,13 +259,14 @@ Your view is private. Others only learn what is public or what someone tells the
   members still in it."
   [scenario world events agent-id opts conv turn]
   (agent-request scenario world events agent-id opts
-                 (conversation-preamble (= agent-id (:initiator conv)))
                  (conversation-closing world agent-id conv turn)))
 
 (def gm-preamble
   "You are the game master of a turn-based simulation. The engine enforces the rules and runs the world; you step in only when called, and you should intervene lightly. You see everything, including private information. Never reveal one participant's private information to another.
 
-You act only by calling tools. You may take a few actions; call `done` when finished. If nothing is needed, call `done` immediately.")
+You act only by calling tools. You may take a few actions; call `done` when finished. If nothing is needed, call `done` immediately.
+
+Each message to you gives the recent events, oldest first, then the time now and why you were called, the requests addressed to you, and the world state.")
 
 (defn- gm-state
   "The world's :state for the default GM view, without what the GM brief
@@ -249,7 +299,9 @@ You act only by calling tools. You may take a few actions; call `done` when fini
       :content (str gm-preamble
                     (when-let [b (get-in scenario [:roles :gm :brief])] (str "\n\n## This world\n" (brief-text b world))))}
      {:role "user"
-      :content (str "# " (heading world)
+      :content (str "## Recent events\n"
+                    (event-lines world (visible-events events :gm (or event-window 40)) (narrate/names world))
+                    "\n\n# Now: " (heading world)
                     (when (:clock world) (str " (round " (:round world) ")"))
                     " - you were called because:\n"
                     (str/join "\n" (map #(str "- " %) reasons))
@@ -258,6 +310,4 @@ You act only by calling tools. You may take a few actions; call `done` when fini
                       (str/join "\n" (map #(str "- " (stamp world (:round %)) " " (:from %) ": " (:text %)) inbox))
                       "(none)")
                     "\n\n## World state\n```json\n" (->json (gm-view world)) "\n```"
-                    "\n\n## Recent events\n"
-                    (event-lines world (visible-events events :gm (or event-window 40)) (narrate/names world))
                     "\n\nDecide what, if anything, to do.")}]))

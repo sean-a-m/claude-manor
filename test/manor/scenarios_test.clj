@@ -72,7 +72,7 @@
           (is (empty? (filter #(= :action/forfeited (:type %)) (e/events run))))
           (is (not-any? #(re-find #"^(error:|rejected:)" (:content % "")) replies)))
         (testing "the countess opened the sideboard and found the candlesticks"
-          (is (some #(re-find #"\"id\" : \"silver-candlesticks\"" (:content % "")) replies)))
+          (is (some #(re-find #"\"id\":\"silver-candlesticks\"" (:content % "")) replies)))
         (testing "Nellie put the candlesticks back and the brushes away"
           (is (= "sideboard" (in world "silver-candlesticks")))
           (is (= "kitchen-dresser" (in world "blacking-brushes")))

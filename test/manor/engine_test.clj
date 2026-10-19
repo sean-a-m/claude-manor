@@ -270,7 +270,7 @@
         gm-msg (:content (second (prompt/gm-messages (:scenario run) world evs ["test"] {})))
         view (prompt/agent-view (:scenario run) world "ben")]
     (testing "the header and event lines use the time, not rounds"
-      (is (str/starts-with? user-msg "# Saturday 15 October 1904, 22:00"))
+      (is (str/includes? user-msg "\n# Now: Saturday 15 October 1904, 22:00\n"))
       (is (str/includes? user-msg "[21:00] Ada goes from Hall to Bedroom."))
       (is (not (str/includes? user-msg "--- Round")))
       (is (not (re-find #"\[r\d" user-msg))))
@@ -479,7 +479,7 @@
       (let [reminder (last-message (earl 2))]
         (is (str/includes? reminder "free tools, queries and rejected calls don't end it"))
         (is (not (re-find #"\d+ calls|used\)" reminder)) "it doesn't count calls")
-        (is (str/includes? reminder "turn-ending action: `commission`, `travel`, `buy`, `pass`, `sleep` or `spend-time`."))
+        (is (str/includes? reminder "turn-ending action: `pass`, `travel`, `sleep`, `commission`, `buy` or `spend-time`."))
         (is (str/includes? reminder "`pass` is a fine way to wait"))
         (is (not (str/includes? reminder "`walk`"))))
       (is (= 1 (count (filter #(and (= "user" (:role %)) (str/includes? (:content %) "turn isn't over"))
@@ -507,7 +507,7 @@
     (testing "a turn of free actions only is still forfeited, and its last replies are logged"
       (is (= ["lord-claudeworth"] (map :actor (of-type run :action/forfeited))))
       (is (= ["c3"] (map :tool_call_id (:replies (last logged)))))
-      (is (str/starts-with? (:content (first (:replies (last logged)))) "{\n  \"here\"") "walk's reply"))
+      (is (str/starts-with? (:content (first (:replies (last logged)))) "{\"here\"") "walk's reply"))
     (e/stop-run run)))
 
 (defn- chatterbox

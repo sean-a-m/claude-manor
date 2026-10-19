@@ -116,17 +116,20 @@
         system (comp :content first :messages)
         user (comp :content second :messages)]
     (testing "a member is told it isn't their turn, and how to answer"
-      (is (str/includes? (system hale-first) "This is not your own turn"))
-      (is (str/includes? (system hale-first) "`stay-silent`"))
-      (is (str/includes? (system hale-first) "at most 400 characters"))
+      (is (str/includes? (user hale-first) "This is not your own turn"))
+      (is (str/includes? (user hale-first) "`stay-silent`"))
+      (is (str/includes? (user hale-first) "at most 400 characters"))
       (is (str/includes? (user hale-first) "Lord Claudeworth started a conversation here with Lady Claudeworth and you."))
       (is (str/includes? (user hale-first) "Lady Claudeworth (Dining room) says: \"lady-claudeworth 1\""))
-      (is (str/includes? (system hale-first) "A line written as plain text, outside a tool call, isn't heard."))
-      (is (str/includes? (system hale-first) "`stay-silent` or `leave` rather than repeat it"))
+      (is (str/includes? (user hale-first) "A line written as plain text, outside a tool call, isn't heard."))
+      (is (str/includes? (user hale-first) "`stay-silent` or `leave` rather than repeat it"))
       (is (str/ends-with? (user hale-first) "Pass 1 of 2. Your turn: call `reply` with your line, or `stay-silent` or `leave`.")))
+    (testing "turns and speaking turns share the system message, for the prompt cache"
+      (is (= (system hale-first)
+             (system (first (filter #(and (= "hale" (:agent %)) (not (:conversation %))) (store/read-llm (:dir run))))))))
     (testing "the initiator is told it's their last word"
-      (is (str/includes? (system earl-last) "when it's over, you carry on with your turn"))
-      (is (str/includes? (system earl-last) "`end-conversation` rather than repeat it"))
+      (is (str/includes? (user earl-last) "when it's over, you carry on with your turn"))
+      (is (str/includes? (user earl-last) "`end-conversation` rather than repeat it"))
       (is (str/ends-with? (user earl-last) "This is your last word: call `reply` with a closing line, or `end-conversation` to end it without one.")))
     (e/stop-run run)))
 

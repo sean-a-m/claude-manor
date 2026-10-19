@@ -24,8 +24,8 @@
       (is (re-find #"\| lord-claudeworth \| \d+ \| \$0\.0000 \| – \|" md) "mock calls have no prompt tokens to share")
       (is (str/includes? md "## 08:00 (round 1)"))
       (is (str/includes? md "- Lord Claudeworth goes from Earl's bedroom to Dining room.  _[lord-claudeworth]_"))
-      (is (str/includes? md "- **lord-claudeworth** walk {\"to\":\"dining-room\"} _($0.0000)_\n  - engine: { \"here\" : { \"id\" : \"dining-room\""))
-      (is (str/includes? md "\"people-here\" : [ ] }\n- **lord-claudeworth** say"))
+      (is (str/includes? md "- **lord-claudeworth** walk {\"to\":\"dining-room\"} _($0.0000)_\n  - engine: {\"here\":{\"id\":\"dining-room\""))
+      (is (str/includes? md "\"people-here\":[]}\n- **lord-claudeworth** say"))
       (is (str/includes? md "## 08:30 (round 2)"))
       (testing "a turn's last call shows its replies"
         (is (re-find #"- \*\*lord-claudeworth\*\* pass .*\n  - engine: done\n" md))
@@ -51,7 +51,7 @@
             old-style (map #(dissoc % :replies) (store/read-llm (:dir run)))]
         (spit f (apply str (map #(str (pr-str %) "\n") old-style)))
         (let [md (transcript/render (:dir run))]
-          (is (str/includes? md "\"people-here\" : [ ] }\n- **lord-claudeworth** say"))
+          (is (str/includes? md "\"people-here\":[]}\n- **lord-claudeworth** say"))
           (is (not (re-find #"- \*\*lord-claudeworth\*\* pass .*\n  - engine: done\n" md)))
           (is (str/includes? md "(this run didn't record replies to a turn's last call)")))))
     (e/stop-run run)))

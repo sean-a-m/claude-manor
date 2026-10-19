@@ -201,7 +201,7 @@ Passed to `start-run` / `start!` (defaults in `manor.engine/default-opts`):
 | `:housemaid?` / `:architect?` | `true` / `true` | Claudeworth: include Nellie and Mr Pugh; pass `false` to leave either out (REPL options) |
 | `:addressed-as?` | `true` | positions' forms of address in prompts ("People address you as my lord", and how to address each person present); `false` (CLI: `--no-address`) leaves every form of address out, to compare runs with and without |
 | `:max-steps` / `:max-queries` | 10 / 2 | model calls and bridge/adjudication queries per turn (a cost guard, not game time) |
-| `:event-window` | 30 | recent events in each prompt |
+| `:event-window` | 30 | recent events in each prompt: at least this many and fewer than twice as many (the window's start jumps forward every this many events, so the provider's prompt cache can reuse it) |
 | `:gm-check-in-every` | 0 | rounds between GM check-ins (0 = only when triggered) |
 | `:reasoning` / `:max-tokens` | `{:effort "low"}` / 4000 | passed to OpenRouter |
 | `:mcp-servers` | | per-server overrides, e.g. `{:pi {:env {"PI_MCP_TOOLS" "read"}}}` |

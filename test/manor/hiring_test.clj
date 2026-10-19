@@ -50,7 +50,7 @@
              :state {:positions (positions/read-catalogue "positions/england-1904.edn") :setting "England, 1904."}})
     :actions h/actions :adjudicators h/adjudicators :bridges h/bridges
     :offline-stubs h/offline-stubs :mcp-servers people/mcp-servers
-    :observe h/observe :mock-policy policy}
+    :reference (fn [world _] (h/reference world)) :observe h/observe :mock-policy policy}
    "gate"))
 
 (defn start

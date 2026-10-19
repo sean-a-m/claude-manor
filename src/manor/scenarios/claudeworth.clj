@@ -263,10 +263,17 @@
                :when (and (= :bedroom (:kind l)) (= :house (:domain l)))]
            {:id (:id l) :name (:name l) :sleeps (mapv :name (get sleepers (:id l)))}))))
 
+(defn reference
+  "What rarely changes, for the system prompt: every place by area, and
+  hiring's meeting place and positions."
+  [world _]
+  {:places (places world)
+   :hiring (hiring/reference world)})
+
 (defn observe
   "Your bedroom, the house's bedrooms if you're of the household, opening
-  hours where you are, every place by area, where you can walk from here,
-  and the journeys to other areas."
+  hours where you are, where you can walk from here, and the journeys to
+  other areas. Every place by area is in `reference`."
   [world id]
   (let [here (space/location-of world id)
         hours (:hours (space/location world here))]
@@ -275,7 +282,6 @@
                 (assoc :hiring (hiring/observe world id)))
       (positions/household-member? world id) (assoc-in [:household :bedrooms] (house-bedrooms world))
       hours (update :here merge {:open (str/join "-" hours) :open-now? (open-now? world hours)})
-      true (assoc :places (places world))
       here (assoc :walkable (vec (sort (walkable world here)))
                   :journeys (journeys world here)))))
 
@@ -676,6 +682,7 @@
                          :stock "general level of supplies" :lacking "notable absences"}}
    :exclude-actions #{:move :work-on}
    :hibernate hibernate
+   :reference reference
    :observe observe
    :mock-policy mock-policy
    :mock-conversation mock-conversation}

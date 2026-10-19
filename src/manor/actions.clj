@@ -85,9 +85,13 @@
           (or (nil? needs) (contains? (set capabilities) needs))))))
 
 (defn merge-actions
-  "Combine action lists; later lists override earlier ones by name."
+  "Combine action lists; later lists override earlier ones by name. Each
+  action keeps the place its name first had, so the order models see the
+  tools in doesn't change from run to run."
   [& action-lists]
-  (vals (reduce (fn [acc a] (assoc acc (:name a) a)) (array-map) (apply concat action-lists))))
+  (let [actions (apply concat action-lists)
+        latest (into {} (map (juxt :name identity)) actions)]
+    (map latest (distinct (map :name actions)))))
 
 (defn for-role
   ([actions role] (for-role actions role #{}))
@@ -95,9 +99,14 @@
 
 (defn available
   "Actions whose :available? check passes for `actor` right now. Unavailable
-  actions are left out of the agent's tools for this turn."
+  actions are left out of the agent's tools for this turn. Actions with an
+  :available? check come after those without, so a tool that comes and goes
+  changes only the end of the tool list: what's before it stays the same, and
+  the provider's prompt cache can reuse it."
   [actions world actor]
-  (filter #(if-let [f (:available? %)] (f world actor) true) actions))
+  (->> actions
+       (filter #(if-let [f (:available? %)] (f world actor) true))
+       (sort-by #(some? (:available? %)))))
 
 (defn by-name [actions]
   (into {} (map (juxt (comp name :name) identity)) actions))

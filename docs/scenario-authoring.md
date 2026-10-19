@@ -75,6 +75,7 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :defaults      {:model "..." ...}       ; overrides engine default options for this scenario
    :mock-policy   (fn [ctx] {:tool :dig :args {}})
    :mock-judge    (fn [ctx] {:tool :judge :args {..}})  ; optional, the judge in mock runs (see Items)
+   :speaking-actions (fn [world speaker conv] actions)    ; optional free/query tools in conversations
    :mock-conversation (fn [ctx] {:tool :reply :args {..}})  ; optional, speaking turns in mock runs (see Conversations)
    :offline-stubs {:bridge/name (fn [args ctx] result)}})
 ```
@@ -258,7 +259,10 @@ location's `:store-profile` (required, non-blank, at most 2000 characters), name
 setting/date and goods/quantity. It refuses unsuitable stock before pricing. The checked
 response creates a buyer-bound quote for each line of a request (`quote-goods {for goods}` takes
 up to 10 lines in one appraisal and one query; its `:reply` tells the clerk each quote id or
-refusal); `buy {quote-ids}` separately debits money for up to 10 quotes at once, checked as a
+refusal). At an open counter, Claudeworth offers `quote-goods` in the clerk's speaking turn:
+a customer can `converse`, the clerk checks the list then replies with prices, and the customer
+gets the quote ids in the conversation summary and can `buy` in that same turn.
+`buy {quote-ids}` remains turn-ending and separately debits money for up to 10 quotes at once, checked as a
 whole, and creates for each quote one portable item, a parcel of the whole quantity, with two aspects: `:amount`, the amount
 bought ("20 × 1 lb"), where work can later say what's left, and `:state`, the appraiser's
 `condition` ("fresh, dry"). It is `:consumable?` when the appraiser says the goods are used up in
@@ -1472,15 +1476,28 @@ on with it. It uses nobody else's turn either.
   answers with plain text and no tool call has the text taken as its `reply` (normal turns are
   nudged to call a tool instead). These tools exist only
   in speaking turns and can't be overridden. Lines are told 400 characters and accept 1500.
+- **Extra tools:** optional `:speaking-actions (fn [world speaker conv] actions)` adds tools after
+  the speaking tools and `note`; `conv` has `:id`, `:initiator` and `:members`. The scenario decides
+  who gets them. The engine accepts only `:free` and `:query`, applies their `:available?` checks,
+  and drops names reserved for the speaking tools or `note`. Normal argument decoding and
+  `:valid?` still apply. Turn-ending actions (including `buy`) and nested `converse` aren't allowed.
+  With a query offered, that speaking turn has one query slot and at most 4 model calls instead
+  of 3. Query usage and appraisal cost are recorded normally; queries preserve occupations too.
+  Each speaking turn has fresh limits, separate from the speaker's own turn. Its prompt names
+  the extra tools actually offered: use them first if needed, then finish with a speaking tool.
+  Speakers without extras keep their usual prompt.
 - **Ending:** the initiator ends it, everyone else leaves, nobody else speaks in a pass, the
-  passes and the last word are done, the run reaches `:max-cost` (checked before each call), or
+  passes and the last word are done, the run reaches `:max-cost` (checked between speaking turns), or
   a call fails (the run is asked to pause). It never carries over into another round.
 - **Events,** each with `:conversation` (the id, `"conv-<n>"`) in its data and visible to everyone
   present: `:conversation/started {:members :at}`, each line an ordinary `:agent/said`, then
   `:conversation/silent`, `:conversation/left` and `:conversation/ended {:reason}`. Bystanders hear
   every line. The started event records the round in the initiator's `:conversed-round`, which
   limits them to one conversation a round. Nothing else is world state.
-- The initiator's tool reply is the conversation's lines and how it ended. Speaking turns are
+- The initiator's tool reply says how it ended and narrates every event visible to them between
+  its start and end: lines, silences, departures, and extra-tool effects such as offers (with quote
+  ids) and refusals. Start/end markers, usage and system events are omitted; private events stay
+  private. Extra-tool events need no `:conversation` tag. Speaking turns are
   logged in `llm.edn` with `:conversation {:id :pass}` (`:pass :last-word` for the last word),
   which the transcript shows next to the agent.
 - It isn't offered in a simultaneous group, where the others are in their own turns, or to a human

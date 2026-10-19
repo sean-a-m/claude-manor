@@ -226,6 +226,7 @@
     :doc (str "Check whether this store can sell requested portable goods and quote firm prices to a customer here. "
               "Use for (the customer's id) and goods: a list of up to " max-lines " lines, each one kind of goods with item and qty; "
               "quote a whole shopping list in one call. Each line gets its own offer (a quote-id) or refusal, announced at the counter. "
+              "At your counter you can use this on your speaking turn in a conversation, before your line; then tell the customer the prices in your reply. "
               "This does not charge the customer.")
     :args [:map [:for :string]
            [:goods [:vector {:min 1 :max max-lines}
@@ -234,7 +235,7 @@
    {:name :buy :kind :final :roles :all
     :doc (str "Accept unspent quotes made for you, using quote-ids from offers: up to " max-lines " at once, so buy a whole list together. "
               "You and the shopkeeper must be at that store during its opening hours. Pays the exact quoted prices from household funds and hands you the portable items, one parcel per quote. "
-              "Ask the shopkeeper with say first; there is no fixed catalogue.")
+              "Talk to the shopkeeper with converse; they can quote during it, and you can buy as soon as it ends. There is no fixed catalogue.")
     :args [:map [:quote-ids [:vector {:min 1 :max max-lines} :string]]]
     :valid? buy-reason :effect buy-events}])
 

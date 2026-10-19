@@ -207,9 +207,13 @@ Take your turn now.")
 
 (defn- how-to-answer
   "The rules of a speaking turn, for the conversation's closing."
-  [initiator?]
-  (str "How to answer:
-- Call exactly ONE of "
+  [initiator? extra-actions]
+  (str "How to answer:\n"
+       (when (seq extra-actions)
+         (str "- You may first use " (str/join ", " (map #(str "`" (name (:name %)) "`") extra-actions))
+              " before your line. Use their results in your reply. "
+              "Then finish this speaking turn with exactly ONE of the speaking tools below.\n"))
+       "- Call exactly ONE of "
        (if initiator?
          "`reply` (say your line) or `end-conversation` (end it now)."
          "`reply` (say your line), `stay-silent` (say nothing this time) or `leave` (drop out of the conversation; you stay where you are and still hear it).")
@@ -226,7 +230,7 @@ Take your turn now.")
 
 (defn- conversation-closing
   "Who is in the conversation, where it has got to, and whose line it is."
-  [world agent-id {:keys [initiator members]} {:keys [pass final? in]}]
+  [world agent-id {:keys [initiator members]} {:keys [pass final? in extra-actions]}]
   (let [names (narrate/names world)
         nm #(narrate/who names %)
         you? (= agent-id initiator)
@@ -249,7 +253,7 @@ Take your turn now.")
            (str "\n\nYou are busy " (:activity busy)
                 (when-let [u (:until busy)] (str " until " (narrate/at names u)))
                 "; talking doesn't stop it."))
-         "\n\n" (how-to-answer you?)
+         "\n\n" (how-to-answer you? extra-actions)
          "\n\n"
          (cond final? "This is your last word: call `reply` with a closing line, or `end-conversation` to end it without one."
                you? (str "Pass " pass " of " conversation/passes ". Your turn: call `reply` with your line, or `end-conversation` to end it now.")
@@ -257,8 +261,8 @@ Take your turn now.")
 
 (defn conversation-messages
   "The request for `agent-id`'s speaking turn in conversation `conv`
-  ({:id :initiator :members}). `turn` is {:pass :final? :in}, `:in` the
-  members still in it."
+  ({:id :initiator :members}). `turn` is {:pass :final? :in :extra-actions},
+  `:in` the members still in it, `:extra-actions` the scenario tools offered."
   [scenario world events agent-id opts conv turn]
   (agent-request scenario world events agent-id opts
                  (conversation-closing world agent-id conv turn)))

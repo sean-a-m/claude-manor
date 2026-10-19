@@ -12,6 +12,7 @@
             [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as cw]
             [manor.scenarios.shop :as shop]
+            [manor.scenarios.household :as household]
             [manor.space :as space]
             [manor.store :as store]
             [manor.world :as w]))
@@ -497,4 +498,170 @@
       (rounds! run 1)
       (is (b/hibernating? (e/world run) "clerk"))
       (is (= [1] (mapv :round (filter #(and (= :agent/passed (:type %)) (= "clerk" (:actor %))) (e/events run)))))
+      (finally (e/stop-run run)))))
+
+(defn- counter-conversation
+  "Quote once, then speak; the initiator ends the exchange."
+  [{:keys [agent-id used]}]
+  (if (= "clerk" agent-id)
+    (if (some #{"quote-goods"} used)
+      {:tool :reply :args {:text "The two packets cost sixpence."}}
+      {:tool :quote-goods :args purchase})
+    {:tool :end-conversation}))
+
+(defn- counter-customer
+  "Ask at the counter, then buy any offers in this same turn."
+  [{:keys [world agent-id used]}]
+  (cond
+    (not= "customer" agent-id) {:tool :carry-on}
+    (not (some #{"converse"} used)) {:tool :converse :args {:with ["clerk"] :text "Two packets of needles, please."}}
+    (seq (get-in world [:state :quotes])) {:tool :buy :args {:quote-ids (vec (keys (get-in world [:state :quotes])))}}
+    :else {:tool :pass}))
+
+(defn- converse-reply [run]
+  (->> (store/read-llm (:dir run))
+       (filter #(and (= "customer" (:agent %)) (not (:conversation %))))
+       first :replies first :content))
+
+(defn one-turn-shop-policy
+  "A test errand, also used by the offline Claudeworth transcript check."
+  [{:keys [world agent-id used]}]
+  (cond
+    (not= "lord-claudeworth" agent-id) {:tool :pass}
+    (empty? used) {:tool :walk :args {:to "general-store"}}
+    (not (some #{"converse"} used))
+    {:tool :converse :args {:with ["briggs"] :text "Two packets of needles, please."}}
+    :else {:tool :buy :args {:quote-ids (vec (keys (get-in world [:state :quotes])))}}))
+
+(deftest one-customer-turn-at-the-counter
+  (let [sc (assoc household/scenario
+                  :mock-policy one-turn-shop-policy
+                  :init (fn [opts]
+                          (assoc-in ((:init household/scenario) opts) [:state :routines "briggs"]
+                                    [{:from "00:00" :at "general-store" :doing "tending the shop"}])))
+        run (with-redefs [e/load-scenario (constantly sc)]
+              (e/start-run :household {:test? true :offline? true :llm :mock :gm :off
+                                       :start "1904-10-15T10:00" :run-id (str (gensym "counter-visit-"))}))]
+    (try
+      @(e/place! run "lord-claudeworth" "village-green")
+      (rounds! run 1)
+      (let [evs (e/events run)
+            types [:agent/moved :agent/freed :conversation/started :claudeworth/goods-quoted
+                   :conversation/ended :claudeworth/bought]
+            events (map #(first (filter (fn [ev] (= % (:type ev))) evs)) types)
+            quote (get-in (nth events 3) [:data :id])
+            calls (store/read-llm (:dir run))
+            summary (->> calls (filter #(and (= "lord-claudeworth" (:agent %))
+                                            (some #{"converse"} (map (comp :name :function) (get-in % [:response :tool_calls])))))
+                         first :replies first :content)]
+        (is (every? some? events))
+        (is (apply < (map :id events)))
+        (is (= #{1} (set (map :round events))))
+        (is (= "briggs" (:actor (second events))))
+        (is (str/includes? summary (str "quote " quote)))
+        (is (empty? (get-in (e/world run) [:state :quotes])))
+        (is (some #(= "lord-claudeworth" (:holder %)) (items/items-where (e/world run) :holder)))
+        (is (not-any? #(= :action/forfeited (:type %)) evs))
+        (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))
+
+(deftest speaking-tools-and-query-budget
+  (let [unavailable {:name :unavailable :kind :free :available? (constantly false)}
+        clash {:name :reply :kind :free}
+        extra {:name :check-counter :kind :free}
+        run (start {:policy counter-customer
+                    :overrides {:speaking-actions (fn [world speaker conv]
+                                                    (into [unavailable clash extra (action :buy)]
+                                                          (cw/speaking-actions world speaker conv)))
+                                :mock-conversation
+                                (fn [{:keys [agent-id step] :as ctx}]
+                                  (if (= "clerk" agent-id)
+                                    (case step
+                                      0 {:tool :buy :args {:quote-ids ["missing"]}}
+                                      2 {:tool :quote-goods :args purchase}
+                                      (counter-conversation ctx))
+                                    {:tool :end-conversation}))}})]
+    (try
+      (rounds! run 1)
+      (let [calls (filter #(and (= "clerk" (:agent %)) (:conversation %)) (store/read-llm (:dir run)))
+            prompt (:content (second (:messages (first calls))))]
+        (is (= 4 (count calls)) "an invalid action, query, rejected second query, then reply")
+        (is (= ["reply" "stay-silent" "leave" "note" "check-counter" "quote-goods"] (:tools (first calls))))
+        (is (= "error: there is no tool called buy" (get-in (first calls) [:replies 0 :content])))
+        (is (str/starts-with? (get-in (nth calls 2) [:replies 0 :content]) "error: query limit reached"))
+        (is (str/includes? (get-in (nth calls 2) [:replies 1 :content]) "This is your last call"))
+        (is (str/includes? prompt "You may first use `check-counter`, `quote-goods` before your line."))
+        (is (str/includes? prompt "Then finish this speaking turn with exactly ONE"))
+        (is (= 1 (count (filter #(= "adjudicator/shop/appraise" (:agent %)) (store/read-llm (:dir run))))))
+        (is (= 1 (count (filter #(= :claudeworth/bought (:type %)) (e/events run))))))
+      (finally (e/stop-run run)))))
+
+(deftest only-serving-clerks-get-speaking-queries
+  (let [run (start)]
+    (try
+      (let [world (e/world run)]
+        (is (= [:quote-goods] (mapv :name (cw/speaking-actions world "clerk" {}))))
+        (is (empty? (cw/speaking-actions world "customer" {})))
+        (is (empty? (cw/speaking-actions (assoc-in world [:agents "clerk" :location] "back-room") "clerk" {})))
+        (is (empty? (cw/speaking-actions (assoc-in world [:clock :start] "1904-10-15T20:00") "clerk" {}))))
+      (finally (e/stop-run run)))))
+
+(deftest speaking-queries-preserve-occupations
+  (doseq [interrupted? [false true]]
+    (let [run (start {:policy counter-customer
+                      :overrides {:speaking-actions cw/speaking-actions :mock-conversation counter-conversation}})]
+      (try
+        (e/emit! run [(b/occupy (e/world run) "clerk" "writing accounts" 5)])
+        (when interrupted? (e/emit! run [(b/interrupt (e/world run) "clerk" "customer")]))
+        (rounds! run 1)
+        (let [evs (e/events run)
+              start (:id (first (filter #(= :conversation/started (:type %)) evs)))
+              end (:id (first (filter #(= :conversation/ended (:type %)) evs)))
+              during (filter #(< start (:id %) end) evs)]
+          (is (some #(= :claudeworth/goods-quoted (:type %)) during))
+          (is (not-any? #(#{:agent/freed :agent/resumed} (:type %)) during))
+          (is (= {:activity "writing accounts" :until 5} (w/busy (e/world run) "clerk")))
+          (when interrupted?
+            (is (= ["clerk"] (mapv :actor (filter #(= :agent/resumed (:type %)) evs))))))
+        (finally (e/stop-run run))))))
+
+(deftest conversation-summary-includes-visible-query-effects-only
+  (let [query (assoc (action :quote-goods)
+                    :on-result (fn [world actor args result]
+                                 (into (shop/offer-events world actor args result)
+                                       (for [[audience text] [[#{"clerk"} "private line"] [:gm "GM line"]
+                                                              [:system "system line"] [#{"customer"} "visible line"]]]
+                                         {:type :agent/said :visible-to audience :data {:text text}}))))
+        run (start {:policy counter-customer
+                    :appraisal (constantly {:tool :appraise :args {:lines [{:available false :reason "Not stocked."}]}})
+                    :overrides {:speaking-actions (fn [_ speaker _] (when (= "clerk" speaker) [query]))
+                                :mock-conversation counter-conversation}})]
+    (try
+      (e/emit! run [{:type :agent/said :actor "clerk" :visible-to #{"customer"} :data {:text "earlier line"}}])
+      (rounds! run 1)
+      (let [summary (converse-reply run)]
+        (is (str/includes? summary "cannot offer packet of needles to Customer: Not stocked."))
+        (is (str/includes? summary "visible line"))
+        (doseq [hidden ["private line" "GM line" "system line" "earlier line"]]
+          (is (not (str/includes? summary hidden)))))
+      (finally (e/stop-run run)))))
+
+(deftest conversation-appraisal-counts-toward-cost-limit
+  (let [policy (fn [{:keys [role conversation] :as ctx}]
+                 (cond (= role :adjudicator) {:tool :appraise :args {:lines [available]}}
+                       conversation (counter-conversation ctx)
+                       :else (counter-customer ctx)))
+        mock (llm/mock policy)
+        priced (reify llm/LLM
+                 (complete [_ request]
+                   (cond-> (llm/complete mock request)
+                     (= :adjudicator (get-in request [:ctx :role])) (assoc-in [:usage :cost] 0.02))))
+        run (start {:opts {:llm-impl priced :max-cost 0.01}
+                    :overrides {:speaking-actions cw/speaking-actions}})]
+    (try
+      (rounds! run 1)
+      (is (= 0.02 (w/total-cost (e/world run))))
+      (is (= :cost-limit (get-in (first (filter #(= :conversation/ended (:type %)) (e/events run))) [:data :reason])))
+      (is (= 1 (count (filter #(= "adjudicator/shop/appraise" (:agent %)) (store/read-llm (:dir run))))))
+      (is (not-any? #(and (= "customer" (:agent %)) (:conversation %)) (store/read-llm (:dir run))))
       (finally (e/stop-run run)))))

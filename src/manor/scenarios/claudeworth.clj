@@ -348,6 +348,7 @@
          "You're only heard by people in the same place (`say`: a few sentences, at most " b/speech-limit
          " characters); `whisper` is private. `call` is heard everywhere within walking distance, so you can summon someone instead of searching the house room by room; whether it's proper for you to call someone depends on who you both are. `last-seen` in your view says where you last saw each person. "
          "You can speak once a turn, with `say`, `whisper` or `call`, and it doesn't end your turn: speak, then take your action. "
+         "`converse` doesn't count against speaking once a turn: you can start one conversation a turn as well. "
          "To talk something over with people here, `converse` draws up to " conversation/max-others " of them into a conversation within your turn: "
          "you each speak in turn, up to " conversation/passes " times, so nobody waits a turn for each answer, and then you carry on with your turn. "
          "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). Someone who lives in needs a bed in the house: members of the household see the house's bedrooms, and who sleeps in each, under `household.bedrooms` in their view, and whether to share a room or make do is for you to decide. You get no turns while asleep or busy, unless someone uses `rouse` to interrupt you. On that turn, `carry-on` ignores them; any other accepted action means you stop. "
@@ -658,6 +659,12 @@
 
 ;; ---------------------------------------------------------------------------
 
+(defn speaking-actions
+  "An open counter's clerk can check goods before answering a customer."
+  [world speaker _conv]
+  (when-not (shop/service-reason world speaker)
+    (filterv #(= :quote-goods (:name %)) shop/actions)))
+
 (def scenario
   (hiring/install
    {:name :claudeworth
@@ -681,6 +688,7 @@
                          :state "lit, hot, cooking, carved" :amount "how much remains, or parcel quantity"
                          :stock "general level of supplies" :lacking "notable absences"}}
    :exclude-actions #{:move :work-on}
+   :speaking-actions speaking-actions
    :hibernate hibernate
    :reference reference
    :observe observe

@@ -1,6 +1,6 @@
 # Shop visits in one turn: design
 
-**Status:** Phase 1 implemented and checked offline. Phase 2 and the real-run check pending.
+**Status:** Phases 1 and 2 done and mock-tested; real-run check pending.
 The empty-shop judge bug (below) is being fixed separately with world-file data on branch
 `shop-counter-items`.
 
@@ -161,9 +161,9 @@ present at the counter, and everyone in a conversation is.
 
 `conversation-summary` lists only events tagged with the conversation's id, so the offers are
 missing from the reply the initiator reads. Change it to list every event from the
-conversation's `:conversation/started` up to its end that the initiator can see, except usage
-and system events. That picks up `:claudeworth/goods-quoted` and `goods-refused` now, and a
-`give` later, without tagging each kind. Members' later speaking turns already see these events
+conversation's `:conversation/started` up to its end that the initiator can see, except the
+start/end markers, usage and system events. The summary header already gives the ending. That
+picks up `:claudeworth/goods-quoted` and `goods-refused` now, and a `give` later, without tagging each kind. Members' later speaking turns already see these events
 among their recent events, because they're visible to everyone in the place.
 
 ### 2d. Docs and briefs
@@ -194,6 +194,23 @@ among their recent events, because they're visible to everyone in the place.
 - Query limit: a second `quote-goods` in one speaking turn is refused.
 - The appraisal cost counts towards the run's cost, and `max-cost` can still cut a
   conversation short.
+
+### Implementation clarifications
+
+- The engine filters scenario extras to available free/query tools and drops names reserved for
+  the speaking tools and `note`; a scenario cannot replace the line-ending tools or offer `buy`.
+- Query execution now honours speaking turns' `keep-occupation?`, just like free actions, so
+  quoting does not clear an interrupted clerk's occupation. Own-turn queries are unchanged.
+- The prompt names the extras actually offered, instructs using them before the line, then
+  finishing with a speaking tool. Without extras its text and cached stable prefix are unchanged.
+- The summary keeps omitting start/end markers (the header already covers the ending), while
+  expanding its event range to include visible query effects. No event tagging is required.
+- Existing cost checks remain between speaking turns, not between their retries or extra-tool
+  calls. Appraisal usage counts toward the cap and can cut off the next speaking turn.
+- Offline coverage includes the one-turn household counter visit, query budget and fourth-call
+  retry, forbidden/unavailable tools, context-dependent quoting, private/refused events, occupied
+  clerks, cost cutoff, and replay. A one-round Claudeworth mock transcript check exercises arrival,
+  wake, converse, quote, summary and purchase without any real model call.
 
 ## Verification
 

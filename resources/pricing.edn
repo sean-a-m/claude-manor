@@ -1,0 +1,24 @@
+;; Model prices for manor.cache-report, keyed by model id.
+;;
+;; :tiers        USD per token, by price tier: :input (uncached prompt tokens),
+;;               :cache-read (cached prompt tokens) and :output (completion
+;;               tokens, thinking included).
+;; :peak-hours   when the :peak tier applies: ISO weekdays (1 = Monday) and
+;;               [from to) hours in UTC. All other times are :off-peak.
+;; :cache-block  the provider serves cached prompts in blocks of this many tokens.
+;; :tokens-per-char, :tool-chars
+;;               the cache simulator's defaults for runs without usage (mock
+;;               runs): prompt tokens per rendered character, and characters
+;;               per tool when the log has no :tool-digests. Calibrated on the
+;;               real run claudeworth-20261018-205714 (238 calls): :tool-chars
+;;               from a least-squares fit of prompt tokens on rendered message
+;;               characters and tool count, :tokens-per-char as its prompt
+;;               tokens over its rendered characters. See
+;;               manor.cache-report/calibration.
+{"deepseek/deepseek-v4.1-flash"
+ {:tiers {:off-peak {:input 1.5e-7 :cache-read 3e-9 :output 6e-7}
+          :peak {:input 3e-7 :cache-read 6e-9 :output 1.2e-6}}
+  :peak-hours {:weekdays [1 2 3 4 5] :utc [[1 4] [6 10]]}
+  :cache-block 128
+  :tokens-per-char 0.2869
+  :tool-chars 431}}

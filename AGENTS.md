@@ -98,6 +98,7 @@ src/manor/
   clock.clj      optional game time (rounds <-> times); prompts show times when a scenario has one
   worldfile.clj  EDN world files: load + check, export live map (runs/<id>/map.edn)
   transcript.clj readable run record: <run-dir>/transcript.md from events.edn and llm.edn
+  cache_report.clj  prompt-cache and cost report from llm.edn: report, simulate (offline cache model), compare
   scenarios/     village.clj (full example), treasure.clj (small example), quiz.clj (MCP/pi),
                  claudeworth.clj + building.clj (Claudeworth Manor: daily life, money, shop, plans,
                  architect and construction; shop.clj adds Mr Briggs, store-profile-grounded
@@ -106,12 +107,13 @@ src/manor/
                  work-on jobs exercise the judge)
 resources/worlds/ world files on the classpath; claudeworth.edn is Claudeworth's fresh world
 resources/positions/ shared catalogues of positions; england-1904.edn is a country house and village
+resources/pricing.edn model prices, peak hours and cache block size for manor.cache-report
 mcp-servers/pi/server.mjs  pi as an MCP server: send_message {session, message}; Node, no deps
 mcp-servers/architect/  the architect MCP server: babashka, stateless, reference/price/draft tools
 mcp-servers/people/     the people MCP server: babashka, stateless, generate_people and reputation from data files
 config/        mcp.example.edn; mcp.edn is local and gitignored (the user's sets pi-sandbox)
 dev/user.clj     REPL helpers (start! step! auto! feed view last-prompt transcript! spawn! change-post! approve! act! roll-cast! ...)
-test/            engine, conversation, space, items, MCP, clock, world-file, panel, transcript, Claudeworth and scenario smoke tests;
+test/            engine, conversation, space, items, MCP, clock, world-file, panel, transcript, cache-report, Claudeworth and scenario smoke tests;
                  test scenarios prize.clj and hamlet.clj (world file test/fixtures/hamlet.edn);
                  household.clj reuses Claudeworth mechanics with fixed household.edn / household-day.edn fixtures;
                  test/fixtures/fake-pi.mjs (fake `pi --mode rpc` for free MCP tests)
@@ -126,6 +128,7 @@ old-test-runs/   kept real-model test runs (gitignored); never delete
 clojure -M:test                               # all tests (about 15 seconds, free, offline)
 clojure -M:run village --mock --offline --test --port 8091   # panel at http://localhost:8091, free, disposable
 clj -M:dev                                    # REPL; see dev/user.clj docstring
+clojure -M:cache report runs/<id>             # cache hits and cost by kind and agent; also simulate, compare (README)
 ```
 
 - **Port 8080 is the user's.** They watch their own runs in the panel there, often while agents

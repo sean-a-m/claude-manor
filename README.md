@@ -136,6 +136,45 @@ Whenever a run stops running rounds (it pauses, `auto!`'s rounds are done, a man
 `pause!` or `stop-run`), the engine writes `<run-dir>/transcript.md`: each round's events with who
 saw them, then every model call with its tool calls and the engine's replies.
 
+## Cache and cost report
+
+`manor.cache-report` reads a run's `llm.edn` (it never calls a model) and shows how well its
+prompts hit the provider's prompt cache. Prices, peak hours and the cache block size are in
+`resources/pricing.edn`.
+
+```sh
+clojure -M:cache report runs/<id> [--top N]
+clojure -M:cache simulate runs/<id> [--order system-first|tools-first] [--tier off-peak|peak] [--top N]
+clojure -M:cache compare test-runs/<a> test-runs/<b> [--order ...] [--tier ...]
+```
+
+- `report`: prompt, cached, uncached, completion and thinking tokens; the cost split into uncached
+  input, cached input and output; cost per price tier and what the run would have cost all
+  off-peak; calls, prompt tokens, hit % and uncached cost by kind of call (turn-first,
+  turn-follow-up, conversation, judge, adjudicator, gm) and by agent; and the top N misses, each
+  with where its prompt first differs from the same agent's previous call of that kind (`system >
+  ## Your role`, `tools[0] send-for (added)`, `messages[1] user > ## Your view > json location`).
+  Cached tokens and the tier come from the log when it has them (`:usage :cached-tokens`, `:at`),
+  else they are inferred from `:cost` (shown as "inferred").
+- `simulate`: a model of the cache. Each request is the system message, then each tool, then the
+  other messages; its cached prefix is predicted as the longest prefix it shares with any earlier
+  request, floored to whole 128-token blocks. It prints the same tables with predicted hit % and
+  cost and, when the run has real cached numbers, the error per call. On the real run
+  `claudeworth-20261018-205714`, `system-first` fits better (mean error 224 tokens a call, 153 of
+  238 calls within one block) than `tools-first` (386, 138). It's a model, not the provider: one
+  characters-to-tokens ratio per call, tools sized by name unless the log has `:tool-digests`, and
+  no cache expiry or write delay. Use it to compare prompt layouts, not to predict a bill.
+- `compare`: two runs simulated side by side: hit % and cost per call by kind, and cost per round.
+  For a free comparison of two prompt layouts, make a short mock run of the same scenario and seed
+  with each:
+
+  ```sh
+  clojure -M -e "(require '[manor.engine :as e]) (let [r (e/start-run :claudeworth {:llm :mock :offline? true :test? true :run-id \"layout-a\"})] (e/auto! r 6) (e/wait-idle r) (e/stop-run r)) (System/exit 0)"
+  ```
+
+  Mock runs have no usage, so prompt tokens are estimated at 0.2869 tokens per character (from
+  the real run above).
+
 ## Real runs and test runs
 
 Runs are stored under `runs/<id>/`. Pass `:test? true` (CLI: `--test`) to store a run under

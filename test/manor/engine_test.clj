@@ -252,6 +252,11 @@
         (do (is (= {:activity "asleep" :until 8} (w/busy (e/world run) "ada")))
             (is (empty? (of-type run :agent/freed)))
             (is (= 1 (count (of-type run :agent/resumed))))))
+      ;; Ben becomes busy: no turn in his slot, nor in the trailing pass.
+      (e/emit! run [(b/occupy (e/world run) "ben" "reading" 8)])
+      (reset! seen [])
+      (rounds! run 1)
+      (is (not-any? #{"ben"} (map first @seen)))
       (is (= (e/world run) (w/replay (e/events run))))
       (e/stop-run run))))
 

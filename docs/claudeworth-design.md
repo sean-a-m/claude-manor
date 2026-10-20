@@ -25,6 +25,13 @@ The current cast:
 | Mrs Finch, cook | `cook` | kitchen | runs the kitchen, plans meals and arranges provisions |
 | Daisy, scullery maid | `scullery-maid` | scullery | assists the cook with washing up, cleaning and preparation |
 | Mr Hobbs, butcher | `butcher` | butcher's shop | quotes meat purchases using his own shop profile; lives above the shop |
+| Miss Ellis, draper | `draper` | draper's shop | sells cloth, linen and haberdashery; lives above the shop |
+| Mr Turner, publican | `publican` | the Crown public house | serves drinks and simple refreshments; lives upstairs |
+| Mrs Bell, postmistress | `postmistress` | post office | sells stamps and stationery from a cottage sub-post office |
+| Mr Carter, blacksmith | `blacksmith` | forge | repairs ironwork and tools; lives in the adjoining cottage |
+| Mr Rudge, chimney sweep | `chimney-sweep` | sweep's cottage | receives callers and can visit to sweep chimneys with rods and brushes |
+| Mr Webb, barber and hairdresser | `barber` | barber's cottage | cuts hair and shaves customers in his front room |
+| Mrs Dobbins, laundress | `laundress` | laundress's cottage | takes in washing, with a washhouse and drying yard |
 
 Each role is a position of the shared catalogue (`resources/positions/england-1904.edn`), and
 each character's plans and newness are their own `:situation` (see
@@ -114,7 +121,7 @@ edited copy, or `map.edn` exported from an earlier run).
   ;; village-green, general-store (:hours ["08:00" "18:00"], :services #{:general-store},
   ;; :store-profile "A modest village general store ..."), store-lodgings,
   ;; architects-office (:hours ["09:00" "18:00"]), architects-lodgings (the architect's bedroom)
-  ;; the inn comes in phase 3
+  ;; public-house, post-office, drapers-shop, forge and three cottage trades, each with a bedroom
 
   ;; ------------------------------------------------ Hollin Abbey (does nothing yet)
   ;; abbey-gatehouse, abbey-church
@@ -506,7 +513,7 @@ with a judge at the end. Claudeworth's starting items, shop goods and mock day u
 
 **Phase 3: incentives (after the slice, by need). Not started.** These mostly come from the Ashcombe documents:
 
-- an inn (dine for money; a reason to go out)
+- fuller public-house hospitality (paid dining and guest rooms; the simple taproom is present)
 - hunger and fatigue (provisions get eaten; with no cook, a bigger kitchen and staff start to
   matter)
 - quarterly rents as income
@@ -776,3 +783,30 @@ Decisions for items (done):
     two rounds without a conversation. Purchases are paid in full at once: the rules say there
     are no bills or accounts to settle later (a realistic treatment is deferred, roadmap B7). In the mock day Hale has a sack of
     flour sent up, Briggs's carrier brings it, and Nellie puts it on the pantry shelves.
+
+44. **Village trades as content.** Done. Added a draper, the Crown public house, a cottage
+    sub-post office, a working blacksmith's forge, and cottages from which a chimney sweep,
+    barber/hairdresser and laundress operate. Each has one resident with a simple bedroom and
+    a routine; idle neighbours do not wake one another or make character calls. Draper, publican
+    and postmistress have `:shop-clerk` and profile-grounded counters for portable purchases
+    (cloth and haberdashery, food/drink, stamps/stationery), with no new delivery services.
+    The other workrooms carry service markers to prevent bypassing their proprietors with
+    `find`. Their tools and washing supplies use existing stores; repairs, sweeping, haircuts
+    and washing use existing `spend-time` on actual items, places or people. A sweep must travel
+    to the fireplace; customers must bring their washing and stay for a haircut.
+
+    All these trades existed in rural England in 1904. The smith remains a smith/farrier, not
+    a precision or motor engineer. The barber is the modest village equivalent of a hairdresser,
+    the laundress takes in hand washing at home, and the sweep uses rods and brushes, not
+    climbing children. The sub-post office need not have a telegraph: this one does not. The
+    Crown has only its publican, no visitors, staff household or guest rooms. Its hours are a
+    simplified daily schedule, not a simulation of licensing law or Sunday restrictions.
+    Existing whole-penny pricing is approximate (including postal goods), not an exact tariff.
+
+    No new service-payment, appointment, mail-transport, telegram, postal-order, savings or
+    lodging mechanics were added. Selling a stamp does not dispatch a letter. Talking does
+    not arrange an automatic visit or clean, mend or move anything. Service workers are told
+    not to invent charges or bills; social arrangements and ordinary work are all that is
+    supported for now. See roadmap B7 for these remaining boundaries. New content has generic
+    resident/routine/counter checks and the bundled offline mock/replay tests, not a frozen
+    cast snapshot or changes to the independent mechanics fixtures.

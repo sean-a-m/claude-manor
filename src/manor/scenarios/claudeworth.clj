@@ -684,7 +684,7 @@
   (deliveries/install
    (hiring/install
    {:name :claudeworth
-   :doc "Claudeworth Manor, 1904: a family and their servants, a village architect, a general-store keeper and a butcher, living from day to day."
+   :doc "Claudeworth Manor, 1904: a family and their servants, a village architect, shops, a public house and cottage trades, living from day to day."
    :init init
    :roles roles
    :agent-brief agent-brief

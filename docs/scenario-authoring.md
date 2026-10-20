@@ -288,6 +288,16 @@ co-location and opening-hours checks still apply. The GM is not a character and 
 receive these actions.
 Old Claudeworth runs are intentionally unsupported after this contract change.
 
+Claudeworth also reuses this counter service for its draper, publican and postmistress: each
+position has `:shop-clerk`, and each location uses `:services #{:general-store}` (the post
+office also has `:post-office`) with its own `:store-profile` and `:hours`. Despite the service
+name, the profile determines the trade. It covers physical purchases only: cloth, refreshments,
+stamps and stationery, not repairs, haircuts, postal orders, telegrams or room hire. Cottage
+trades and the forge use their own service markers, so Claudeworth's `find-allowed?` also
+protects their supplies. Their repairs, sweeping, hairdressing and washing use ordinary
+`spend-time` on actual items, places or people; no paid-service or mail-transport contract is
+implied. Each resident has a bedroom and routine just like the existing shopkeepers.
+
 **Deliveries** (`manor.scenarios.deliveries`, design in `docs/deliveries-design.md`). A shop
 sends goods out when its location has a `:delivery-profile`: at most 400 characters, describing
 its delivery scope in general terms, never a list of goods (so it doesn't suggest purchases).
@@ -1467,7 +1477,7 @@ Who someone is (their persona and traits) is kept apart from the job they hold (
 and from their circumstances in this world (their situation). The code is `manor.positions`.
 
 **Positions** come from a catalogue shared between worlds, `resources/positions/england-1904.edn`
-(a country house and its village in 1904: about 45 positions and `:none`). A world file names it
+(country-house and village positions in 1904, plus `:none`). A world file names it
 in `:meta :positions` and may add or override entries in its own `:roles`, merged key by key over
 the catalogue's (a world without a catalogue has only its `:roles`):
 
@@ -1503,7 +1513,8 @@ An entry:
   who starts in the household (`positions/household-standings`).
 - `:capabilities` are what code and tools go by (see `:needs` under `:actions`): `:shop-clerk`
   (quote goods at a shop) and `:architect` (draw plans for clients, earn commission fees). The
-  butcher and the shopkeeper are separate positions with the same capability.
+  butcher, shopkeeper, draper, publican and postmistress are separate positions with the same
+  counter capability.
 
 **Forms of address** are behind the run option `:addressed-as?` (default true; CLI
 `--no-address` turns it off), so runs with and without them can be compared. When it's on, an

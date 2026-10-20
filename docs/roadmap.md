@@ -244,6 +244,15 @@ smoke/replay checks. Claudeworth now also has a cook, scullery maid, pantry shel
 quarters and a butcher reusing the profile-grounded shop service (design decision 38).
 See [the store brief](archived/general-store-brief.md) and Claudeworth design decision 36. Old-run compatibility is intentionally not maintained.
 
+**Village trades content: done** (Claudeworth design decision 44). A draper, public house,
+sub-post office, forge and sweep's, barber's and laundress's cottages have resident agents,
+bedrooms and quiet routines. Portable counter goods reuse quotes/buy; service work reuses
+`spend-time` on actual items, places or people. No mechanics fixtures were expanded.
+Remaining, only if requested: paid-service quotes/payments, appointments and automatic trade
+visits, collection/return of washing, postal transport, postal orders/savings/telegrams, and
+public-house guest rooms or paid hospitality. Buying stamps is not sending mail, and discussing
+a job does not schedule or perform it. No service charges or bills are implemented.
+
 Consumables: done (Claudeworth design decision 39). A purchase is one parcel with its amount as
 an aspect; items may be `:consumable?`; the work judge may use them up and make at most two
 things from them.

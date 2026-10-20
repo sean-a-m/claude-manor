@@ -1,6 +1,6 @@
 (ns people.reputation
-  "What one person knows of another: how well they know them, and which of
-  the other's hidden traits they know, rolled from how they know them."
+  "What one person knows of another: how well they know them, and which
+  basic readings and model-written circumstances they know. No stock behaviours."
   (:require [clojure.string :as str]
             [people.generate :as g]))
 
@@ -23,7 +23,7 @@
    "thirteen" "fourteen" "fifteen" "sixteen" "seventeen" "eighteen" "nineteen" "twenty"])
 
 (defn reputation
-  "What `knower` knows of `person` (a base record from generate_people),
+  "What `knower` knows of `person` (basic traits plus model-written circumstances),
   given their `relation`. Deterministic from `seed`."
   [{:keys [person knower relation seed]}]
   (let [rel (get relations relation)]

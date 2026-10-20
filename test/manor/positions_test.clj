@@ -232,13 +232,21 @@
         (is (= "Mr Hale" (:address-as (first (get-in (prompt/agent-view (:scenario run) world "lord-claudeworth")
                                                      [:location :people-here])))))
         (finally (e/stop-run run)))))
-  (testing "off: no form of address anywhere"
+  (testing "off: no address fields or engine-added prompt line, irrespective of character prose"
     (let [run (start {:addressed-as? false})
           world (with-hale-in-the-earls-bedroom (e/world run))]
       (try
         (doseq [a (w/active-agents world)
-                :let [text (whole-prompt run world (:id a))]]
-          (is (not (re-find #"(?i)my lord|my lady|address" text)) (:id a)))
+                :let [id (:id a)
+                      text (system-prompt run world id)
+                      with-address (with-redefs [positions/addressed-as (constantly "test-address-sentinel")]
+                                     (system-prompt run world id))
+                      people (get-in (prompt/agent-view (:scenario run) world id) [:location :people-here])]]
+          (is (nil? (positions/addressed-as world id)) id)
+          (is (not-any? #(contains? % :address-as) people) id)
+          ;; Compare the code-owned addition, never search arbitrary generated prose
+          ;; for words such as 'address' (which also matches 'addressed invitations').
+          (is (= text (str/replace with-address " People address you as test-address-sentinel." "")) id))
         (is (= [{:id "lord-claudeworth" :name "Lord Claudeworth" :role :earl :carrying ["Pocket watch"]}]
                (map #(dissoc % :appearance) (get-in (prompt/agent-view (:scenario run) world "hale") [:location :people-here]))))
         (finally (e/stop-run run))))))

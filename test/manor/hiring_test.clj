@@ -84,18 +84,21 @@
 
 (deftest recommendation-arrival-privacy-and-default-model
   (let [secret "private-candidate-sentinel"
-        stubs (assoc h/offline-stubs :people/generate
-                     (fn [args ctx]
-                       (update-in ((:people/generate h/offline-stubs) args ctx) [:people 0 :circumstances]
-                                  conj {:label secret :text secret})))
         polish (fn [_] {:tool :polish :args {:persona (str "You keep " secret " to yourself.")
+                                            :circumstances [secret]
                                             :manner "You are civil." :appearance secret}})
         run (start {:adjudicators (assoc-in h/adjudicators [:people/polish :mock] polish)}
-                   {:bridge-stubs stubs :model "default-test-model" :judge-model "other-judge-model"})]
+                   {:model "default-test-model" :judge-model "other-judge-model"})]
     (try
       (rounds! run 1)
       (let [world (e/world run) p (first-person world)]
         (is (= :pooled (:status p)))
+        (is (= [secret] (get-in p [:record :circumstances])))
+        (let [events (e/events run)
+              generated (first (filter #(= :people/generate (get-in % [:data :bridge])) events))
+              reputation (first (filter #(= :people/reputation (get-in % [:data :bridge])) events))]
+          (is (not (contains? (get-in generated [:data :result :people 0]) :circumstances)))
+          (is (= (:record p) (get-in reputation [:data :args :person]))))
         (is (nil? (:agent-id p)))
         (is (= #{"recommender" "employer"} (:known-to p)))
         (is (seq (get-in world [:state :reputations "recommender" (:id p)])))
@@ -116,9 +119,36 @@
         (is (nil? (:model (w/agent world id))))
         (is (= "gate" (space/location-of world id)))
         (is (str/includes? (:persona (w/agent world id)) secret))
+        (is (= [secret] (:circumstances (w/agent world id))))
         (is (= (:appearance p) (:appearance (w/agent world id))))
         (doseq [viewer ["employer" "bystander" "recommender"]]
           (is (not (str/includes? (pr-str (filter #(w/visible-to? % viewer) (e/events run))) secret)))))
+      (replay! run)
+      (finally (e/stop-run run)))))
+
+(deftest reputation-selects-written-circumstances-and-basic-readings
+  (let [stubs (assoc h/offline-stubs :people/reputation
+                     (fn [{:keys [person knower]} _]
+                       {:person (:name person) :knower knower :relation "neighbour"
+                        :acquaintance "They know one another."
+                        :knows {:temperament [(first (:temperament person))]
+                                :faculties [(first (:faculties person))]
+                                :circumstances [(first (:circumstances person))]}}))
+        run (start {} {:bridge-stubs stubs})]
+    (try
+      (rounds! run 1)
+      (let [world (e/world run) p (first-person world)
+            r (get-in world [:state :reputations "recommender" (:id p)])
+            calls (filter #(= "recommender" (:agent %)) (store/read-llm (:dir run)))
+            reply (get-in (first calls) [:replies 0 :content])]
+        (is (= [(first (get-in p [:record :circumstances]))] (get-in r [:knows :circumstances])))
+        (is (= #{:axis :level :measures} (set (keys (first (get-in r [:knows :temperament]))))))
+        (is (= #{:faculty :size :means} (set (keys (first (get-in r [:knows :faculties]))))))
+        (is (str/includes? reply (first (get-in r [:knows :circumstances]))))
+        (is (str/includes? reply (get-in r [:knows :temperament 0 :level])))
+        (is (empty? (:reputations (h/observe world "employer"))))
+        (is (empty? (:reputations (h/observe world "bystander")))))
+      (rounds! run 2)
       (replay! run)
       (finally (e/stop-run run)))))
 

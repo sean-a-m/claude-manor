@@ -122,7 +122,7 @@ From the REPL (`clj -M:dev`):
 (branch! 3)
 (transcript!)           ; rewrite <run-dir>/transcript.md now
 (transcript! "claudeworth-20261015-101500" {:test? true})   ; any saved run, e.g. an old one
-(roll-cast! "worlds/claudeworth.edn")                 ; roll and polish a world file's cast (a few cents)
+(roll-cast! "worlds/claudeworth.edn")                 ; fresh traits + LLM circumstances/prose; $0.20 cap
 (roll-cast! "test-runs/x/claudeworth.edn" {:llm :mock})   ; free, with the mock polish
 ```
 

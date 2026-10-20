@@ -335,12 +335,17 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   a man who doesn't exist and wrote him a character, and nobody could be met or engaged.
 - **Design:** [people-and-hiring-design.md](people-and-hiring-design.md), with the user's
   decisions of 2026-10-18. Four phases: (1) a people server that rolls Big Five temperament and
-  phrenological faculties and a model polish, tried on the existing casts; (2) positions
+  faculties and a model polish, tried on the existing casts; (2) positions
   separated from people, a shared catalogue, situations and a higher agent cap (C13 stays separate); (3) a small
   test world (Ashby Lodge) for short real runs; (4) hiring: `recommend`, `send-for`, `engage`,
   and an away status. **Phases 1–4 implemented**; see the design's section 6.6 for hiring.
   Lodge's mock/offline day completes an interview and hire with conditions and a bedroom;
   tests cover privacy, pool bounds, refusal/return, departure timing, caps, failures and replay.
+  **Descriptor-free generation implemented:** the server rolls basic traits/definitions only;
+  the writer supplies one or two external circumstances with persona, manner and appearance.
+  Raw readings stay in private prompts under **Faculties**; reputation selects readings and
+  written facts. See design section 3.7. Clearer period wording remains future work, without
+  dropping or replacing the basic data.
   Real simulation acceptance runs remain with the user; outdoor housing and dismissal are deferred.
 
 ---

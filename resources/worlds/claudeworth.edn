@@ -78,6 +78,7 @@
    :services #{:general-store}
    :store-profile "A modest village general store in rural England, 1904. Everyday household necessities: groceries in small packages, dry goods, haberdashery, stationery, and simple domestic tools. These examples describe its scope, not an exhaustive inventory. Not a department store or specialist dealer. Only portable goods sold over the counter."
    :delivery-profile "Orders too large to carry away, and goods in the shop's line that can be got in from town, are sent up to houses in the neighbourhood."
+   :courier :carrier
    :connects-to ["store-lodgings"]
    :desc "Groceries, candles, household necessities and gossip, sold over one long counter by Mr Briggs."
    :detail "Shelves to the ceiling of tins, jars and bolts of cloth, sacks of flour and meal along the floor, and a smell of paraffin and cheese. The bell over the door announces every customer, and the counter is where the village's news changes hands."}

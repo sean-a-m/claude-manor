@@ -291,7 +291,21 @@ opening time when it falls outside its `:hours`). The buyer and the clerk see it
 in their view. The `deliveries/arrivals` system, at round start, adds each due order's parcel
 at the delivery place (owner household, `:amount` and `:state` aspects, `:consumable?`, and
 `:order-id`) and emits `:deliveries/arrived`, heard by everyone within walking distance of that
-place. Couriers are a later phase.
+place. Install it with `deliveries/install`, after `hiring/install` (it uses the meeting place,
+the people bridges and adjudicators, and the agent cap).
+
+Each delivering shop has one **courier**, under `[:state :couriers shop-id]` (`{:person
+:position :agent-id :arrived}`; not in hiring's pool). The system's `:compose` makes one with
+`hiring/new-person` the first time a shop's order is due, using the location's `:courier`
+position (default `:errand-boy`; the scenario checks it's in the positions table). It is spawned
+at the delivery place with `hiring/spawn-spec`, its spawn `:system` because it holds a private
+persona, and a post naming the order's clerk as employer ("carries for the General store
+(general-store)"). Later deliveries bring the same agent back (`:people/returned`), or keep one
+who is still here; each arrival resets `:arrived` and rewrites their situation with what they
+brought. A courier goes home (`:people/departed`) once `courier-leave-after` (2) rounds pass
+since they arrived or last conversed (`hiring/idle-rounds`, hiring's own rule). With no room
+under the agent cap, or a retired courier, the goods come without one; a person made but not
+yet spawned is kept for the next delivery.
 
 #### Composed queries
 

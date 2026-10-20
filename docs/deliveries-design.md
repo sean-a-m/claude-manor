@@ -1,9 +1,9 @@
 # Deliveries: design and implementation plan
 
-**Status:** phases 1 and 2 done (branch `deliveries`), with the mock day's delivery from phase 4
-brought forward. Phase 3
-(couriers) waits for the `character-generation` branch to be merged: see "Couriers and the
-people server".
+**Status:** phases 1–3 done and mock-tested (branch `deliveries`), with phase 4's mock day and
+docs. The real-run check is pending the user's go-ahead. As built, the shared functions are
+`hiring/new-person`, `hiring/spawn-spec` and `hiring/idle-rounds` (in `manor.hiring`, which owns
+the people bridges and adjudicators), not `people/...` as sketched below.
 
 Read `AGENTS.md` first, then "Internal adjudication queries", "Composed queries", `:systems`,
 "The nightly steward" and "Runtime candidates and hiring" in `docs/scenario-authoring.md`,

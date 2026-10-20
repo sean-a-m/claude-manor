@@ -179,6 +179,10 @@
  {:title "Carrier" :standing :tradesman :sleeps :out :addressed-as "Mr {surname}" :ages [25 65] :sex :male
   :about "You drive the carrier's cart between the village and the town on set days, carrying goods, parcels and passengers for a fee, and run errands in the town for those who ask."}
 
+ :errand-boy
+ {:title "Errand boy" :standing :villager :sleeps :out :addressed-as "{first-name}" :ages [13 18] :sex :male
+  :about "You work for a village tradesman, carrying goods out to customers' houses and running his errands."}
+
  :vicar
  {:title "Vicar" :standing :professional :sleeps :out :addressed-as "Vicar" :ages [28 75] :sex :male
   :about "You are the parish priest: you take the services and preach on Sundays, christen, marry and bury, visit the sick and the poor, and keep an eye on the village school."}

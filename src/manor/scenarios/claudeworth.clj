@@ -444,6 +444,11 @@
      (mapcat (fn [[id entry]] (positions/entry-problems id entry)) (sort-by key table))
      (for [role (distinct (map :role agents)) :when (not (contains? table role))]
        (str "position " role " has no :about paragraph: add it to :roles or the catalogue"))
+     (for [{:keys [id] :as loc} locations
+           :when (deliveries/delivers? loc)
+           :let [courier (or (:courier loc) deliveries/default-courier)]
+           :when (not (contains? table courier))]
+       (str "location " (pr-str id) ": its courier's position " courier " is not in the positions catalogue"))
      (for [[id {:keys [workplace]}] (sort-by key table)
            place workplace
            :when (not (by-id place))]
@@ -671,7 +676,8 @@
     (filterv #(= :quote-goods (:name %)) shop/actions)))
 
 (def scenario
-  (hiring/install
+  (deliveries/install
+   (hiring/install
    {:name :claudeworth
    :doc "Claudeworth Manor, 1904: a family and their servants, a village architect, a general-store keeper and a butcher, living from day to day."
    :init init
@@ -683,7 +689,7 @@
    :bridges (merge building/bridges hiring/bridges)
    :offline-stubs (merge building/offline-stubs hiring/offline-stubs)
    :mcp-servers (merge building/mcp-servers people/mcp-servers)
-   :systems [building/construction deliveries/arrivals]
+   :systems [building/construction]
    :items {:steward {:at "02:00" :idle-hours 4 :max-per-call 8}
            :find-allowed? (fn [world _ place]
                             (when (seq (:services (space/location world place)))
@@ -699,4 +705,4 @@
    :observe observe
    :mock-policy mock-policy
    :mock-conversation mock-conversation}
-   "carriage-sweep"))
+   "carriage-sweep")))

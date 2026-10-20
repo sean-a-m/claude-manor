@@ -5,8 +5,10 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.clock :as clock]
             [manor.engine :as e]
+            [manor.hiring :as hiring]
             [manor.items :as items]
             [manor.narrate :as n]
+            [manor.prompt :as prompt]
             [manor.scenarios.deliveries :as deliveries]
             [manor.scenarios.shop :as shop]
             [manor.store :as store]
@@ -34,34 +36,40 @@
                             :consumable true :unit-price-pence (if deliver 120 30)}
                      deliver (assoc :lead-hours 2)))}})
 
-(defn policy [{:keys [world agent-id used]}]
+(defn policy
+  "The mutton is ordered in round 2 (due in round 6) and again in round 9 (due in round 13)."
+  [{:keys [world agent-id used]}]
   (cond
-    (and (= "clerk" agent-id) (= 1 (:round world)) (not (some #{"quote-goods"} used)))
+    (and (= "clerk" agent-id) (#{1 8} (:round world)) (not (some #{"quote-goods"} used)))
     {:tool :quote-goods :args shopping}
-    (and (= "customer" agent-id) (= 2 (:round world)) (seq (get-in world [:state :quotes])))
+    (and (= "customer" agent-id) (#{2 9} (:round world)) (seq (get-in world [:state :quotes])))
     {:tool :buy :args {:quote-ids (vec (sort (keys (get-in world [:state :quotes]))))}}
     :else {:tool :pass}))
 
+(def errand-boy {:title "Errand boy" :ages [13 18] :sex :male :about "You carry goods out for a tradesman."})
+
 (defn scenario [shop-extra]
+  (deliveries/install
   {:name :delivery-fixture
-   :roles (into {} (for [role [:secretary :shopkeeper :bystander :gm]] [role {:brief (fn [_ _] "Test role.")}]))
+   :roles (into {} (for [role [:secretary :shopkeeper :bystander :errand-boy :gm]] [role {:brief (fn [_ _] "Test role.")}]))
    :init (fn [_]
            {:agents agents
             :clock {:start "1904-10-15T10:00" :minutes-per-round 30}
             :space {:locations [(merge {:id "counter" :name "Counter" :desc "A counter." :services #{:general-store}
                                         :store-profile profile :hours ["08:00" "18:00"]}
-                                       shop-extra)
+                                       (dissoc shop-extra :hiring-max-agents))
                                 {:id "front-door" :name "Front door" :desc "The front door of the house."}
                                 {:id "hall" :name "Hall" :desc "A hall."}]
                     :routes [["front-door" "hall" 0] ["counter" "front-door" 1]]}
-            :state {:setting "Rural England, 1904." :household {:funds 600}
-                    :positions {:shopkeeper {:capabilities #{:shop-clerk}}}
-                    :quotes {} :meeting-place "front-door"}
+            :state (merge {:setting "Rural England, 1904." :household {:funds 600}
+                           :positions {:shopkeeper {:capabilities #{:shop-clerk}} :errand-boy errand-boy}
+                           :quotes {} :meeting-place "front-door"}
+                          (select-keys shop-extra [:hiring-max-agents]))
             :items []})
    :actions shop/actions :items {}
-   :adjudicators (assoc-in shop/adjudicators [:shop/appraise :mock] appraisal)
-   :systems [deliveries/arrivals]
-   :observe shop/observe :mock-policy policy})
+   :adjudicators (merge hiring/adjudicators (assoc-in shop/adjudicators [:shop/appraise :mock] appraisal))
+   :bridges hiring/bridges :offline-stubs hiring/offline-stubs
+   :observe shop/observe :mock-policy policy}))
 
 (defn start
   ([] (start {:delivery-profile delivery-profile}))
@@ -124,7 +132,7 @@
         (testing "the house hears it, the village doesn't"
           (is (w/visible-to? arrived "butler"))
           (is (not (w/visible-to? arrived "clerk")))
-          (is (= (str "A delivery from the Counter is left at the Front door: side of mutton (1 side, " (:id parcel) ").")
+          (is (= (str "Pat Ellis 0 (pat-ellis-0) brings a delivery from the Counter and leaves it at the Front door: side of mutton (1 side, " (:id parcel) ").")
                  (n/describe arrived (n/names world)))))
         (testing "the nightly steward leaves delivered goods alone"
           (let [loose (items/added world {:name "loose mutton" :desc "Mutton." :place "front-door" :consumable? true} :gm)
@@ -169,3 +177,97 @@
   (is (empty? (deliveries/problems {:locations [{:id "shop" :services #{:general-store} :delivery-profile delivery-profile}]})))
   (is (seq (deliveries/problems {:locations [{:id "shop" :services #{:general-store} :delivery-profile " "}]})))
   (is (seq (deliveries/problems {:locations [{:id "green" :delivery-profile delivery-profile}]}))))
+
+(defn- courier [world] (get (deliveries/couriers world) "counter"))
+
+(deftest a-shop-has-one-courier-who-comes-and-goes
+  (let [run (start)]
+    (try
+      (rounds! run 6)
+      (let [world (e/world run)
+            {:keys [agent-id position]} (courier world)
+            boy (w/agent world agent-id)]
+        (testing "the first delivery makes and spawns the shop's courier at the delivery place"
+          (is (= "pat-ellis-0" agent-id))
+          (is (= :errand-boy position (:role boy)))
+          (is (= "front-door" (:location boy)))
+          (is (str/includes? (:situation boy) "You carry for the Counter. You have brought up side of mutton (1 side), ordered by Customer"))
+          (is (= {:position :errand-boy :employer "clerk" :terms "carries for the Counter (counter)"}
+                 (select-keys (get-in world [:state :posts agent-id]) [:position :employer :terms]))))
+        (testing "the courier's persona and record stay private"
+          (is (= [:system] (map :visible-to (filter #(= agent-id (get-in % [:data :agent :id])) (of-type run :agent/spawned)))))
+          (let [butler (str/join "\n" (map :content (prompt/agent-messages (:scenario run) world (e/events run) "butler" {})))]
+            (is (str/includes? butler "pat-ellis-0"))
+            (is (not (str/includes? butler (:persona boy)))))
+          (is (w/visible-to? (last (of-type run :people/post-changed)) "clerk"))
+          (is (not (w/visible-to? (last (of-type run :people/post-changed)) "butler")))))
+      (rounds! run 1)
+      (is (w/active? (e/world run) "pat-ellis-0") "still here the round after")
+      (rounds! run 1)
+      (testing "nobody talked to them, so they go home two rounds after arriving"
+        (is (= :away (:status (w/agent (e/world run) "pat-ellis-0"))))
+        (is (= [8] (map :round (of-type run :people/departed)))))
+      (rounds! run 5)
+      (let [world (e/world run)]
+        (testing "the next delivery brings the same courier back"
+          (is (= [13] (map :round (of-type run :people/returned))))
+          (is (= "front-door" (:location (w/agent world "pat-ellis-0"))))
+          (is (= 1 (count (filter #(= :people/generate (get-in % [:data :bridge])) (of-type run :bridge/called)))))
+          (is (= 2 (count (filter :courier (map :data (of-type run :deliveries/arrived)))))))
+        (is (= world (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))
+
+(deftest a-conversation-keeps-the-courier-a-round-longer
+  (let [run (start)]
+    (try
+      (rounds! run 6)
+      (let [scenario (:scenario run)
+            world (e/world run)
+            at (fn [world round] (deliveries/tick scenario (assoc world :round round) {}))]
+        (is (empty? (at world 7)))
+        (is (= ["pat-ellis-0"] (map (comp :id :data) (at world 8))))
+        (let [talked (assoc-in world [:agents "pat-ellis-0" :last-conversation-round] 7)]
+          (is (empty? (at talked 8)))
+          (is (= ["pat-ellis-0"] (map (comp :id :data) (at talked 9))))))
+      (finally (e/stop-run run)))))
+
+(deftest with-no-room-the-goods-come-without-a-courier
+  (let [run (start {:delivery-profile delivery-profile :hiring-max-agents 3})]
+    (try
+      (rounds! run 6)
+      (let [world (e/world run)
+            [arrived] (of-type run :deliveries/arrived)]
+        (is (nil? (:courier (:data arrived))))
+        (is (str/starts-with? (n/describe arrived (n/names world)) "A delivery from the Counter is left at the Front door"))
+        (is (seq (items/items-where world #(= "front-door" (:place %)))))
+        (testing "the person made is kept, and spawned at a later delivery once there's room"
+          (is (some? (:person (courier world))))
+          (is (nil? (:agent-id (courier world))))
+          (let [later (-> world
+                          (assoc-in [:state :hiring-max-agents] 10)
+                          (assoc-in [:state :orders "order-late"] (assoc (:data (first (of-type run :deliveries/ordered)))
+                                                                        :id "order-late" :due 7))
+                          (assoc :round 7))]
+            (is (nil? (deliveries/compose later nil)) "no new person: the shop has one")
+            (is (some #(= :agent/spawned (:type %)) (deliveries/tick (:scenario run) later {}))))))
+      (finally (e/stop-run run)))))
+
+(deftest compose-makes-one-person-per-shop-and-only-when-needed
+  (let [run (start)]
+    (try
+      (let [world (e/world run)
+            order (fn [id shop] {:id id :location shop :due 1 :item "mutton" :qty 1 :unit "1 side" :clerk "clerk" :buyer "customer"})
+            asked (atom [])
+            services {:bridge (fn [id args] (swap! asked conj (:seed args)) ((get hiring/offline-stubs id) args nil))
+                      :adjudicate (fn [task _] (case task
+                                                 :people/appearance {:appearance "A boy in a cap."}
+                                                 :people/polish {:persona "You run errands." :manner "You seem quick." :circumstances ["Has a sister."]}))}
+            two (-> world (assoc :round 1)
+                    (assoc-in [:state :orders] {"order-1" (order "order-1" "counter") "order-2" (order "order-2" "back-shop")}))]
+        (is (nil? (deliveries/compose world services)) "nothing due, nothing made")
+        (let [made (deliveries/compose two services)]
+          (is (= #{"counter" "back-shop"} (set (keys made))))
+          (is (= "You run errands." (get-in made ["counter" :persona])))
+          (is (= 2 (count (distinct @asked))) "each shop has its own seed")))
+      (finally (e/stop-run run)))))
+

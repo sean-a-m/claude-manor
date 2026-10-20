@@ -765,10 +765,11 @@ Decisions for items (done):
     them: the rules now say they are never carried, given, copied, lost or searched for, the
     plans-drawn line names who holds them, and the judge brief says never to make plans or copies.
     Making plans real items (linked by plan id) is a later design decision for the user.
-43. **Deliveries.** Ordering and arrival done (phases 1–2 of
-    [the deliveries design](deliveries-design.md)); couriers wait for the character-generation
-    work. The general store and the butcher have vague `:delivery-profile`s; a `quote-goods`
+43. **Deliveries.** Done, mock-tested ([the deliveries design](deliveries-design.md), phases
+    1–3); a real-run check is pending. The general store and the butcher have vague `:delivery-profile`s; a `quote-goods`
     line marked `deliver` is judged against it, gets a lead time from the appraiser, is paid for
     at `buy` and is left at the carriage sweep when due, heard throughout the house. The
-    steward leaves delivered goods alone. In the mock day Hale has a sack of flour sent up and
-    Nellie puts it on the pantry shelves.
+    steward leaves delivered goods alone. Each shop's courier, an errand boy or (Briggs) the
+    carrier, is made once by the people server and polish and comes back for every delivery,
+    going home after two rounds without a conversation. In the mock day Hale has a sack of
+    flour sent up, Briggs's carrier brings it, and Nellie puts it on the pantry shelves.

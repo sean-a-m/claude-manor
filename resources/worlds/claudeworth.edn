@@ -6,7 +6,7 @@
         :minutes-per-round 30
         :starting-funds 3000 ; whole pounds here; runtime money is old pence
         :positions "positions/england-1904.edn"
-        :setting "Claudeworth Manor is a modest Edwardian country house, the seat of the Earls of Claudeworth, whose fortune has lately been restored. Claudeworth village lies nearby, a sloping green with a general store, a butcher's shop and the offices of Pugh & Sons, Architects. Hollin Abbey is nearby too, where the monks keep to themselves."}
+        :setting "Claudeworth Manor is a modest Edwardian country house, the seat of the Earls of Claudeworth, whose fortune has lately been restored. Claudeworth village lies nearby, a sloping green with shops, a public house, a post office, a forge and tradespeople working from their cottages, as well as the offices of Pugh & Sons, Architects. Hollin Abbey is nearby too, where the monks keep to themselves."}
 
  :locations
  [;; ------------------------------------------------ the manor (small to begin with)
@@ -72,7 +72,8 @@
 
   ;; ------------------------------------------------ Claudeworth village
   {:id "village-green" :name "Village green" :domain :village :kind :green
-   :connects-to ["general-store" "butchers-shop" "architects-office"]
+   :connects-to ["general-store" "butchers-shop" "drapers-shop" "public-house" "post-office" "forge"
+                 "sweeps-cottage" "barbers-cottage" "laundress-cottage" "architects-office"]
    :desc "A sloping green with a pump, an old market cross and geese. The shops face it."}
   {:id "general-store" :name "General store" :domain :village :kind :shop :hours ["08:00" "18:00"]
    :services #{:general-store}
@@ -94,6 +95,60 @@
    :detail "White tiles, a heavy chopping block, brass scales and a roll of wrapping paper. Mr Hobbs cuts and weighs meat at the counter; a cool back room keeps the day's stock out of the sun."}
   {:id "butchers-lodgings" :name "Butcher's lodgings" :domain :village :kind :bedroom
    :desc "Mr Hobbs's rooms above the butcher's shop, with a plain bed and a sitting room overlooking the green."}
+  {:id "drapers-shop" :name "Draper's shop" :domain :village :kind :shop :hours ["08:00" "18:00"]
+   :services #{:general-store}
+   :store-profile "A village draper in rural England, 1904. Cloth by the yard, calico, flannel, dress lengths, household linen, ribbons, thread, buttons and other haberdashery, with a modest range of ready-made hosiery. These examples describe the trade, not an exhaustive inventory. Portable goods over the counter only; no bespoke dressmaking service, furniture or general groceries."
+   :connects-to ["drapers-lodgings"]
+   :desc "Miss Ellis's drapery faces the green: a narrow shop with cloth measured out on a long counter and ribbons in the window."
+   :detail "Shelves of folded calico and flannel rise behind the counter. A brass yard measure is let into its edge; drawers below hold buttons and small haberdashery. The window light is softened by lengths of lace curtain."}
+  {:id "drapers-lodgings" :name "Draper's lodgings" :domain :village :kind :bedroom
+   :desc "A neat bedroom above the drapery, with a patchwork coverlet and a window looking across the green."}
+  {:id "public-house" :name "The Crown public house" :domain :village :kind :public-house :hours ["11:00" "22:00"]
+   :services #{:general-store}
+   :store-profile "A small fully licensed village public house in rural England, 1904. Beer, ale, porter, cider and modest measures of spirits, with bread and cheese or other simple cold refreshments. These examples describe its scope, not an exhaustive menu. Only portable food and drink handed over the bar; not a grocer, hotel or restaurant. No room bookings, rounds on credit or paid hospitality services."
+   :connects-to ["publicans-room"]
+   :desc "The Crown: a low, whitewashed public house, with a taproom opening from the green and a private stair behind the bar. A single publican keeps it, without a separate staff household or guest accommodation."
+   :detail "Dark settles stand against the walls, the floor is flagged, and a small serving hatch opens towards the cellar stair. A painted crown hangs above the door; frosted lower panes screen the taproom from the green."}
+  {:id "publicans-room" :name "Publican's room" :domain :village :kind :bedroom
+   :desc "A plain bedroom above the Crown, with a washstand and a heavy woollen blanket on the bed. There are no guest rooms."}
+  {:id "post-office" :name "Post office" :domain :village :kind :office :hours ["08:00" "18:00"]
+   :services #{:general-store :post-office}
+   :store-profile "A small village sub-post office in rural England, 1904. Edward VII postage stamps, stamped postcards, envelopes, writing paper and other modest postal stationery, sold as portable goods at the counter. These examples describe the stock, not an exhaustive inventory. No sale of postal orders, savings deposits or telegraph services through this goods counter; no money transfers or mechanically dispatched letters or parcels."
+   :connects-to ["postmistress-room"]
+   :desc "Mrs Bell keeps the sub-post office in the front room of a brick cottage. A red pillar box stands by the door, and a glazed counter separates callers from the sorting shelves."
+   :detail "A portrait of Edward VII hangs above the counter. Pigeonholes line the back wall, with printed postal notices and a clock beside them. There is no telegraph instrument here; telegram enquiries must go to the town office."}
+  {:id "postmistress-room" :name "Postmistress's room" :domain :village :kind :bedroom
+   :desc "Mrs Bell's quiet bedroom behind the post office, with a small grate and a curtained window onto the garden."}
+  {:id "forge" :name "Blacksmith's forge" :domain :village :kind :workshop :hours ["07:00" "18:00"]
+   :services #{:blacksmith}
+   :connects-to ["blacksmiths-room"]
+   :aspects {:cleanliness "coal dust on the floor" :state "hearth banked"}
+   :desc "Mr Carter's smithy stands at the edge of the green, its wide doors opening onto a shoeing space. He makes and repairs ironwork, tools and farm fittings as well as shoeing horses."
+   :detail "A brick forge hood rises towards the tiled roof. The stone floor is dark with scale, and the doorway gives room to work on awkward lengths of iron. This is a village smithy, not a motor engineer's or a watch repairer's shop."}
+  {:id "blacksmiths-room" :name "Blacksmith's room" :domain :village :kind :bedroom
+   :desc "A small bedroom in the cottage adjoining the smithy, with a sturdy bed and a washstand by the back window."}
+  {:id "sweeps-cottage" :name "Chimney sweep's cottage" :domain :village :kind :cottage :hours ["07:00" "18:00"]
+   :services #{:chimney-sweep}
+   :connects-to ["sweeps-room"]
+   :desc "Mr Rudge's cottage has a little front workroom where callers can arrange a chimney sweeping. He works with jointed rods and brushes, not climbing children."
+   :detail "The limewashed workroom opens straight from the lane beside the green. A stone threshold and a dark patch by the back door show where sooty equipment is brought in; the sleeping room is kept apart from the work."}
+  {:id "sweeps-room" :name "Chimney sweep's room" :domain :village :kind :bedroom
+   :desc "A simple bedroom behind the sweep's workroom, with a narrow bed and a small chest of clean clothes."}
+  {:id "barbers-cottage" :name "Barber's cottage" :domain :village :kind :cottage :hours ["08:00" "19:00"]
+   :services #{:barber}
+   :connects-to ["barbers-room"]
+   :desc "Mr Webb works as a barber and hairdresser in the front room of his cottage. A striped pole marks the door; villagers come for a shave or a haircut."
+   :detail "A mirror faces the window across a plain wooden chair with a headrest. The floor is bare boards, easily swept, and a little hearth warms the room. It is a small village barber's, not a fashionable ladies' salon."}
+  {:id "barbers-room" :name "Barber's room" :domain :village :kind :bedroom
+   :desc "A tidy bedroom upstairs at the barber's cottage, with a washstand and a faded print above the bed."}
+  {:id "laundress-cottage" :name "Laundress's cottage" :domain :village :kind :cottage :hours ["07:00" "18:00"]
+   :services #{:laundry}
+   :connects-to ["laundress-room"]
+   :aspects {:cleanliness "flags scrubbed" :state "washhouse aired"}
+   :desc "Mrs Dobbins takes in washing at her cottage, with a washhouse behind it and a small drying yard. Villagers bring bundles of linen to be washed, starched and ironed."
+   :detail "The front workroom has space for sorting and folding linen; a rear doorway leads to the brick-floored washhouse. Lines cross the yard, and an airing rack hangs high under the washhouse rafters. There is no powered laundry machinery."}
+  {:id "laundress-room" :name "Laundress's room" :domain :village :kind :bedroom
+   :desc "A small bedroom upstairs, away from the steam of the washhouse, with a patchwork quilt and a chest beside the bed."}
   {:id "architects-office" :name "Architect's office" :domain :village :kind :office :hours ["09:00" "18:00"]
    :services #{:architect}
    :connects-to ["architects-lodgings"]
@@ -121,6 +176,15 @@
   :architect {:workplace ["architects-office"]}
   :shopkeeper {:workplace ["general-store"]}
   :butcher {:workplace ["butchers-shop"]}
+  :draper {:workplace ["drapers-shop"]}
+  :publican {:workplace ["public-house"]
+             :about "You keep a village public house: serve drink and simple cold refreshments, keep the taproom in order and hear the village's news. There are no other staff or guest rooms at present. Use quote-goods for the customer's whole list of food or drink before giving prices, including on a speaking turn in conversation; let them accept with buy. Sell only portable refreshments within the house's trade, handed over when bought, with no credit or bargaining. Do not quote room hire, table service or future bills."}
+  :postmistress {:workplace ["post-office"]
+                 :about "You keep a village sub-post office, selling stamps and postal stationery at the counter and answering postal enquiries. Use quote-goods for the customer's whole list of goods before giving prices, including on a speaking turn in conversation; let them accept with buy. Sell only the goods in the office's store profile, handed over when bought, with no credit or bargaining. Mail transport, postal orders, savings transactions and telegrams are not enacted here: do not claim to dispatch or deliver messages or transfer money. There is no telegraph instrument in this office."}
+  :blacksmith {:workplace ["forge"]}
+  :chimney-sweep {:workplace ["sweeps-cottage"]}
+  :barber {:workplace ["barbers-cottage"]}
+  :laundress {:workplace ["laundress-cottage"]}
   :gm {:about "A quiet period household: the family, their secretary and servants, and the village tradespeople going about their days."}}
 
  ;; things in the world; :holder and an agent :owner are agent names (see manor.items).
@@ -151,6 +215,12 @@
   {:id "butchers-day-book" :name "Butcher's day book" :place "butchers-shop" :owner "Hobbs" :aspects {:state "in daily use"} :desc "A ruled, cloth-bound book kept behind the counter, with Mr Hobbs's record of customers' purchases and accounts."}
   {:id "general-store-counter" :name "General store counter" :place "general-store" :owner "Briggs" :fixed? true :aspects {:repair "worn smooth by use"} :desc "The long wooden counter over which Mr Briggs sells groceries, candles and household necessities."}
   {:id "briggs-ledger" :name "Mr Briggs's ledger" :place "general-store" :owner "Briggs" :aspects {:state "in daily use"} :desc "A tall, cloth-bound ledger behind the counter, ruled for Mr Briggs's shop accounts."}
+  {:id "forge-hearth" :name "Forge hearth" :place "forge" :owner "Carter" :fixed? true :aspects {:state "banked, ready to be blown up"} :desc "A brick smithing hearth with hand bellows, for heating iron to working heat."}
+  {:id "smiths-tool-rack" :name "Smith's tool rack" :place "forge" :owner "Carter" :fixed? true :store {:keeps "hammers, tongs, punches, files, iron stock and small iron fittings"} :aspects {:stock "the usual smithing tools and iron to hand"} :desc "A stout rack and shelves beside the anvil, holding the smith's everyday tools and material."}
+  {:id "sweeps-equipment" :name "Sweep's equipment cupboard" :place "sweeps-cottage" :owner "Rudge" :fixed? true :container :closed :store {:keeps "jointed sweeping rods, chimney brushes, scrapers, soot sacks and protective cloths"} :aspects {:stock "equipped for ordinary chimney sweeping"} :desc "A dark wooden cupboard in the workroom, set apart for the sweep's rods and sooty equipment."}
+  {:id "barbers-shelf" :name "Barber's shelf" :place "barbers-cottage" :owner "Webb" :fixed? true :store {:keeps "scissors, combs, razors, strop, shaving soap, towels and hair brushes"} :aspects {:stock "the usual barber's equipment to hand"} :desc "A narrow shelf beside the mirror, with a drawer beneath for the barber's working things."}
+  {:id "laundry-copper" :name "Laundry copper" :place "laundress-cottage" :owner "Mrs Dobbins" :fixed? true :aspects {:state "cold, emptied after use"} :desc "A copper washing boiler set in brickwork over a small firebox in the rear washhouse."}
+  {:id "laundry-shelves" :name "Laundry shelves" :place "laundress-cottage" :owner "Mrs Dobbins" :fixed? true :store {:keeps "wash tubs, dolly, soap, washing soda, blue, starch, flat irons and ironing cloths"} :aspects {:stock "supplied for the usual washing and ironing"} :desc "Shelves and a low bench in the washhouse, keeping washing supplies apart from finished linen."}
   {:id "pocket-watch" :name "Pocket watch" :holder "Lord Claudeworth" :owner "Lord Claudeworth" :aspects {:state "keeping good time"} :desc "A gold half-hunter on a chain, engraved with the Claudeworth arms."}
   {:id "pocket-notebook" :name "Pocket notebook" :holder "Hale" :owner "Hale" :aspects {:state "half full"} :desc "A small black notebook with a pencil in its spine, for his lordship's instructions."}]
 
@@ -225,6 +295,56 @@
    :routine [{:from "07:00" :at "general-store" :doing "tending his shop"}
              {:from "18:00" :at "store-lodgings" :doing "having supper above the shop"}
              {:from "22:00" :at "store-lodgings" :doing "asleep"}]}
+  {:name "Miss Ellis" :sex :female :role :draper :location "drapers-shop" :bedroom "drapers-lodgings"
+   :situation "You keep the drapery on Claudeworth's green and live above it."
+   :persona "You are forty-two and learned the drapery trade beside your aunt in a county town. You handle good cloth with pleasure and show customers the difference between a sound weave and a showy finish, but dislike being hurried into giving advice. You remember a customer's tastes better than their family news."
+   :appearance "A slight woman in her early forties, with brown hair coiled neatly at the back of her head. She usually wears a dark wool dress with a white collar and narrow cuffs."
+   :routine [{:from "08:00" :at "drapers-shop" :doing "measuring cloth and attending to the drapery"}
+             {:from "18:00" :at "drapers-lodgings" :doing "having supper above the shop"}
+             {:from "22:00" :at "drapers-lodgings" :doing "asleep"}]}
+  {:name "Turner" :sex :male :role :publican :location "public-house" :bedroom "publicans-room"
+   :situation "You are the licensee of the Crown public house on Claudeworth's green, living above the taproom. You are its only staff for now."
+   :persona "You are fifty, broad in the shoulder and sparing with your opinions when others are quarrelling. You like an orderly house and can end a noisy argument with a quiet change of subject. Your years behind a bar have made you curious about strangers, though you never press a question after the first short answer."
+   :appearance "A broad-shouldered man of about fifty, with a sandy moustache going grey. He usually wears a dark waistcoat, rolled shirt sleeves and a long white apron."
+   :routine [{:from "08:00" :at "public-house" :doing "cleaning the taproom before opening"}
+             {:from "11:00" :at "public-house" :doing "attending to the bar"}
+             {:from "22:00" :at "publicans-room" :doing "having supper above the taproom"}
+             {:from "23:00" :at "publicans-room" :doing "asleep"}]}
+  {:name "Mrs Bell" :sex :female :role :postmistress :location "post-office" :bedroom "postmistress-room"
+   :situation "You keep the sub-post office in your cottage on Claudeworth's green. The town office, not yours, has the telegraph."
+   :persona "You are forty-eight, a widow who learned the postal work while helping your father. You are patient with a hesitant writer and exact over an address, but close your mouth firmly when someone asks about another person's correspondence. Away from the counter you enjoy difficult cross-stitch patterns."
+   :appearance "A woman in her late forties with greying hair, a round face and small steel spectacles. Her usual dress is dark serge, with a watch pinned at the bodice."
+   :routine [{:from "08:00" :at "post-office" :doing "attending to the post office counter"}
+             {:from "18:00" :at "postmistress-room" :doing "having supper behind the office"}
+             {:from "22:00" :at "postmistress-room" :doing "asleep"}]}
+  {:name "Carter" :sex :male :role :blacksmith :location "forge" :bedroom "blacksmiths-room"
+   :situation "You keep the smithy at the edge of Claudeworth's green and live in the adjoining cottage. Customers may bring metal objects for repair. Repairs are work on the actual object, not something completed by talking. Service payments are not supported here: do not invent charges, payments or bills."
+   :persona "You are thirty-eight, trained at your father's forge, and you study a break before suggesting how to mend it. You take satisfaction in a sound, plain job and become awkward when someone praises you at length. You follow news of motor cars with interest without pretending to be a motor engineer."
+   :appearance "A strongly built man in his late thirties, with close-cut black hair and a short moustache. He usually wears a leather apron over a collarless shirt and heavy boots."
+   :routine [{:from "07:00" :at "forge" :doing "working at the forge and attending to repairs"}
+             {:from "18:00" :at "blacksmiths-room" :doing "having supper beside the smithy"}
+             {:from "22:00" :at "blacksmiths-room" :doing "asleep"}]}
+  {:name "Rudge" :sex :male :role :chimney-sweep :location "sweeps-cottage" :bedroom "sweeps-room"
+   :situation "You work from your cottage beside Claudeworth's green. Callers can arrange for you to visit their house: travel there and spend time on the actual room or hearth to sweep it. No appointments or visits happen merely because they are discussed. Service payments are not supported here: do not invent charges, payments or bills."
+   :persona "You are forty-five and have swept chimneys since learning the brush-and-rod trade as a young man. You are brisk with practical questions about flues and fireplaces, but surprisingly slow in telling a story, returning to the beginning whenever interrupted. You prefer an early start and a quiet evening."
+   :appearance "A lean man in his mid-forties, with a long face and a small dark moustache. He usually wears a faded cap, a dark jacket and stout lace-up boots."
+   :routine [{:from "07:00" :at "sweeps-cottage" :doing "seeing to his sweeping equipment and receiving callers"}
+             {:from "18:00" :at "sweeps-room" :doing "resting at home"}
+             {:from "21:00" :at "sweeps-room" :doing "asleep"}]}
+  {:name "Webb" :sex :male :role :barber :location "barbers-cottage" :bedroom "barbers-room"
+   :situation "You are the barber and hairdresser working from your cottage front room beside Claudeworth's green. A haircut or shave requires spending time on the person while they remain with you, not merely saying it is done. Service payments are not supported here: do not invent charges, payments or bills."
+   :persona "You are thirty-three and learned your trade in a railway town. You enjoy a customer's conversation but grow quiet when concentrating on a difficult parting. You keep up with sporting results and are mildly disappointed when nobody wishes to discuss them."
+   :appearance "A slim man in his early thirties, clean-shaven, with smoothly parted brown hair. He usually wears a white barber's coat over a high-collared shirt."
+   :routine [{:from "08:00" :at "barbers-cottage" :doing "attending to his barber's front room"}
+             {:from "19:00" :at "barbers-room" :doing "having supper at home"}
+             {:from "22:00" :at "barbers-room" :doing "asleep"}]}
+  {:name "Mrs Dobbins" :sex :female :role :laundress :location "laundress-cottage" :bedroom "laundress-room"
+   :situation "You take in washing at your cottage beside Claudeworth's green. Customers must bring actual linen or clothes; wash and iron those with spend-time and hand them back with the item actions. There is no automatic collection or return service. Service payments are not supported here: do not invent charges, payments or bills."
+   :persona "You are fifty-two and have taken in washing since your children were small. You dislike a muddled bundle and count it through before letting a customer leave, but you will work patiently at a stubborn stain. You are warm towards young servants who admit they do not know something."
+   :appearance "A broad, sturdy woman in her early fifties, with greying hair pinned close and red forearms. She usually wears a print gown under a coarse apron, with her sleeves rolled back."
+   :routine [{:from "07:00" :at "laundress-cottage" :doing "seeing to the washing and receiving bundles"}
+             {:from "18:00" :at "laundress-room" :doing "resting after the day's washing"}
+             {:from "21:00" :at "laundress-room" :doing "asleep"}]}
   {:name "Pugh" :sex :male :role :architect :location "architects-office" :bedroom "architects-lodgings" :optional? :architect?
    :situation "You are the architect of Pugh & Sons, Architects, in Claudeworth village: you keep its office and live in the lodgings above it. You want the manor's custom."
    :persona "You sketch handsome façades while overlooking their measurements, and you can talk a client cheerfully past a missing drain. New notions — a concrete folly, a Gothic chapel — delight you, and you begin each with the same ardour, leaving the ledgers to anyone who will take them. You turn compliments with easy, well-practised words, keep your own mistakes folded quietly away, and are seldom low for long. Detail bores you; the look of a thing against the sky is what you came for."

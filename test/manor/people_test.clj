@@ -437,7 +437,7 @@
         (is (= (mapv :name (:agents before)) (:rolled result)))
         (is (= {} (:failed result)))
         (is (zero? (:cost result)))
-        (is (= 9 (count (:results (edn/read-string (slurp (io/file dir "roll-cast.edn")))))))
+        (is (= (count (:agents before)) (count (:results (edn/read-string (slurp (io/file dir "roll-cast.edn")))))))
         (testing "with each position's ages from the catalogue, and the agent's own sex"
           (let [hobbs (first (filter #(= "Hobbs" (:name %)) (:results (edn/read-string (slurp (io/file dir "roll-cast.edn"))))))]
             (is (= {:position "butcher" :ages [25 65] :sex "male"} (select-keys (:args hobbs) [:position :ages :sex])))
@@ -463,7 +463,7 @@
         (is (= (dissoc before :agents) (dissoc after :agents)))
         (is (str/includes? rolled ";; his day when nobody else is in the village")))
       (testing "the rolled file loads, and loading calls nothing"
-        (is (= 9 (count (:agents (wf/load-world (str file)))))))
+        (is (= (count (:agents before)) (count (:agents (wf/load-world (str file)))))))
       (testing "rolling again with the same explicit seed changes nothing with the mock writer"
         (roll)
         (is (= rolled (slurp file))))

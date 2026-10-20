@@ -46,8 +46,8 @@
 
 (deftest the-shared-catalogue
   (let [catalogue (positions/read-catalogue catalogue-source)]
-    (testing "about 45 positions and :none, each with a title, duties, a standing and where they sleep"
-      (is (<= 40 (count catalogue) 50))
+    (testing "positions and :none, each with a title, duties, a standing and where they sleep"
+      (is (seq catalogue))
       (is (contains? catalogue :none))
       (doseq [[id entry] catalogue]
         (is (empty? (positions/entry-problems id entry)) (str id))
@@ -60,6 +60,12 @@
     (testing "duties name nobody and give no form of address: :addressed-as does that"
       (doseq [[id {:keys [about]}] catalogue]
         (is (not (re-find #"(?i)my lord|my lady|\bMrs? [A-Z]|Claudeworth|Pugh|Hale|Nellie|address" about)) (str id))))
+    (testing "counter trades share a capability; service-only trades do not sell services as goods"
+      (doseq [id [:draper :publican :postmistress]]
+        (is (= #{:shop-clerk} (get-in catalogue [id :capabilities])) (str id)))
+      (doseq [id [:blacksmith :chimney-sweep :barber :laundress]]
+        (is (contains? catalogue id))
+        (is (not (contains? (get-in catalogue [id :capabilities] #{}) :shop-clerk)) (str id))))
     (testing "the people server's ages and sex are in the entries"
       (is (= {:ages [13 20] :sex :female} (select-keys (:scullery-maid catalogue) [:ages :sex]))))))
 

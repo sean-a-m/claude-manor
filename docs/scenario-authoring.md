@@ -298,7 +298,9 @@ place, hiring's `:meeting-place`. `buy` takes counter and delivery quotes togeth
 quote emits `:deliveries/ordered`, which pays at once and keeps the order under
 `[:state :orders]`, due at `deliveries/due-round` (at least next round, moved to the shop's next
 opening time when it falls outside its `:hours`). The buyer and the clerk see it under `orders`
-in their view. The `deliveries/arrivals` system, at round start, adds each due order's parcel
+in their view. The order's id is the engine's alone: no tool takes it, so neither the view nor
+the `:deliveries/ordered` narration shows it (characters shown "order-312" took it up as a
+reference number in their talk). The `deliveries/arrivals` system, at round start, adds each due order's parcel
 at the delivery place (owner household, `:amount` and `:state` aspects, `:consumable?`, and
 `:order-id`) and emits `:deliveries/arrived`, heard by everyone within walking distance of that
 place. Install it with `deliveries/install`, after `hiring/install` (it uses the meeting place,
@@ -792,8 +794,10 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
   - `give {item to}`: you carry it, and `to` is someone else here.
 - **Views:** the engine adds to every agent's view `:you :carrying [{:id :name :aspects}]`,
   `:location :here :items [{:id :name}]` (names only; containers as in Containers) and
-  `:carrying ["Umbrella" ...]` on each of `:people-here`, each left out when empty. The default
-  GM view gets `:items`.
+  `:carrying ["Umbrella" ...]` on each of `:people-here`. The agent's own `:carrying` is always
+  there, `[]` when they hold nothing, so a character told "here, take these" can see whether
+  anything was handed over; the others are left out when empty. The default GM view gets
+  `:items`.
 - **`:detail`** is an optional location key: a paragraph about the room that only `look` shows,
   never the view (which has `:id :name :desc`, and `:aspects` if the place has any). Keep the `:desc` short and put what someone
   would notice on looking round in `:detail`; in a world file it goes last, after `:desc`. Things
@@ -805,7 +809,11 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
   either, `put-in` puts things in), that `look`, `open`, `take`, `put-in`, `put-down` and `give`
   don't end the turn, and that `spend-time` spends time on work or pastimes, with optional
   focus ids under `on` and results when it's over. Stores in scope appear every turn; they hold
-  everything they keep unless their aspects say otherwise.
+  everything they keep unless their aspects say otherwise. Say too that talking changes nothing:
+  things change hands only with the item actions and change only by `spend-time`, so a character
+  holds only what's under `carrying`, whatever anyone says; and that characters never speak of
+  views, tools or ids. Claudeworth's `rules` has the wording that was tested against
+  `runs/claudeworth-20261019-233942` (roadmap C16).
 - An agent you may leave out: mark the world-file agent `:optional?`, naming the run option that
   decides it. Claudeworth reads these in `:init`: Mr Pugh (`:optional? :architect?`) is in unless
   `:architect? false`, and Nellie the housemaid (`:optional? :housemaid?`) is in unless
@@ -1048,12 +1056,16 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   aspects if its stock or lacking changes. Never describe a thing as moved or put away in
   its aspects while leaving it where it is. If something isn't put away or consumed, leave
   it as it is. This is judge guidance, not a new effect or semantic validator. Leaving any
-  thing untouched is always a valid answer.
+  thing untouched is always a valid answer. An activity may assume a particular thing someone
+  said they brought, handed over or set aside that is neither in the scene nor carried (seven
+  packets "counted into my apron" in talk): the judge treats it as not existing, writes nothing
+  as if it were counted or set out, and says in the summary that it wasn't there. Clothes,
+  everyday things and a store's supplies are still to hand.
 - **The judge** is a narrow model call, not the GM and not a bridge; characters never hear of it.
   `items/judge-request` builds it from the optional `:items :judge-brief` (`(fn [world] text)`),
   optional suggested aspect keys with short glosses (`:items {:aspect-keys {:cleanliness "how
   clean" :repair "damage and needed repairs" ...}}`), time, worker's name and persona, doing,
-  minutes worked, whether stopped early, and luck (1–100, 50 ordinary, `rng` key `[:judge job-id]`).
+  what the worker carries (`- Carrying: Pipe (pipe)`, or `nothing`), minutes worked, whether stopped early, and luck (1–100, 50 ordinary, `rng` key `[:judge job-id]`).
   Claudeworth suggests cleanliness, repair, state, amount, stock and lacking. These aren't a
   closed vocabulary: other well-formed keys are allowed. The user message's scene is:
 
@@ -1553,6 +1565,9 @@ on with it. It uses nobody else's turn either.
   answers with plain text and no tool call has the text taken as its `reply` (normal turns are
   nudged to call a tool instead). These tools exist only
   in speaking turns and can't be overridden. Lines are told 400 characters and accept 1500.
+  The prompt also says that a line agrees to things but doesn't do them: nothing is handed over,
+  made, mended or moved by talking, only by someone acting on their turn (and, in a world with
+  items, that what you hold is under `carrying`).
 - **Extra tools:** optional `:speaking-actions (fn [world speaker conv] actions)` adds tools after
   the speaking tools and `note`; `conv` has `:id`, `:initiator` and `:members`. The scenario decides
   who gets them. The engine accepts only `:free` and `:query`, applies their `:available?` checks,

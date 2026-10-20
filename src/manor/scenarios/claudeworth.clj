@@ -360,6 +360,10 @@
          "Some things hold others: what's in an open one is listed under its `contents`, and one marked `closed` shows what's inside only when you `open` it. "
          "You can `take` things out of either, and `put-in` puts something into one. "
          "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn. "
+         "Talking never changes anything. Things change hands only with `give`, `take`, `put-in` or `put-down`; they are made, mended, cleaned, used up or otherwise changed only by `spend-time`, as its result says; and goods come only from `buy` or `find`. Agreeing to do something, or saying it's done, does none of it until someone takes the action. "
+         "Your view is how things are now: the notable things you hold are under `carrying` (your clothes and everyday things aren't listed), and particular things (a parcel, a letter, a dish) are only where your view shows them, whatever anyone says or remembers. "
+         "So if someone says they've handed you something and it isn't under `carrying`, you haven't got it; and never say you're handing over or setting out something you don't have. "
+         "Your character knows nothing of this machinery: they speak only of what they see and hold, never of views, tools or ids. "
          "If you are waiting on someone or nothing needs doing, `pass` is the way to wait a turn; you act again next turn. "
          "Opening hours are shown in your view where a place has them. "
          (if architect? "Purchases and commissions" "Purchases")

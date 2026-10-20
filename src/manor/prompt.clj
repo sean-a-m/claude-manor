@@ -207,7 +207,7 @@ Take your turn now.")
 
 (defn- how-to-answer
   "The rules of a speaking turn, for the conversation's closing."
-  [initiator? extra-actions]
+  [initiator? extra-actions items?]
   (str "How to answer:\n"
        (when (seq extra-actions)
          (str "- You may first use " (str/join ", " (map #(str "`" (name (:name %)) "`") extra-actions))
@@ -220,6 +220,9 @@ Take your turn now.")
        "
 - Your line goes in `reply`'s text. A line written as plain text, outside a tool call, isn't heard.
 - `note` is free, if you want to remember something.
+- A line can agree to something but doesn't do it: nothing is handed over, made, mended or moved by talking. What was agreed happens only when someone acts on their turn"
+       (if items? "; what you hold is under `carrying` in your view." ".")
+       "
 - Keep each line to a few sentences, at most " conversation/line-limit " characters, spoken as your character would to the people in the conversation.
 - Say something new, or don't speak: when the matter is settled, "
        (if initiator? "`end-conversation`" "`stay-silent` or `leave`")
@@ -253,7 +256,7 @@ Take your turn now.")
            (str "\n\nYou are busy " (:activity busy)
                 (when-let [u (:until busy)] (str " until " (narrate/at names u)))
                 "; talking doesn't stop it."))
-         "\n\n" (how-to-answer you? extra-actions)
+         "\n\n" (how-to-answer you? extra-actions (items/enabled? world))
          "\n\n"
          (cond final? "This is your last word: call `reply` with a closing line, or `end-conversation` to end it without one."
                you? (str "Pass " pass " of " conversation/passes ". Your turn: call `reply` with your line, or `end-conversation` to end it now.")

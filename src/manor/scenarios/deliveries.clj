@@ -67,10 +67,12 @@
       (update-in [:state :quotes] dissoc (:quote-id data))
       (assoc-in [:state :orders (:id data)] (dissoc data :due-label))))
 
+;; The order's id is the engine's: no tool takes it, so it's never shown, or
+;; characters take it up as a reference number ("order-312") in their talk.
 (defmethod n/describe :deliveries/ordered [{:keys [actor data]} names]
   (str (n/who names actor) " orders " (:item data) " (" (amount (:qty data) (:unit data)) ") for "
        (money/display (:price data)) " at the " (n/place names (:location data)) ", to be delivered at the "
-       (n/place names (:to data)) " by " (:due-label data) "; order " (:id data) "."))
+       (n/place names (:to data)) " by " (:due-label data) "."))
 
 (defn hearers
   "Everyone within walking distance of `place`: the whole house hears the bell."
@@ -255,11 +257,12 @@
                   :tick (fn [world res] (tick scenario world res))})))
 
 (defn observe
-  "The viewer's pending orders, as buyer or as the shop's clerk."
+  "The viewer's pending orders, as buyer or as the shop's clerk, without the
+  orders' ids, which no tool takes."
   [world id]
   (vec (for [o (sort-by :id (vals (orders world)))
              :when (or (= id (:buyer o)) (= id (:clerk o)))]
-         (cond-> {:id (:id o) :item (:item o) :amount (amount (:qty o) (:unit o)) :from (:location o)
+         (cond-> {:item (:item o) :amount (amount (:qty o) (:unit o)) :from (:location o)
                   :buyer (:buyer o) :to (:to o) :due (clock/short-label (:clock world) (:due o) (:round world))}
            (courier-line world (:location o)) (assoc :sent-up-by (courier-line world (:location o)))))))
 

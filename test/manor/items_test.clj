@@ -187,7 +187,7 @@
         (is (= [{:id "clock" :name "Grandfather clock"} {:id "umbrella" :name "Umbrella"}]
                (get-in ada [:location :here :items])))
         (is (= [{:id "pipe" :name "Pipe" :aspects {:state "still warm"}}] (get-in ben [:you :carrying])))
-        (is (not (contains? (:you ada) :carrying)))
+        (is (= [] (get-in ada [:you :carrying])) "always shown, empty when holding nothing")
         (is (= [{:id "ben" :name "Ben" :role :resident :carrying ["Pipe"]}] (get-in ada [:location :people-here])))
         (is (= [{:id "ada" :name "Ada" :role :resident}] (get-in ben [:location :people-here])))))
     (testing "the place's aspects are in the view, without looking"
@@ -493,7 +493,9 @@
                          "absorb them into that store: they join its stock and get a put-away fate"
                          "Adjust the store's aspects if its stock or lacking changes"
                          "Never describe a thing as moved or put away in its aspects while leaving it where it is"
-                         "If something isn't put away or consumed, leave it as it is"]]
+                         "If something isn't put away or consumed, leave it as it is"
+                         "`Carrying` lists the notable things the worker holds"
+                         "A store still holds the everyday supplies it keeps"]]
       (is (str/includes? (:content system) instruction)))
     (is (str/ends-with? (:content system) "## The setting\nA small house."))
     (testing "aspect values: the judge and steward are told 80 characters; 200 are accepted"
@@ -505,6 +507,7 @@
                                             "- Worker: Ben. A night owl who hates going to bed.\n"
                                             "- Place: Hall\n"
                                             "- Doing: polishing the clock\n"
+                                            "- Carrying: Pipe (pipe)\n"
                                             "- Time worked: 60 minutes; they stopped early\n"
                                             "- Luck: 7\n")))
     (is (= #{:place :focus :also_here :stores :people :recent} (set (keys scene))))

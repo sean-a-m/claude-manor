@@ -112,6 +112,10 @@
           (is (str/includes? (n/describe (first (filter #(get-in % [:data :deliver]) (of-type run :claudeworth/goods-quoted))) names)
                              "to be delivered at the Front door within 2 hours of ordering"))
           (is (str/includes? (n/describe ordered names) "to be delivered at the Front door by 12:30")))
+        (testing "the order's id is the engine's: never in its narration or a view"
+          (is (not (str/includes? (n/describe ordered names) (:id order))))
+          (is (not-any? :id (:orders (shop/observe world "customer"))))
+          (is (not-any? :id (:orders (shop/observe world "clerk")))))
         (testing "only the counter knows of the order"
           (is (w/visible-to? ordered "customer"))
           (is (w/visible-to? ordered "clerk"))

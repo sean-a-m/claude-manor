@@ -444,3 +444,52 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
     trait words like "drinks" or "honest"). Remove them, keeping the schema and length checks;
     the instructions and review at roll time remain. Note that the appearance's trait-word check
     is the only automatic guard against leaking hidden traits into public text.
+16. **Talk treated as action, and how salient `carrying` has become (follow up).** In
+    `runs/claudeworth-20261019-233942` (round 14) Dobbs told Nellie "take them and welcome, here,
+    all seven" of sugar packets he never held (his thoughts noticed his `carrying` had only a
+    letter), Nellie took them as received, and the judge's summary of her "counting the seven
+    packets against Daisy's seven" said the tally came square. She then searched for them, the
+    find failed, and "seven packets came in and vanished" ran through the house for a day.
+    Briggs, never told his order went out, insisted his "packets under the ledge" were still
+    there. Separately, the order's engine id (`order-312`) reached his notes and then everyone's
+    talk.
+
+    *Done (branch `talk-is-not-action`):* Claudeworth's rules say talking never changes
+    anything (things change hands only with the item actions and change only by `spend-time`;
+    you hold what's under `carrying`; never speak of views, tools or ids); the speaking turn's
+    "How to answer" and `give`'s doc say the same briefly; the agent's own `:you :carrying` is
+    always in the view, `[]` when empty; the scene judge is told what the worker carries and
+    that an assumed particular thing (brought, handed over, set aside) that isn't there didn't
+    happen; order ids are no longer shown.
+
+    *Evidence (prompt replay, `dev/replay.clj`, 5–10 samples per moment, about $0.10):* Dobbs
+    asked for the packets "hands them over" 5/5 before, 0/5 after; Briggs insists on his
+    packets 3/5 before, 0/5 after; Nellie claims to hold them 5/5 before, 0–1/5 after (the 1 in her
+    next turn, once she already believed it), but only once `carrying: []` was shown (without it her thoughts said "my view doesn't show
+    `carrying`"); the judge says the packets weren't there 0/5 before, 9/15 after, and wrote
+    the phantom packets into the pantry's stock aspect 2/5 before, 0/15 after. No replayed line
+    spoke of views, tools or ids. A replay can't show what happens over many turns.
+
+    *Follow-up research:* does this make "carrying" too salient? `carrying` lists notable items
+    only, so it is fuzzy at the edges, and the new texts lean on it. Watch for:
+    - worn clothes and everyday things treated as absent: a character saying she isn't carrying
+      a cap, or refusing to use an apron, needle or basket because it isn't listed. An earlier
+      judge wording refused Nellie's apron mending ("her torn apron and Mrs Finch's work basket
+      were not there") once in 5; the shipped wording, which names clothes and everyday things,
+      didn't in 10, though one summary still remarked that "the work basket and apron were not
+      among the things to hand";
+    - things inside a carried container, which don't show in `carrying` (a basket's contents);
+    - the judge denying a store's supplies: 4–5 of 10 summaries said "neither the packets nor the
+      sugar" were in the pantry, when the pantry keeps sugar and the stock text happened not to
+      mention it (it had been rewritten by an unrelated stocktake);
+    - entrenched beliefs: given `carrying: []` after already believing she held the packets,
+      Nellie once decided she had "dropped them on the way up", a new vanishing story;
+    - more `look` and `find` calls spent checking what they hold, or "carrying" turning up in
+      speech in a mechanical sense.
+
+    Method: read a real run's transcript for these, count `look`/`find` per turn against older
+    runs, and replay the moments that go wrong with `dev/replay.clj` (it rebuilds the tools and
+    checks them against the recorded digests). Fixes to consider if it's a problem: describe
+    worn and everyday things in the rules rather than leaning on `carrying`; give the judge the
+    worker's carried things only when the activity names one; or drop the judge rule and keep
+    only the agent-side texts.

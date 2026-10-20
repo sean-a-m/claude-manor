@@ -765,8 +765,8 @@ Decisions for items (done):
     them: the rules now say they are never carried, given, copied, lost or searched for, the
     plans-drawn line names who holds them, and the judge brief says never to make plans or copies.
     Making plans real items (linked by plan id) is a later design decision for the user.
-43. **Deliveries.** Done, mock-tested ([the deliveries design](deliveries-design.md), phases
-    1–3); a real-run check is pending. The general store and the butcher have vague `:delivery-profile`s; a `quote-goods`
+43. **Deliveries.** Done ([the deliveries design](deliveries-design.md)), with a real run
+    (`old-test-runs/deliveries-first-check`). The general store and the butcher have vague `:delivery-profile`s; a `quote-goods`
     line marked `deliver` is judged against it, gets a lead time from the appraiser, is paid for
     at `buy` and is left at the carriage sweep when due, heard throughout the house. The
     steward leaves delivered goods alone. Each shop's courier, an errand boy or (Briggs) the

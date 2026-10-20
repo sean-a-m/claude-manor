@@ -20,6 +20,7 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/claudeworth-design.md` | design, phases and numbered decisions for the Claudeworth Manor scenario |
 | `docs/stores-and-aspects-design.md` | phased plan: stores, keyed aspects, the scene judge, `find`, the steward |
 | `docs/people-and-hiring-design.md` | phased plan: the people server and traits, positions, a small test world, hiring |
+| `docs/scene-view-design.md` | plan: the graphical scene page (automatic layout, inspector); not started |
 | `docs/user-todos.md` | the user's own wishlist for later; not agent tasks |
 | `docs/archived/` | finished build briefs and old handoff notes: history, not the present state |
 
@@ -33,7 +34,7 @@ dates, test counts or "phase N is next" here.
 - **What's left:** `docs/roadmap.md`. The Claudeworth phases are section 10 of
   `docs/claudeworth-design.md`, and its decisions (section 12) say which are done or deferred.
 - **What the user wants later:** `docs/user-todos.md`. These aren't tasks until the user picks one.
-- **Whether the code works:** `clojure -M:test` passes on every commit; run it first.
+- **Whether the code works:** `clojure -M:test` run before committing, otherwise don't run unless asked or if there are doubts about whether the current state is functional
 - **When you finish something,** record the outcome where it belongs: mark the roadmap item or
   design decision done, and update `docs/scenario-authoring.md` for contract changes. Don't start a
   new handoff file; build briefs and notes go to `docs/archived/` once their work is committed.

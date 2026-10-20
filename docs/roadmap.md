@@ -311,6 +311,9 @@ options are a "nothing has changed" reply to a repeat `look` and a `walk` reply 
 
 ### B8. Control panel improvements
 
+A graphical scene page as the new main page (an automatic plan of rooms and regions, clickable
+people, rooms and items) is planned in [scene-view-design.md](scene-view-design.md), not started.
+
 - Charts of chosen state values over rounds. A scenario could declare `:metrics (fn [world] {..})`,
   sampled at round end.
 - Run switcher (list `runs/`, load, branch from the UI).

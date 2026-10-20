@@ -75,6 +75,7 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :defaults      {:model "..." ...}       ; overrides engine default options for this scenario
    :mock-policy   (fn [ctx] {:tool :dig :args {}})
    :mock-judge    (fn [ctx] {:tool :judge :args {..}})  ; optional, the judge in mock runs (see Items)
+   :mock-steward  (fn [ctx] {:tool :steward :args {..}})  ; optional, the nightly steward in mock runs
    :speaking-actions (fn [world speaker conv] actions)    ; optional free/query tools in conversations
    :mock-conversation (fn [ctx] {:tool :reply :args {..}})  ; optional, speaking turns in mock runs (see Conversations)
    :offline-stubs {:bridge/name (fn [args ctx] result)}})
@@ -838,6 +839,9 @@ changes; word changeable things in it as habits ("usually in a print frock and a
   each is left out when there are none. The default GM view's agents have them, and the panel's
   roster shows them. The system prompt is unchanged ("What people see:" stays the appearance).
   Other adjudicators (shop quotes, hiring interviews) don't see them.
+- **Overnight:** the nightly steward, when the scenario has one, removes from people asleep the
+  aspects that wouldn't last the night, and never sets one (see The nightly steward). Nothing else
+  reverts a person's aspects.
 - **What the judge does:** the worker is always judged; work changes them only where the activity
   would ("Most work leaves the worker as they were"), and a pastime usually not at all.
   Scenarios can suggest person keys in the same `:aspect-keys` as items' (Claudeworth suggests
@@ -1203,23 +1207,37 @@ world, even with no candidates; replay reproduces the once-per-day decision.
 Code selects absorbable items not carried or inside closed containers, without an `:order-id`, untouched for at least
 `idle-hours` of game time. Starting items age from the clock start. Candidates are grouped by
 place (place-id order), oldest `:touched` first, id breaking ties, at most `max-per-call` per
-place; excess waits for another night. Places with no candidates cost nothing.
+place; excess waits for another night. The steward also sees **sleepers**
+(`items/steward-sleepers`): active people whose `:busy` has `:asleep?` and who have aspects,
+each at their location. A place with candidates or sleepers gets a call (in Claudeworth, about
+one per occupied bedroom per night, and only for sleepers with aspects); places with neither cost
+nothing. Nobody awake is ever seen: someone who stays up all night keeps their aspects.
 
-One narrow `ask-structured!` call per place sees only its place, stores in scope and candidates.
+One narrow `ask-structured!` call per place sees only its place, stores in scope, candidates
+and `sleepers [{id name appearance aspects}]`.
 The `steward` tool accepts `changes`, `used-up`, `fates`, `absorbed` and required `summary`,
 never `made`. It may absorb a candidate into a store in scope, use up a candidate with a fate,
 change its aspects or leave it. Even non-consumable drawn candidates may be used up (discarded).
-Only candidates can change; never room or store aspects. Container checks use all world
+Only candidates can change; never room or store aspects. A sleeper's aspects may only be
+removed: the steward is told to remove those that wouldn't last the night (hair let down,
+evening dress taken off) and leave the rest (a grease-stained apron stays stained), which is its
+judgement; a change that sets one is refused ("a sleeper's aspects can only be removed, with the
+value \"\"; ...") and corrected once, as usual. Container checks use all world
 contents as for work. Unknown fields are dropped; they cannot create anything.
 
 Calls are logged as agent `"steward"`, use `:judge-model` and count toward cost. The shared
 one-correction lifecycle applies; a final failure leaves things alone and records
 `:items/steward-failed` (`:system`). Every checked result is `:items/stewarded`, GM-only,
 with `{:place :summary :changes}`, plus named `:used-up` and `:absorbed` when nonempty. Its
-reducer records removals and fates, and touches changed candidates. Its short narration is
-"Steward at Kitchen: Idle things were put away." Characters see no steward event.
-The default mock (`items/mock-steward`, role `:steward`, context `:world :place :candidates
-:step`) absorbs everything it safely can into the first store in scope, otherwise leaves it.
+reducer records removals and fates, and touches changed candidates; a sleeper's removal is a
+change `{:person id :aspect k :from v :to nil}`. Its short narration is "Steward at Kitchen:
+Idle things were put away.", with its changes after the summary as for work ("(Lady Ashby: no
+longer dressed high, with combs)": a person's removed aspect reads by its old value).
+Characters see no steward event: a sleeper finds the aspects gone from their view on waking.
+A call with role `:steward` goes to the scenario's `:mock-steward` if it has one, else to the
+default mock (`items/mock-steward`, context `:world :place :candidates :sleepers :step`), which
+absorbs everything it safely can into the first store in scope, otherwise leaves it, and
+removes nothing from sleepers.
 
 Stores of provisions can be consumable items, a parcel each, whose `:amount` the judge rewrites as
 they are used (Claudeworth's purchases).
@@ -1692,7 +1710,8 @@ Lets the scenario run for free with `{:llm :mock}`. It's essential for testing.
   free and once per turn, so guard them with `(not (used "say"))` and pass afterwards.
 - For the GM (`role :gm`) return `{:tool :done}` unless testing GM behaviour.
 - The judge of work on items (`role :judge`) never reaches the policy: the engine sends it to the
-  scenario's `:mock-judge`, or `manor.items/mock-judge` (see Items).
+  scenario's `:mock-judge`, or `manor.items/mock-judge` (see Items). Nor does the nightly steward
+  (`role :steward`): it goes to `:mock-steward`, or `manor.items/mock-steward`.
 - Internal adjudication calls (`role :adjudicator`) go to the task's registered `:mock`,
   not this policy (see Internal adjudication queries).
 - Nor do speaking turns in a conversation (the context has `:conversation {:id :initiator

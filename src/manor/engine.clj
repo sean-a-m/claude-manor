@@ -112,7 +112,7 @@
     (llm/mock (fn [ctx]
                 (case (:role ctx)
                   :judge (judge ctx)
-                  :steward (items/mock-steward ctx)
+                  :steward ((or (:mock-steward scenario) items/mock-steward) ctx)
                   :adjudicator (if-let [mock (get-in scenario [:adjudicators (:task ctx) :mock])]
                                  (mock ctx)
                                  (throw (ex-info "adjudicator needs a mock responder" {:task (:task ctx)})))
@@ -930,20 +930,28 @@
         (recur (seq (drop (count batch) works)))))))
 
 (defn- run-steward!
-  "After jobs finish, tidy only idle leftovers, before bridges/systems or
-  characters can create new work. The marker is emitted even with no candidates."
+  "After jobs finish, tidy only idle leftovers and take off what sleepers
+  wouldn't keep on overnight, before bridges/systems or characters can
+  create new work: one call per place with candidates or sleepers. The
+  marker is emitted even with none."
   [run]
   (let [world @(:world run)
         config (get-in run [:scenario :items :steward])]
     (when-let [day (items/steward-day world config)]
       (emit! run [{:type :items/steward-ran :visible-to :gm :data {:day day}}])
-      (doseq [[place candidates] (items/steward-candidates world config)]
-        (let [request (assoc (items/steward-request world place candidates)
-                             :label "steward" :ctx {:role :steward :world world :place place :candidates candidates})
-              {:keys [verdict failure]} (ask-structured! run "steward" request #(items/stewardship % world place candidates))]
-          (emit! run (cond-> [(items/stewarded @(:world run) place verdict)]
-                       failure (conj {:type :items/steward-failed :visible-to :system
-                                      :data {:place place :reason failure}}))))))))
+      (let [all-candidates (items/steward-candidates world config)
+            all-sleepers (items/steward-sleepers world)]
+        (doseq [place (sort (distinct (concat (keys all-candidates) (keys all-sleepers))))]
+          (let [candidates (get all-candidates place [])
+                sleepers (get all-sleepers place [])
+                request (assoc (items/steward-request world place candidates sleepers)
+                               :label "steward" :ctx {:role :steward :world world :place place
+                                                      :candidates candidates :sleepers sleepers})
+                {:keys [verdict failure]} (ask-structured! run "steward" request
+                                                           #(items/stewardship % world place candidates sleepers))]
+            (emit! run (cond-> [(items/stewarded @(:world run) place verdict)]
+                         failure (conj {:type :items/steward-failed :visible-to :system
+                                        :data {:place place :reason failure}})))))))))
 
 (defn- run-approved-bridges! [run]
   (doseq [[req-id {:keys [bridge bridge-args action args requester status]}] (:pending-bridges @(:world run))

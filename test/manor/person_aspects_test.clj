@@ -142,6 +142,8 @@
         (is (= [{:person "mrs-pell" :aspect :apron :from "spattered with grease" :to nil}] (:changes verdict)))
         (e/emit! run [(items/work-done world (items/job world "job-x") {:minutes 30} verdict)])
         (is (not (contains? (w/agent (e/world run) "mrs-pell") :aspects)) "no aspects left, no :aspects")
+        (is (= "Mrs Pell finishes changing her apron. x (Mrs Pell: no longer spattered with grease)."
+               (n/describe (last (of-type run :item/work-done)) (n/names (e/world run)))))
         (is (= (e/world run) (w/replay (e/events run)))))
       (finally (e/stop-run run)))))
 
@@ -256,4 +258,70 @@
       (is (seq (lady second-ctx)))
       (is (= {:dress "changed: dressing for dinner" :hair "dressed by Dawson"} (aspects-of run "lady-ashby")))
       (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+      (finally (e/stop-run run)))))
+
+;; ---------------------------------------------------------------------------
+;; Overnight
+
+(defn- dressed-file
+  "The fixture with Lady Ashby dressed for dinner, written under test-runs/."
+  []
+  (let [file (str (gensym "dressed-") ".edn")]
+    (store/write-text! store/test-runs-root file
+                       (wf/->edn-string (assoc-in (wf/read-file dressing/world-file) [:agents 0 :aspects]
+                                                  {:hair "dressed high, with combs" :dress "in her evening gown"})))
+    (str (io/file store/test-runs-root file))))
+
+(defn- say [args]
+  {:tool-calls [{:id "s1" :name "steward" :arguments (json/write-value-as-string (assoc args :summary "Night."))}]})
+
+(deftest the-steward-undresses-sleepers
+  (let [run (start {:world-file (dressed-file) :start "1904-10-16T01:30"
+                    :llm-impl (llm/mock (fn [{:keys [world agent-id role] :as ctx}]
+                                          (case role
+                                            :steward (dressing/mock-steward ctx)
+                                            :judge (dressing/mock-judge ctx)
+                                            :gm {:tool :done}
+                                            (if (and (= "lady-ashby" agent-id) (= 1 (:round world)))
+                                              {:tool :sleep :args {:until "07:00"}}
+                                              {:tool :pass}))))})]
+    (try
+      (rounds! run 1)
+      (let [world (e/world run)
+            sleepers (items/steward-sleepers world)]
+        (testing "only people asleep with aspects; Mrs Pell is awake"
+          (is (= {"bedroom" ["lady-ashby"]} (update-vals sleepers #(mapv :id %)))))
+        (testing "the request shows the sleepers, as they look"
+          (let [request (items/steward-request world "bedroom" [] (get sleepers "bedroom"))
+                content (get-in request [:messages 1 :content])]
+            (is (str/includes? content "\"sleepers\""))
+            (is (str/includes? content "dressed high, with combs"))
+            (is (str/includes? content "usually in a grey day dress"))
+            (is (not (str/includes? content "grease")))
+            (is (str/includes? items/steward-instructions "Never set or change a sleeper's aspect"))))
+        (testing "a sleeper's aspects may only be removed"
+          (let [check #(items/stewardship (say %) world "bedroom" [] (get sleepers "bedroom"))]
+            (is (= [{:person "lady-ashby" :aspect :hair :from "dressed high, with combs" :to nil}]
+                   (:changes (:verdict (check {:changes [{:thing "lady-ashby" :aspect "hair" :value ""}]})))))
+            (is (= "a sleeper's aspects can only be removed, with the value \"\"; not lady-ashby hair \"let down\""
+                   (:error (check {:changes [{:thing "lady-ashby" :aspect "hair" :value "let down"}]}))))
+            (is (str/starts-with? (:error (check {:changes [{:thing "mrs-pell" :aspect "apron" :value ""}]}))
+                                  "you may change only these things: lady-ashby; not mrs-pell"))
+            (is (str/starts-with? (:error (check {:used-up ["lady-ashby"]})) "you may use up only")))))
+      (rounds! run 1)
+      (let [world (e/world run)
+            [stewarded] (of-type run :items/stewarded)]
+        (testing "at 02:00 the steward lets her hair down and leaves the gown; nobody awake changes"
+          (is (= "1904-10-16" (:items-steward-day world)))
+          (is (= {:dress "in her evening gown"} (aspects-of run "lady-ashby")))
+          (is (= {:apron "spattered with grease"} (aspects-of run "mrs-pell")))
+          (is (= "bedroom" (get-in stewarded [:data :place])))
+          (is (= 1 (count (of-type run :items/stewarded))) "no call for the kitchen: no candidates, nobody asleep")
+          (is (= :gm (:visible-to stewarded)))
+          (is (= "Steward at Lady's bedroom: Everything was left as it was. (Lady Ashby: no longer dressed high, with combs)."
+                 (n/describe stewarded (n/names world)))))
+        (testing "she finds it gone when she wakes; she's told nothing"
+          (is (= {:dress "in her evening gown"} (get-in (view run "lady-ashby") [:you :aspects])))
+          (is (not-any? #(= :items/stewarded (:type %)) (prompt/visible-events (e/events run) "lady-ashby" 1000))))
+        (is (= world (w/replay (store/read-events (:dir run))))))
       (finally (e/stop-run run)))))

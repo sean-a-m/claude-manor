@@ -451,9 +451,10 @@
 
 (defn- change-text
   "The new value (\"swept\"), or \"no longer lacking\" for an aspect removed:
-  values are whole phrases, so the key isn't repeated."
-  [{:keys [aspect to]}]
-  (or to (str "no longer " (aspect-name aspect))))
+  values are whole phrases, so the key isn't repeated. A person's removed
+  aspect reads by its old value: \"no longer spattered with grease\"."
+  [{:keys [person aspect from to]}]
+  (or to (str "no longer " (if (and person from) from (aspect-name aspect)))))
 
 (defn- changes-text
   "\"Drawing room: swept; Piano: dusted; Ada: hair dressed high\": the
@@ -1230,7 +1231,8 @@
 
 (defn- checked-verdict
   "Check decoded effects against this narrow scene. The steward may use up
-  any absorbable candidate, but may change only candidates, never the room."
+  any absorbable candidate, but may change only candidates, never the room,
+  and may only remove sleepers' aspects."
   [world args things stores steward?]
   (let [changes (decoded-changes (:changes args))
         by-id (into {} (map (juxt :id identity)) things)
@@ -1239,8 +1241,12 @@
         removed (into (set gone) (map :thing absorbed))
         made (made-entries (:made args))
         fates (update-keys (:fates args) name)
-        usable (if steward? (map #(assoc % :consumable? (absorbable? %)) things) things)]
+        usable (if steward? (map #(assoc % :consumable? (absorbable? %)) things) things)
+        set-on-sleeper (when steward? (first (filter #(and (:to %) (:person? (by-id (:thing %)))) changes)))]
     (if-let [problem (or (change-problem things changes)
+                         (when set-on-sleeper
+                           (str "a sleeper's aspects can only be removed, with the value \"\"; not "
+                                (:thing set-on-sleeper) " " (name (:aspect set-on-sleeper)) " " (pr-str (:to set-on-sleeper))))
                          (use-up-problem world usable gone)
                          (absorption-problem world things stores gone absorbed)
                          (made-problem (remove #(some #{(:id %)} (map :thing absorbed)) things) stores gone made)
@@ -1309,7 +1315,8 @@
                 :summary (neutral-summary world job stopped-early?))})
 
 ;; ---------------------------------------------------------------------------
-;; The nightly steward sees only old, loose, absorbable things at one place.
+;; The nightly steward sees only old, loose, absorbable things at one place,
+;; and the people asleep there with aspects, which it may only remove.
 
 (defn steward-day
   "The scheduled day due now, if its :at has been reached since the run's
@@ -1343,6 +1350,16 @@
                   (when (seq candidates) [place candidates]))))
         (sort (keys (get-in world [:space :locations])))))
 
+(defn steward-sleepers
+  "The people asleep at each place who have aspects, as person things,
+  grouped by place in place-id order, by id within a place. Nobody awake is
+  among them."
+  [world]
+  (into (sorted-map)
+        (update-vals (group-by :location (filter #(and (:asleep? (:busy %)) (seq (:aspects %)) (:location %))
+                                                 (sort-by :id (w/active-agents world))))
+                     #(mapv (fn [a] (person-thing world (:id a))) %))))
+
 (defmethod w/apply-event :items/steward-ran [world {:keys [data]}]
   (assoc world :items-steward-day (:day data)))
 
@@ -1353,7 +1370,8 @@
   (str "The nightly steward ran for " (:day data) "."))
 
 (defmethod n/describe :items/stewarded [{:keys [data]} names]
-  (str "Steward at " (n/place names (:place data)) ": " (:summary data)))
+  (str "Steward at " (n/place names (:place data)) ": " (:summary data)
+       (when (seq (:changes data)) (str " (" (changes-text names (:changes data)) ")."))))
 
 (defmethod n/describe :items/steward-failed [{:keys [data]} _]
   (str "The steward's answer at " (:place data) " was not used: " (:reason data)))
@@ -1367,11 +1385,14 @@
 - For each candidate, you may absorb it into a listed store in scope (`absorbed: [{thing, into}]`), use it up (`used-up: [id]`, with a short fate in `fates: {id: phrase}`), change its aspects (`changes: [{thing, aspect, value}]`), or leave it.
 - Absorb a container only with all its contents absorbed too; use one up only with all its contents used up too. Otherwise leave it.
 - Change only candidates, never the place or stores. Aspect keys are lower-case letters and hyphens, at most 24 characters; values are 1–" advised-aspect " characters, or empty to remove. Keep at most four aspects per thing.
+- `sleepers` are people asleep here. Their `appearance` is how they usually look, and their `aspects` how they differ from it now. Remove (value \"\") each aspect that wouldn't last the night, such as hair let down or evening dress taken off, and leave the ones that would, such as a grease-stained apron. Never set or change a sleeper's aspect: only remove.
 - Never make anything. A store holds everything it keeps unless its aspects say otherwise. Do not invent events. Give a short third-person summary, at most 300 characters, for the GM only."))
 
 (defn steward-request
-  "One place's narrow nightly request; no people, private lines or other rooms."
-  [world place candidates]
+  "One place's narrow nightly request: its candidates, and the people asleep
+  there with aspects (see `steward-sleepers`); no one awake, no private lines
+  or other rooms."
+  [world place candidates & [sleepers]]
   {:tools [{:type "function" :function {:name "steward" :description "Resolve only the listed idle candidates. Never make anything."
                                       :parameters (mjs/transform steward-schema)}}]
    :messages [{:role "system" :content steward-instructions}
@@ -1380,17 +1401,19 @@
                                             {:place (select-keys (space/location world place) [:id :name :desc :aspects])
                                              :stores (mapv #(assoc (store-view place %) :keeps (get-in % [:store :keeps]))
                                                            (stores-for world place))
-                                             :candidates (judged-json candidates)} pretty)
+                                             :candidates (judged-json candidates)
+                                             :sleepers (mapv #(select-keys % [:id :name :appearance :aspects]) sleepers)} pretty)
                                            "\n```\n\nCall `steward` now.")}]})
 
 (defn stewardship
-  "Check the steward against only its candidates and this place's stores."
-  [response world place candidates]
+  "Check the steward against only its candidates, the sleepers (whose
+  aspects it may only remove) and this place's stores."
+  [response world place candidates & [sleepers]]
   (adjudication/answer "steward" response
                        (fn [arguments]
                          (let [{:keys [args error]} (a/decode-args {:args steward-schema} arguments)]
                            (if error {:error error}
-                               (checked-verdict world args candidates (stores-for world place) true))))))
+                               (checked-verdict world args (into (vec candidates) sleepers) (stores-for world place) true))))))
 
 (defn stewarded
   "A checked nightly result, GM-only; no character sees it happen."

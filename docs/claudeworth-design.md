@@ -773,7 +773,7 @@ Decisions for items (done):
     plans-drawn line names who holds them, and the judge brief says never to make plans or copies.
     Making plans real items (linked by plan id) is a later design decision for the user.
 43. **Deliveries.** Done ([the deliveries design](deliveries-design.md)), with a real run
-    (`old-test-runs/deliveries-first-check`). The general store and the butcher have vague `:delivery-profile`s; a `quote-goods`
+    (`old-test-runs/deliveries-first-check`). The general store, butcher and draper have vague `:delivery-profile`s; a `quote-goods`
     line marked `deliver` is judged against it, gets a lead time from the appraiser, is paid for
     at `buy` and is left at the carriage sweep when due, heard throughout the house. The
     steward leaves delivered goods alone. Each shop's courier, an errand boy or (Briggs) the
@@ -789,7 +789,9 @@ Decisions for items (done):
     barber/hairdresser and laundress operate. Each has one resident with a simple bedroom and
     a routine; idle neighbours do not wake one another or make character calls. Draper, publican
     and postmistress have `:shop-clerk` and profile-grounded counters for portable purchases
-    (cloth and haberdashery, food/drink, stamps/stationery), with no new delivery services.
+    (cloth and haberdashery, food/drink, stamps/stationery). The draper also sends larger
+    parcels up to neighbouring houses through the existing delivery system, using the
+    default errand-boy courier, like the butcher; no new delivery mechanics.
     The other workrooms carry service markers to prevent bypassing their proprietors with
     `find`. Their tools and washing supplies use existing stores; repairs, sweeping, haircuts
     and washing use existing `spend-time` on actual items, places or people. A sweep must travel

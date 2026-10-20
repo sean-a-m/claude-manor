@@ -66,12 +66,16 @@ A shop opts in with a `:delivery-profile` on its location, beside `:store-profil
 optional `:courier` names a catalogue position (default `:errand-boy`). The delivery place is
 hiring's `:meeting-place` (Claudeworth: `carriage-sweep`; Lodge: `front-gate`).
 
-Profiles describe scope in general terms, never items. Proposed text:
+Profiles describe scope in general terms, never a list of goods. Current profiles include:
 
 - **Butcher's shop:** "Larger orders, more than a customer can carry, are sent up to houses in
   the neighbourhood."
 - **General store:** "Orders too large to carry away, and goods in the shop's line that can be
   got in from town, are sent up to houses in the neighbourhood." `:courier :carrier`.
+- **Draper's shop:** "Larger parcels in the drapery trade, too much for a customer to carry
+  away, are sent up to houses in the neighbourhood." Like the butcher, it uses the default
+  `:errand-boy` courier; the draper's duties explain quoting delivery lines and leaving them
+  to the courier. This is content using the existing system, with no new delivery mechanics.
 - **Lodge's village shop:** "Larger orders are carried across to customers' houses."
 
 Store profiles lose "no bulk deliveries or special orders" and keep "only portable goods sold

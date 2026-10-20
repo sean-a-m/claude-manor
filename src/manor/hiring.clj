@@ -89,6 +89,7 @@
   (cond
     (not (get-in world [:state :positions (keyword position)])) "use a position id from the catalogue"
     (#{:none :gm} (keyword position)) "name a character's position to fill"
+    (= actor for) "ask someone else here to recommend to you, not yourself"
     (not (and (w/active? world for) (not= :gm (:role (w/agent world for)))
               (space/together? world actor for))) "the person asking must be here"
     (not (or (reusable world actor (keyword position)) (room? world))) "the candidate pool is full of people still in play"))
@@ -166,8 +167,8 @@
             [{:type :people/evicted :visible-to :system :data {:id (:id (eviction world))}}])
           (when new? [{:type :people/pooled :visible-to :system :data candidate}])
           [{:type :people/reputation-known :visible-to #{actor} :data {:id id :reputation reputation}}
-           {:type :people/recommended :visible-to #{actor for}
-            :data (assoc (select-keys candidate [:id :name :seeks]) :knowers #{actor for})}]))))))
+           {:type :people/recommended :visible-to (conj #{} actor for)
+            :data (assoc (select-keys candidate [:id :name :seeks]) :knowers (conj #{} actor for))}]))))))
 
 (defmethod n/describe :people/recommended [{:keys [data]} _]
   (str (:name data) " (" (:id data) ") seeks " (str/join ", " (map name (:seeks data)))
@@ -295,7 +296,7 @@
 (def text-arg [:string {:min 1 :max 1000}])
 (def actions
   [{:name :recommend :kind :query :roles :all
-    :doc "Recommend one real candidate for a position to someone here (for: their id). Privately learn what you know of the candidate, then speak in your own words. Both of you learn how to send-for them."
+    :doc "Recommend one real candidate for a position to someone else here (for: their id, not your own). Privately learn what you know of the candidate, then speak in your own words. Both of you learn how to send-for them."
     :args [:map [:position :string] [:for :string]] :valid? recommend-reason
     :query-fn recommend! :on-result recommendation-events
     :reply (fn [_ _ _ {:keys [events]}]

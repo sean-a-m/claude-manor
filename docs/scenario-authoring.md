@@ -1311,7 +1311,8 @@ must also include `hiring/actions`, `hiring/adjudicators`, `hiring/bridges`,
 and project `hiring/observe` into its own observation (Claudeworth uses `:hiring`).
 Its positions must include `:none`; its meeting place must exist.
 
-- `recommend {position for}`: one query, one candidate. Both parties must be present.
+- `recommend {position for}`: one query, one candidate. Both parties must be present
+  and distinct; self-recommendation is rejected with directions to ask someone else.
   Reuse a pooled/away person seeking that position in the same walking area, else generate
   one through the people server. The raw record is kept in `[:state :pool]`, never in a
   character's observation. The pool limit is 40, FIFO among pooled/away records not owned

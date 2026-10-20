@@ -126,6 +126,38 @@
       (replay! run)
       (finally (e/stop-run run)))))
 
+(deftest self-recommendation-is-rejected-without-pausing
+  (let [run (start {:mock-policy (fn [{:keys [world agent-id used] :as ctx}]
+                                  (if (and (= "recommender" agent-id) (= 2 (:round world))
+                                           (not (some #{"recommend"} used)))
+                                    {:tool :recommend :args {:position "housemaid" :for agent-id}}
+                                    (policy ctx)))} {})]
+    (try
+      (rounds! run 1)
+      (let [world (e/world run)
+            args {:position "housemaid" :for "recommender"}
+            result {:candidate (first-person world) :new? false :reputation {}}
+            reason (h/recommend-reason world "recommender" args)]
+        (is (= "ask someone else here to recommend to you, not yourself" reason))
+        (is (nil? (h/recommendation-events world "recommender" args result)))
+        (testing "event construction remains duplicate-safe even if validation is bypassed"
+          (with-redefs [h/recommend-reason (constantly nil)]
+            (let [events (h/recommendation-events world "recommender" args result)
+                  recommended (second events)]
+              (is (= [:people/reputation-known :people/recommended] (mapv :type events)))
+              (is (every? #(= #{"recommender"} (:visible-to %)) events))
+              (is (= #{"recommender"} (get-in recommended [:data :knowers])))))))
+      (rounds! run 1)
+      (let [events (e/events run)
+            calls (filter #(and (= "recommender" (:agent %)) (= 2 (:round %)))
+                          (store/read-llm (:dir run)))]
+        (is (= "error: ask someone else here to recommend to you, not yourself"
+               (get-in (first calls) [:replies 0 :content])))
+        (is (not-any? #(and (= 2 (:round %)) (= :bridge/called (:type %))) events))
+        (is (not-any? #(#{:action/forfeited :run/pause-requested} (:type %)) events)))
+      (replay! run)
+      (finally (e/stop-run run)))))
+
 (deftest reputation-selects-written-circumstances-and-basic-readings
   (let [stubs (assoc h/offline-stubs :people/reputation
                      (fn [{:keys [person knower]} _]

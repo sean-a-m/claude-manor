@@ -803,7 +803,9 @@ An engine-level status alongside `:active` and `:retired`:
 Implemented in `manor.hiring`, shared by Claudeworth and Lodge. Only mock/offline
 validation was run; the user will do real runs. No generated cast files were re-polished.
 
-- **Recommendations:** `recommend {position for}` costs one query slot. It reuses an
+- **Recommendations:** `recommend {position for}` costs one query slot. The caller and
+  recipient must be distinct; self-recommendation returns an actionable rejection, and
+  recommendation audiences are duplicate-safe even if the validation is bypassed. It reuses an
   available candidate in the same walking area, or asks the people MCP server for one,
   writes their appearance, polishes their private persona and asks for a reputation.
   The two character-writer calls use the run's default model, not `:judge-model`.

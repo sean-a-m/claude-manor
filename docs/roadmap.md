@@ -235,8 +235,9 @@ items, shop purchases and a mock day that uses them. Resources and prices remain
 job (`:state` keyed by location id).
 
 Claudeworth's general store now has a shopkeeper and adjudicated, buyer-accepted quotes rather
-than a fixed inventory. New purchases create portable items only; bulk purchasing and delivery
-are deferred. Internal appraisal queries share the work judge's bounded LLM-call machinery.
+than a fixed inventory. Counter purchases create portable items only; larger orders can be
+delivered from shops with a `:delivery-profile` ([deliveries design](deliveries-design.md):
+done, with per-shop couriers, and checked in a real run). Internal appraisal queries share the work judge's bounded LLM-call machinery.
 Sterling uses integer old pence. Store mechanics tests own a tiny cast; household choreography
 and exact container contents use fixed test-owned worlds and scripts. Bundled content gets generic
 smoke/replay checks. Claudeworth now also has a cook, scullery maid, pantry shelves, servants'

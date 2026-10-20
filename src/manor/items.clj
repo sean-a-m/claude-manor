@@ -106,6 +106,7 @@
    [:consumable? {:optional true} :boolean]
    [:drawn-from {:optional true} :string]
    [:candidate-id {:optional true} :string]
+   [:order-id {:optional true} :string]
    [:container {:optional true} [:enum :open :closed]]
    [:store {:optional true} [:map {:closed true}
                             [:keeps [:string {:min 1 :max 200}]]
@@ -1267,7 +1268,8 @@
   (into (sorted-map)
         (keep (fn [place]
                 (let [candidates (->> (visible-at world place)
-                                      (filter #(and (absorbable? %)
+                                      ;; delivered goods are left alone for now (deliveries design)
+                                      (filter #(and (absorbable? %) (not (:order-id %))
                                                     (>= (minutes-of world (- (:round world) (max 1 (or (:touched %) 0))))
                                                         (* 60 idle-hours))))
                                       (sort-by (juxt #(or (:touched %) 0) :id))

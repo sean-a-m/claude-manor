@@ -253,7 +253,8 @@ quotes at once: code checks funds for the total, co-location, opening hours and 
 is unspent, then deducts money, consumes the quotes and creates for each one portable parcel carried by the buyer, owned by the household, with the
 amount bought and the appraised condition as its aspects, `{:amount "20 × 1 lb" :state "fresh,
 dry"}` (decisions 39 and 40). There is
-no fixed inventory, bulk counter purchasing, delivery, bargaining or clock expiry on offers.
+no fixed inventory, bulk counter purchasing, bargaining or clock expiry on offers. Shops with a
+`:delivery-profile` also take orders for delivery (decision 43).
 Availability is semantic plausibility, not a finite stock ledger. Opening hours are unchanged.
 
 The shared call/check/retry/logging runner also serves the work judge; the store does not
@@ -764,3 +765,11 @@ Decisions for items (done):
     them: the rules now say they are never carried, given, copied, lost or searched for, the
     plans-drawn line names who holds them, and the judge brief says never to make plans or copies.
     Making plans real items (linked by plan id) is a later design decision for the user.
+43. **Deliveries.** Done ([the deliveries design](deliveries-design.md)), with a real run
+    (`old-test-runs/deliveries-first-check`). The general store and the butcher have vague `:delivery-profile`s; a `quote-goods`
+    line marked `deliver` is judged against it, gets a lead time from the appraiser, is paid for
+    at `buy` and is left at the carriage sweep when due, heard throughout the house. The
+    steward leaves delivered goods alone. Each shop's courier, an errand boy or (Briggs) the
+    carrier, is made once by the people server and polish and comes back for every delivery,
+    going home after two rounds without a conversation. In the mock day Hale has a sack of
+    flour sent up, Briggs's carrier brings it, and Nellie puts it on the pantry shelves.

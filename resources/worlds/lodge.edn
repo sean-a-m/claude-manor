@@ -32,7 +32,8 @@
   {:id "general-store" :name "Village shop" :domain :village :kind :shop
    :hours ["08:00" "18:00"] :services #{:general-store}
    :connects-to ["shop-lodgings"]
-   :store-profile "A small village general shop in rural England, 1904. Groceries in household quantities, dry goods, haberdashery, stationery and simple domestic tools. These describe its scope, not an exhaustive inventory. Only ordinary portable purchases over the counter; no specialist goods, bulk deliveries, credit or special orders."
+   :store-profile "A small village general shop in rural England, 1904. Groceries in household quantities, dry goods, haberdashery, stationery and simple domestic tools. These describe its scope, not an exhaustive inventory. Only ordinary portable purchases over the counter; no specialist goods or credit."
+   :delivery-profile "Larger orders are carried across to customers' houses."
    :desc "A little general shop across the street from the lodge, with a bell over the door and news at the counter."}
   {:id "shop-lodgings" :name "Shopkeeper's lodgings" :domain :village :kind :bedroom
    :desc "A bed-sitting room above the shop, overlooking the lodge gate."}]

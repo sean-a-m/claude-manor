@@ -1,8 +1,9 @@
 # Deliveries: design and implementation plan
 
-**Status:** designed; the user's decisions of 2026-10-19 are below. Not started. Phase 3
-(couriers) waits for the `character-generation` branch to be merged: see "Couriers and the
-people server".
+**Status:** done. Phases 1–4 are built and mock-tested, and the real-run check is below
+("Real run"). As built, the shared functions are
+`hiring/new-person`, `hiring/spawn-spec` and `hiring/idle-rounds` (in `manor.hiring`, which owns
+the people bridges and adjudicators), not `people/...` as sketched below.
 
 Read `AGENTS.md` first, then "Internal adjudication queries", "Composed queries", `:systems`,
 "The nightly steward" and "Runtime candidates and hiring" in `docs/scenario-authoring.md`,
@@ -218,6 +219,36 @@ someone talks to them. An order adds nothing to the appraisal.
 Off-map suppliers, ordering by letter or by the courier calling for orders, tradesmen's accounts,
 cancellation and refunds, delivery to another door or room, goods too heavy to carry (carrying
 is unlimited), spoilage of goods left out, and the courier carrying goods indoors.
+
+## Real run (2026-10-19)
+
+`old-test-runs/deliveries-first-check`: Claudeworth from 10:00, 12 rounds (8, then continued to
+12 so the orders could arrive), $0.199, 0 forfeits, replay equal. Mrs Finch's situation asked for
+meat, flour and a side of bacon, "far more than anyone could carry home"; delivery wasn't
+mentioned.
+
+- **Ordering worked unprompted.** At the butcher's, Hobbs quoted the meat over the counter;
+  Mrs Finch asked for it "sent up", and he re-quoted it with `deliver` in the same
+  conversation. At the general store the appraiser refused a sack of flour over the counter
+  and said it "could be sent up to the house if ordered for delivery"; Briggs then quoted it
+  for delivery. A side of bacon was refused at the store as the butcher's trade, and ordered
+  from Hobbs. Lead times: 3 hours (fresh meat), 4 (flour), 24 (bacon).
+- **Arrival and couriers worked.** The meat came at 14:00 with Hobbs's errand boy, Richard
+  Dunn, and the flour at 15:30 with Briggs's carrier, Stephen Dobbs; everyone in the house
+  heard. Nellie, Daisy and Mrs Finch carried it all to the pantry. Dunn said a word to the
+  family and went home after two rounds; Dobbs talked with Nellie while she checked the sack.
+  Couriers cost about $0.002 in turns each, plus about $0.002 to make each one.
+- **Money was right** (£2 7s 2d spent, exactly the orders and some sugar), but Hale, who sees
+  the balance and not the orders, spent several turns tracing a "missing pound": the bacon.
+  This is how private purchases already work; a household account book would answer it.
+
+Observations, not changed here:
+
+- **The work judge absorbs delivered meat into the pantry's stock** when someone puts it away,
+  so the saddle of mutton is no longer a tracked thing for tomorrow's dinner. Counter
+  purchases already behave this way; only the nightly steward leaves delivered goods alone.
+- **Prices differ between appraisals.** The delivery re-quote priced the legs of mutton at 5s
+  against 2s over the counter. Each appraisal is a separate call, and nothing ties the two.
 
 ## Implementation plan
 

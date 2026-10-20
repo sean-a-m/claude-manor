@@ -50,9 +50,16 @@
        (not (w/active? world (:agent-id p)))))
 (defn eviction [world] (first (filter #(evictable? world %) (ordered world))))
 (defn- room? [world] (or (< (count (pool world)) pool-limit) (eviction world)))
-(defn- area [world actor]
-  ;; A walking area, not a domain: Lodge's shop and house share one.
-  (first (sort (space/area world (space/location-of world actor)))))
+(defn place-area
+  "The people server's area for `place`: a walking area, not a domain, so
+  Lodge's shop and house share one."
+  [world place]
+  (first (sort (space/area world place))))
+(defn- area [world actor] (place-area world (space/location-of world actor)))
+(defn taken-names
+  "Names already in use: everyone spawned and every candidate."
+  [world]
+  (concat (map :name (vals (:agents world))) (map :name (vals (pool world)))))
 (defn- reusable [world actor position]
   (first (filter #(and (#{:pooled :away} (:status %))
                        (= (area world actor) (:area %))
@@ -94,27 +101,46 @@
     (throw (ex-info "The people server returned an invalid person." {})))
   (people/base-record record))
 
+(defn new-person
+  "A fresh person for `position`, made through the composed-query services:
+  the people server's record, then a public appearance and a private polish.
+  {:name :record :lives :persona :manner :appearance}. Candidates and couriers
+  are both made here, so a change to how people are written reaches both."
+  [world {:keys [bridge adjudicate]} {:keys [position area seed taken-names]}]
+  (let [record (check-record
+                (first (:people (bridge :people/generate
+                                        (assoc (people/generate-args position (get-in world [:state :positions position])
+                                                                    {:seed seed :taken-names taken-names})
+                                               :area area)))))
+        public (adjudicate :people/appearance {:record record})
+        polish (adjudicate :people/polish {:record record :appearance (:appearance public)})
+        record (assoc record :circumstances (:circumstances polish))]
+    (merge {:name (:name record) :record record :lives (:lives record)}
+           (select-keys polish [:persona :manner]) public)))
+
+(defn spawn-spec
+  "What an agent spawned from person `p` is made of: their hidden traits and
+  the prose written for them. Merge in :role, :location and :situation."
+  [p]
+  (merge (people/traits (:record p)) (select-keys p [:name :persona :manner :appearance])))
+
+(defn idle-rounds
+  "Rounds since `id` arrived (in round `arrived`) or last conversed, whichever is later."
+  [world id arrived]
+  (- (:round world) (max arrived (:last-conversation-round (w/agent world id) 0))))
+
 (defn recommend!
   "One query, composed of engine-recorded bridge calls and checked model calls.
   No intermediate full record is returned to a character."
-  [world actor {:keys [position]} {:keys [bridge adjudicate]}]
+  [world actor {:keys [position]} {:keys [bridge] :as services}]
   (let [position (keyword position)
         old (reusable world actor position)
-        seed (str (:seed world) "/candidate/" (inc (:seq world)))
-        record (or (:record old)
-                   (check-record
-                    (first (:people (bridge :people/generate
-                                     (assoc (people/generate-args position (get-in world [:state :positions position])
-                                                                 {:seed seed :taken-names (concat (map :name (vals (:agents world)))
-                                                                                                 (map :name (vals (pool world))))})
-                                            :area (area world actor)))))))
-        public (when-not old (adjudicate :people/appearance {:record record}))
-        polish (when-not old (adjudicate :people/polish {:record record :appearance (:appearance public)}))
-        record (if old record (assoc record :circumstances (:circumstances polish)))
         p (or old (merge {:id (str "candidate-" (inc (:seq world))) :created (inc (:seq world))
-                         :name (:name record) :record record :area (area world actor)
-                         :seeks [position] :lives (:lives record) :known-to #{} :status :pooled}
-                        (select-keys polish [:persona :manner]) public))
+                          :area (area world actor) :seeks [position] :known-to #{} :status :pooled}
+                         (new-person world services {:position position :area (area world actor)
+                                                     :seed (str (:seed world) "/candidate/" (inc (:seq world)))
+                                                     :taken-names (taken-names world)})))
+        record (:record p)
         reputation (or (get-in world [:state :reputations actor (:id p)])
                        (bridge :people/reputation {:person record :knower (:name (w/agent world actor))
                                                   :relation "neighbour" :seed (str (:seed world) "/" actor "/" (:id p))}))]
@@ -197,8 +223,7 @@
         returning? (= :away (:status (w/agent world (:agent-id p))))
         spawned (when-not returning?
                   (b/spawn-events scenario world
-                                  (merge (people/traits (:record p))
-                                         (select-keys p [:name :persona :manner :appearance])
+                                  (merge (spawn-spec p)
                                          {:role :none :location at :situation situation :household nil})))
         id (if returning? (:agent-id p) (get-in (first spawned) [:data :agent :id]))
         audience (conj (space/present world at) id (:summoner p))]
@@ -219,15 +244,14 @@
   (second
    (reduce
     (fn [[world events] p]
-      (let [agent (w/agent world (:agent-id p))
-            evs (cond
-                  (and (= :sent-for (:status p)) (<= (:arrival p) (:round world))
-                       (< (count (w/active-agents world)) (get-in world [:state :hiring-max-agents] b/default-max-agents)))
-                  (arrival-events scenario world p)
-                  (and (= :here (:status p)) (w/active? world (:agent-id p))
-                       (>= (- (:round world) (max (:arrived p) (:last-conversation-round agent 0))) leave-after))
-                  (departure world (:agent-id p) "the visit has ended")
-                  :else [])]
+      (let [evs (cond
+                 (and (= :sent-for (:status p)) (<= (:arrival p) (:round world))
+                      (< (count (w/active-agents world)) (get-in world [:state :hiring-max-agents] b/default-max-agents)))
+                 (arrival-events scenario world p)
+                 (and (= :here (:status p)) (w/active? world (:agent-id p))
+                      (>= (idle-rounds world (:agent-id p) (:arrived p)) leave-after))
+                 (departure world (:agent-id p) "the visit has ended")
+                 :else [])]
         [(reduce w/apply-event world evs) (into events evs)]))
     [world []] (ordered world))))
 

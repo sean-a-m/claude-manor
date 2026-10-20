@@ -267,7 +267,7 @@ whole, and creates for each quote one portable item, a parcel of the whole quant
 bought ("20 × 1 lb"), where work can later say what's left, and `:state`, the appraiser's
 `condition` ("fresh, dry"). It is `:consumable?` when the appraiser says the goods are used up in
 use (food, fuel, soap; not tools or crockery). The appraiser's `unit` (at most 30 characters) is
-short so the amount fits an aspect; its `condition` is at most 80. No fixed inventory, bulk counters, delivery or bargaining. Amounts are integer
+short so the amount fits an aspect; its `condition` is at most 80. No fixed inventory, bulk counters or bargaining; delivery is below. Amounts are integer
 old pence; world-file starting funds and architect bridge prices remain authored in pounds.
 All Claudeworth characters can buy and commission from the shared household account and
 see its balance. There is no spender-role allowlist: authority to spend is a social decision
@@ -275,6 +275,37 @@ for the agents, not an engine permission. Buyer-bound quotes, affordability, pla
 co-location and opening-hours checks still apply. The GM is not a character and does not
 receive these actions.
 Old Claudeworth runs are intentionally unsupported after this contract change.
+
+**Deliveries** (`manor.scenarios.deliveries`, design in `docs/deliveries-design.md`). A shop
+sends goods out when its location has a `:delivery-profile`: at most 400 characters, describing
+its delivery scope in general terms, never a list of goods (so it doesn't suggest purchases).
+A `quote-goods` line may set `deliver true`; at a shop without a profile such a call is refused
+before any model call. The appraiser sees the delivery profile and which lines are for delivery,
+judges those against it (larger quantities and goods too big to carry are fine when it covers
+them) and gives each available one `lead-hours` (1–120); a delivery line without it gets the
+usual correction. The quote records `:deliver {:lead-hours :to}`, where `:to` is the delivery
+place, hiring's `:meeting-place`. `buy` takes counter and delivery quotes together: a delivery
+quote emits `:deliveries/ordered`, which pays at once and keeps the order under
+`[:state :orders]`, due at `deliveries/due-round` (at least next round, moved to the shop's next
+opening time when it falls outside its `:hours`). The buyer and the clerk see it under `orders`
+in their view. The `deliveries/arrivals` system, at round start, adds each due order's parcel
+at the delivery place (owner household, `:amount` and `:state` aspects, `:consumable?`, and
+`:order-id`) and emits `:deliveries/arrived`, heard by everyone within walking distance of that
+place. Install it with `deliveries/install`, after `hiring/install` (it uses the meeting place,
+the people bridges and adjudicators, and the agent cap).
+
+Each delivering shop has one **courier**, under `[:state :couriers shop-id]` (`{:person
+:position :agent-id :arrived}`; not in hiring's pool). The system's `:compose` makes one with
+`hiring/new-person` the first time a shop's order is due, using the location's `:courier`
+position (default `:errand-boy`; the scenario checks it's in the positions table). It is spawned
+at the delivery place with `hiring/spawn-spec`, its spawn `:system` because it holds a private
+persona, and a post naming the order's clerk as employer ("carries for the General store
+(general-store)"). Later deliveries bring the same agent back (`:people/returned`), or keep one
+who is still here; each arrival resets `:arrived` and rewrites their situation with what they
+brought. A courier goes home (`:people/departed`) once `courier-leave-after` (2) rounds pass
+since they arrived or last conversed (`hiring/idle-rounds`, hiring's own rule). With no room
+under the agent cap, or a retired courier, the goods come without one; a person made but not
+yet spawned is kept for the next delivery.
 
 #### Composed queries
 
@@ -499,6 +530,22 @@ the world as changed by the previous systems.
 with a sensible fallback (the village uses neutral weather). Bridge calls made by systems are
 recorded as `:bridge/called` events, visible to the GM.
 
+A system needing several dependent calls out, or model calls, gives `:compose` instead of
+`:bridge`:
+
+```clojure
+{:name :deliveries/arrivals
+ :compose (fn [world {:keys [bridge adjudicate]}] result) ; may call out; changes nothing
+ :tick (fn [world compose-response] [events])}           ; pure, as always
+```
+
+`services` are those of a composed query ("Composed queries"): `bridge` and `adjudicate`,
+with the run's budget checked before each call and every call recorded, as agent `"system"`
+(adjudicators use the run's `:model`). `compose-response` is `{:result r}`, or `{:error msg}`
+if compose threw, which also records an operator-only `:adjudication/failed`. Compose runs
+every round, so it should return nil without calling anything when there's nothing to do.
+Everything it produced must reach the world through tick's events: replay never composes.
+
 Travellers still exist while in transit; systems that iterate agents (upkeep, wages) include them
 unless you filter on `(:travel agent)`.
 
@@ -658,6 +705,9 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
   the judge or steward put the thing back; the exported map retains it. **Absorbable** means
   not fixed, not a store, and either `:consumable?` or `:drawn-from` (`items/absorbable?`).
   A watch or the family's silver cannot be absorbed or used up.
+- **`:order-id`** marks goods delivered for an order (`manor.scenarios.deliveries`). The nightly
+  steward never draws them as candidates, wherever they've been taken; work can still use
+  them up. The exported map retains it.
 - **Starting items** come from `:init` (`:items`, a vector, holders and owners as ids), or from a
   world file's `:items` (see World files). The engine checks them and adds each with an
   `:item/added` event, visible to the GM, after the agents are spawned.
@@ -1065,7 +1115,7 @@ day's already-past 02:00 and runs at the next 02:00; starting exactly at 02:00 r
 `:items/steward-ran {:day "1904-10-16"}` records the day under `:items-steward-day` in the
 world, even with no candidates; replay reproduces the once-per-day decision.
 
-Code selects absorbable items not carried or inside closed containers, untouched for at least
+Code selects absorbable items not carried or inside closed containers, without an `:order-id`, untouched for at least
 `idle-hours` of game time. Starting items age from the clock start. Candidates are grouped by
 place (place-id order), oldest `:touched` first, id breaking ties, at most `max-per-call` per
 place; excess waits for another night. Places with no candidates cost nothing.

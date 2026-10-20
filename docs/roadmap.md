@@ -246,8 +246,9 @@ See [the store brief](archived/general-store-brief.md) and Claudeworth design de
 
 **Village trades content: done** (Claudeworth design decision 44). A draper, public house,
 sub-post office, forge and sweep's, barber's and laundress's cottages have resident agents,
-bedrooms and quiet routines. Portable counter goods reuse quotes/buy; service work reuses
-`spend-time` on actual items, places or people. No mechanics fixtures were expanded.
+bedrooms and quiet routines. Portable counter goods reuse quotes/buy; the draper joins the
+general store and butcher in sending larger orders up to houses, with the default errand-boy
+courier. Service work reuses `spend-time` on actual items, places or people. No new mechanics.
 Remaining, only if requested: paid-service quotes/payments, appointments and automatic trade
 visits, collection/return of washing, postal transport, postal orders/savings/telegrams, and
 public-house guest rooms or paid hospitality. Buying stamps is not sending mail, and discussing

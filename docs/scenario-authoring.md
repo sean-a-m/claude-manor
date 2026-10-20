@@ -316,7 +316,9 @@ reference number in their talk). The `deliveries/arrivals` system, at round star
 at the delivery place (owner household, `:amount` and `:state` aspects, `:consumable?`, and
 `:order-id`) and emits `:deliveries/arrived`, heard by everyone within walking distance of that
 place. Install it with `deliveries/install`, after `hiring/install` (it uses the meeting place,
-the people bridges and adjudicators, and the agent cap).
+the people bridges and adjudicators, and the agent cap). Claudeworth's general store,
+butcher and draper deliver; the general store uses `:courier :carrier`, while the butcher and
+draper use the default errand boy.
 
 Each delivering shop has one **courier**, under `[:state :couriers shop-id]` (`{:person
 :position :agent-id :arrived}`; not in hiring's pool), using the location's `:courier` position

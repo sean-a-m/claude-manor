@@ -98,6 +98,7 @@
   {:id "drapers-shop" :name "Draper's shop" :domain :village :kind :shop :hours ["08:00" "18:00"]
    :services #{:general-store}
    :store-profile "A village draper in rural England, 1904. Cloth by the yard, calico, flannel, dress lengths, household linen, ribbons, thread, buttons and other haberdashery, with a modest range of ready-made hosiery. These examples describe the trade, not an exhaustive inventory. Portable goods over the counter only; no bespoke dressmaking service, furniture or general groceries."
+   :delivery-profile "Larger parcels in the drapery trade, too much for a customer to carry away, are sent up to houses in the neighbourhood."
    :connects-to ["drapers-lodgings"]
    :desc "Miss Ellis's drapery faces the green: a narrow shop with cloth measured out on a long counter and ribbons in the window."
    :detail "Shelves of folded calico and flannel rise behind the counter. A brass yard measure is let into its edge; drawers below hold buttons and small haberdashery. The window light is softened by lengths of lace curtain."}

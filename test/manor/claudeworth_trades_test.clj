@@ -6,8 +6,11 @@
             [manor.actions :as a]
             [manor.builtins :as b]
             [manor.engine :as e]
+            [manor.hiring :as hiring]
+            [manor.items :as items]
             [manor.positions :as positions]
             [manor.scenarios.claudeworth :as cw]
+            [manor.scenarios.deliveries :as deliveries]
             [manor.scenarios.shop :as shop]
             [manor.space :as space]
             [manor.store :as store]
@@ -66,4 +69,74 @@
                       "service workrooms cannot be searched for free supplies")
                   (is (string? ((get-in run [:scenario :items :find-allowed?]) awake (:id customer) place)))))))))
       (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+      (finally (e/stop-run run)))))
+
+(deftest claudeworth-draper-delivers-with-an-errand-boy
+  (let [buyer (atom nil)
+        policy (fn [{:keys [world agent-id used]}]
+                 (cond
+                   (and (= :draper (:role (w/agent world agent-id)))
+                        (= 1 (:round world)) (not (some #{"quote-goods"} used)))
+                   {:tool :quote-goods :args {:for @buyer :goods [{:item "a large parcel of household linen" :qty 1 :deliver true}]}}
+                   (and (= @buyer agent-id) (= 2 (:round world)))
+                   {:tool :buy :args {:quote-ids (vec (keys (get-in world [:state :quotes])))}}
+                   :else {:tool :pass}))
+        run (with-redefs [e/load-scenario (constantly (assoc cw/scenario :mock-policy policy))]
+              (e/start-run :claudeworth {:llm :mock :offline? true :test? true :gm :off
+                                         :start "1904-10-15T12:00"
+                                         :run-id (str (gensym "draper-delivery-"))}))]
+    (try
+      (reset! buyer (:id (first (filter #(positions/household-member? (e/world run) (:id %))
+                                       (w/active-agents (e/world run))))))
+      @(e/place! run @buyer "drapers-shop")
+      (e/auto! run 1)
+      (is (= :idle (e/wait-idle run 60000)))
+      (let [world (e/world run)
+            loc (space/location world "drapers-shop")
+            couriers (deliveries/couriers world)
+            courier (get couriers "drapers-shop")
+            clerk (:id (first (filter #(= :draper (:role %)) (w/active-agents world))))
+            args {:for @buyer :goods [{:item "a large parcel of household linen" :qty 1 :deliver true}]}
+            data (json/read-value (get-in (shop/request world clerk args) [:messages 1 :content])
+                                  json/keyword-keys-object-mapper)]
+        (testing "the draper opts into existing deliveries, like the butcher"
+          (is (deliveries/delivers? loc))
+          (is (< 0 (count (:delivery-profile loc)) deliveries/max-profile))
+          (is (nil? (:courier loc)) "use the default, as the butcher does")
+          (is (= :errand-boy (:position courier) (deliveries/courier-position world "drapers-shop")))
+          (is (= "Errand boy" (get-in world [:state :positions :errand-boy :title])))
+          (is (nil? (shop/quote-reason world clerk args)))
+          (is (= (:delivery-profile loc) (get-in data [:store :delivery-profile])))
+          (is (= (:delivery-profile loc) (get-in (shop/observe world clerk) [:here :delivery-profile]))))
+        (testing "all three shops get distinct couriers named before any delivery"
+          (is (= #{"general-store" "butchers-shop" "drapers-shop"} (set (keys couriers))))
+          (is (= 3 (count (distinct (map #(get-in % [:person :name]) (vals couriers))))))
+          (is (not-any? #(hiring/written? (:person %)) (vals couriers)))
+          (is (nil? (:agent-id courier)))
+          (is (= (deliveries/courier-line world "drapers-shop")
+                 (get-in (shop/observe world clerk) [:here :orders-sent-up-by]))))
+        (e/auto! run 1)
+        (is (= :idle (e/wait-idle run 60000)))
+        (let [world (e/world run)
+              [order] (vals (deliveries/orders world))]
+          (is (= {:location "drapers-shop" :buyer @buyer :clerk clerk :due 6 :to "carriage-sweep"}
+                 (select-keys order [:location :buyer :clerk :due :to])))
+          (is (= (deliveries/courier-line world "drapers-shop")
+                 (:sent-up-by (first (deliveries/observe world @buyer))))))
+        (e/auto! run 4)
+        (is (= :idle (e/wait-idle run 60000)))
+        (let [world (e/world run)
+              {:keys [person agent-id position]} (get (deliveries/couriers world) "drapers-shop")
+              arrived (first (filter #(= :deliveries/arrived (:type %)) (e/events run)))
+              parcel (first (items/items-where world :order-id))]
+          (is (empty? (deliveries/orders world)))
+          (is (= :errand-boy position (:role (w/agent world agent-id))))
+          (is (= (get-in courier [:person :name]) (:name person)))
+          (is (= {:position :errand-boy :employer clerk}
+                 (select-keys (get-in world [:state :posts agent-id]) [:position :employer])))
+          (is (= {:shop "drapers-shop" :at "carriage-sweep" :courier agent-id}
+                 (select-keys (:data arrived) [:shop :at :courier])))
+          (is (= {:name "a large parcel of household linen" :place "carriage-sweep"}
+                 (select-keys parcel [:name :place])))
+          (is (= world (w/replay (store/read-events (:dir run)))))))
       (finally (e/stop-run run)))))

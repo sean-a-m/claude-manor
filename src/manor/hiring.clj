@@ -57,9 +57,11 @@
   (first (sort (space/area world place))))
 (defn- area [world actor] (place-area world (space/location-of world actor)))
 (defn taken-names
-  "Names already in use: everyone spawned and every candidate."
+  "Names already in use: everyone spawned, every candidate, and the shops'
+  couriers, who are named before they first appear (manor.scenarios.deliveries)."
   [world]
-  (concat (map :name (vals (:agents world))) (map :name (vals (pool world)))))
+  (concat (map :name (vals (:agents world))) (map :name (vals (pool world)))
+          (keep (comp :name :person) (vals (get-in world [:state :couriers])))))
 (defn- reusable [world actor position]
   (first (filter #(and (#{:pooled :away} (:status %))
                        (= (area world actor) (:area %))
@@ -101,22 +103,35 @@
     (throw (ex-info "The people server returned an invalid person." {})))
   (people/base-record record))
 
-(defn new-person
-  "A fresh person for `position`, made through the composed-query services:
-  the people server's record, then a public appearance and a private polish.
-  {:name :record :lives :persona :manner :appearance}. Candidates and couriers
-  are both made here, so a change to how people are written reaches both."
-  [world {:keys [bridge adjudicate]} {:keys [position area seed taken-names]}]
+(defn person-record
+  "The first, free half of a new person for `position`: the people server's
+  record, {:name :record :lives}. No model call."
+  [world {:keys [bridge]} {:keys [position area seed taken-names]}]
   (let [record (check-record
                 (first (:people (bridge :people/generate
                                         (assoc (people/generate-args position (get-in world [:state :positions position])
                                                                     {:seed seed :taken-names taken-names})
-                                               :area area)))))
-        public (adjudicate :people/appearance {:record record})
-        polish (adjudicate :people/polish {:record record :appearance (:appearance public)})
-        record (assoc record :circumstances (:circumstances polish))]
-    (merge {:name (:name record) :record record :lives (:lives record)}
+                                               :area area)))))]
+    {:name (:name record) :record record :lives (:lives record)}))
+
+(defn written? [p] (some? (:persona p)))
+
+(defn write-person
+  "The second half: a public appearance and a private polish for person `p`
+  from `person-record`, adding :persona :manner :appearance and the record's
+  circumstances."
+  [{:keys [adjudicate]} {:keys [record] :as p}]
+  (let [public (adjudicate :people/appearance {:record record})
+        polish (adjudicate :people/polish {:record record :appearance (:appearance public)})]
+    (merge (assoc-in p [:record :circumstances] (:circumstances polish))
            (select-keys polish [:persona :manner]) public)))
+
+(defn new-person
+  "A fresh person for `position`, made through the composed-query services:
+  {:name :record :lives :persona :manner :appearance}. Candidates and couriers
+  are both made here, so a change to how people are written reaches both."
+  [world services opts]
+  (write-person services (person-record world services opts)))
 
 (defn spawn-spec
   "What an agent spawned from person `p` is made of: their hidden traits and

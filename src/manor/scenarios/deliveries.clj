@@ -3,8 +3,9 @@
   an order, paid for at once, and at its due round the goods are left at the
   delivery place (hiring's meeting place), brought by the shop's courier. A
   shop delivers when its location has a :delivery-profile. Each shop's courier
-  is made once (manor.hiring/new-person) and comes back for every delivery.
-  See docs/deliveries-design.md."
+  is named at the start (a free people-server record, so the shop and its
+  customers know who sends orders up), written and spawned at its first
+  delivery, and comes back for every delivery after. See docs/deliveries-design.md."
   (:require [clojure.string :as str]
             [manor.builtins :as b]
             [manor.clock :as clock]
@@ -85,16 +86,30 @@
 
 (defn courier-position [world shop] (or (:courier (space/location world shop)) default-courier))
 
+(defn delivering-shops
+  "Ids of the shops that send goods out, in id order."
+  [world]
+  (sort (keep #(when (delivers? %) (:id %)) (vals (get-in world [:space :locations])))))
+
 (defn compose
-  "A new person for each shop with orders due and no courier yet, {shop
-  person}; nil, calling nothing, when every such shop has one."
+  "{shop person} for the couriers that need work: a free record for each
+  delivering shop with no courier yet, and the written person (two model
+  calls) for each shop with orders due whose courier isn't written. nil,
+  calling nothing, when there's no such work."
   [world services]
-  (when-let [shops (seq (remove (couriers world) (map key (due-by-shop world))))]
-    (let [taken (concat (hiring/taken-names world) (map (comp :name :person) (vals (couriers world))))]
-      (into {} (for [shop shops]
-                 [shop (hiring/new-person world services
-                                          {:position (courier-position world shop) :area (hiring/place-area world shop)
-                                           :seed (str (:seed world) "/courier/" shop) :taken-names taken})])))))
+  (let [due (set (map key (due-by-shop world)))
+        work (filter #(let [c (get (couriers world) %)]
+                        (or (nil? c) (and (due %) (not (hiring/written? (:person c))))))
+                     (delivering-shops world))]
+    (when (seq work)
+      (reduce (fn [made shop]
+                (let [p (or (:person (get (couriers world) shop))
+                            (hiring/person-record world services
+                                                  {:position (courier-position world shop) :area (hiring/place-area world shop)
+                                                   :seed (str (:seed world) "/courier/" shop)
+                                                   :taken-names (concat (hiring/taken-names world) (map :name (vals made)))}))]
+                  (assoc made shop (if (due shop) (hiring/write-person services p) p))))
+              {} work))))
 
 (defmethod w/apply-event :deliveries/courier-updated [world {:keys [data]}]
   (update-in world [:state :couriers (:shop data)] merge (:changes data)))
@@ -107,6 +122,13 @@
 
 (defn- shop-name [world shop] (:name (space/location world shop) shop))
 
+(defn courier-line
+  "Who sends `shop`'s orders up: \"Stephen Dobbs, the General store's carrier\", or nil."
+  [world shop]
+  (when-let [{:keys [person position]} (get (couriers world) shop)]
+    (str (:name person) ", the " (shop-name world shop) "'s "
+         (str/lower-case (get-in world [:state :positions position :title] (name position))))))
+
 (defn- situation [world shop due]
   (str "You carry for the " (shop-name world shop) ". You have brought up "
        (str/join ", " (for [o due] (str (:item o) " (" (amount (:qty o) (:unit o)) ")")))
@@ -114,49 +136,61 @@
        ", and left it at the " (shop-name world (delivery-place world))
        ". Speak with whoever comes if you like; you go back to the shop once nobody needs you."))
 
+(defn- waiting
+  "A courier's routine at the delivery place, so a scenario with :hibernate
+  keeps them out of play while nobody else is there."
+  [world shop]
+  [{:from "00:00" :at (delivery-place world) :doing (str "waiting by the delivery from the " (shop-name world shop))}])
+
 (defn- courier-events
   "Events bringing `shop`'s courier to the delivery place with `due`: already
-  here, back from the shop, or spawned for the first time from `made`, the
-  person compose made. None when there's no courier, or no room for one."
-  [scenario world shop due made]
-  (let [known (get (couriers world) shop)
-        c (or known (when made {:person made :position (courier-position world shop)}))
+  here, back from the shop, or spawned the first time. None when the courier
+  isn't written yet, or there's no room for one. A courier who arrives with
+  nobody else there is put out of play at once (the scenario's :hibernate)."
+  [scenario world shop due]
+  (let [c (get (couriers world) shop)
         agent (w/agent world (:agent-id c))
         place (delivery-place world)
         text (situation world shop due)
-        record (when (and c (not known)) [(courier-updated shop c)])
         arrived (courier-updated shop {:arrived (:round world)})
-        clerk (:clerk (first due))]
-    (cond
-      (nil? c) []
-      (= :active (:status agent))
-      [arrived {:type :agent/updated :visible-to :system :data {:id (:id agent) :changes {:situation text}}}]
-      (not (room? world)) (vec record)
-      (= :away (:status agent))
-      [{:type :people/returned :visible-to (conj (space/present world place) (:id agent)) :data {:id (:id agent) :at place}}
-       {:type :agent/updated :visible-to :system :data {:id (:id agent) :changes {:situation text}}}
-       arrived]
-      (nil? agent)
-      (let [spawned (b/spawn-events scenario world (merge (hiring/spawn-spec (:person c))
-                                                          {:role (:position c) :location place :situation text :household nil}))
-            id (get-in (first spawned) [:data :agent :id])
-            world' (reduce w/apply-event world spawned)]
-        (vec (concat record
-                     ;; The spawn holds a private persona and traits, so it is never a public event.
-                     (map #(assoc % :visible-to :system) spawned)
-                     [(positions/post-changed world' id (:position c)
-                                              {:household nil :employer clerk :visible-to #{id clerk}
-                                               :terms (str "carries for the " (shop-name world shop) " (" shop ")")})
-                      (courier-updated shop {:agent-id id :arrived (:round world)})])))
-      :else (vec record))))
+        clerk (:clerk (first due))
+        evs (cond
+              (not (hiring/written? (:person c))) []
+              (= :active (:status agent))
+              [arrived {:type :agent/updated :visible-to :system :data {:id (:id agent) :changes {:situation text}}}]
+              (not (room? world)) []
+              (= :away (:status agent))
+              [{:type :people/returned :visible-to (conj (space/present world place) (:id agent)) :data {:id (:id agent) :at place}}
+               {:type :agent/updated :visible-to :system :data {:id (:id agent) :changes {:situation text}}}
+               arrived]
+              (nil? agent)
+              (let [spawned (b/spawn-events scenario world (merge (hiring/spawn-spec (:person c))
+                                                                  {:role (:position c) :location place :situation text
+                                                                   :household nil :routine (waiting world shop)}))
+                    id (get-in (first spawned) [:data :agent :id])
+                    world' (reduce w/apply-event world spawned)]
+                (vec (concat
+                      ;; The spawn holds a private persona and traits, so it is never a public event.
+                      (map #(assoc % :visible-to :system) spawned)
+                      [(positions/post-changed world' id (:position c)
+                                               {:household nil :employer clerk :visible-to #{id clerk}
+                                                :terms (str "carries for the " (shop-name world shop) " (" shop ")")})
+                       (courier-updated shop {:agent-id id :arrived (:round world)})])))
+              :else [])
+        world' (reduce w/apply-event world evs)
+        id (:agent-id (get (couriers world') shop))
+        rest (when (and (seq evs) (:hibernate scenario) (w/active? world' id) (not (w/busy world' id)))
+               (when-let [{:keys [activity]} ((:hibernate scenario) world' id)]
+                 [(b/hibernate world' id activity)]))]
+    (into evs rest)))
 
 (defn- arrival
   "The events of one shop's due orders arriving at the delivery place: the
   courier, a parcel for each order, which the nightly steward leaves alone
   (:order-id), and the announcement."
-  [scenario world shop due made]
+  [scenario world shop due]
   (let [place (delivery-place world)
-        brought (courier-events scenario world shop due made)
+        brought (courier-events scenario world shop due)
         world (reduce w/apply-event world brought)
         courier (:agent-id (get (couriers world) shop))
         courier (when (and courier (w/active? world courier)
@@ -198,13 +232,16 @@
      :data {:id agent-id :reason "the delivery is made" :towards (str "the " (shop-name world shop))}}))
 
 (defn tick
-  "Every order due by this round arrives, a shop at a time in id order, with
-  the couriers compose made; then idle couriers go home."
+  "What compose made is recorded; then every order due by this round arrives,
+  a shop at a time in id order; then idle couriers go home."
   [scenario world {:keys [result]}]
-  (let [[world evs] (reduce (fn [[world evs] [shop due]]
-                              (let [new (arrival scenario world shop (sort-by :id due) (get result shop))]
+  (let [made (for [[shop p] (sort-by key result)]
+                (courier-updated shop {:person p :position (courier-position world shop)}))
+        world (reduce w/apply-event world made)
+        [world evs] (reduce (fn [[world evs] [shop due]]
+                              (let [new (arrival scenario world shop (sort-by :id due))]
                                 [(reduce w/apply-event world new) (into evs new)]))
-                            [world []]
+                            [world (vec made)]
                             (due-by-shop world))]
     (into evs (departures world))))
 
@@ -222,8 +259,9 @@
   [world id]
   (vec (for [o (sort-by :id (vals (orders world)))
              :when (or (= id (:buyer o)) (= id (:clerk o)))]
-         {:id (:id o) :item (:item o) :amount (amount (:qty o) (:unit o)) :from (:location o)
-          :buyer (:buyer o) :to (:to o) :due (clock/short-label (:clock world) (:due o) (:round world))})))
+         (cond-> {:id (:id o) :item (:item o) :amount (amount (:qty o) (:unit o)) :from (:location o)
+                  :buyer (:buyer o) :to (:to o) :due (clock/short-label (:clock world) (:due o) (:round world))}
+           (courier-line world (:location o)) (assoc :sent-up-by (courier-line world (:location o)))))))
 
 (defn problems
   "World-file checks for delivering shops. Whether a :courier names a known

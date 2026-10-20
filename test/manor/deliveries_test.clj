@@ -8,7 +8,9 @@
             [manor.hiring :as hiring]
             [manor.items :as items]
             [manor.narrate :as n]
+            [manor.positions :as positions]
             [manor.prompt :as prompt]
+            [manor.scenarios.claudeworth :as cw]
             [manor.scenarios.deliveries :as deliveries]
             [manor.scenarios.shop :as shop]
             [manor.store :as store]
@@ -73,8 +75,9 @@
 
 (defn start
   ([] (start {:delivery-profile delivery-profile}))
-  ([shop-extra]
-   (with-redefs [e/load-scenario (constantly (scenario shop-extra))]
+  ([shop-extra] (start shop-extra {}))
+  ([shop-extra overrides]
+   (with-redefs [e/load-scenario (constantly (deliveries/install (merge (scenario shop-extra) overrides)))]
      (e/start-run :delivery-fixture {:test? true :llm :mock :offline? true :gm :off
                                      :run-id (str (gensym "deliveries-"))}))))
 
@@ -252,22 +255,72 @@
             (is (some #(= :agent/spawned (:type %)) (deliveries/tick (:scenario run) later {}))))))
       (finally (e/stop-run run)))))
 
-(deftest compose-makes-one-person-per-shop-and-only-when-needed
+(deftest compose-names-couriers-at-the-start-and-writes-them-when-due
   (let [run (start)]
     (try
-      (let [world (e/world run)
-            order (fn [id shop] {:id id :location shop :due 1 :item "mutton" :qty 1 :unit "1 side" :clerk "clerk" :buyer "customer"})
+      (let [world (assoc-in (e/world run) [:space :locations "back-shop"]
+                            {:id "back-shop" :name "Back shop" :desc "Another shop." :services #{:general-store}
+                             :store-profile profile :hours ["08:00" "18:00"] :delivery-profile delivery-profile})
             asked (atom [])
+            written (atom 0)
             services {:bridge (fn [id args] (swap! asked conj (:seed args)) ((get hiring/offline-stubs id) args nil))
-                      :adjudicate (fn [task _] (case task
-                                                 :people/appearance {:appearance "A boy in a cap."}
-                                                 :people/polish {:persona "You run errands." :manner "You seem quick." :circumstances ["Has a sister."]}))}
-            two (-> world (assoc :round 1)
-                    (assoc-in [:state :orders] {"order-1" (order "order-1" "counter") "order-2" (order "order-2" "back-shop")}))]
-        (is (nil? (deliveries/compose world services)) "nothing due, nothing made")
-        (let [made (deliveries/compose two services)]
-          (is (= #{"counter" "back-shop"} (set (keys made))))
-          (is (= "You run errands." (get-in made ["counter" :persona])))
-          (is (= 2 (count (distinct @asked))) "each shop has its own seed")))
+                      :adjudicate (fn [task _]
+                                    (swap! written inc)
+                                    (case task
+                                      :people/appearance {:appearance "A boy in a cap."}
+                                      :people/polish {:persona "You run errands." :manner "You seem quick." :circumstances ["Has a sister."]}))}
+            named (deliveries/compose world services)]
+        (testing "every delivering shop gets a named record, with no model call"
+          (is (= #{"counter" "back-shop"} (set (keys named))))
+          (is (zero? @written))
+          (is (not-any? hiring/written? (vals named)))
+          (is (= 2 (count (distinct @asked))) "each shop has its own seed")
+          (is (= 2 (count (distinct (map :name (vals named))))) "and its own name"))
+        (let [world (reduce (fn [w [shop p]] (assoc-in w [:state :couriers shop] {:person p :position :errand-boy})) world named)]
+          (is (nil? (deliveries/compose world services)) "nothing due, nothing to do")
+          (let [due (-> world (assoc :round 1)
+                        (assoc-in [:state :orders "order-1"] {:id "order-1" :location "counter" :due 1}))
+                made (deliveries/compose due services)]
+            (testing "an order due writes only that shop's courier, from the same record"
+              (is (= ["counter"] (keys made)))
+              (is (= "You run errands." (get-in made ["counter" :persona])))
+              (is (= (get-in named ["counter" :name]) (get-in made ["counter" :name])))
+              (is (= 2 @written))
+              (is (= 2 (count @asked)) "no second record")))))
       (finally (e/stop-run run)))))
 
+(deftest the-courier-is-named-before-any-delivery
+  (let [run (start)]
+    (try
+      (rounds! run 2)
+      (let [world (e/world run)
+            line "Pat Ellis 0, the Counter's errand boy"]
+        (is (= line (deliveries/courier-line world "counter")))
+        (is (nil? (w/agent world "pat-ellis-0")) "named, but not yet an agent")
+        (is (= line (get-in (shop/observe world "clerk") [:here :orders-sent-up-by])))
+        (is (= [line] (map :sent-up-by (:orders (shop/observe world "customer")))))
+        (is (nil? (get-in (shop/observe world "butler") [:here :orders-sent-up-by])) "only shown at the shop")
+        (is (not-any? #(str/starts-with? (:agent %) "adjudicator/people") (store/read-llm (:dir run)))
+            "no model call until a delivery is due"))
+      (finally (e/stop-run run)))))
+
+(defn- butler-goes-out
+  "The butler walks to the front door in round 7, the round after the mutton comes."
+  [{:keys [world agent-id used] :as ctx}]
+  (if (and (= "butler" agent-id) (= 7 (:round world)) (not (some #{"walk"} used)))
+    {:tool :walk :args {:to "front-door"}}
+    (policy ctx)))
+
+(deftest a-courier-waits-out-of-play-until-someone-comes
+  (let [run (start {:delivery-profile delivery-profile}
+                   {:hibernate cw/hibernate :on-spawn positions/starting-events :mock-policy butler-goes-out
+                    :actions (into shop/actions (filter #(= :walk (:name %)) cw/actions))})]
+    (try
+      (rounds! run 6)
+      (is (:hibernating? (w/busy (e/world run) "pat-ellis-0")) "alone at the door on arriving")
+      (rounds! run 1)
+      (let [calls (filter #(= "pat-ellis-0" (:agent %)) (store/read-llm (:dir run)))]
+        (testing "no turns until the butler comes out, then one"
+          (is (= #{7} (set (map :round calls)))))
+        (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))

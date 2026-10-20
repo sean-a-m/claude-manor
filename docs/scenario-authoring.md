@@ -295,12 +295,20 @@ place. Install it with `deliveries/install`, after `hiring/install` (it uses the
 the people bridges and adjudicators, and the agent cap).
 
 Each delivering shop has one **courier**, under `[:state :couriers shop-id]` (`{:person
-:position :agent-id :arrived}`; not in hiring's pool). The system's `:compose` makes one with
-`hiring/new-person` the first time a shop's order is due, using the location's `:courier`
-position (default `:errand-boy`; the scenario checks it's in the positions table). It is spawned
-at the delivery place with `hiring/spawn-spec`, its spawn `:system` because it holds a private
-persona, and a post naming the order's clerk as employer ("carries for the General store
-(general-store)"). Later deliveries bring the same agent back (`:people/returned`), or keep one
+:position :agent-id :arrived}`; not in hiring's pool), using the location's `:courier` position
+(default `:errand-boy`; the scenario checks it's in the positions table). The system's
+`:compose` names every delivering shop's courier in round 1 with `hiring/person-record` (the
+people server only, no model call), so the shop can say who sends orders up: at the shop,
+`here.orders-sent-up-by` reads "Stephen Dobbs, the General store's carrier", and each entry in
+`orders` has the same line as `sent-up-by`. That is the courier's only presence in prompts
+until they first deliver. The first time a shop's order is due, compose writes the person
+(`hiring/write-person`: appearance and polish) and the courier is spawned at the delivery place
+with `hiring/spawn-spec`, its spawn `:system` because it holds a private persona, a post naming
+the order's clerk as employer ("carries for the General store (general-store)"), and a
+one-entry routine, waiting by the delivery there. With the scenario's `:hibernate`
+(Claudeworth's routine rule) that keeps them out of play, with no model calls, whenever nobody
+else is at the delivery place: they are put out of play as they arrive if nobody's there, and
+wake when someone comes. Later deliveries bring the same agent back (`:people/returned`), or keep one
 who is still here; each arrival resets `:arrived` and rewrites their situation with what they
 brought. A courier goes home (`:people/departed`) once `courier-leave-after` (2) rounds pass
 since they arrived or last conversed (`hiring/idle-rounds`, hiring's own rule). With no room

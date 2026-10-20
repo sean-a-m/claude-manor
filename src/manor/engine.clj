@@ -893,7 +893,6 @@
   (cond
     (= :dropped outcome) {:ended :retired}
     (and (zero? minutes) (not (:quick? job))) {:ended :no-time}
-    (items/empty-activity? world job) {}
     :else (ask-judge run world job work (items/judged-things world job))))
 
 (defn- finish-job!
@@ -1222,6 +1221,16 @@
                                             :holders (set (keys (:agents world)))}))]
     (throw (ex-info (str "bad :items from :init: " (str/join "; " ps)) {:problems (vec ps)}))))
 
+(defn- check-agents!
+  "Throw if a starting agent's :aspects aren't well formed (see items/Aspects)."
+  [agents]
+  (when-let [ps (seq (for [{:keys [name aspects] :as a} agents
+                           :when (contains? a :aspects)
+                           :let [p (items/aspects-problem aspects)]
+                           :when p]
+                       (str "agent " (pr-str name) ": " p)))]
+    (throw (ex-info (str "bad :agents from :init: " (str/join "; " ps)) {:problems (vec ps)}))))
+
 (defn- init!
   "Build the starting world from the scenario's :init. A :world-file in the
   result (see manor.worldfile) is saved as <run-dir>/world-start.edn. The
@@ -1239,6 +1248,7 @@
                  :data (cond-> {:scenario (:name scenario) :seed (:seed opts) :state state}
                          clock (assoc :clock clock))}])
     (emit! run (space/init-events (:space init)))
+    (check-agents! agents)
     (doseq [spec (cons {:name "GM" :role :gm :model (:gm-model opts) :controller (:gm opts)} agents)]
       (emit! run (b/spawn-events scenario @(:world run) (into {} (remove (comp nil? val)) spec))))
     (when (:items scenario)

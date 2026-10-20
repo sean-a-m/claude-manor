@@ -380,15 +380,15 @@
   writer's knowledge, never the candidate's record, for the scene judge."
   [spec]
   (-> spec
-      (update :doc str " When writing a character/reference for someone recommended, name their candidate id in candidate; any paper made is linked to them.")
+      (update :doc str " When writing a character/reference for someone recommended, name their candidate id in candidate; any paper made is linked to them. Omit candidate for all other activities.")
       (update :args conj [:candidate {:optional true} :string])
       (assoc :valid? (fn [world actor args]
                        (or ((:valid? spec) world actor args)
-                           (when (and (:candidate args)
-                                      (not (contains? (:known-to (candidate world (:candidate args))) actor)))
-                             "you must know of that candidate before writing their character")))
+                           (when-let [id (not-empty (:candidate args))]
+                             (when-not (contains? (:known-to (candidate world id)) actor)
+                               "you must know of that candidate before writing their character"))))
              :effect (fn [world actor args]
-                       (let [p (candidate world (:candidate args))
+                       (let [p (when-let [id (not-empty (:candidate args))] (candidate world id))
                              reference (when p {:candidate-id (:id p) :name (:name p) :seeks (:seeks p)
                                                 :reputation (get-in world [:state :reputations actor (:id p)])})]
                          (mapv #(if (and reference (= :item/work-begun (:type %)))

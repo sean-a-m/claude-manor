@@ -848,8 +848,10 @@ validation was run; the user will do real runs. No generated cast files were re-
   offers close, notes and history remain. Another `send-for` returns the same agent/id with
   those memories through `:people/returned`. Retired people cannot return. Hired staff are
   not subject to the visitor timeout; dismissal and outdoor lodging remain deferred.
-- **Written characters:** `spend-time` may name a known `candidate`. The job snapshots only
-  the writer's knowledge for the scene judge. Items made by that job carry `:candidate-id`;
+- **Written characters:** `spend-time` may name a known `candidate`. The tool description
+  explicitly says to omit it for other activities, and an empty string is treated as absent
+  (some models fill optional strings with `""`). Nonempty unknown ids are still rejected.
+  The job snapshots only the writer's knowledge for the scene judge. Items made by that job carry `:candidate-id`;
   they are ordinary items and must actually be handed over with `give`, not conversational
   promises. This is not a reference-verification or automatic knowledge-sharing mechanic.
 - **Validation:** Lodge's mock day now recommends at 08:30, sends for the candidate at 09:00,

@@ -1468,7 +1468,8 @@ Its positions must include `:none`; its meeting place must exist.
   `:people/returned {id at}` to restore the same agent, not a duplicate. Retired agents never
   return. Engaged staff have no visitor timeout; dismissal and outdoor lodging are deferred.
 - A written reference is ordinary work: `spend-time {doing hours? candidate?}` may name a known
-  candidate. Its job snapshots only the writer's known identity/reputation into `:reference`,
+  candidate. Omit `candidate` for other activities; an empty string is treated as absent.
+  Its job snapshots only the writer's known identity/reputation into `:reference`,
   which reaches the scene judge. All items made by that job carry `:candidate-id`, shown in
   detailed item views and preserved in export/replay. Give the paper with the ordinary `give`
   action. The link does not grant its reader a recommendation or verify the prose.

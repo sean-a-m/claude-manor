@@ -448,6 +448,16 @@
                                  {:made [{:name "Written character" :desc "A letter of reference." :aspects {} :held true :consumable false}]})]
         (is (nil? (a/check spec world "recommender" args)))
         (is (a/check spec world "bystander" args))
+        (testing "ordinary activities accept an omitted or empty candidate"
+          (let [ordinary {:doing "checking the estate ledgers" :hours 0.5}
+                expected ((:effect spec) world "recommender" ordinary)]
+            (is (not-any? #(contains? (:data %) :reference) expected))
+            (doseq [raw [ordinary (assoc ordinary :candidate "")]]
+              (let [{:keys [args error]} (a/decode-args spec raw)]
+                (is (nil? error))
+                (is (nil? (a/check spec world "recommender" args)))
+                (is (= expected ((:effect spec) world "recommender" args)))))
+            (is (a/check spec world "recommender" (assoc ordinary :candidate "none")))))
         (is (= (:id p) (get-in job [:reference :candidate-id])))
         (is (= #{:candidate-id :name :seeks :reputation} (set (keys (:reference job)))))
         (is (= (get-in world [:state :reputations "recommender" (:id p)]) (get-in job [:reference :reputation])))

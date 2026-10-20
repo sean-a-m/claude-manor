@@ -242,13 +242,38 @@ mentioned.
   the balance and not the orders, spent several turns tracing a "missing pound": the bacon.
   This is how private purchases already work; a household account book would answer it.
 
-Observations, not changed here:
+Observations, at first not changed:
 
 - **The work judge absorbs delivered meat into the pantry's stock** when someone puts it away,
   so the saddle of mutton is no longer a tracked thing for tomorrow's dinner. Counter
   purchases already behave this way; only the nightly steward leaves delivered goods alone.
 - **Prices differ between appraisals.** The delivery re-quote priced the legs of mutton at 5s
   against 2s over the counter. Each appraisal is a separate call, and nothing ties the two.
+
+## Fixes after `runs/claudeworth-20261019-210747` (the user's run, 2026-10-19)
+
+No order came due in that run, so no courier was ever made, and the shopkeepers did the
+deliveries themselves. Briggs spent half an hour "making up her ladyship's parcel" (the work
+judge made it a real item, which the carrier's delivery would later have doubled) and carried
+it up after closing; his thoughts said "there's no carrier in the village". Hobbs made out "a
+reckoning for the Manor" and walked it up: the characters kept asking for things "put on the
+household account" and "the figures written plain". Fixes (branch `courier-reference`):
+
+- **Couriers are named at the start,** by a free people-server record for each delivering shop
+  in round 1, and written (appearance and polish, two model calls) only when the shop first has
+  an order due. The name is shown only at the shop (`here.orders-sent-up-by`) and in `orders`
+  (`sent-up-by`), so the shopkeeper sees all day who takes his orders up, at the cost of one
+  line. A shop that never delivers costs nothing more.
+- **Couriers hibernate while nobody else is at the delivery place,** through a one-entry
+  routine and Claudeworth's existing hibernation, including the round they arrive. They wake
+  when someone comes out. In the mock day Briggs's carrier made one model call.
+- **Wording:** the shopkeeper and butcher duties and the `quote-goods` description say the
+  courier takes orders up at the time given and the shopkeeper doesn't make up, pack or carry
+  them, and there is no bill to send; Claudeworth's rules say everything bought is paid in full
+  at once, with no bills, reckonings or accounts to settle later; the judge's brief says making
+  up, packing or carrying an order makes nothing.
+- **Bills and settling accounts are deferred** to a more realistic treatment later (roadmap
+  B7), at the user's request.
 
 ## Implementation plan
 

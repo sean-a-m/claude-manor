@@ -250,6 +250,16 @@ things from them.
 
 Follow-ups, by need:
 
+- **Bills and tradesmen's accounts** (the user, 2026-10-19: come back to this later, in a more
+  realistic manner). Today every purchase and order is paid in full from the household account
+  at `buy`, and the rules say there are no bills to settle later, but the characters keep asking
+  for things "put on the account" and making out reckonings
+  (`runs/claudeworth-20261019-210747`), and Hale, who sees only the balance, hunted a "missing
+  pound" that was an order (`old-test-runs/deliveries-first-check`). Candidates: a household
+  account book listing each purchase and order for the household's members; tradesmen's
+  accounts that run up and are settled weekly or quarterly, with a bill the shop sends; credit
+  for some customers and not others.
+
 **[Stores, aspects and the scene judge](stores-and-aspects-design.md): phases 0–7 done**
 (phase 7 mock-tested; its next real-model check needs the user's go-ahead). It answers the meals, room-conditions and GM-tools
 follow-ups below, replaces item conditions with keyed aspects (done), and removes the unused

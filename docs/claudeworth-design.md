@@ -770,6 +770,9 @@ Decisions for items (done):
     line marked `deliver` is judged against it, gets a lead time from the appraiser, is paid for
     at `buy` and is left at the carriage sweep when due, heard throughout the house. The
     steward leaves delivered goods alone. Each shop's courier, an errand boy or (Briggs) the
-    carrier, is made once by the people server and polish and comes back for every delivery,
-    going home after two rounds without a conversation. In the mock day Hale has a sack of
+    carrier, is named at the start (shown at the shop and with each order), written and
+    spawned at the shop's first delivery, and comes back for every delivery after; while
+    waiting at the sweep with nobody else there they are out of play, and they go home after
+    two rounds without a conversation. Purchases are paid in full at once: the rules say there
+    are no bills or accounts to settle later (a realistic treatment is deferred, roadmap B7). In the mock day Hale has a sack of
     flour sent up, Briggs's carrier brings it, and Nellie puts it on the pantry shelves.

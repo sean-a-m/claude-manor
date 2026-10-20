@@ -378,7 +378,7 @@
       (is (nil? (check world "ada" {:items ["clock" "umbrella"] :doing "dusting"})))
       (is (nil? (check world "ben" {:items ["pipe" "clock"] :doing "cleaning"})))
       (is (= "Ben is holding the Pipe" (check world "ada" {:items ["clock" "pipe"] :doing "cleaning"})))
-      (is (= "basket is neither here nor carried by you; this place: hall (Hall); items here: clock (Grandfather clock), umbrella (Umbrella); you carry: nothing"
+      (is (= "basket is neither here nor carried by you; this place: hall (Hall); items here: clock (Grandfather clock), umbrella (Umbrella); you carry: nothing; people here: you (ada), Ben (ben)"
              (check world "ada" {:items ["basket"] :doing "mending"})))
       (testing "the place you're in is fine too, alone or with items; another place isn't"
         (is (nil? (check world "ada" {:items ["hall"] :doing "sweeping the hall"})))

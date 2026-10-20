@@ -440,7 +440,8 @@
   (str worker-name (if stopped-early? " leaves off " " finishes ") doing "."))
 
 (defmethod n/describe :item/work-begun [{:keys [actor data]} names]
-  (str (n/who names actor) " starts " (:doing data) " (" (:id data) (when (seq (:items data)) (str ", on " (str/join ", " (:items data))))
+  (str (n/who names actor) " starts " (:doing data) " (" (:id data)
+       (when-let [on (seq (concat (:items data) (:people data)))] (str ", on " (str/join ", " on)))
        ", until " (n/at names (:due data)) ")."))
 
 (defmethod n/describe :item/work-extended [{:keys [actor data]} names]
@@ -612,9 +613,25 @@
       (seq stores) (assoc :stores (mapv #(assoc (store-view here %) :keeps (get-in % [:store :keeps])) stores))
       (seq people) (assoc :people (mapv #(look-person world %) people)))))
 
+(defn- person-id?
+  "Does `id` in `on` name a person: not an item or the place, but someone
+  taking part (never the GM)?"
+  [world actor id]
+  (and (nil? (item world id))
+       (not= id (space/location-of world actor))
+       (some #(= id (:id %)) (w/active-agents world))))
+
+(defn- people-list
+  "The people here, for reasons: \"people here: you (ada), Ben (ben)\"."
+  [world actor]
+  (str "people here: you (" actor ")"
+       (str/join (for [id (sort (disj (space/present world (space/location-of world actor)) actor))]
+                   (str ", " (:name (w/agent world id)) " (" id ")")))))
+
 (defn- work-reason
   "Why `actor` can't name `id` as focus: items here or carried, the place
-  they're in, or a store serving it are allowed."
+  they're in, a store serving it, or a person here (themselves included)
+  are allowed."
   [world actor id]
   (let [it (item world id)
         holder (:holder it)
@@ -625,9 +642,12 @@
       (and it (reachable? world actor it)) nil
       (= id here) nil
       (some #(= id (:id %)) (stores-for world here)) nil
+      (person-id? world actor id)
+      (when-not (or (= id actor) (space/together? world actor id))
+        (str (:name (w/agent world id)) " is not here; " (people-list world actor)))
       :else
       (str id " is neither here nor carried by you; this place: " here " (" (:name (space/location world here)) "); "
-           (here-list world actor) "; " (carried-list world actor)))))
+           (here-list world actor) "; " (carried-list world actor) "; " (people-list world actor)))))
 
 (defn place-worked?
   "Did `job` name its place among its items: work on the room itself?"
@@ -641,14 +661,17 @@
 
 (defn- work-on-events
   "The job (seen by the GM) and the occupation that carries its id (seen by
-  everyone here). Job ids come from the world's event count, so they are
+  everyone here). The people named go under :people, the things under
+  :items. Job ids come from the world's event count, so they are
   deterministic."
   [world actor {ids :items :keys [doing hours]}]
   (let [id (str "job-" (inc (:seq world)))
-        due (+ (:round world) (clock/rounds-for (:clock world) (* 60 (or hours default-work-hours))))]
+        due (+ (:round world) (clock/rounds-for (:clock world) (* 60 (or hours default-work-hours))))
+        {people true things false} (group-by #(boolean (person-id? world actor %)) (distinct ids))]
     [{:type :item/work-begun :visible-to :gm
-      :data {:id id :actor actor :items (vec (distinct ids)) :doing doing
-             :place (space/location-of world actor) :started (:round world) :due due}}
+      :data (cond-> {:id id :actor actor :items (vec things) :doing doing
+                     :place (space/location-of world actor) :started (:round world) :due due}
+              (seq people) (assoc :people (vec people)))}
      (assoc-in (b/occupy world actor doing due) [:data :job] id)]))
 
 (defn- put-in-events
@@ -682,8 +705,11 @@
                "Spend time on an activity here, work or pastime. doing reads after \"is\", e.g. \"resting in the garden\". "
                "Keep doing to at most " advised-doing " characters. "
                "hours is half an hour to " max-work-hours ", default half an hour. "
-               "Optionally name up to " max-work-items " things with " (if alias? "items" "on")
-               ": items here or carried, this place's id, or stores in scope. Working on a container includes its contents. "
+               "Optionally name up to " max-work-items " things or people with " (if alias? "items" "on")
+               ": items here or carried, this place's id, stores in scope, or the ids of people here, yourself included. "
+               "Working on a container includes its contents. "
+               "What you do to someone takes effect only if they're still with you when you finish: they may walk away, "
+               "or rouse you to stop you early, and then only the time you worked counts. "
                "You get no turns until it ends; results show when you finish.")
      :args [:map
             [(if alias? :items :on) (if alias? {} {:optional true})

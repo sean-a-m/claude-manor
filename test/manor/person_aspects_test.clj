@@ -5,6 +5,8 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
+            [jsonista.core :as json]
+            [manor.actions]
             [manor.engine :as e]
             [manor.items :as items]
             [manor.llm :as llm]
@@ -141,4 +143,117 @@
         (e/emit! run [(items/work-done world (items/job world "job-x") {:minutes 30} verdict)])
         (is (not (contains? (w/agent (e/world run) "mrs-pell") :aspects)) "no aspects left, no :aspects")
         (is (= (e/world run) (w/replay (e/events run)))))
+      (finally (e/stop-run run)))))
+
+;; ---------------------------------------------------------------------------
+;; Work on others
+
+(defn- action [run n] (first (filter #(= n (:name %)) (:actions run))))
+
+(deftest on-names-people-here
+  (let [run (start)
+        world (assoc (e/world run) :round 1)
+        spend-time (action run :spend-time)
+        check #(manor.actions/check spend-time world "dawson" {:on % :doing "doing her hair"})]
+    (try
+      (testing "someone here, or yourself"
+        (is (nil? (check ["lady-ashby"])))
+        (is (nil? (check ["dawson"])))
+        (is (nil? (check ["lady-ashby" "dressing-table" "bedroom"]))))
+      (testing "someone elsewhere is refused, with who is here"
+        (is (= "Mrs Pell is not here; people here: you (dawson), Lady Ashby (lady-ashby)" (check ["mrs-pell"]))))
+      (testing "the GM is no person to name"
+        (is (str/starts-with? (check ["gm"]) "gm is neither here nor carried by you")))
+      (testing "the job keeps people apart from things"
+        (let [[begun] (manor.actions/effect-events spend-time world "dawson"
+                                                   {:on ["lady-ashby" "dressing-table" "lady-ashby"] :doing "doing her hair"})]
+          (is (= ["dressing-table"] (get-in begun [:data :items])))
+          (is (= ["lady-ashby"] (get-in begun [:data :people])))
+          (is (= "Dawson starts doing her hair (job-x, on dressing-table, lady-ashby, until 18:30)."
+                 (n/describe (assoc-in begun [:data :id] "job-x") (n/names world))))
+          (is (contains? (items/job-scope world (:data begun)) [:person "lady-ashby"]))
+          (is (contains? (items/job-scope world (:data begun)) [:person "dawson"]))))
+      (finally (e/stop-run run)))))
+
+(def ^:private hair [(spend ["lady-ashby"] "dressing her ladyship's hair" 1.0)])
+
+(deftest a-named-person-who-stays-is-changed
+  (let [judged (atom [])
+        run (rounds! (start {:llm-impl (scripted {"dawson" {1 hair}} :judged judged)}) 3)
+        world (e/world run)
+        [done] (of-type run :item/work-done)]
+    (try
+      (is (= [{:person "lady-ashby" :aspect :hair :from nil :to "dressed by Dawson"}] (get-in done [:data :changes])))
+      (is (= {:hair "dressed by Dawson"} (aspects-of run "lady-ashby")))
+      (is (nil? (aspects-of run "dawson")))
+      (is (= ["dawson" "lady-ashby"] (map :id (filter :person? (:things (first @judged))))))
+      (is (= "Dawson finishes dressing her ladyship's hair. (Lady Ashby: dressed by Dawson)."
+             (n/describe done (n/names world))))
+      (is (= {:hair "dressed by Dawson"} (get-in (view run "lady-ashby") [:you :aspects])))
+      (is (= world (w/replay (store/read-events (:dir run)))))
+      (finally (e/stop-run run)))))
+
+(deftest a-named-person-who-left-is-not-changed
+  (let [judged (atom [])
+        run (rounds! (start {:llm-impl (scripted {"dawson" {1 hair}
+                                                  "lady-ashby" {2 [{:tool :move :args {:to "landing"}}]}}
+                                                 :judged judged)}) 3)
+        [done] (of-type run :item/work-done)]
+    (try
+      (is (= 3 (:round done)))
+      (is (empty? (get-in done [:data :changes])))
+      (is (nil? (aspects-of run "lady-ashby")))
+      (is (= ["dawson"] (map :id (filter :person? (:things (first @judged))))) "only the worker is judged")
+      (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+      (finally (e/stop-run run)))))
+
+(deftest a-named-person-may-rouse-the-worker
+  (let [run (rounds! (start {:llm-impl (scripted {"dawson" {1 hair 2 [{:tool :pass}]}
+                                                  "lady-ashby" {2 [{:tool :rouse :args {:who "dawson"}} {:tool :pass}]}})}) 3)
+        [done] (of-type run :item/work-done)]
+    (try
+      (is (= {:minutes 30 :stopped-early? true} (select-keys (:data done) [:minutes :stopped-early?])))
+      (is (= {:hair "dressed by Dawson"} (aspects-of run "lady-ashby")) "judged on the time worked")
+      (is (str/starts-with? (n/describe done (n/names (e/world run))) "Dawson leaves off dressing her ladyship's hair."))
+      (finally (e/stop-run run)))))
+
+(deftest people-are-not-things
+  (let [run (start)]
+    (try
+      (e/emit! run [{:type :item/work-begun :visible-to :gm
+                     :data {:id "job-x" :actor "dawson" :items ["dressing-table"] :people ["lady-ashby"]
+                            :doing "doing her hair" :place "bedroom" :started 0 :due 1}}])
+      (let [world (e/world run)
+            things (items/judged-things world (items/job world "job-x"))
+            judge #(items/judgement {:tool-calls [{:id "j" :name "judge" :arguments (json/write-value-as-string (assoc % :summary "x"))}]}
+                                    world things)]
+        (is (= ["bedroom" "dressing-table" "dawson" "lady-ashby"] (map :id things)) "people last, by id")
+        (is (str/starts-with? (:error (judge {:used-up ["lady-ashby"]})) "you may use up only consumable items among these"))
+        (is (str/starts-with? (:error (judge {:absorbed [{:thing "dawson" :into "dressing-table"}]})) "absorb only unfixed"))
+        (is (str/starts-with? (:error (judge {:made [{:name "Curl" :desc "A curl." :consumable false :in "lady-ashby"}]}))
+                              "in must be the id of a container among these: none"))
+        (is (= [{:person "lady-ashby" :aspect :hair :from nil :to "up"}]
+               (:changes (:verdict (judge {:changes [{:thing "lady-ashby" :aspect "hair" :value "up"}]}))))))
+      (finally (e/stop-run run)))))
+
+(deftest two-jobs-on-one-person-run-in-order
+  (let [judged (atom [])
+        run (rounds! (start {:llm-impl (scripted {"lady-ashby" {1 [(spend [] "dressing for dinner" 0.5)]}
+                                                  "dawson" {1 [(spend ["lady-ashby"] "doing her ladyship's hair" 0.5)]}}
+                                                 :judged judged)}) 2)
+        lady (fn [ctx] (:aspects (first (filter #(= "lady-ashby" (:id %)) (:things ctx)))))
+        [first-ctx second-ctx] (sort-by (comp :id :job) @judged)]
+    (try
+      (is (= 2 (count @judged)))
+      (is (nil? (lady first-ctx)))
+      (is (= (into {} (for [done (of-type run :item/work-done)
+                            :when (= (:id (:job first-ctx)) (get-in done [:data :job]))
+                            {:keys [person aspect to]} (get-in done [:data :changes])
+                            :when (= "lady-ashby" person)]
+                        [aspect to]))
+             (lady second-ctx))
+          "the second judge sees the first's result")
+      (is (seq (lady second-ctx)))
+      (is (= {:dress "changed: dressing for dinner" :hair "dressed by Dawson"} (aspects-of run "lady-ashby")))
+      (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
       (finally (e/stop-run run)))))

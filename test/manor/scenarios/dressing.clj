@@ -35,13 +35,14 @@
 
 (defn mock-judge
   "items/mock-judge for things; for people, each other person named and
-  still here gets their hair done by the worker, and with nobody else
+  still here gets their hair done by the worker, and when nobody else was
   named the worker's own dress changes."
   [{:keys [world job] :as ctx}]
   (let [{:keys [actor doing]} job
-        others (remove #{actor} (filter (set (:people job)) (items/judged-people world job)))
-        people (if (seq others)
-                 (for [id others] {:thing id :aspect "hair" :value (str "dressed by " (:name (w/agent world actor)))})
+        named (remove #{actor} (:people job))
+        here (filter (set named) (items/judged-people world job))
+        people (if (seq named)
+                 (for [id here] {:thing id :aspect "hair" :value (str "dressed by " (:name (w/agent world actor)))})
                  [{:thing actor :aspect "dress" :value (cap (str "changed: " doing))}])]
     (update-in (items/mock-judge ctx) [:args :changes]
                #(into (vec (remove (fn [c] (w/agent world (:thing c))) %)) people))))

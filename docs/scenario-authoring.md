@@ -840,7 +840,24 @@ changes; word changeable things in it as habits ("usually in a print frock and a
   Other adjudicators (shop quotes, hiring interviews) don't see them.
 - **What the judge does:** the worker is always judged; work changes them only where the activity
   would ("Most work leaves the worker as they were"), and a pastime usually not at all.
-  Scenarios can suggest person keys in the same `:aspect-keys` as items'.
+  Scenarios can suggest person keys in the same `:aspect-keys` as items' (Claudeworth suggests
+  `:dress`, `:hair` and `:grime`).
+- **Acting on someone:** `spend-time`'s `on` may name people here, yourself included. Naming
+  someone asks nothing of them: they needn't be free, awake or willing. When the job ends they
+  are judged if they're active and at the job's place, and not otherwise; they may leave, come
+  back, or `rouse` the worker, who then stops early and is judged on the time worked. Consent is
+  for the characters to work out, realism for the judge. Only the worker and the people named
+  can change: everyone else present stays context. `job-scope` includes `[:person id]` for the
+  worker and each person named, so two jobs on one person (her ladyship dressing, her maid doing
+  her hair) are judged one after the other, and the second judge sees the first's result.
+  People can't be used up, absorbed or made, and a `made` entry's `in` can't name one.
+- **What to tell agents:** the `spend-time` description says that `on` may name people here,
+  that what you do to someone counts only if they're still with you when you finish, and that
+  they may walk away or rouse you, so that only the time worked counts. Say in the brief that how
+  someone looks now is in their `aspects`, beside their usual `appearance`, with yours under
+  `you`, and that when someone is spending time on you (doing your hair), it counts only if you
+  stay with them until they finish. Claudeworth's `rules` has the wording. There is no quick
+  change: changing yourself takes `spend-time`, at least half an hour.
 
 #### Containers
 
@@ -983,16 +1000,20 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   limits. It reads after "is" ("dusting the china cabinet", "resting in the garden").
   `hours`: optional, 0.5–4, default 0.5; rounds as `clock/rounds-for` gives them,
   at least one. `on`: optional list of up to 6 ids: items here (in a container or not) or carried
-  by you, the place you're in, or stores in scope (even in another room). Fixed items are fine;
-  duplicates are dropped. A rejected id gets an actionable reason. No `on` is normal for a
-  pastime, and most pastimes change nothing.
+  by you, the place you're in, stores in scope (even in another room), or people here, yourself
+  included (see People's aspects). Fixed items are fine; duplicates are dropped. A rejected id
+  gets an actionable reason; a person elsewhere gets "Mrs Pell is not here; people here: you
+  (dawson), Lady Ashby (lady-ashby)". No `on` is normal for a pastime, and most pastimes change
+  nothing.
 - `work-on {items, doing, hours?}` remains an alias for now: `items` (1–6 ids) means `on`, with
   the same effect. New scripts and briefs should use `spend-time` and `doing`, not `activity`.
   `sleep` in Claudeworth stays separate and unjudged.
 - Its effect is a job, `:item/work-begun` (visible to the GM; data: the job), and an occupation
   (`b/occupy`, seen by the room: "Hale is dusting the china cabinet until 15:30") whose `:busy`
   carries the job id as `:job`. The job table is `(:item-jobs world)`, keyed by id (`"job-<seq>"`):
-  `{:id :actor :items [..] :doing :place :started round :due round}`. Read it with `items/jobs`.
+  `{:id :actor :items [..] :doing :place :started round :due round}`, with `:people [..]` when
+  `on` named people (an id that is an item's or the place's is a thing, never a person). Read it
+  with `items/jobs`.
 - **Quick put-away jobs** come from free `put-in` into a store. The move happens immediately;
   the job has `:quick? true`, `:store` (the destination id), focus on the item and store,
   doing "putting the <item> away in the <store>", and `:due` the next round. It creates no

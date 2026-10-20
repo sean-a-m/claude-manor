@@ -122,6 +122,8 @@
       (is (str/includes? (user hale-first) "Lord Claudeworth started a conversation here with Lady Claudeworth and you."))
       (is (str/includes? (user hale-first) "Lady Claudeworth (Dining room) says: \"lady-claudeworth 1\""))
       (is (str/includes? (user hale-first) "A line written as plain text, outside a tool call, isn't heard."))
+      (is (str/includes? (user hale-first) "nothing is handed over, made, mended or moved by talking"))
+      (is (str/includes? (user hale-first) "what you hold is under `carrying` in your view"))
       (is (str/includes? (user hale-first) "`stay-silent` or `leave` rather than repeat it"))
       (is (str/ends-with? (user hale-first) "Pass 1 of 2. Your turn: call `reply` with your line, or `stay-silent` or `leave`.")))
     (testing "turns and speaking turns share the system message, for the prompt cache"

@@ -748,7 +748,8 @@
 
    {:name :give
     :kind :free
-    :doc "Give an item you carry (use its id) to someone in the same place (use their id)."
+    :doc (str "Give an item you carry (use its id) to someone in the same place (use their id). "
+              "Saying you hand something over doesn't: only this does, and what you're given appears under `carrying`.")
     :args [:map [:item :string] [:to :string]]
     :valid? give-reason
     :effect (fn [world actor {id :item to :to}]
@@ -765,16 +766,17 @@
 (defn add-to-view
   "The item parts of an agent's view: what they carry (with its aspects),
   the items in their place (names only, with what's in open containers and
-  closed ones marked), and what the people here carry. Each is left out when
-  empty."
+  closed ones marked), and what the people here carry. The agent's own
+  :carrying is always there, empty when they hold nothing, so a claim to have
+  handed them something can be checked against it; the rest is left out
+  when empty."
   [view world agent-id]
   (let [carried (by-name (held-by world agent-id))
         here (when (get-in view [:location :here]) (space/location-of world agent-id))
         lying (by-name (remove store? (items-at world here)))
         stores (stores-for world here)]
-    (cond-> view
+    (cond-> (assoc-in view [:you :carrying] (mapv #(select-keys % [:id :name :aspects]) carried))
       (seq stores) (assoc-in [:location :here :stores] (mapv #(store-view here %) stores))
-      (seq carried) (assoc-in [:you :carrying] (mapv #(select-keys % [:id :name :aspects]) carried))
       (seq lying) (assoc-in [:location :here :items] (mapv #(as-seen world (fn [it] (select-keys it [:id :name])) %) lying))
       (get-in view [:location :people-here])
       (update-in [:location :people-here]
@@ -1001,6 +1003,7 @@
 - An activity happens in one place and you cannot move things. Taking or carrying something elsewhere is not using it up: leave it where it is; the person carries things with `take` and movement actions.
 - When leftovers or supplies are put away into a store in scope (leftovers set in the pantry, groceries shelved), absorb them into that store: they join its stock and get a put-away fate. Adjust the store's aspects if its stock or lacking changes. Never describe a thing as moved or put away in its aspects while leaving it where it is. If something isn't put away or consumed, leave it as it is.
 - The `place` entry is the place itself: its aspects describe the room as a whole (floor, hearth, air), not the things in it, which have their own entries.
+- `Carrying` lists the notable things the worker holds. Their clothes and the everyday things work needs (a needle, a cloth, a basket) are never listed there, but they are to hand. Sometimes an activity assumes a particular notable thing that someone said they brought, handed over or set aside (a parcel, packets of goods, a letter) that is neither in the scene nor carried: only such a thing doesn't exist. Never write as if it was counted, used, moved or set out, in the summary or in aspects; do the rest of the work and say in the summary that it wasn't there. A store still holds the everyday supplies it keeps, and work may draw on them as usual.
 - An item's nature can't change: work can't turn a vase into gold. If the task is impossible or absurd, change nothing and say so in the summary.
 - Only things marked `consumable` can be used up, and only once they are gone: food eaten or cooked into something else, fuel burnt, an ingredient used up. List their ids in `used-up`; give their fates in `fates` (id to short phrase), otherwise the fate is \"used up while <doing>\". Something partly used is not used up: change its `amount` to say what's left (\"about 17 lb left\").
 - `made` is for at most " max-made " things really produced from what was used up or everyday supplies (no source or use-up needed for the activity's direct product: a letter, a list, plans, a dish), or fetched from a store in scope with `from` (that store's id). Keep `from` for drawing from a store, not making a work product. Give each a name, desc, optional aspects and a `consumable` flag: writing and drawing products are not consumable; dishes are. Make a thing only if someone will carry, hand over, serve or keep it; otherwise describe the result as an aspect (the room's table \"laid for dinner\"). Do not promote every utensil used.
@@ -1055,6 +1058,9 @@
                      "- Worker: " (:name worker) (when-not (str/blank? (:persona worker)) (str ". " (:persona worker))) "\n"
                      "- Place: " (:name (space/location world (:place job)) (:place job)) "\n"
                      "- Doing: " (:doing job) "\n"
+                     "- Carrying: " (let [held (by-name (held-by world (:actor job)))]
+                                      (if (seq held) (str/join ", " (map #(str (:name %) " (" (:id %) ")") held)) "nothing"))
+                     "\n"
                      (when (:quick? job) "- Quick job: putting things away; no occupation or time needed\n")
                      "- Time worked: " minutes " minutes" (if stopped-early? "; they stopped early" ", as planned") "\n"
                      "- Luck: " luck "\n\n"

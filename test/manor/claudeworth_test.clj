@@ -641,7 +641,9 @@
     (testing "the rules say the item actions are free, and what look shows"
       (is (str/includes? (cw/rules world) "`look` shows them in detail, with their descriptions, owners and aspects"))
       (is (str/includes? (cw/rules world) "The room's own aspects (its floor, hearth and air) and the stores in scope are under `here` in your view."))
-      (is (str/includes? (cw/rules world) "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn")))
+      (is (str/includes? (cw/rules world) "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn"))
+      (is (str/includes? (cw/rules world) "Talking never changes anything."))
+      (is (str/includes? (cw/rules world) "never of views, tools or ids")))
     (testing "the rules and the judge both take everyday things as to hand"
       (let [judge-brief ((get-in (:scenario run) [:items :judge-brief]) world)]
         (is (str/includes? (cw/rules world) "everyday things (cloths, paper, pans, salt, matches and the like) can be assumed to be to hand"))

@@ -54,7 +54,7 @@
    [:persona {:optional true} :string]
    [:situation {:optional true} :string]
    [:manner {:optional true} :string]
-   [:appearance {:optional true} [:string {:min 1 :max 300}]]
+   [:appearance {:optional true} [:string {:min 1 :max 600}]]
    [:sex {:optional true} [:enum :male :female]]
    [:temperament {:optional true}
     [:map-of [:enum :openness :conscientiousness :extraversion :agreeableness :neuroticism]

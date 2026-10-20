@@ -1231,7 +1231,7 @@ one or two third-person sentences describing what a stranger sees at a glance (a
 dress, bearing, spectacles, a squint, red hands or a limp). It is shown wherever the person
 is: do not place them at a location or describe a passing action. It must not include the person's name,
 trait labels, character judgements or secrets: no temperament or faculty labels, "drinks",
-"honest" or "owes money". Aim for about 200 characters; up to 300 are accepted.
+"honest" or "owes money". Aim for about 400 characters; up to 600 are accepted.
 
 Other agents see it in `location.people-here`, the `walk` reply and `look`'s people. The GM's
 view lists it with the persona; hidden traits and manner remain excluded as before. The person's
@@ -1269,8 +1269,8 @@ data, so there's one source and no call.
 ```clojure
 {:name "Hale" :sex :male :role :secretary :location "secretarys-room"
  :persona "You are twenty-six, neat to the point of fussiness ..."   ; polished: the traits made concrete
- :manner "You seem eager and tidy ..."                   ; private guidance, at most 200
-  :appearance "A young man in a neat dark suit and spectacles, standing very straight." ; public, at most 300
+ :manner "You seem eager and tidy ..."                   ; private guidance, at most 400
+  :appearance "A young man in a neat dark suit and spectacles, standing very straight." ; public, at most 600
  :temperament {:openness :high :conscientiousness :average :extraversion :low
                :agreeableness :high :neuroticism :average}   ; the Big Five: :low, :average or :high
  :faculties {"Secretiveness" :large "Cautiousness" :small "Veneration" :large "Hearing" :small
@@ -1279,7 +1279,7 @@ data, so there's one source and no call.
 ```
 
 - `load-world` checks these keys (the five axes and their levels, the sizes, `:sex` `:male` or
-  `:female`, and appearance's nonempty string and 300-character limit). Loading never calls the
+  `:female`, and appearance's nonempty string and 600-character limit). Loading never calls the
   people server or a model: the file holds the result.
 - There is no `:sketch` input. Old descriptions are never used to regenerate a cast;
   a successful re-roll also removes a legacy `:sketch` if one is present.
@@ -1306,9 +1306,9 @@ data, so there's one source and no call.
   Raw levels/sizes and definitions remain in the private prompt under **Faculties** alongside
   generated prose. Clearer period-appropriate wording of readings is deferred, not a reason
   to replace the underlying data with stock habits.
-- Validation checks structure only: one/two nonblank circumstance strings (at most 240
-  characters each), persona advised 450/accepted 600, manner at most 200, appearance advised
-  200/accepted 300, all nonblank. One correction is allowed. No phrase/regex checks judge
+- Validation checks structure only: one/two nonblank circumstance strings (at most 480
+  characters each), persona advised 900/accepted 1200, manner at most 400, appearance advised
+  400/accepted 600, all nonblank. One correction is allowed. No phrase/regex checks judge
   prose. Basic readings stay from the server; written circumstances are stored with them.
   `mock-polish` is a free deterministic fixture, not another production generator.
 - `reputation {person knower relation seed}` takes the completed record and selects known

@@ -52,10 +52,10 @@
                        ":meta clock: :start must look like"))
     (is (str/includes? (problems-of (assoc-in good [:locations 1 :id] "Bed Room"))
                        "malformed"))
-    (testing "appearance is optional and must be a nonempty string of at most 300 characters"
+    (testing "appearance is optional and must be a nonempty string of at most 600 characters"
       (is (empty? (wf/problems (assoc-in good [:agents 0 :appearance] "A small figure in a faded apron."))))
-      (is (empty? (wf/problems (assoc-in good [:agents 0 :appearance] (apply str (repeat 300 "x"))))))
-      (doseq [bad [42 "" (apply str (repeat 301 "x"))]]
+      (is (empty? (wf/problems (assoc-in good [:agents 0 :appearance] (apply str (repeat 600 "x"))))))
+      (doseq [bad [42 "" (apply str (repeat 601 "x"))]]
         (is (str/includes? (problems-of (assoc-in good [:agents 0 :appearance] bad)) ":appearance"))))
     (testing "load-world throws with the whole list"
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"has problems:\n- "

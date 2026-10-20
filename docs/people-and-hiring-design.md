@@ -176,7 +176,7 @@ setting, the position and the base record, plus any authored notes. It returns c
 
 - `persona`: three or four sentences in the voice of the existing personas, which make the
   traits concrete. "Small Hearing" becomes "a little deaf in the left ear"; "large Acquisitiveness"
-  becomes "counts every penny and keeps a tin of savings under the boards." At most 600 characters.
+  becomes "counts every penny and keeps a tin of savings under the boards." At most 1200 characters.
 - `manner`: one sentence on how they come across to a stranger, for their own guidance in
   presenting themselves (a candidate will present well, as real applicants do).
 
@@ -248,9 +248,9 @@ Deviations and decisions made while building:
    reaches no prompt.
 6. **`:manner`** goes in the agent's own prompt after the persona ("To a stranger you come across
    as: ..."), because it guides how they present themselves.
-7. **The persona length is advised, not just limited.** The model is asked for about 450
-   characters and code accepts up to 600 (the same pattern as aspect values), because deepseek
-   overshot a plain "at most 600" for three of nine characters. `{:only [names]}` re-rolls just
+7. **The persona length is advised, not just limited.** The model is asked for about 900
+   characters and code accepts up to 1200 (the same pattern as aspect values), because deepseek
+   overshot a plain "at most 1200" for three of nine characters. `{:only [names]}` re-rolls just
    the agents named.
 8. **"Facts unchanged"** is enforced by storing the facts from the record, never from the model.
    The text check covers only what text can show: the person is named (any word of the name but
@@ -548,7 +548,7 @@ a manner whose "your" meant the stranger, and the traits crammed into one line. 
 **Appearance as built** (decision 33). An optional `:appearance` now sits on each agent and in
 world files: one or two third-person sentences about what a stranger can see, without their name
 or hidden traits. The same polish call writes persona, manner and appearance from the same record
-and notes. Appearance is advised at 200 characters and accepted to 300. Checks reject missing,
+and notes. Appearance is advised at 400 characters and accepted to 600. Checks reject missing,
 blank or overlong text, an opening "You", the person's name, the existing jargon list and explicit
 hidden-trait labels (including "honest", "drinks" and "owes money"), with the same one correction.
 `mock-polish` supplies deterministic visible prose, and `roll-cast!` writes it alongside the other

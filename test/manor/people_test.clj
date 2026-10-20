@@ -146,15 +146,15 @@
       (is (= good (verdict (-> (update-vals (dissoc good :circumstances) #(str "  " % "  "))
                                 (assoc :circumstances (mapv #(str "  " % "  ") (:circumstances good))))))))
     (testing "lengths: the model is asked for less persona than is accepted"
-      (is (verdict (assoc good :persona (apply str "You " (repeat 580 "x")))))
-      (is (= 450 (get-in (people/polish-request {:record record}) [:tools 0 :function :parameters :properties :persona :maxLength])))
-      (is (error (assoc good :persona (apply str "You " (repeat 600 "x")))))
-      (is (error (assoc good :manner (apply str (repeat 201 "x")))))
+      (is (verdict (assoc good :persona (apply str "You " (repeat 1100 "x")))))
+      (is (= 900 (get-in (people/polish-request {:record record}) [:tools 0 :function :parameters :properties :persona :maxLength])))
+      (is (error (assoc good :persona (apply str "You " (repeat 1200 "x")))))
+      (is (error (assoc good :manner (apply str (repeat 401 "x")))))
       (is (error (assoc good :manner "   "))))
-    (testing "appearance is advised at 200 characters but accepted up to 300"
-      (is (= 200 (get-in (people/polish-request {:record record}) [:tools 0 :function :parameters :properties :appearance :maxLength])))
-      (is (verdict (assoc good :appearance (apply str (repeat 300 "x")))))
-      (doseq [bad [nil "" "   " (apply str (repeat 301 "x"))]]
+    (testing "appearance is advised at 400 characters but accepted up to 600"
+      (is (= 400 (get-in (people/polish-request {:record record}) [:tools 0 :function :parameters :properties :appearance :maxLength])))
+      (is (verdict (assoc good :appearance (apply str (repeat 600 "x")))))
+      (doseq [bad [nil "" "   " (apply str (repeat 601 "x"))]]
         (is (error (assoc good :appearance bad)) (pr-str bad)))
       (is (error (dissoc good :appearance))))
     (testing "wording is never pattern-checked: period jargon and any point of view pass"
@@ -231,7 +231,7 @@
                                                    {} input))
                          "second bad answer")))
     (testing "a bad appearance gets one correction, or fails without keeping private prose"
-      (let [bad (polish-response (assoc good :appearance (apply str (repeat 301 "x"))))
+      (let [bad (polish-response (assoc good :appearance (apply str (repeat 601 "x"))))
             fixed (people/polish! (scripted bad (polish-response good)) {} input)
             failed (people/polish! (scripted bad bad) {} input)]
         (is (= good (:polish fixed)))

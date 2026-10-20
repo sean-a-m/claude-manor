@@ -78,7 +78,7 @@
     (is (= {:age 21 :sex "female" :position "housemaid" :small-senses ["Sight"]} data))
     (is (= data (get-in req [:ctx :record])))
     (is (not (str/includes? (pr-str (dissoc req :check)) "private-")))
-    (doseq [bad ["" "  " (apply str (repeat 301 "x"))]]
+    (doseq [bad ["" "  " (apply str (repeat 601 "x"))]]
       (is (:error ((:check req) {:tool-calls [{:id "a" :name "appearance" :arguments {:appearance bad}}]}))))
     (is (= {:appearance "Plain clothes."}
            (:verdict ((:check req) {:tool-calls [{:id "a" :name "appearance" :arguments {:appearance "Plain clothes."}}]}))))))

@@ -242,7 +242,7 @@
       :args [:map
              [:role (into [:enum] spawnable)]
              [:name [:string {:min 1 :max 40}]]
-             [:persona {:optional true} [:string {:max 600}]]
+             [:persona {:optional true} [:string {:max 1200}]]
              [:location {:optional true} :string]]
       :valid? (fn [world _ {:keys [location]}]
                 (cond (>= (count (w/active-agents world)) max-agents)

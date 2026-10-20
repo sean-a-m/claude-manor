@@ -1,8 +1,8 @@
 (ns people.generate
   "Base records for new people, rolled from the data files: name, sex, age,
-  origin, where they live, five temperament levels, one faculty from each of
-  the seven groups and one or two circumstances, each with its descriptor
-  text. Deterministic: the same request always gives the same people."
+  origin, where they live, five temperament levels and one faculty from each
+  of the seven groups. Only basic readings and definitions: the engine's
+  character writer supplies circumstances and prose. Deterministic from seed."
   (:require [clojure.edn :as edn]
             [clojure.string :as str])
   (:import (java.util Random)))
@@ -11,7 +11,6 @@
 
 (def temperament (data "temperament.edn"))
 (def faculties (data "faculties.edn"))
-(def circumstances (data "circumstances.edn"))
 (def names (data "names.edn"))
 
 (def default-ages
@@ -37,14 +36,6 @@
                    (str/join "/" parts))))
 
 (defn pick [^Random r xs] (nth xs (.nextInt r (count xs))))
-
-(defn pick-weighted
-  "One of `xs`, each as likely as its `weight`; nil if every weight is 0."
-  [^Random r weight xs]
-  (let [total (reduce + 0 (map weight xs))]
-    (when (pos? total)
-      (loop [n (.nextInt r (int total)), [x & more] xs]
-        (if (< n (weight x)) x (recur (- n (weight x)) more))))))
 
 (defn some-of
   "`n` of `xs` chosen at random, in their original order."
@@ -74,39 +65,14 @@
           :else (throw (ex-info "no untaken name left" {})))))))
 
 (defn- roll-temperament [r]
-  (vec (for [{:keys [axis] :as a} (:axes temperament)
-             :let [level (pick r (:levels temperament))]]
-         {:axis axis :level level :text (pick r (get a level))})))
+  (vec (for [{:keys [axis measures]} (:axes temperament)]
+         {:axis axis :level (pick r (:levels temperament)) :measures measures})))
 
 (defn- roll-faculties [r]
   (vec (for [{:keys [group] :as g} (:groups faculties)
              :let [f (pick r (:faculties g))
                    size (pick r (:sizes faculties))]]
-         {:group group :faculty (:faculty f) :means (:means f) :size size :text (get f size)})))
-
-(defn excluded?
-  "Whether circumstance `id` may not be rolled beside any of `picked` (ids)."
-  [picked id]
-  (boolean (some (fn [[a b]] (or (and (= a id) (picked b)) (and (= b id) (picked a))))
-                 (:exclusions circumstances))))
-
-(defn- roll-circumstances
-  "One or two circumstances from different groups, weighted for `position`,
-  never an excluded pair."
-  [r position]
-  (let [all (for [{:keys [group] :as g} (:groups circumstances)
-                  c (:circumstances g)]
-              (assoc c :group group))
-        weight #(get (:weights %) position 1)]
-    (loop [picked [], n (inc (.nextInt r 2))]
-      (let [ids (set (map :id picked))
-            groups (set (map :group picked))
-            c (when (pos? n)
-                (pick-weighted r weight (remove #(or (groups (:group %)) (excluded? ids (:id %))) all)))]
-        (if c
-          (recur (conj picked c) (dec n))
-          (mapv (fn [c] {:id (:id c) :group (:group c) :label (:label c) :text (pick r (:texts c))})
-                picked))))))
+         {:group group :faculty (:faculty f) :means (:means f) :size size})))
 
 (defn position-key
   "\"Scullery maid\" or \"scullery-maid\" -> :scullery-maid"
@@ -123,8 +89,7 @@
      :origin (pick r (:origins names))
      :lives (cond-> (pick r (:dwellings names)) (not (str/blank? area)) (str ", " area))
      :temperament (roll-temperament r)
-     :faculties (roll-faculties r)
-     :circumstances (roll-circumstances r position)}))
+     :faculties (roll-faculties r)}))
 
 ;; ---------------------------------------------------------------------------
 ;; The tool
@@ -144,8 +109,8 @@
       :else (assoc req :count n :position (position-key position) :sex (some-> sex keyword)))))
 
 (defn generate
-  "`count` new people for `position`: base records with their descriptor
-  texts, named so as not to clash with `taken-names` or with each other."
+  "`count` new people for `position`: basic identity/readings and definitions,
+  named so as not to clash with `taken-names` or with each other."
   [req]
   (let [{:keys [count position seed taken-names] :as req} (checked req)]
     (loop [i 0, taken (vec taken-names), people []]

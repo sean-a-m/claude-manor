@@ -1150,7 +1150,7 @@ person; no other agent's view or prompt contains them. The optional `:appearance
 one or two third-person sentences describing what a stranger sees at a glance (age, build, face,
 dress, bearing, spectacles, a squint, red hands or a limp). It is shown wherever the person
 is: do not place them at a location or describe a passing action. It must not include the person's name,
-trait labels, character judgements or secrets: no Big Five or phrenological terms, "drinks",
+trait labels, character judgements or secrets: no temperament or faculty labels, "drinks",
 "honest" or "owes money". Aim for about 200 characters; up to 300 are accepted.
 
 Other agents see it in `location.people-here`, the `walk` reply and `look`'s people. The GM's
@@ -1171,7 +1171,7 @@ What people see: <appearance, in the third person>
 Temperament:
 - Openness: average (curiosity, imagination, willingness to entertain new ideas)
 - ... all five
-Phrenological faculties:
+Faculties:
 - Alimentiveness: large (appetite for food)
 - ... all seven
 Circumstances:
@@ -1195,7 +1195,7 @@ data, so there's one source and no call.
                :agreeableness :high :neuroticism :average}   ; the Big Five: :low, :average or :high
  :faculties {"Secretiveness" :large "Cautiousness" :small "Veneration" :large "Hearing" :small
              "Form" :large "Number" :moderate "Causality" :small}  ; one per group: :small, :moderate, :large
- :circumstances ["reads and writes well" "owes money"]}   ; one or two
+ :circumstances ["Your widowed mother lives in another parish and expects your letters."]} ; one or two written facts
 ```
 
 - `load-world` checks these keys (the five axes and their levels, the sizes, `:sex` `:male` or
@@ -1203,46 +1203,52 @@ data, so there's one source and no call.
   people server or a model: the file holds the result.
 - There is no `:sketch` input. Old descriptions are never used to regenerate a cast;
   a successful re-roll also removes a legacy `:sketch` if one is present.
-- The traits come from the **people server** (`mcp-servers/people/`, babashka, stateless, no
-  model, no key). `generate_people {position count area setting seed taken-names sex ages}` rolls
-  base records from its data files (`temperament.edn`, `faculties.edn`, `circumstances.edn`,
-  `names.edn`): a name sharing no word with `taken-names`, the `sex` asked for (else either), an
-  age within `ages` (`[youngest oldest]`, else 18 to 55), origin, home, five temperament levels,
-  one faculty from each of the seven phrenological groups and one or two circumstances, each with
-  its descriptor text. Circumstances come from different groups, never an `:exclusions` pair,
-  weighted by position. The engine passes a position's `:ages` and `:sex` from its catalogue
-  entry (`manor.people/generate-args`), so there's one list of positions. The position's name is
-  part of the dice's seed, so a person rolled again for another position comes out different.
-  `reputation {person knower relation seed}` says what a knower knows of a base record: an
-  acquaintance line and which of its traits they know, by relation (`by-sight`, `neighbour`,
-  `acquaintance`, `fellow-servant`, `employer`, `family`). Both are deterministic from the seed.
-- The **polish** (`manor.people/polish!`) is one narrow checked model call, like the shop's
-  appraiser: the setting, the position, the base record and any notes go in; `{persona manner
-  appearance}` comes out in the same call. Persona and manner are written to the person in the
-  second person ("You are sixteen, small and round-faced ..."; "You seem shy at first ...").
-  Code checks the lengths (persona advised 450, accepted to 600; manner at most 200; appearance
-  advised 200, accepted to 300) and nonblank text, and nothing else: point of view, wording and
-  what an appearance may reveal are set by the instructions and checked by reviewing the result,
-  never by phrase or pattern checks on the prose (see AGENTS.md). Period vocabulary, the
-  phrenologists' included, is welcome. A bad answer is sent back once with the reason. The record's
-  facts are stored from the record, never from the model's text. `mock-polish` is the free responder.
-- `(roll-cast! "worlds/claudeworth.edn")` at the REPL (`clj -M:dev`; `{:llm :mock}` for a free
-  one) rolls every agent in a world file afresh and writes the results, including `:appearance`,
-  into the file in place, comments and layout kept, for review with `git diff`. Every trait is
-  rolled, with no pins. Names, sex (or the position's default), roles, situations, bedrooms,
-  routines and the rest of the setup stay. Persona, manner, appearance, temperament, faculties
-  and circumstances are replaced. The polish receives only the setting, position and newly
-  generated record with the existing name: no old persona, sketch, manner, appearance, traits
-  or situation. Age and origin are newly generated; the generated home is omitted because
-  the world's housing is already authored. Legacy sketches are removed on successful rolls.
-  Each invocation uses a **fresh seed by default**, returned and saved in `roll-cast.edn`;
-  pass `{:seed 1}` (or another saved seed) to reproduce the traits. The same seed rolls the
-  same traits as long as the agent's name, position, sex and generation data are unchanged;
-  real-model prose can still differ. The
-  default model and settings are the runs' (`deepseek/deepseek-v4.1-flash`, the manor key);
-  `{:only ["Hobbs"]}` rolls just the agents named. The
-  server log and every call go to `test-runs/roll-cast-<time>/roll-cast.edn`, with the cost. An
-  agent whose polish fails is left as it was.
+- The basic traits come from the **people server** (`mcp-servers/people/`, babashka,
+  stateless, no model, no key). `generate_people {position count area setting seed taken-names sex ages}`
+  rolls identity and readings from `temperament.edn`, `faculties.edn` and `names.edn`:
+  a name sharing no word with `taken-names`, requested sex (else either), age within `ages`
+  (else 18–55), origin, home, five temperament levels and one faculty from each of seven groups.
+  Readings carry only names, values and short definitions (`:measures`/`:means`).
+  There are **no behavioural descriptors or circumstance templates**. Levels, sizes and
+  faculty-selection distributions are unchanged; removing descriptor draws changes exact
+  readings for old seeds. The engine passes age/sex defaults from the position catalogue.
+- The **character writer**, still called the **polish** (`manor.people/polish!`), returns
+  `{circumstances persona manner appearance}` in one checked model call. It receives only
+  setting, position, basic identity/readings and optional authored notes; legacy descriptors,
+  circumstances and prose are stripped from its record and mock context.
+  Circumstances are **one or two external personal facts**, inspired by the whole record
+  including role, not dispositions or enduring habits (which belong in persona/manner).
+  Ordinary lives are allowed. Off-stage relatives and past employment may be invented;
+  connections to existing named characters, present jobs/authority/capabilities, money,
+  items, property and actionable assets may not. Background prose grants no engine state.
+- Persona/manner address the person in the second person; public appearance uses the third.
+  The prompt treats basic readings as actual characteristics, not theories to discount.
+  Raw levels/sizes and definitions remain in the private prompt under **Faculties** alongside
+  generated prose. Clearer period-appropriate wording of readings is deferred, not a reason
+  to replace the underlying data with stock habits.
+- Validation checks structure only: one/two nonblank circumstance strings (at most 240
+  characters each), persona advised 450/accepted 600, manner at most 200, appearance advised
+  200/accepted 300, all nonblank. One correction is allowed. No phrase/regex checks judge
+  prose. Basic readings stay from the server; written circumstances are stored with them.
+  `mock-polish` is a free deterministic fixture, not another production generator.
+- `reputation {person knower relation seed}` takes the completed record and selects known
+  basic readings and some **already-written** circumstances according to relation. No new
+  behavioural descriptions are supplied: the recommending agent interprets the readings.
+  The acquaintance line still comes from the deterministic relationship service.
+  Generation/reputation selection are seeded; model prose need not repeat for the same seed.
+- `(roll-cast! "worlds/claudeworth.edn")` at the REPL (`clj -M:dev`;
+  `{:llm :mock}` for free) writes the file in place, comments/layout kept. Names, sex, roles,
+  situations, bedrooms, routines and other setup stay. Persona, manner, appearance,
+  temperament, faculties and circumstances are replaced together on success; failed/unselected
+  characters stay unchanged. Age/origin are newly generated; generated home is omitted because
+  housing is authored. Old descriptions, traits, circumstances and situation never feed back;
+  successful rolls remove legacy sketches. A fresh seed is returned and saved in
+  `roll-cast.edn`; an explicit `:seed` reproduces basic readings, not necessarily model prose.
+  The default model/settings are the runs' (`deepseek/deepseek-v4.1-flash`, manor key).
+  `{:only ["Hobbs"]}` selects characters. The REPL helper defaults to `:max-cost 0.20`,
+  checked before each model call across the cast, including corrections. An in-flight call
+  may cross the threshold, as in engine runs. Logs and all calls live under
+  `test-runs/roll-cast-<time>/`; preserve paid records under `old-test-runs/`.
 - Loading, branching and replay never read world files: the starting map is recorded as events.
 
 #### Runtime candidates and hiring
@@ -1264,7 +1270,7 @@ Its positions must include `:none`; its meeting place must exist.
   instructions go only to the two parties. The sampled reputation belongs only to the
   recommender, who then chooses what to say.
 - Runtime appearance uses `people/appearance-request`: **only** age, sex, position and small
-  sense names reach it, including mock context. It never sees private descriptors or prose.
+  sense names reach it, including mock context. It never sees private readings, circumstances or prose.
   The private polish sees the approved appearance for consistency; its own appearance output
   is discarded. These calls use the run's default model and normal cost budget, with checked
   lengths/blanks and one correction, never lexical prose checks. Offline bridge fixtures and

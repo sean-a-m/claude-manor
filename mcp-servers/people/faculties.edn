@@ -1,183 +1,60 @@
-;; Faculties: the phrenologists' organs, in their seven groups, at their own
-;; sizes. One faculty is rolled from each group. Period flavour, not
-;; psychology. Written for this server; :means is what the organ governs.
-{:sizes [:small :moderate :large]
+;; Basic faculties: one from each group, with a size and a short definition.
+;; The character model interprets these readings; there are no behavioural templates.
+{:sizes [:small :moderate :large],
  :groups
- [{:group "Propensities"
+ [{:group "Propensities",
    :faculties
-   [{:faculty "Amativeness" :means "sexual attraction"
-     :small "Cool towards the other sex; courting holds no charm."
-     :moderate "Fond of the company of the other sex in the ordinary way."
-     :large "Ardent; has an eye for a handsome face and no defence against a flirtation."}
-    {:faculty "Philoprogenitiveness" :means "love of offspring"
-     :small "Has no patience with children and keeps out of their way."
-     :moderate "Kind to children without making a fuss of them."
-     :large "Dotes on children, and the little ones follow at their heels."}
-    {:faculty "Concentrativeness" :means "keeping the mind on one thing; attachment to place"
-     :small "Restless: flits from one task to the next and from one place to another."
-     :moderate "Can keep at a task, and is fond enough of home."
-     :large "Fixed on one thing at a time, and so attached to home that a move is a misery."}
-    {:faculty "Adhesiveness" :means "friendship, attachment"
-     :small "Makes few friends and keeps fewer."
-     :moderate "Has a few good friends and is loyal to them."
-     :large "A friend for life once made, and feels every parting keenly."}
-    {:faculty "Combativeness" :means "courage, readiness to oppose"
-     :small "Will give way sooner than argue, and shrinks from a quarrel."
-     :moderate "Will stand up for what is right when pushed."
-     :large "Ready to argue, ready to fight, and never the first to back down."}
-    {:faculty "Destructiveness" :means "severity, energy to harm"
-     :small "Gentle; cannot bring themselves to wring a chicken's neck."
-     :moderate "Can be stern when sternness is wanted."
-     :large "Hard and severe; a bad enemy, with a temper that breaks things."}
-    {:faculty "Alimentiveness" :means "appetite for food"
-     :small "Eats like a bird and forgets mealtimes."
-     :moderate "A good plain appetite."
-     :large "Lives for meals; always peckish, and partial to the larder."}
-    {:faculty "Secretiveness" :means "tact, concealment"
-     :small "Every thought shows on the face, and most are blurted out."
-     :moderate "Discreet enough when asked to be."
-     :large "Close as an oyster: tells nobody anything and notices everything."}
-    {:faculty "Acquisitiveness" :means "desire to possess"
-     :small "Careless with money; it slips through the fingers."
-     :moderate "Careful with money without being mean."
-     :large "Counts every penny, saves every scrap and hoards against a rainy day."}
-    {:faculty "Constructiveness" :means "urge to build and make"
-     :small "Clumsy with tools, and cannot mend a thing."
-     :moderate "Handy enough about the house."
-     :large "Clever with the hands; always making or mending something."}]}
-  {:group "Lower sentiments"
+   [{:faculty "Amativeness", :means "sexual attraction"}
+    {:faculty "Philoprogenitiveness", :means "love of offspring"}
+    {:faculty "Concentrativeness",
+     :means "keeping the mind on one thing; attachment to place"}
+    {:faculty "Adhesiveness", :means "friendship, attachment"}
+    {:faculty "Combativeness", :means "courage, readiness to oppose"}
+    {:faculty "Destructiveness", :means "severity, energy to harm"}
+    {:faculty "Alimentiveness", :means "appetite for food"}
+    {:faculty "Secretiveness", :means "tact, concealment"}
+    {:faculty "Acquisitiveness", :means "desire to possess"}
+    {:faculty "Constructiveness", :means "urge to build and make"}]}
+  {:group "Lower sentiments",
    :faculties
-   [{:faculty "Self-Esteem" :means "pride"
-     :small "Thinks poorly of their own worth and defers to everyone."
-     :moderate "Knows their own worth, no more and no less."
-     :large "Proud, stands on dignity and will not be put upon."}
-    {:faculty "Love of Approbation" :means "vanity, ambition"
-     :small "Cares nothing for what people think."
-     :moderate "Likes a word of praise, as anyone does."
-     :large "Hungry for praise and ambitious to be thought well of; dreads a bad opinion."}
-    {:faculty "Cautiousness" :means "fear, prudence"
-     :small "Rash: leaps first and looks afterwards."
-     :moderate "Prudent in the ordinary way."
-     :large "Anxious and careful; sees danger everywhere and bolts every door twice."}]}
-  {:group "Superior sentiments"
+   [{:faculty "Self-Esteem", :means "pride"}
+    {:faculty "Love of Approbation", :means "vanity, ambition"}
+    {:faculty "Cautiousness", :means "fear, prudence"}]}
+  {:group "Superior sentiments",
    :faculties
-   [{:faculty "Benevolence" :means "kindness, charity"
-     :small "Hard-hearted; other people's troubles are their own affair."
-     :moderate "Charitable when it costs little."
-     :large "Generous to a fault; gives away what cannot be spared."}
-    {:faculty "Veneration" :means "reverence, respect for authority"
-     :small "Has little respect for rank, parson or squire."
-     :moderate "Respectful to their betters, and in church most Sundays."
-     :large "Deeply reverent; holds the family, the Church and the Crown in awe."}
-    {:faculty "Firmness" :means "perseverance"
-     :small "Gives up easily, and can be talked round by anyone."
-     :moderate "Steady enough in purpose."
-     :large "Obstinate; once set on a course, nothing will turn them from it."}
-    {:faculty "Conscientiousness" :means "justice and duty"
-     :small "Elastic in conscience: a white lie or a perquisite is no great matter."
-     :moderate "Honest in the ordinary way."
-     :large "Scrupulously just; would sooner lose a place than tell a lie."}
-    {:faculty "Hope" :means "expectation of good"
-     :small "Expects the worst, and is seldom disappointed."
-     :moderate "Hopeful within reason."
-     :large "Sanguine: sure that everything will come right, and plans accordingly."}
-    {:faculty "Wonder" :means "love of the novel and marvellous"
-     :small "Believes nothing without seeing it."
-     :moderate "Enjoys a marvel without being taken in by it."
-     :large "Credulous, and fond of marvels, ghosts and omens."}
-    {:faculty "Ideality" :means "love of beauty, the poetic"
-     :small "No eye for beauty; a thing is good if it is useful."
-     :moderate "Likes a pretty thing when it comes along."
-     :large "A lover of beauty and poetry, pained by anything ugly."}
-    {:faculty "Wit" :means "sense of the ludicrous"
-     :small "Seldom sees a joke."
-     :moderate "Enjoys a joke in its place."
-     :large "Sees the ludicrous side of everything, often at the wrong moment."}
-    {:faculty "Imitation" :means "mimicry"
-     :small "Cannot copy anyone's way of doing things, or take anybody off."
-     :moderate "Picks up a way of doing things by watching."
-     :large "A born mimic, who can take anybody off to the life."}]}
-  {:group "External senses"
+   [{:faculty "Benevolence", :means "kindness, charity"}
+    {:faculty "Veneration", :means "reverence, respect for authority"}
+    {:faculty "Firmness", :means "perseverance"}
+    {:faculty "Conscientiousness", :means "justice and duty"}
+    {:faculty "Hope", :means "expectation of good"}
+    {:faculty "Wonder", :means "love of the novel and marvellous"}
+    {:faculty "Ideality", :means "love of beauty, the poetic"}
+    {:faculty "Wit", :means "sense of the ludicrous"}
+    {:faculty "Imitation", :means "mimicry"}]}
+  {:group "External senses",
    :faculties
-   [{:faculty "Feeling" :means "touch"
-     :small "A coarse touch, with little feeling in the hands."
-     :moderate "An ordinary touch."
-     :large "Fine, sensitive fingers; feels every draught and every crease."}
-    {:faculty "Taste" :means "the sense of taste"
-     :small "Can hardly tell beef from mutton."
-     :moderate "Knows good food from bad."
-     :large "A fine palate that can tell what went into a sauce."}
-    {:faculty "Smell" :means "the sense of smell"
-     :small "A poor nose that cannot smell gas or burning."
-     :moderate "An ordinary nose."
-     :large "A keen nose; smells damp, drink or smoke before anyone else."}
-    {:faculty "Hearing" :means "the sense of hearing"
-     :small "Hard of hearing in one ear, and apt to mishear."
-     :moderate "Hears well enough."
-     :large "Sharp ears that catch a whisper through a door."}
-    {:faculty "Sight" :means "eyesight"
-     :small "Short-sighted, and peers at things."
-     :moderate "Good enough eyes."
-     :large "Keen-eyed; misses nothing at a distance."}]}
-  {:group "Knowing faculties: objects"
+   [{:faculty "Feeling", :means "touch"}
+    {:faculty "Taste", :means "the sense of taste"}
+    {:faculty "Smell", :means "the sense of smell"}
+    {:faculty "Hearing", :means "the sense of hearing"}
+    {:faculty "Sight", :means "eyesight"}]}
+  {:group "Knowing faculties: objects",
    :faculties
-   [{:faculty "Individuality" :means "observation"
-     :small "Notices little of what goes on round about."
-     :moderate "Observant enough."
-     :large "Notices everything, from a new ribbon to a stain on a cuff."}
-    {:faculty "Form" :means "memory for shapes and faces"
-     :small "Forgets faces, and greets strangers as old friends."
-     :moderate "Remembers most faces."
-     :large "Never forgets a face once seen."}
-    {:faculty "Size" :means "judging size and quantity"
-     :small "No eye for measure; always cuts too much or too little."
-     :moderate "Judges a size fairly."
-     :large "Can judge a length or a quantity by eye to an inch."}
-    {:faculty "Weight" :means "balance"
-     :small "Unsteady on the feet; drops things and trips on stairs."
-     :moderate "Sure-footed enough."
-     :large "Sure-footed and well balanced; carries a full tray up any stair."}
-    {:faculty "Colouring" :means "judging colour"
-     :small "Cannot match one colour to another."
-     :moderate "A fair eye for colour."
-     :large "A fine eye for colour, and knows every shade."}]}
-  {:group "Knowing faculties: relations"
+   [{:faculty "Individuality", :means "observation"}
+    {:faculty "Form", :means "memory for shapes and faces"}
+    {:faculty "Size", :means "judging size and quantity"}
+    {:faculty "Weight", :means "balance"}
+    {:faculty "Colouring", :means "judging colour"}]}
+  {:group "Knowing faculties: relations",
    :faculties
-   [{:faculty "Locality" :means "sense of direction"
-     :small "Loses the way in any strange place."
-     :moderate "Finds the way well enough."
-     :large "Never lost, and knows every lane and short cut."}
-    {:faculty "Number" :means "arithmetic"
-     :small "Bad at figures, and cannot add up a bill."
-     :moderate "Can reckon a bill."
-     :large "Quick at figures, and does sums in the head."}
-    {:faculty "Order" :means "love of arrangement"
-     :small "Untidy by nature, and lives in a muddle."
-     :moderate "Tidy enough."
-     :large "Loves things square and in their place; a crooked picture is a torment."}
-    {:faculty "Eventuality" :means "memory for events"
-     :small "Forgets what happened yesterday and what was said an hour ago."
-     :moderate "A fair memory for what happened when."
-     :large "Remembers everything that ever happened, and who said what."}
-    {:faculty "Time" :means "sense of time"
-     :small "No sense of time, and always late."
-     :moderate "Keeps time fairly."
-     :large "Always punctual, and knows the hour without a clock."}
-    {:faculty "Tune" :means "musical ability"
-     :small "Tone-deaf, and cannot carry a tune."
-     :moderate "Can join in a hymn."
-     :large "Musical; sings, whistles or plays at every chance."}
-    {:faculty "Language" :means "words"
-     :small "Slow of speech, and short of words."
-     :moderate "Speaks plainly and well enough."
-     :large "A ready talker, with a word for everything."}]}
-  {:group "Reflecting faculties"
+   [{:faculty "Locality", :means "sense of direction"}
+    {:faculty "Number", :means "arithmetic"}
+    {:faculty "Order", :means "love of arrangement"}
+    {:faculty "Eventuality", :means "memory for events"}
+    {:faculty "Time", :means "sense of time"}
+    {:faculty "Tune", :means "musical ability"}
+    {:faculty "Language", :means "words"}]}
+  {:group "Reflecting faculties",
    :faculties
-   [{:faculty "Comparison" :means "analogy"
-     :small "Misses a likeness, and the lesson in it."
-     :moderate "Can see the likeness between one case and another."
-     :large "Quick to see a likeness and to argue from one case to the next."}
-    {:faculty "Causality" :means "cause and effect"
-     :small "Never asks why, and takes things as they come."
-     :moderate "Can work out the reason for a thing."
-     :large "Must know the reason for everything; a deep thinker."}]}]}
+   [{:faculty "Comparison", :means "analogy"}
+    {:faculty "Causality", :means "cause and effect"}]}]}

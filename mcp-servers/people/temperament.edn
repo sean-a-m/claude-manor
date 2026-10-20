@@ -1,75 +1,12 @@
-;; Temperament: the Big Five, three levels per axis. Each level has several
-;; descriptors, so two people at the same level don't read alike. Written for
-;; this server in period English; written so they suit anyone, man or woman.
-{:levels [:low :average :high]
+;; Basic temperament axes and definitions. Behaviour is written by the character model.
+{:levels [:low :average :high],
  :axes
- [{:axis :openness
-   :measures "curiosity, imagination, willingness to entertain new ideas"
-   :low ["Holds that what did for their grandparents will do very well now."
-         "Distrusts anything new-fangled, from gas-lighting to opinions."
-         "Has no patience with books or fancies; wants a thing plain and practical."
-         "Likes the same road, the same pew and the same pudding of a Sunday."]
-   :average ["Will try a new way of doing a thing once it has been shown to answer."
-             "Reads the almanac and a little of the paper, and is content with that."
-             "Neither fanciful nor dull; takes the world much as it comes."
-             "Curious about a novelty, but not to the neglect of the work."]
-   :high ["Full of notions, and always asking how a thing works and why."
-          "Reads whatever comes to hand and remembers the best of it."
-          "Quick of fancy; could make a tale out of a broken teacup."
-          "Eager for anything new, be it a machine, a place or an idea."]}
-  {:axis :conscientiousness
-   :measures "self-control, diligence, attention to detail"
-   :low ["Leaves things lying about and cannot think where they were put."
-         "Starts a task with a will and leaves it half done."
-         "Apt to shirk when no one is watching, and to be late when anyone is."
-         "Slapdash: near enough is good enough."]
-   :average ["Does what is asked, properly enough, if not always to the minute."
-             "Keeps tidy when there is time to, and is forgiven the rest."
-             "Reliable in the main, though not above a short cut."
-             "Keeps to the order of the day, more or less."]
-   :high ["Always prepared, and has thought of a thing before it is wanted."
-          "Keeps a place for everything and everything in its place."
-          "Never late, never behindhand, and thinks the less of those who are."
-          "Sees a task through to the last detail, however dull."]}
-  {:axis :extraversion
-   :measures "boldness, energy, sociability"
-   :low ["Says little, and less to strangers."
-         "Keeps to the background and is content there."
-         "Would rather go the long way round than stop to pass the time of day."
-         "Goes quiet in company and is glad when it leaves."]
-   :average ["Sociable among friends, quiet among strangers."
-             "Will talk if talked to, and has a good word when one is wanted."
-             "Likes company of an evening, and a quiet hour after it."
-             "Neither the life of the party nor a wallflower."]
-   :high ["Talks to anyone, and generally knows their business by the end of it."
-          "Starts the conversation and keeps it going."
-          "Loves a crowd, a fair, a wedding, anything with people in it."
-          "Bold and lively; fills a room."]}
-  {:axis :agreeableness
-   :measures "kindness, helpfulness, willingness to cooperate"
-   :low ["Looks after number one, and suspects everyone else of doing the same."
-         "Quick to take offence and slow to forgive."
-         "Has a sharp word for most people and a grudge against some."
-         "Will not stir a finger for another without good cause."]
-   :average ["Obliging when asked civilly, and stiff when not."
-             "Kind in the ordinary way, and nobody's fool."
-             "Will lend a hand, but likes it to be noticed."
-             "Gets on with most people, and keeps clear of the rest."]
-   :high ["Soft-hearted; cannot bear to see a child or a dog go hungry."
-          "Obliging to a fault, and puts everyone at their ease."
-          "Thinks the best of people, and is often taken advantage of."
-          "Never a cross word; smooths over every quarrel within reach."]}
-  {:axis :neuroticism
-   :measures "irritability, anxiety, low spirits"
-   :low ["Calm in a crisis, and not easily put out."
-         "Even-tempered; takes good news and bad much alike."
-         "Seldom low, and sleeps sound whatever happens."
-         "Steady as a rock when everyone else is flustered."]
-   :average ["Frets over the big things and lets the small ones go."
-             "Has bad days like anyone, and gets over them."
-             "Can be put out, but comes round by dinner-time."
-             "Worries in proportion, mostly."]
-   :high ["Worries at every little thing and lies awake over it."
-          "Easily upset, and shows it."
-          "Moody: in high spirits at breakfast and low by tea."
-          "Quick-tempered, and mostly sorry for it afterwards."]}]}
+ [{:axis :openness,
+   :measures
+   "curiosity, imagination, willingness to entertain new ideas"}
+  {:axis :conscientiousness,
+   :measures "self-control, diligence, attention to detail"}
+  {:axis :extraversion, :measures "boldness, energy, sociability"}
+  {:axis :agreeableness,
+   :measures "kindness, helpfulness, willingness to cooperate"}
+  {:axis :neuroticism, :measures "irritability, anxiety, low spirits"}]}

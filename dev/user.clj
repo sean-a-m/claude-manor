@@ -154,12 +154,13 @@
   for review with git diff (see manor.people/roll-cast!). Uses the run
   defaults' model and the manor key, unless {:llm :mock}. Its log and every
   call go to test-runs/roll-cast-<time>/ (move a real one to old-test-runs/).
+  The cast has a default :max-cost of $0.20, checked before each model call.
   Each call uses a fresh seed unless :seed is supplied. No old descriptions
   are reused. Prints and returns the seed, what was rolled and what it cost."
   ([path] (roll-cast! path {}))
   ([path opts]
    (let [dir (store/run-dir (store/new-run-id :roll-cast) true)
-         result (people/roll-cast! path (merge (select-keys e/default-opts [:model :max-tokens :reasoning :tool-choice])
+         result (people/roll-cast! path (merge {:max-cost 0.20} (select-keys e/default-opts [:model :max-tokens :reasoning :tool-choice])
                                                (dissoc opts :llm)
                                                {:llm (if (= :mock (:llm opts)) (llm/mock people/mock-polish) (llm/openrouter))
                                                 :dir dir}))]

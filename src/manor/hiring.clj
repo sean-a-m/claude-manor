@@ -24,9 +24,8 @@
      {:people [{:name (first (remove (set taken-names) (map #(str "Pat Ellis " %) (range))))
                 :age (first (or ages [22 40])) :sex (or sex "female") :position position
                 :origin "the neighbouring village" :lives "a cottage in the village"
-                :temperament (mapv #(hash-map :axis (name %) :level "average" :text "You are steady in ordinary company.") people/axes)
-                :faculties [{:faculty "Sight" :size "small" :text "Short-sighted."}]
-                :circumstances [{:label "sends wages home" :text "Sends wages home."}]}]})
+                :temperament (mapv #(hash-map :axis (name %) :level "average" :measures (people/axis-measures %)) people/axes)
+                :faculties [{:faculty "Sight" :size "small" :means "eyesight"}]}]})
    :people/reputation
    (fn [{:keys [person knower]} _]
      {:person (:name person) :knower knower :relation "neighbour"
@@ -91,9 +90,9 @@
   (when-not (and (map? record) (string? (:name record)) (not (str/blank? (:name record)))
                  (integer? (:age record)) (#{"male" "female" :male :female} (:sex record))
                  (string? (:position record))
-                 (every? sequential? (map record [:temperament :faculties :circumstances])))
+                 (every? sequential? (map record [:temperament :faculties])))
     (throw (ex-info "The people server returned an invalid person." {})))
-  record)
+  (people/base-record record))
 
 (defn recommend!
   "One query, composed of engine-recorded bridge calls and checked model calls.
@@ -111,6 +110,7 @@
                                             :area (area world actor)))))))
         public (when-not old (adjudicate :people/appearance {:record record}))
         polish (when-not old (adjudicate :people/polish {:record record :appearance (:appearance public)}))
+        record (if old record (assoc record :circumstances (:circumstances polish)))
         p (or old (merge {:id (str "candidate-" (inc (:seq world))) :created (inc (:seq world))
                          :name (:name record) :record record :area (area world actor)
                          :seeks [position] :lives (:lives record) :known-to #{} :status :pooled}
@@ -146,9 +146,21 @@
 (defmethod n/describe :people/recommended [{:keys [data]} _]
   (str (:name data) " (" (:id data) ") seeks " (str/join ", " (map name (:seeks data)))
        ". To meet them, use send-for with candidate \"" (:id data) "\"; they arrive next round."))
+(defn- known-reading
+  "A known basic reading or written circumstance, not a stock behaviour.
+  Old event records may still carry descriptor maps; preserve their narration."
+  [t]
+  (cond
+    (string? t) t
+    (:text t) (:text t)
+    (:axis t) (str (str/capitalize (name (:axis t))) ": " (name (:level t))
+                   " (" (people/axis-measures (keyword (:axis t))) ").")
+    (:faculty t) (str (:faculty t) ": " (name (:size t))
+                      " (" (people/faculty-means (:faculty t)) ").")))
+
 (defmethod n/describe :people/reputation-known [{:keys [data]} _]
   (let [r (:reputation data)]
-    (str (:acquaintance r) " " (str/join " " (map :text (mapcat val (:knows r)))))))
+    (str (:acquaintance r) " " (str/join " " (map known-reading (mapcat val (:knows r)))))))
 
 (defn send-for-reason [world actor {:keys [candidate]}]
   (let [p (get (pool world) candidate)]

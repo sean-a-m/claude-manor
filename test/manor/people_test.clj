@@ -44,18 +44,14 @@
                     :ages [18 50] :sex "male"}
               people (:people (call "generate_people" args))
               groups (mapv :group (:groups (data "faculties.edn")))
-              circumstance-groups (into {} (for [{:keys [group circumstances]} (:groups (data "circumstances.edn"))
-                                                 c circumstances]
-                                             [(name (:id c)) group]))
-              exclusions (set (map #(set (map name %)) (:exclusions (data "circumstances.edn"))))
               taken-words #{"Claudeworth" "Finch" "Hale" "Nellie"}]
           (testing "deterministic from the seed, and a new seed gives new people"
             (is (= people (:people (call "generate_people" args))))
             (is (not= people (:people (call "generate_people" (assoc args :seed "s2"))))))
-          (testing "five records, each with its name untaken, the five axes, one faculty per group and descriptor texts"
+          (testing "five basic records, each with its name untaken, five axes and one faculty per group"
             (is (= 5 (count people)))
             (is (apply distinct? (map :name people)))
-            (doseq [{:keys [name sex age position lives temperament faculties circumstances]} people]
+            (doseq [{:keys [name sex age position lives temperament faculties] :as person} people]
               (is (not-any? taken-words (str/split name #" ")))
               (is (= "male" sex))                      ; as asked
               (is (<= 18 age 50))
@@ -65,20 +61,16 @@
               (is (every? #{"low" "average" "high"} (map :level temperament)))
               (is (= groups (map :group faculties)))
               (is (every? #{"small" "moderate" "large"} (map :size faculties)))
-              (is (every? (comp not str/blank? :text) (concat temperament faculties circumstances)))
-              (is (<= 1 (count circumstances) 2))))
-          (testing "never two circumstances from one group, nor an excluded pair, over many seeds"
-            (doseq [seed (range 30)
-                    {:keys [circumstances]} (:people (call "generate_people" (assoc args :count 10 :seed seed)))
-                    :let [ids (map :id circumstances)]]
-              (is (apply distinct? (map circumstance-groups ids)))
-              (is (not (exclusions (set ids))))))
-          (testing "position weights: an earl never cannot read"
-            (is (not-any? #{"cannot-read" "workhouse"}
-                          (for [seed (range 20)
-                                p (:people (call "generate_people" {:position "earl" :count 10 :seed seed}))
-                                c (:circumstances p)]
-                            (:id c)))))
+              (is (= #{:name :sex :age :position :origin :lives :temperament :faculties} (set (keys person))))
+              (is (every? #(= #{:axis :level :measures} (set (keys %))) temperament))
+              (is (every? #(= #{:group :faculty :means :size} (set (keys %))) faculties))
+              (is (every? (comp not str/blank? :measures) temperament))
+              (is (every? (comp not str/blank? :means) faculties))))
+          (testing "source catalogues contain definitions, not behaviour templates"
+            (is (every? #(= #{:axis :measures} (set (keys %))) (:axes (data "temperament.edn"))))
+            (is (every? #(= #{:faculty :means} (set (keys %)))
+                        (mapcat :faculties (:groups (data "faculties.edn")))))
+            (is (not (.exists (io/file "mcp-servers/people/circumstances.edn")))))
           (testing "age and sex come from the request: the catalogue's entry, as the engine passes it"
             (let [catalogue (positions/read-catalogue "positions/england-1904.edn")
                   maids (:people (call "generate_people"
@@ -103,7 +95,8 @@
     (println "Skipping people MCP contracts: bb unavailable")
     (with-server
       (fn [call]
-        (let [person (first (:people (call "generate_people" {:position "chauffeur" :seed 9})))
+        (let [person (assoc (first (:people (call "generate_people" {:position "chauffeur" :seed 9})))
+                            :circumstances ["A written background fact." "A written commitment."])
               ask #(call "reputation" {:person person :knower "Hobbs" :relation % :seed 1})
               subset? (fn [k known] (every? (set (get person k)) (get-in known [:knows k])))]
           (testing "deterministic, and only the person's own traits"
@@ -126,10 +119,9 @@
 
 (def record
   {:name "Tom Ridding" :sex "male" :age 31 :position "groom"
-   :temperament [{:axis "openness" :level "low" :text "Distrusts anything new-fangled."}]
-   :faculties [{:group "External senses" :faculty "Hearing" :size "small" :text "Hard of hearing in one ear."}
-               {:group "Propensities" :faculty "Acquisitiveness" :size "large" :text "Counts every penny."}]
-   :circumstances [{:id "drinks" :label "drinks" :text "Fond of a drink."}]})
+   :temperament [{:axis "openness" :level "low" :measures (people/axis-measures :openness)}]
+   :faculties [{:group "External senses" :faculty "Hearing" :size "small" :means (people/faculty-means "Hearing")}
+               {:group "Propensities" :faculty "Acquisitiveness" :size "large" :means (people/faculty-means "Acquisitiveness")}]})
 
 (defn- polish-response [args]
   {:message {:role "assistant" :tool_calls [{:id "c" :type "function"
@@ -142,7 +134,8 @@
     (reify llm/LLM
       (complete [_ _] (let [r (first @queue)] (swap! queue rest) r)))))
 
-(def good {:persona "You are a little deaf in the left ear, and you keep a tin of savings under the boards."
+(def good {:circumstances ["Your mother lives in another parish and expects a letter each Sunday."]
+           :persona "You are a little deaf in the left ear, and you keep a tin of savings under the boards."
            :manner "You seem quiet and wary, and you look a stranger over before you speak."
            :appearance "A broad man of thirty-one in a patched coat, with a weathered face and close-cropped hair."})
 
@@ -150,7 +143,8 @@
   (let [verdict #(:verdict (people/check-polish record (polish-response %)))
         error #(:error (people/check-polish record (polish-response %)))]
     (testing "a good answer is kept, trimmed"
-      (is (= good (verdict (update-vals good #(str "  " % " "))))))
+      (is (= good (verdict (-> (update-vals (dissoc good :circumstances) #(str "  " % "  "))
+                                (assoc :circumstances (mapv #(str "  " % "  ") (:circumstances good))))))))
     (testing "lengths: the model is asked for less persona than is accepted"
       (is (verdict (assoc good :persona (apply str "You " (repeat 580 "x")))))
       (is (= 450 (get-in (people/polish-request {:record record}) [:tools 0 :function :parameters :properties :persona :maxLength])))
@@ -171,6 +165,45 @@
                          "Period vocabulary is welcome")))
     (testing "the mock passes its own check"
       (is (:verdict (people/check-polish record (polish-response (:args (people/mock-polish {:record record})))))))))
+
+(deftest character-writing-input-is-basic-only
+  (let [legacy (-> record
+                   (assoc :persona "old-persona" :manner "old-manner" :appearance "old-appearance"
+                          :circumstances [{:id "old-circumstance" :text "old-biography"}])
+                   (assoc-in [:temperament 0 :text] "old-temperament")
+                   (assoc-in [:temperament 0 :label] "old-label")
+                   (assoc-in [:faculties 0 :text] "old-faculty"))
+        request (people/polish-request {:setting "England, 1904." :position "groom" :record legacy})
+        sent (json/read-value (get-in request [:messages 1 :content]) json/keyword-keys-object-mapper)]
+    (is (= record (:record sent)))
+    (is (= record (get-in request [:ctx :record])))
+    (is (= #{:setting :position :record} (set (keys sent))))
+    (is (= "low" (get-in sent [:record :temperament 0 :level])))
+    (is (= "small" (get-in sent [:record :faculties 0 :size])))))
+
+(deftest circumstances-are-written-and-structurally-checked
+  (let [check #(:verdict (people/check-polish record (polish-response %)))]
+    (doseq [facts [["A personal background fact."] ["A background fact." "An external commitment."]]]
+      (is (= facts (:circumstances (check (assoc good :circumstances facts))))))
+    (doseq [bad [nil [] ["a" "b" "c"] [""] ["   "] [(apply str (repeat 241 "x"))]
+                 [{:text "A map is not a circumstance string."}]]]
+      (is (nil? (check (assoc good :circumstances bad))) (pr-str bad)))
+    (is (nil? (check (dissoc good :circumstances))))
+    ;; A model cannot overwrite the rolled traits through extra output keys.
+    (is (= good (check (assoc good :temperament [] :faculties [] :money 100))))))
+
+(deftest character-writing-budget-covers-corrections
+  (let [requests (atom [])
+        model (reify llm/LLM
+                (complete [_ request]
+                  (swap! requests conj request)
+                  (polish-response (dissoc good :circumstances))))
+        result (people/polish! model {:max-cost 0.001} {:record record})]
+    (is (:failure result))
+    (is (nil? (:polish result)))
+    (is (= 1 (count @requests)))
+    (is (= 1 (count (:calls result))))
+    (is (== 0.001 (:cost result)))))
 
 (deftest appearance-baseline-instructions
   (let [input {:setting "A village." :position "groom" :record record}
@@ -254,7 +287,7 @@
                                 "- Extraversion: average (boldness, energy, sociability)\n"
                                 "- Agreeableness: low (kindness, helpfulness, willingness to cooperate)\n"
                                 "- Neuroticism: high (irritability, anxiety, low spirits)\n"
-                                "Phrenological faculties:\n"
+                                "Faculties:\n"
                                 "- Secretiveness: large (tact, concealment)\n"
                                 "- Cautiousness: small (fear, prudence)\n"
                                 "- Veneration: large (reverence, respect for authority)\n"
@@ -355,7 +388,8 @@
         (is (= 7 (:seed result)))
         (is (= 7 (:seed (edn/read-string (slurp (io/file dir "roll-cast.edn"))))))
         (is (= "7/Ada" (get-in (first @calls) [:args :seed])))
-        (is (= (merge (dissoc old :sketch) good (people/traits record)) (first (:agents after))))
+        (is (= (merge (dissoc old :sketch) good (people/traits (assoc record :circumstances (:circumstances good))))
+               (first (:agents after))))
         (is (= (second (:agents template)) (second (:agents after))))
         (is (= (dissoc template :agents) (dissoc after :agents)))
         (roll {:seed 7})
@@ -369,6 +403,16 @@
           (is (string? (:seed a)))
           (is (not= (:seed a) (:seed b)))
           (is (= (:seed b) (:seed (edn/read-string (slurp (io/file dir "roll-cast.edn"))))))))
+      (testing "the cast budget is shared across agents and prevents later model calls"
+        (spit file (pr-str template))
+        (let [before (count @requests)
+              result (people/roll-cast! (str file) {:llm model :dir dir :max-cost 0.001 :seed 9})
+              after (edn/read-string (slurp file))]
+          (is (= ["Ada"] (:rolled result)))
+          (is (= #{"Ben"} (set (keys (:failed result)))))
+          (is (= 1 (- (count @requests) before)))
+          (is (== 0.001 (:cost result)))
+          (is (= (second (:agents template)) (second (:agents after))))))
       (testing "a failed polish leaves the selected agent, including legacy keys, untouched"
         (spit file (pr-str template))
         (let [result (people/roll-cast! (str file) {:llm (scripted (polish-response {}) (polish-response {}))

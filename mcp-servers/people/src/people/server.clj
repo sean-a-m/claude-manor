@@ -7,7 +7,7 @@
 
 (def tools
   [{:name "generate_people"
-    :description "Roll new people for a position: base records with temperament, faculties and circumstances."
+    :description "Roll basic identity, temperament and faculties for a position. No behavioural prose or circumstances; the engine writes those."
     :inputSchema {:type "object"
                   :properties {:position {:type "string"}
                                :count {:type "integer" :minimum 1 :maximum generate/max-count}

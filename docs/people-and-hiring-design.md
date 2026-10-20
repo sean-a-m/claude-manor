@@ -95,6 +95,8 @@ Two smaller findings from the same run:
 
 ## 3. Phase 1: people and traits
 
+**Current generation contract: section 3.7 supersedes the descriptor/circumstance-template design below.**
+
 ### 3.1 A person's traits
 
 A person has three kinds of traits, all hidden from everyone but themselves (decisions 4 and 18).
@@ -285,6 +287,57 @@ locations, bedrooms and routines stayed unchanged; Lodge's personalities were no
 The paid record is preserved at
 `old-test-runs/claudeworth-fresh-personalities-roll-cast-20261018-224659/roll-cast.edn`.
 No real simulation was run.
+
+### 3.7 Basic traits, model-written circumstances (current)
+
+The user rejected the fixed behavioural descriptor and circumstance catalogues. Implemented:
+
+- The server rolls five temperament levels and one faculty/size per group, with unchanged
+  selection distributions. It returns readings and short definitions only. All behavioural
+  templates are removed; `circumstances.edn` is deleted. Removing descriptor draws changes
+  exact old-seed outputs, not the sampling distributions.
+- The existing character-writing call returns persona, manner, appearance **and one or two
+  written circumstances**. Circumstances are external background, commitments, relationships
+  or difficulties, not dispositions or enduring habits. The writer takes inspiration from the
+  whole record, including role, without making traits a mechanical destiny. Ordinary lives
+  are allowed. It may invent off-stage relatives or past employment, but not connections to
+  existing named characters or new present jobs, authority, capabilities, money, items,
+  property or actionable assets. Background prose changes no engine state.
+- Basic values remain the server's values. The private prompt retains readings and definitions
+  alongside prose, under **Faculties**, without a theoretical qualifier. The writer treats these
+  as actual characteristics. Clearer period wording is deferred; it must retain the basic
+  data, never replace it with a stock story or habit.
+- Input projection strips legacy descriptors, circumstances and prose, including mock context.
+  Validation checks structure/counts/lengths/blanks only, never judges prose. Circumstance groups,
+  position weights and exclusions no longer exist.
+- Written circumstances join the completed record before reputation selection/storage.
+  Reputation returns sampled readings and existing written circumstances; the speaking agent
+  interprets these itself, without another model call or behavioural templates.
+- Runtime appearance stays separately written from visible fields only. Candidates store the
+  completed record privately; arrival copies written circumstances to the agent. Events own
+  generated results; replay/load/branch never regenerate them. Old map-style circumstances and
+  descriptors in saved events remain readable; no saved run is rewritten.
+- Tests cover basic-only input, source shape, circumstance validation, privacy, reputation,
+  arrival/replay, cast replacement/failure and budgets. The mock writer is a test fixture only.
+  Cast writing now supports `:max-cost` across calls/corrections; the REPL default is $0.20.
+
+**Validation and authorized cast refresh:** the full offline suite passes. A 48-round
+Claudeworth mock/offline day with the refreshed cast had no errors, rejections or forfeits,
+cost nothing and replayed exactly. The nine-character real refresh used twelve calls (three
+one-correction retries for length), costing **$0.006514824** under a $0.20 cap. Seed:
+`e2704005-6857-4143-bbae-cef12b78eaa6`. All recorded first-call inputs were verified basic-only.
+Names, sex, roles, situations, housing, routines and all non-character world data stayed unchanged.
+
+Manual review caught invented lodging, household residents, possessions and deliveries in
+the initial prose. These were corrected in the saved cast, and writer instructions tightened;
+no second paid pass was made, so the tightened wording has not had another real-model check.
+The generated circumstances are personal background, not new engine state. One existing test
+also mistook "addressed invitations" for a form of address; it now checks structured fields and
+the engine-owned prompt addition instead of regex-matching arbitrary character prose.
+The complete paid output, corrections and reviewed snapshot are preserved at
+`old-test-runs/claudeworth-trait-only-cast-20261019-195915/` in the main checkout
+(`roll-cast.edn`, `review.md`, `reviewed-world.edn`).
+No real simulation or other world's cast refresh was run.
 
 ## 4. Phase 2: positions
 

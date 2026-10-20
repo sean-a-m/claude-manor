@@ -535,6 +535,14 @@
     (testing "someone hibernating isn't company"
       (let [hale-there (at world "hale" "architects-office")]
         (is (some? (hib (w/apply-event hale-there (b/hibernate hale-there "hale" "copying plans")))))))
+    (testing "two people who share a workplace, each where their routine has them, don't keep each other in play"
+      (let [shared (-> world
+                       (assoc-in [:state :routines "briggs"] [{:from "07:00" :at "architects-office" :doing "copying plans"}])
+                       (at "briggs" "architects-office"))]
+        (is (some? (hib shared)))
+        (is (some? (cw/hibernate shared "briggs")))
+        (is (nil? (hib (at shared "hale" "architects-office")))
+            "but a caller away from their own routine's place is company")))
     (let [lodgings (at world "pugh" "architects-lodgings")
           evs (b/hibernations cw/hibernate lodgings)
           out (reduce w/apply-event lodgings evs)]

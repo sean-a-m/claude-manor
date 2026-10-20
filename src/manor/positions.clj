@@ -111,7 +111,7 @@
   ([world id] (household-member? world id household))
   ([world id h] (= h (:household (post world id)))))
 
-(def ^:private honorifics #{"Mr" "Mrs" "Miss" "Master" "Lord" "Lady" "Sir" "Dr"})
+(def ^:private honorifics #{"Mr" "Mrs" "Miss" "Master" "Lord" "Lady" "Sir" "Dr" "Father" "Brother" "Sister"})
 
 (defn- fill
   "An address `template` filled from `person-name`: {first-name} is its first

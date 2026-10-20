@@ -573,7 +573,9 @@ These are estimates for the user's own long runs, not test plans: checks use sho
     agent with a `:routine` in the world file is out of play whenever nobody else (not
     hibernating) is at the place they're in or the place their routine puts them in, or on the
     way to either; when they're away from the routine's area (visiting the house), anyone in the
-    area they're in counts too. So a customer at the general store doesn't wake him, and
+    area they're in counts too. Someone exactly where their own routine puts them isn't company,
+    so people who share a workplace (the publican and his barmaid) don't keep each other in play.
+    So a customer at the general store doesn't wake him, and
     villagers added later won't wake each other. His day is summarised by the routine rather than played: the routine moves him
     (office 09:00-18:00, lodgings otherwise, asleep from 22:00), so a client arriving at the
     office finds him at his drawing board. He's freed at the start of the round after someone
@@ -812,3 +814,16 @@ Decisions for items (done):
     supported for now. See roadmap B7 for these remaining boundaries. New content has generic
     resident/routine/counter checks and the bundled offline mock/replay tests, not a frozen
     cast snapshot or changes to the independent mechanics fixtures.
+
+45. **A barmaid at the Crown and a guestmaster at the abbey.** Done. Polly, the Crown's barmaid,
+    lives in (an attic room) and serves at the same counter as the publican (`:barmaid`,
+    `:shop-clerk`). Hollin Abbey has a guest house by the gatehouse, kept by Father Anselm, a
+    Benedictine monk and its guestmaster (`:guestmaster`, `:professional`, no capabilities):
+    the person a caller at a monastery would meet. Characters already went to the abbey looking
+    for someone to vouch for a candidate; he knows the neighbourhood's families and can be asked
+    to `recommend` like anyone else, but sells nothing. A Catholic abbey with a guest house in
+    Edwardian England is plausible enough for the setting; the user preferred a monastic figure
+    to a vicar. His routine takes him to the church for the offices. "Father", "Brother" and
+    "Sister" are honorifics in forms of address. Two people sharing a workplace led to one
+    change in hibernation (decision 11). Both were rolled with `roll-cast!`, along with the
+    other trades residents, who had been written by hand without traits.

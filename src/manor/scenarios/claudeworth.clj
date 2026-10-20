@@ -301,11 +301,20 @@
       (or (last (remove #(.isAfter (LocalTime/parse (:from %)) t) entries))
           (last entries)))))
 
+(defn- where-routine-has-them?
+  "Is `id` in the place their routine puts them now? Never for someone without a routine."
+  [world id]
+  (= (:at (routine-now world id)) (space/location-of world id)))
+
 (defn- company?
-  "Is anyone else in play (not hibernating) at one of `places`, or on their way there?"
+  "Is anyone else in play (not hibernating) at one of `places`, or on their
+  way there? Someone just where their routine has them isn't company, so two
+  people who share a workplace (the publican and his barmaid) don't keep each
+  other in play once their callers have gone."
   [world id places]
   (some #(and (not= id (:id %))
               (not (b/hibernating? world (:id %)))
+              (not (where-routine-has-them? world (:id %)))
               (contains? places (or (get-in % [:travel :to]) (:location %))))
         (w/active-agents world)))
 

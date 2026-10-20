@@ -1627,7 +1627,9 @@ uninterrupted hibernators whose function now returns nil are freed immediately. 
 out of play mid-round. A customer can therefore walk in and talk to a clerk at once.
 
 Decide in the function who counts as company, and don't count other hibernating agents, or two
-idle agents keep each other awake. Keep it narrow (Claudeworth counts the agent's place and the
+idle agents keep each other awake. Claudeworth also doesn't count anyone exactly where their own
+routine puts them, so two people who share a workplace (a publican and his barmaid) don't keep
+each other in play. Keep it narrow (Claudeworth counts the agent's place and the
 place their routine puts them, not the whole village), or one visitor wakes everyone in the area. Placing the agent where they'd be (their office in office hours)
 matters: someone woken in the wrong place doesn't know why they were woken. Moving an agent between
 areas skips the journey, so only do it when nobody is there to see (Claudeworth checks both areas).

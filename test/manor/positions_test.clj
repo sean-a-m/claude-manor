@@ -260,6 +260,12 @@
 ;; ---------------------------------------------------------------------------
 ;; Bedrooms, routines and the cap
 
+(deftest forms-of-address-skip-honorifics
+  (let [fill #'positions/fill]
+    (is (= "Father Anselm" (fill "Father {first-name}" "Father Anselm"))
+        "a religious title is an honorific, not the first name")
+    (is (= "Mr Hale" (fill "Mr {surname}" "Mr John Hale")))))
+
 (deftest the-households-bedrooms
   (let [run (start)]
     (try

@@ -1,7 +1,14 @@
 # Person aspects: state on characters that work changes
 
-Status: **designed, not built.** The user's decisions of 2026-10-20 are in section 4; the
-phases are in section 5. Follow-ups are in the roadmap (B12).
+Status: **built, all three phases** (mock-tested; no real run yet). The user's decisions of
+2026-10-20 are in section 4; the build is section 5 and the phases section 6. The defaults at
+the end of section 4 were taken as written. Follow-ups are in the roadmap (B12).
+
+Where the build differs in detail: a person's removed aspect narrates by its old value
+("Mrs Pell: no longer spattered with grease"), not by its key as an item's does; the steward's
+narration lists its changes after the summary; a scenario may give a `:mock-steward` as it may a
+`:mock-judge`; and a person whose id is also a judged thing's (an item named like them) isn't
+judged.
 
 ## 1. The want
 

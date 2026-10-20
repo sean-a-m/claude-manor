@@ -44,7 +44,10 @@
   occupation or time worked; put-ins by one worker into one store in a round
   share that job.
   Locations have :aspects too (the room itself:
-  floor, hearth, air), which only work changes.
+  floor, hearth, air), which only work changes. So do people, under
+  [:agents id :aspects]: how they differ now from their fixed :appearance
+  (dress, hair, dirt), which work changes and the nightly steward may
+  remove from sleepers.
 
   Code outside this namespace never reads (:items world) directly: it uses
   the accessors below, and only the reducers here write items. That keeps
@@ -84,11 +87,17 @@
   (and (keyword? k) (nil? (namespace k)) (boolean (re-matches #"^[a-z][a-z-]{0,23}$" (name k)))))
 
 (def Aspects
-  "What's notable about an item or a place: at most `max-aspects` keyed
-  facets, each a short phrase ({:cleanliness \"dusty\" :repair \"one glass eye loose\"})."
+  "What's notable about an item, a place or a person: at most `max-aspects`
+  keyed facets, each a short phrase ({:cleanliness \"dusty\" :repair \"one glass eye loose\"})."
   [:map-of {:max max-aspects}
    [:fn {:error/message "should be a key of lower-case letters and hyphens, at most 24 characters"} aspect-key?]
    [:string {:min 1 :max max-aspect}]])
+
+(defn aspects-problem
+  "Why `aspects` aren't well formed (see `Aspects`), readably, or nil."
+  [aspects]
+  (when-let [e (m/explain Aspects aspects)]
+    (pr-str {:aspects (me/humanize e)})))
 
 (def Item
   "An item as written in a world file or returned by :init (holder and owner
@@ -369,11 +378,13 @@
                             (if (seq aspects) (assoc thing :aspects aspects) (dissoc thing :aspects))))))
 
 (defn- changed
-  "Apply one change of an aspect: of an item (which is then touched) or of a place."
-  [world {:keys [item place aspect to]}]
-  (if item
-    (touch (set-aspect world [:items item] aspect to) item)
-    (set-aspect world [:space :locations place] aspect to)))
+  "Apply one change of an aspect: of an item (which is then touched), of a
+  place or of a person."
+  [world {:keys [item place person aspect to]}]
+  (cond
+    item (touch (set-aspect world [:items item] aspect to) item)
+    person (set-aspect world [:agents person] aspect to)
+    :else (set-aspect world [:space :locations place] aspect to)))
 
 (declare in-reach)
 
@@ -429,7 +440,8 @@
   (str worker-name (if stopped-early? " leaves off " " finishes ") doing "."))
 
 (defmethod n/describe :item/work-begun [{:keys [actor data]} names]
-  (str (n/who names actor) " starts " (:doing data) " (" (:id data) (when (seq (:items data)) (str ", on " (str/join ", " (:items data))))
+  (str (n/who names actor) " starts " (:doing data) " (" (:id data)
+       (when-let [on (seq (concat (:items data) (:people data)))] (str ", on " (str/join ", " on)))
        ", until " (n/at names (:due data)) ")."))
 
 (defmethod n/describe :item/work-extended [{:keys [actor data]} names]
@@ -439,18 +451,20 @@
 
 (defn- change-text
   "The new value (\"swept\"), or \"no longer lacking\" for an aspect removed:
-  values are whole phrases, so the key isn't repeated."
-  [{:keys [aspect to]}]
-  (or to (str "no longer " (aspect-name aspect))))
+  values are whole phrases, so the key isn't repeated. A person's removed
+  aspect reads by its old value: \"no longer spattered with grease\"."
+  [{:keys [person aspect from to]}]
+  (or to (str "no longer " (if (and person from) from (aspect-name aspect)))))
 
 (defn- changes-text
-  "\"Drawing room: swept; Piano: dusted\": the changes, thing by thing, in
-  the order they come."
+  "\"Drawing room: swept; Piano: dusted; Ada: hair dressed high\": the
+  changes, thing by thing, in the order they come."
   [names changes]
-  (let [thing (fn [{:keys [item place]}] (if item [:item item] [:loc place]))
+  (let [thing (fn [{:keys [item place person]}] (cond item [:item item] person person :else [:loc place]))
+        thing-name (fn [k] (if (vector? k) (get names k (second k)) (n/who names k)))
         by-thing (group-by thing changes)]
     (str/join "; " (for [k (distinct (map thing changes))]
-                     (str (get names k (second k)) ": " (str/join ", " (map change-text (by-thing k))))))))
+                     (str (thing-name k) ": " (str/join ", " (map change-text (by-thing k))))))))
 
 (defmethod n/describe :item/work-done [{:keys [actor data]} names]
   (let [{:keys [doing stopped-early? summary changes used-up absorbed made fetched]} data
@@ -580,7 +594,7 @@
 (defn- look-person [world id]
   (let [a (w/agent world id)
         carried (by-name (held-by world id))]
-    (cond-> (select-keys a [:name :appearance])
+    (cond-> (select-keys a [:name :appearance :aspects])
       (:busy a) (assoc :doing (get-in a [:busy :activity]))
       (seq carried) (assoc :carrying (mapv #(select-keys % [:id :name :desc :aspects :candidate-id]) carried)))))
 
@@ -600,9 +614,25 @@
       (seq stores) (assoc :stores (mapv #(assoc (store-view here %) :keeps (get-in % [:store :keeps])) stores))
       (seq people) (assoc :people (mapv #(look-person world %) people)))))
 
+(defn- person-id?
+  "Does `id` in `on` name a person: not an item or the place, but someone
+  taking part (never the GM)?"
+  [world actor id]
+  (and (nil? (item world id))
+       (not= id (space/location-of world actor))
+       (some #(= id (:id %)) (w/active-agents world))))
+
+(defn- people-list
+  "The people here, for reasons: \"people here: you (ada), Ben (ben)\"."
+  [world actor]
+  (str "people here: you (" actor ")"
+       (str/join (for [id (sort (disj (space/present world (space/location-of world actor)) actor))]
+                   (str ", " (:name (w/agent world id)) " (" id ")")))))
+
 (defn- work-reason
   "Why `actor` can't name `id` as focus: items here or carried, the place
-  they're in, or a store serving it are allowed."
+  they're in, a store serving it, or a person here (themselves included)
+  are allowed."
   [world actor id]
   (let [it (item world id)
         holder (:holder it)
@@ -613,9 +643,12 @@
       (and it (reachable? world actor it)) nil
       (= id here) nil
       (some #(= id (:id %)) (stores-for world here)) nil
+      (person-id? world actor id)
+      (when-not (or (= id actor) (space/together? world actor id))
+        (str (:name (w/agent world id)) " is not here; " (people-list world actor)))
       :else
       (str id " is neither here nor carried by you; this place: " here " (" (:name (space/location world here)) "); "
-           (here-list world actor) "; " (carried-list world actor)))))
+           (here-list world actor) "; " (carried-list world actor) "; " (people-list world actor)))))
 
 (defn place-worked?
   "Did `job` name its place among its items: work on the room itself?"
@@ -629,14 +662,17 @@
 
 (defn- work-on-events
   "The job (seen by the GM) and the occupation that carries its id (seen by
-  everyone here). Job ids come from the world's event count, so they are
+  everyone here). The people named go under :people, the things under
+  :items. Job ids come from the world's event count, so they are
   deterministic."
   [world actor {ids :items :keys [doing hours]}]
   (let [id (str "job-" (inc (:seq world)))
-        due (+ (:round world) (clock/rounds-for (:clock world) (* 60 (or hours default-work-hours))))]
+        due (+ (:round world) (clock/rounds-for (:clock world) (* 60 (or hours default-work-hours))))
+        {people true things false} (group-by #(boolean (person-id? world actor %)) (distinct ids))]
     [{:type :item/work-begun :visible-to :gm
-      :data {:id id :actor actor :items (vec (distinct ids)) :doing doing
-             :place (space/location-of world actor) :started (:round world) :due due}}
+      :data (cond-> {:id id :actor actor :items (vec things) :doing doing
+                     :place (space/location-of world actor) :started (:round world) :due due}
+              (seq people) (assoc :people (vec people)))}
      (assoc-in (b/occupy world actor doing due) [:data :job] id)]))
 
 (defn- put-in-events
@@ -670,8 +706,11 @@
                "Spend time on an activity here, work or pastime. doing reads after \"is\", e.g. \"resting in the garden\". "
                "Keep doing to at most " advised-doing " characters. "
                "hours is half an hour to " max-work-hours ", default half an hour. "
-               "Optionally name up to " max-work-items " things with " (if alias? "items" "on")
-               ": items here or carried, this place's id, or stores in scope. Working on a container includes its contents. "
+               "Optionally name up to " max-work-items " things or people with " (if alias? "items" "on")
+               ": items here or carried, this place's id, stores in scope, or the ids of people here, yourself included. "
+               "Working on a container includes its contents. "
+               "What you do to someone takes effect only if they're still with you when you finish: they may walk away, "
+               "or rouse you to stop you early, and then only the time you worked counts. "
                "You get no turns until it ends; results show when you finish.")
      :args [:map
             [(if alias? :items :on) (if alias? {} {:optional true})
@@ -845,50 +884,57 @@
     (into (if loc [(assoc (select-keys loc [:id :name :desc :aspects]) :room? true)] [])
           (in-reach world job))))
 
+(defn judged-people
+  "Ids of the people a job may change: the worker, wherever they are, then
+  the people named with `on` who are still at the job's place."
+  [world {:keys [actor place people]}]
+  (vec (distinct (cons actor (filter #(and (w/active? world %) (= place (space/location-of world %))) people)))))
+
+(defn- person-thing
+  "A person as a judged thing: their :appearance is how they usually look,
+  their :aspects how they differ from it now."
+  [world id]
+  (assoc (select-keys (w/agent world id) [:id :name :appearance :aspects]) :person? true))
+
 (defn scene
   "The activity's local scene: place, named focus (including container contents),
-  at most twelve other visible items, stores in scope, and people present."
+  at most twelve other visible items, stores in scope, and people: those
+  present, with the judged people (see `judged-people`) as person things."
   [world {:keys [place] :as job}]
   (let [focus (focus-things world job)
-        named (set (map :id focus))]
+        named (set (map :id focus))
+        judged (set (judged-people world job))]
     {:place (assoc (select-keys (space/location world place) [:id :name :desc :aspects]) :room? true)
      :focus focus
      :also-here (vec (take 12 (remove #(or (named (:id %)) (store? %)) (visible-at world place))))
      :stores (vec (stores-for world place))
      :people (mapv (fn [id]
-                     (cond-> {:name (:name (w/agent world id))}
+                     (cond-> (if (judged id) (person-thing world id) {:name (:name (w/agent world id))})
                        (w/busy world id) (assoc :doing (:activity (w/busy world id)))))
-                   (sort (space/present world place)))}))
+                   (sort (into (space/present world place) judged)))}))
 
 (defn judged-things
   "Everything the scene judge may change, once each: place, focus, other
-  visible items (at most twelve) and stores in scope."
+  visible items (at most twelve), stores in scope and the judged people. A
+  person whose id is also a thing's isn't judged."
   [world job]
-  (let [{:keys [place focus also-here stores]} (scene world job)]
-    (->> (concat [place] focus also-here stores)
+  (let [{:keys [place focus also-here stores people]} (scene world job)]
+    (->> (concat [place] focus also-here stores (filter :person? people))
          (reduce (fn [its it] (if (some #(= (:id it) (:id %)) its) its (conj its it))) [])
          vec)))
 
 (defn job-scope
-  "Places and stores a job can affect, including the places of named focus
-  items (a store may serve several places). Tagged keys avoid id collisions."
-  [world {:keys [place actor] :as job}]
+  "Places, stores and people a job can affect, including the places of
+  named focus items (a store may serve several places), the worker and the
+  people named. Tagged keys avoid id collisions."
+  [world {:keys [place actor people] :as job}]
   (into #{[:place place]}
         (concat (map #(vector :store (:id %)) (stores-for world place))
+                (map #(vector :person %) (cons actor people))
                 (for [it (in-reach world job)]
                   [:place (or (place-of world it)
                               (space/location-of world (:holder (outermost world it)))
                               (space/location-of world actor))]))))
-
-(defn empty-activity?
-  "An unnamed activity with no place aspects, items here, or stores in scope
-  needs only a neutral ending, not a judge call."
-  [world {:keys [place items reference]}]
-  (and (nil? reference)
-       (empty? items)
-       (empty? (:aspects (space/location world place)))
-       (empty? (items-at world place))
-       (empty? (stores-for world place))))
 
 (defn- audience
   "The people at the job's place, and the worker wherever they are."
@@ -982,7 +1028,7 @@
 (def ^:private judge-tool
   {:type "function"
    :function {:name "judge"
-              :description (str "Give your judgement: each aspect the work changed (the thing's id, the aspect's key, "
+              :description (str "Give your judgement: each aspect the work changed (the thing's or person's id, the aspect's key, "
                                 "and its new value: a phrase of at most " advised-aspect " characters, or \"\" to remove it), "
                                 "the ids of consumable items it used up and their fates, things absorbed into stores, "
                                 "at most " max-made " things made or drawn from stores, "
@@ -996,7 +1042,8 @@
 
 - Most activities change little, and a pastime often changes nothing. Empty changes, used-up, absorbed and made lists are normal, successful answers. Resting in the garden need not change anything. Do not invent events to make the activity eventful, even for an unusual luck roll.
 - A store holds everything it `keeps` unless its aspects say otherwise. The listed items are notable things, not everything available.
-- You may change aspects of the place, focus, also_here and stores. Only consumables in focus or also_here may be used up. People and recent lines are context, not things to change.
+- You may change aspects of the place, focus, also_here, stores and the people marked `person`. Only consumables in focus or also_here may be used up. Other people and recent lines are context, not things to change.
+- A person's aspects say how they are now, where it shows and lasts beyond the activity: dress, hair, hands and face, dirt and wet, a visible injury. Never moods or feelings. Their `appearance` is how they usually look; aspects record departures from it, and an aspect that only restates it should be removed. Most work leaves the worker as they were. Change another person only when the activity was done to them. People can't be used up, absorbed or made, and nothing can be put in them.
 - A thing's `aspects` say what's notable about its state, each under its own key: cleanliness, repair, state, amount, stock and the like. A change sets one aspect of one thing: `thing` (its id), `aspect` (the key) and `value` (a short phrase of at most " advised-aspect " characters saying how it is now).
 - Change only the aspects the activity affected, and leave the others alone: polishing a cabinet changes its cleanliness, not its repair. Use a key the thing already has where one fits; a new key is lower-case letters and hyphens, at most 24 characters. A thing has at most " max-aspects " aspects. To remove an aspect that no longer applies, give it the value \"\".
 - Leaving any thing untouched is always a valid answer. Leave out anything the work left unchanged.
@@ -1030,6 +1077,14 @@
              (:container %) (assoc :container true))
           things)))
 
+(defn- people-json
+  "The scene's people as the judge sees them: judged ones with their id,
+  appearance and aspects, marked :person; others by name only."
+  [people]
+  (mapv #(cond-> (select-keys % [:id :name :appearance :aspects :doing])
+           (:person? %) (assoc :person true))
+        people))
+
 (defn judge-request
   "The scene judge's request, including only the worker's shared recent lines
   supplied by the engine through prompt/scene-recent."
@@ -1042,7 +1097,7 @@
                     :focus (judged-json focus)
                     :also_here (judged-json also-here)
                     :stores (mapv #(assoc (store-view (:place job) %) :keeps (get-in % [:store :keeps])) stores)
-                    :people people :recent (vec (take-last 10 recent))}
+                    :people (people-json people) :recent (vec (take-last 10 recent))}
         scene-json (cond-> scene-json (:reference job) (assoc :reference (:reference job)))]
     {:tools [judge-tool]
      :messages
@@ -1176,7 +1231,8 @@
 
 (defn- checked-verdict
   "Check decoded effects against this narrow scene. The steward may use up
-  any absorbable candidate, but may change only candidates, never the room."
+  any absorbable candidate, but may change only candidates, never the room,
+  and may only remove sleepers' aspects."
   [world args things stores steward?]
   (let [changes (decoded-changes (:changes args))
         by-id (into {} (map (juxt :id identity)) things)
@@ -1185,8 +1241,12 @@
         removed (into (set gone) (map :thing absorbed))
         made (made-entries (:made args))
         fates (update-keys (:fates args) name)
-        usable (if steward? (map #(assoc % :consumable? (absorbable? %)) things) things)]
+        usable (if steward? (map #(assoc % :consumable? (absorbable? %)) things) things)
+        set-on-sleeper (when steward? (first (filter #(and (:to %) (:person? (by-id (:thing %)))) changes)))]
     (if-let [problem (or (change-problem things changes)
+                         (when set-on-sleeper
+                           (str "a sleeper's aspects can only be removed, with the value \"\"; not "
+                                (:thing set-on-sleeper) " " (name (:aspect set-on-sleeper)) " " (pr-str (:to set-on-sleeper))))
                          (use-up-problem world usable gone)
                          (absorption-problem world things stores gone absorbed)
                          (made-problem (remove #(some #{(:id %)} (map :thing absorbed)) things) stores gone made)
@@ -1195,11 +1255,12 @@
       {:error problem}
       (cond-> {:summary (:summary args)
                :changes (vec (for [{:keys [thing aspect to]} changes
-                                   :let [from (get-in by-id [thing :aspects aspect])]
+                                   :let [from (get-in by-id [thing :aspects aspect])
+                                         kind (cond (:room? (by-id thing)) :place
+                                                    (:person? (by-id thing)) :person
+                                                    :else :item)]
                                    :when (and (not= from to) (not (removed thing)))]
-                               (if (:room? (by-id thing))
-                                 {:place thing :aspect aspect :from from :to to}
-                                 {:item thing :aspect aspect :from from :to to})))}
+                               {kind thing :aspect aspect :from from :to to}))}
         (seq gone) (assoc :used-up gone)
         (seq fates) (assoc :fates fates)
         (seq absorbed) (assoc :absorbed (vec absorbed))
@@ -1239,18 +1300,23 @@
                 [{:thing (:id store) :aspect "lacking" :value left}] [])}))
 
 (defn mock-judge
-  "Focused things get cleanliness just seen to; unfocused pastimes are quiet.
-  Quick put-away jobs absorb consumables and clear matching shortages."
+  "Focused things get cleanliness just seen to, and the people named who are
+  still here a state just seen to; the worker is left alone unless named,
+  and unfocused pastimes are quiet. Quick put-away jobs absorb consumables
+  and clear matching shortages."
   [{:keys [world job stopped-early?]}]
   {:tool :judge
    :args (assoc (if (:quick? job)
                   (mock-put-away world job)
-                  {:changes (mapv (fn [t] {:thing (:id t) :aspect "cleanliness" :value "just seen to"})
-                                  (focus-things world job))})
+                  {:changes (into (mapv (fn [t] {:thing (:id t) :aspect "cleanliness" :value "just seen to"})
+                                        (focus-things world job))
+                                  (for [id (judged-people world job) :when (some #{id} (:people job))]
+                                    {:thing id :aspect "state" :value "just seen to"}))})
                 :summary (neutral-summary world job stopped-early?))})
 
 ;; ---------------------------------------------------------------------------
-;; The nightly steward sees only old, loose, absorbable things at one place.
+;; The nightly steward sees only old, loose, absorbable things at one place,
+;; and the people asleep there with aspects, which it may only remove.
 
 (defn steward-day
   "The scheduled day due now, if its :at has been reached since the run's
@@ -1284,6 +1350,16 @@
                   (when (seq candidates) [place candidates]))))
         (sort (keys (get-in world [:space :locations])))))
 
+(defn steward-sleepers
+  "The people asleep at each place who have aspects, as person things,
+  grouped by place in place-id order, by id within a place. Nobody awake is
+  among them."
+  [world]
+  (into (sorted-map)
+        (update-vals (group-by :location (filter #(and (:asleep? (:busy %)) (seq (:aspects %)) (:location %))
+                                                 (sort-by :id (w/active-agents world))))
+                     #(mapv (fn [a] (person-thing world (:id a))) %))))
+
 (defmethod w/apply-event :items/steward-ran [world {:keys [data]}]
   (assoc world :items-steward-day (:day data)))
 
@@ -1294,7 +1370,8 @@
   (str "The nightly steward ran for " (:day data) "."))
 
 (defmethod n/describe :items/stewarded [{:keys [data]} names]
-  (str "Steward at " (n/place names (:place data)) ": " (:summary data)))
+  (str "Steward at " (n/place names (:place data)) ": " (:summary data)
+       (when (seq (:changes data)) (str " (" (changes-text names (:changes data)) ")."))))
 
 (defmethod n/describe :items/steward-failed [{:keys [data]} _]
   (str "The steward's answer at " (:place data) " was not used: " (:reason data)))
@@ -1308,11 +1385,14 @@
 - For each candidate, you may absorb it into a listed store in scope (`absorbed: [{thing, into}]`), use it up (`used-up: [id]`, with a short fate in `fates: {id: phrase}`), change its aspects (`changes: [{thing, aspect, value}]`), or leave it.
 - Absorb a container only with all its contents absorbed too; use one up only with all its contents used up too. Otherwise leave it.
 - Change only candidates, never the place or stores. Aspect keys are lower-case letters and hyphens, at most 24 characters; values are 1–" advised-aspect " characters, or empty to remove. Keep at most four aspects per thing.
+- `sleepers` are people asleep here. Their `appearance` is how they usually look, and their `aspects` how they differ from it now. Remove (value \"\") each aspect that wouldn't last the night, such as hair let down or evening dress taken off, and leave the ones that would, such as a grease-stained apron. Never set or change a sleeper's aspect: only remove.
 - Never make anything. A store holds everything it keeps unless its aspects say otherwise. Do not invent events. Give a short third-person summary, at most 300 characters, for the GM only."))
 
 (defn steward-request
-  "One place's narrow nightly request; no people, private lines or other rooms."
-  [world place candidates]
+  "One place's narrow nightly request: its candidates, and the people asleep
+  there with aspects (see `steward-sleepers`); no one awake, no private lines
+  or other rooms."
+  [world place candidates & [sleepers]]
   {:tools [{:type "function" :function {:name "steward" :description "Resolve only the listed idle candidates. Never make anything."
                                       :parameters (mjs/transform steward-schema)}}]
    :messages [{:role "system" :content steward-instructions}
@@ -1321,17 +1401,19 @@
                                             {:place (select-keys (space/location world place) [:id :name :desc :aspects])
                                              :stores (mapv #(assoc (store-view place %) :keeps (get-in % [:store :keeps]))
                                                            (stores-for world place))
-                                             :candidates (judged-json candidates)} pretty)
+                                             :candidates (judged-json candidates)
+                                             :sleepers (mapv #(select-keys % [:id :name :appearance :aspects]) sleepers)} pretty)
                                            "\n```\n\nCall `steward` now.")}]})
 
 (defn stewardship
-  "Check the steward against only its candidates and this place's stores."
-  [response world place candidates]
+  "Check the steward against only its candidates, the sleepers (whose
+  aspects it may only remove) and this place's stores."
+  [response world place candidates & [sleepers]]
   (adjudication/answer "steward" response
                        (fn [arguments]
                          (let [{:keys [args error]} (a/decode-args {:args steward-schema} arguments)]
                            (if error {:error error}
-                               (checked-verdict world args candidates (stores-for world place) true))))))
+                               (checked-verdict world args (into (vec candidates) sleepers) (stores-for world place) true))))))
 
 (defn stewarded
   "A checked nightly result, GM-only; no character sees it happen."

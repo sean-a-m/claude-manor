@@ -75,6 +75,7 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :defaults      {:model "..." ...}       ; overrides engine default options for this scenario
    :mock-policy   (fn [ctx] {:tool :dig :args {}})
    :mock-judge    (fn [ctx] {:tool :judge :args {..}})  ; optional, the judge in mock runs (see Items)
+   :mock-steward  (fn [ctx] {:tool :steward :args {..}})  ; optional, the nightly steward in mock runs
    :speaking-actions (fn [world speaker conv] actions)    ; optional free/query tools in conversations
    :mock-conversation (fn [ctx] {:tool :reply :args {..}})  ; optional, speaking turns in mock runs (see Conversations)
    :offline-stubs {:bridge/name (fn [args ctx] result)}})
@@ -101,7 +102,8 @@ option keys pass through, e.g. the village reads `:start-date`.
   Only `:name` and `:role` are required. The id is derived from the name (`"Iris"` → `"iris"`,
   with a `-2` suffix on collisions). `:location` defaults to the role's `:start-location`.
   A spec may also carry a person's hidden traits, `:sex :manner :temperament :faculties
-  :circumstances`, a public `:appearance` (see "People and traits" under World files) and a
+  :circumstances`, a public `:appearance` (see "People and traits" under World files), starting
+  `:aspects` (see People's aspects, under Items; checked, so a bad one stops the run) and a
   `:situation` (see "Positions, posts and situations"). Other keys stay off the agent, but the scenario's `:on-spawn` sees
   them all (Claudeworth's reads `:bedroom`, `:routine` and `:household`).
 
@@ -717,7 +719,7 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
   scenario's choice. Claudeworth uses `:cleanliness`, `:repair`, `:state` (lit, cold, half full),
   `:amount` (a parcel's "20 × 1 lb"), `:stock` and `:lacking`. A thing with nothing notable has no
   `:aspects`. Work (and the optional steward on its candidates) changes them, one aspect at a time, so unrelated facts survive (see Work
-  and the judge). Locations have them too (see Locations).
+  and the judge). Locations have them too (see Locations), and so do people (see People's aspects).
 - **`:touched`** is the round an item was last taken, put down, put in a container, given,
   changed, worked on as named focus (including container contents), added or made. The reducers set it from `(:round world)`; it isn't part of a world
   file, and the exported map leaves it out.
@@ -818,6 +820,48 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
   decides it. Claudeworth reads these in `:init`: Mr Pugh (`:optional? :architect?`) is in unless
   `:architect? false`, and Nellie the housemaid (`:optional? :housemaid?`) is in unless
   `:housemaid? false`. Leave out too the items such an agent holds.
+
+#### People's aspects
+
+People have aspects too, under `[:agents id :aspects]`, checked as an item's are (at most 4,
+well-formed keys, values of 1-200 characters). They say how a person differs now from their
+fixed `:appearance`, where it shows and lasts beyond the activity: dress, hair, hands and face,
+dirt and wet, a visible injury. Never inner states (hunger, tiredness, moods). `:appearance` never
+changes; word changeable things in it as habits ("usually in a print frock and apron").
+
+- **Where they come from:** a world-file agent or an `:init` agent spec may give `:aspects`
+  (`worldfile/problems` and the engine check them), and the exported `map.edn` writes the live
+  ones back to the file's agents. People made during a run (hired candidates, couriers, the GM's
+  spawns) start with none, and routines don't change them. Only work changes them (see Work and
+  the judge).
+- **Who sees them:** everyone present, every turn: `:aspects` beside `:appearance` on each of
+  `:location :people-here` and on `look`'s people, and the person's own under `:you :aspects`;
+  each is left out when there are none. The default GM view's agents have them, and the panel's
+  roster shows them. The system prompt is unchanged ("What people see:" stays the appearance).
+  Other adjudicators (shop quotes, hiring interviews) don't see them.
+- **Overnight:** the nightly steward, when the scenario has one, removes from people asleep the
+  aspects that wouldn't last the night, and never sets one (see The nightly steward). Nothing else
+  reverts a person's aspects.
+- **What the judge does:** the worker is always judged; work changes them only where the activity
+  would ("Most work leaves the worker as they were"), and a pastime usually not at all.
+  Scenarios can suggest person keys in the same `:aspect-keys` as items' (Claudeworth suggests
+  `:dress`, `:hair` and `:grime`).
+- **Acting on someone:** `spend-time`'s `on` may name people here, yourself included. Naming
+  someone asks nothing of them: they needn't be free, awake or willing. When the job ends they
+  are judged if they're active and at the job's place, and not otherwise; they may leave, come
+  back, or `rouse` the worker, who then stops early and is judged on the time worked. Consent is
+  for the characters to work out, realism for the judge. Only the worker and the people named
+  can change: everyone else present stays context. `job-scope` includes `[:person id]` for the
+  worker and each person named, so two jobs on one person (her ladyship dressing, her maid doing
+  her hair) are judged one after the other, and the second judge sees the first's result.
+  People can't be used up, absorbed or made, and a `made` entry's `in` can't name one.
+- **What to tell agents:** the `spend-time` description says that `on` may name people here,
+  that what you do to someone counts only if they're still with you when you finish, and that
+  they may walk away or rouse you, so that only the time worked counts. Say in the brief that how
+  someone looks now is in their `aspects`, beside their usual `appearance`, with yours under
+  `you`, and that when someone is spending time on you (doing your hair), it counts only if you
+  stay with them until they finish. Claudeworth's `rules` has the wording. There is no quick
+  change: changing yourself takes `spend-time`, at least half an hour.
 
 #### Containers
 
@@ -960,16 +1004,20 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   limits. It reads after "is" ("dusting the china cabinet", "resting in the garden").
   `hours`: optional, 0.5–4, default 0.5; rounds as `clock/rounds-for` gives them,
   at least one. `on`: optional list of up to 6 ids: items here (in a container or not) or carried
-  by you, the place you're in, or stores in scope (even in another room). Fixed items are fine;
-  duplicates are dropped. A rejected id gets an actionable reason. No `on` is normal for a
-  pastime, and most pastimes change nothing.
+  by you, the place you're in, stores in scope (even in another room), or people here, yourself
+  included (see People's aspects). Fixed items are fine; duplicates are dropped. A rejected id
+  gets an actionable reason; a person elsewhere gets "Mrs Pell is not here; people here: you
+  (dawson), Lady Ashby (lady-ashby)". No `on` is normal for a pastime, and most pastimes change
+  nothing.
 - `work-on {items, doing, hours?}` remains an alias for now: `items` (1–6 ids) means `on`, with
   the same effect. New scripts and briefs should use `spend-time` and `doing`, not `activity`.
   `sleep` in Claudeworth stays separate and unjudged.
 - Its effect is a job, `:item/work-begun` (visible to the GM; data: the job), and an occupation
   (`b/occupy`, seen by the room: "Hale is dusting the china cabinet until 15:30") whose `:busy`
   carries the job id as `:job`. The job table is `(:item-jobs world)`, keyed by id (`"job-<seq>"`):
-  `{:id :actor :items [..] :doing :place :started round :due round}`. Read it with `items/jobs`.
+  `{:id :actor :items [..] :doing :place :started round :due round}`, with `:people [..]` when
+  `on` named people (an id that is an item's or the place's is a thing, never a person). Read it
+  with `items/jobs`.
 - **Quick put-away jobs** come from free `put-in` into a store. The move happens immediately;
   the job has `:quick? true`, `:store` (the destination id), focus on the item and store,
   doing "putting the <item> away in the <store>", and `:due` the next round. It creates no
@@ -998,27 +1046,31 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   in reach: the room if named, and items at the job's place or carried by the worker, or stores
   in scope, each followed by everything inside it. `items/in-reach` stays items-only.
   The **scene** (`items/scene`) always includes the place, focus, up to 12 other visible items
-  (not inside closed containers), stores in scope, and people present. **Judged things**
-  (`items/judged-things`) are the place, focus, other visible items and stores, once each.
-  With no time worked (except quick put-away jobs), the job ends with `:item/work-ended`, seen by the worker and people at
-  the place, and no call. An activity naming nothing, at a place with no aspects, no items and
-  no stores in scope, ends with a neutral `:item/work-done` and no call. Otherwise the engine
+  (not inside closed containers), stores in scope, and people: those present, and the judged
+  people (`items/judged-people`: the worker, wherever they are, then the people named in `on` who
+  are still at the job's place). **Judged things** (`items/judged-things`) are the place, focus,
+  other visible items, stores and the judged people, once each (a person whose id is also a
+  judged thing's isn't judged). With no time worked (except quick put-away jobs), the job ends
+  with `:item/work-ended`, seen by the worker and people at the place, and no call. Every other
+  activity is judged, even one naming nothing at an empty place, because the worker can always
+  change. The engine
   asks the scene judge and emits `:item/work-done`, seen by the worker and people at the place:
   `{:job :actor :place :doing :minutes :stopped-early? :luck :summary :changes [..]}`, plus
   `:used-up [{:item :name :fate}]`, `:absorbed [{:item :name :into}]`, `:made [item ...]`
   (complete new items), and `:fetched [id ...]` (which made entries were drawn from stores)
   when there are some.
-  Each change is `{:item id :aspect k :from s :to s}`, or `{:place id ...}` for the room; `:from`
-  is nil for a new aspect and `:to` nil for one removed. Its reducer sets or removes each aspect
-  (on the item, or on the location under `[:space :locations id :aspects]`), touches the changed
+  Each change is `{:item id :aspect k :from s :to s}`, `{:place id ...}` for the room or
+  `{:person id ...}` for a person; `:from` is nil for a new aspect and `:to` nil for one removed.
+  Its reducer sets or removes each aspect (on the item, on the location under `[:space :locations
+  id :aspects]`, or on the agent under `[:agents id :aspects]`), touches the changed
   items and named focus, removes used-up and absorbed things (recording their fates), adds the
-  made ones (touched too) and removes the job. Jobs with disjoint scopes (place, stores in scope
-  and focus items’ places) are judged
+  made ones (touched too) and removes the job. Jobs with disjoint scopes (place, stores in scope,
+  focus items’ places, the worker and the people named) are judged
   concurrently on the pre-batch world; overlapping jobs remain sequential, so a later judge
   sees an earlier one’s result. Events, usage and call logs stay in due/id order; on the same
   aspect the last applied wins. It reads "Nellie
   finishes sweeping the drawing room and dusting the piano. (Drawing room: swept, the hearth clean;
-  Piano: dusted)." (each thing's changes by their new values, which are whole phrases, or "no
+  Piano: dusted)." or "(Lady Claudeworth: hair dressed high, with combs)" (each thing's changes by their new values, which are whole phrases, or "no
   longer lacking" for an aspect `:lacking` removed, hyphens in the key read as spaces;
   "leaves off" when stopped early; the summary is left out when it only repeats the opening),
   followed by "Used up: Rib of beef. Made: Beef stock in the saucepan; Beef bones." when
@@ -1075,9 +1127,15 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
    :also_here [...]
    :stores [{:id "pantry-shelves" :name "Pantry shelves" :keeps "dry goods, preserves, ..."
              :aspects {:stock "well stocked"} :at "pantry"}]
-   :people [{:name "Mrs Finch" :doing "cooking dinner"}]
+   :people [{:id "mrs-finch" :name "Mrs Finch" :appearance "..." :aspects {:apron "floury"}
+             :doing "cooking dinner" :person true}
+            {:name "Nellie" :doing "blacking the range"}]
    :recent ["[17:00] Mrs Finch says: ..."]}
   ```
+
+  `people` lists everyone present and the judged people: those the judge may change are marked
+  `person: true` and have their id, `appearance` and `aspects`; the others are context, by
+  name and what they're doing.
 
   Focus includes container contents as above, with `in` only when that container is also in
   focus; entries mark `consumable: true`, `container: true`, or `room: true` when appropriate,
@@ -1122,8 +1180,9 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   neutral summary ("Hale finishes dusting the china cabinet."), plus an `:item/judge-failed`
   event (`:visible-to :system`) with the reason. The run isn't paused.
 - **Mock runs:** a call with role `:judge` goes to the scenario's `:mock-judge` if it has one,
-  else to `items/mock-judge` (each focused thing gets cleanliness "just seen to"; without `on`
-  it changes nothing and makes nothing). For quick put-away jobs the default mock instead
+  else to `items/mock-judge` (each focused thing gets cleanliness "just seen to", and each person
+  named in `on` who is still here a state "just seen to"; it leaves the worker alone unless named,
+  so without `on` it changes nothing and makes nothing). For quick put-away jobs the default mock instead
   absorbs deposited consumables (only with absorbable consumable contents) and clears matching
   semicolon-separated shortages using whole-word matches against their names ("sugar" matches
   "Loaf sugar", but "tea" does not match "meat"). Other shortages survive. Thus
@@ -1148,23 +1207,37 @@ world, even with no candidates; replay reproduces the once-per-day decision.
 Code selects absorbable items not carried or inside closed containers, without an `:order-id`, untouched for at least
 `idle-hours` of game time. Starting items age from the clock start. Candidates are grouped by
 place (place-id order), oldest `:touched` first, id breaking ties, at most `max-per-call` per
-place; excess waits for another night. Places with no candidates cost nothing.
+place; excess waits for another night. The steward also sees **sleepers**
+(`items/steward-sleepers`): active people whose `:busy` has `:asleep?` and who have aspects,
+each at their location. A place with candidates or sleepers gets a call (in Claudeworth, about
+one per occupied bedroom per night, and only for sleepers with aspects); places with neither cost
+nothing. Nobody awake is ever seen: someone who stays up all night keeps their aspects.
 
-One narrow `ask-structured!` call per place sees only its place, stores in scope and candidates.
+One narrow `ask-structured!` call per place sees only its place, stores in scope, candidates
+and `sleepers [{id name appearance aspects}]`.
 The `steward` tool accepts `changes`, `used-up`, `fates`, `absorbed` and required `summary`,
 never `made`. It may absorb a candidate into a store in scope, use up a candidate with a fate,
 change its aspects or leave it. Even non-consumable drawn candidates may be used up (discarded).
-Only candidates can change; never room or store aspects. Container checks use all world
+Only candidates can change; never room or store aspects. A sleeper's aspects may only be
+removed: the steward is told to remove those that wouldn't last the night (hair let down,
+evening dress taken off) and leave the rest (a grease-stained apron stays stained), which is its
+judgement; a change that sets one is refused ("a sleeper's aspects can only be removed, with the
+value \"\"; ...") and corrected once, as usual. Container checks use all world
 contents as for work. Unknown fields are dropped; they cannot create anything.
 
 Calls are logged as agent `"steward"`, use `:judge-model` and count toward cost. The shared
 one-correction lifecycle applies; a final failure leaves things alone and records
 `:items/steward-failed` (`:system`). Every checked result is `:items/stewarded`, GM-only,
 with `{:place :summary :changes}`, plus named `:used-up` and `:absorbed` when nonempty. Its
-reducer records removals and fates, and touches changed candidates. Its short narration is
-"Steward at Kitchen: Idle things were put away." Characters see no steward event.
-The default mock (`items/mock-steward`, role `:steward`, context `:world :place :candidates
-:step`) absorbs everything it safely can into the first store in scope, otherwise leaves it.
+reducer records removals and fates, and touches changed candidates; a sleeper's removal is a
+change `{:person id :aspect k :from v :to nil}`. Its short narration is "Steward at Kitchen:
+Idle things were put away.", with its changes after the summary as for work ("(Lady Ashby: no
+longer dressed high, with combs)": a person's removed aspect reads by its old value).
+Characters see no steward event: a sleeper finds the aspects gone from their view on waking.
+A call with role `:steward` goes to the scenario's `:mock-steward` if it has one, else to the
+default mock (`items/mock-steward`, context `:world :place :candidates :sleepers :step`), which
+absorbs everything it safely can into the first store in scope, otherwise leaves it, and
+removes nothing from sleepers.
 
 Stores of provisions can be consumable items, a parcel each, whose `:amount` the judge rewrites as
 they are used (Claudeworth's purchases).
@@ -1190,14 +1263,16 @@ in `:init`:
               :domain :house :kind :hall}           ; other keys are kept on the location
              ...]
  :routes [["porch" "green" 1]]                     ; journeys, as in :space
- :agents [{:name "Ada" :role :resident :location "hall"}]
+ :agents [{:name "Ada" :role :resident :location "hall"
+           :aspects {:hands "inky"}}]               ; optional (see People's aspects)
  :items [{:id "pipe" :name "Pipe" :holder "Ben" :owner "Ben"   ; optional, see Items
           :aspects {:state "still warm"} :desc "A briar pipe."}]
  :shop {...}}                                       ; your own sections, from :world-file
 ```
 
 - `load-world` takes a file path or a classpath resource name. It checks the file and throws a
-  list of readable problems (unknown locations, duplicate ids, bad routes, bad clock, bad items).
+  list of readable problems (unknown locations, duplicate ids, bad routes, bad clock, bad items,
+  bad agent aspects).
   It returns `{:space :clock :agents :items :world-file}`. Read your own sections from
   `:world-file`.
 - `:items` (optional) lists items as in Items, one per line, with `:holder` and an agent `:owner`
@@ -1212,7 +1287,8 @@ in `:init`:
   The engine saves a copy as
   `<run-dir>/world-start.edn`. Whenever the map changes, it writes the live map back in the same
   format to `<run-dir>/map.edn` (output only), and the live items with it (holders and owners as
-  names again) whenever an item changes hands. A run can start from an exported map
+  names again) whenever an item changes hands, and the file's agents with their live `:aspects`
+  (people who came during the run aren't added). A run can start from an exported map
   (`{:world-file "runs/<id>/map.edn"}`), and `(export-map! path)` at the REPL writes one anywhere.
 
 Claudeworth-derived worlds may omit architect services altogether (as Lodge does). If an
@@ -1634,7 +1710,8 @@ Lets the scenario run for free with `{:llm :mock}`. It's essential for testing.
   free and once per turn, so guard them with `(not (used "say"))` and pass afterwards.
 - For the GM (`role :gm`) return `{:tool :done}` unless testing GM behaviour.
 - The judge of work on items (`role :judge`) never reaches the policy: the engine sends it to the
-  scenario's `:mock-judge`, or `manor.items/mock-judge` (see Items).
+  scenario's `:mock-judge`, or `manor.items/mock-judge` (see Items). Nor does the nightly steward
+  (`role :steward`): it goes to `:mock-steward`, or `manor.items/mock-steward`.
 - Internal adjudication calls (`role :adjudicator`) go to the task's registered `:mock`,
   not this policy (see Internal adjudication queries).
 - Nor do speaking turns in a conversation (the context has `:conversation {:id :initiator

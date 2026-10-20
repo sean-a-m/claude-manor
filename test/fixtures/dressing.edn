@@ -1,0 +1,30 @@
+;; Fixed world for person aspects (manor.scenarios.dressing): a lady's bedroom
+;; with a dressing table, a kitchen with a range, a lady, her maid and a cook.
+;; Test-owned: don't sync it with any bundled scenario.
+{:meta {:name "Ashby House" :start "1904-10-15T18:00" :minutes-per-round 30}
+
+ :locations
+ [{:id "bedroom" :name "Lady's bedroom" :kind :bedroom :connects-to ["landing"]
+   :desc "A bright bedroom with a dressing table by the window."}
+  {:id "landing" :name "Landing" :connects-to ["kitchen" "maids-room"]
+   :desc "A narrow landing at the top of the back stairs."}
+  {:id "kitchen" :name "Kitchen" :aspects {:air "warm and smelling of onions"}
+   :desc "A stone-flagged kitchen with a black range."}
+  {:id "maids-room" :name "Maid's room" :kind :bedroom
+   :desc "A small room under the eaves."}]
+
+ :agents
+ [{:name "Lady Ashby" :role :lady :location "bedroom"
+   :persona "A particular woman who likes to look well at dinner."
+   :appearance "A tall woman of fifty, usually in a grey day dress, her hair in a plain knot."}
+  {:name "Dawson" :role :maid :location "bedroom"
+   :persona "Lady Ashby's maid, quick with a comb."
+   :appearance "A neat woman of thirty in a black dress and a white cap."}
+  {:name "Mrs Pell" :role :cook :location "kitchen"
+   :persona "The cook, who has been at the range since noon."
+   :appearance "A stout woman, usually in a print frock and a white apron."
+   :aspects {:apron "spattered with grease"}}]
+
+ :items
+ [{:id "dressing-table" :name "Dressing table" :place "bedroom" :fixed? true :desc "A walnut dressing table with a swing glass."}
+  {:id "range" :name "Kitchen range" :place "kitchen" :fixed? true :aspects {:state "hot"} :desc "A black iron range."}]}

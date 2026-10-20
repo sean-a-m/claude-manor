@@ -185,7 +185,7 @@
   (let [check #(:verdict (people/check-polish record (polish-response %)))]
     (doseq [facts [["A personal background fact."] ["A background fact." "An external commitment."]]]
       (is (= facts (:circumstances (check (assoc good :circumstances facts))))))
-    (doseq [bad [nil [] ["a" "b" "c"] [""] ["   "] [(apply str (repeat 241 "x"))]
+    (doseq [bad [nil [] ["a" "b" "c"] [""] ["   "] [(apply str (repeat 481 "x"))]
                  [{:text "A map is not a circumstance string."}]]]
       (is (nil? (check (assoc good :circumstances bad))) (pr-str bad)))
     (is (nil? (check (dissoc good :circumstances))))

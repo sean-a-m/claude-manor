@@ -46,7 +46,9 @@
 (def Agent
   "An agent of a world file. The trait keys (see manor.people) are optional;
   `roll-cast!` writes them. A :situation is shown only in their own prompt,
-  and nothing rewrites it. An optional :appearance is public at a glance."
+  and nothing rewrites it. An optional :appearance is public at a glance,
+  and optional :aspects (see manor.items) say how they differ from it at
+  the start."
   [:map
    [:name :string]
    [:role :keyword]
@@ -55,6 +57,7 @@
    [:situation {:optional true} :string]
    [:manner {:optional true} :string]
    [:appearance {:optional true} [:string {:min 1 :max 600}]]
+   [:aspects {:optional true} :any]          ; checked by `problems`, for a readable message
    [:sex {:optional true} [:enum :male :female]]
    [:temperament {:optional true}
     [:map-of [:enum :openness :conscientiousness :extraversion :agreeableness :neuroticism]
@@ -123,6 +126,11 @@
             (for [{:keys [name location]} (:agents wf)
                   :when (and location (not (known location)))]
               (str "agent " (pr-str name) ": unknown location " (pr-str location)))
+            (for [{:keys [name] :as a} (:agents wf)
+                  :when (contains? a :aspects)
+                  :let [p (items/aspects-problem (:aspects a))]
+                  :when p]
+              (str "agent " (pr-str name) ": " p))
             (when-let [c (->clock wf)] (map #(str ":meta clock: " %) (clock/problems c)))
             (items/problems (:items wf) {:places known :holders (set (map :name (:agents wf)))}))))))
 
@@ -198,11 +206,21 @@
              (:holder it) (update :holder #(or (agent-name %) %))
              (agent-name (:owner it)) (update :owner agent-name))))))
 
+(defn- export-agents
+  "`start`'s agents, each with the live :aspects of the agent of that name,
+  or none if they have none now. People who came during the run aren't added."
+  [world start]
+  (mapv (fn [{agent-name :name :as a}]
+          (if-let [aspects (:aspects (w/agent world (b/slug agent-name)))]
+            (assoc a :aspects aspects)
+            (dissoc a :aspects)))
+        (:agents start)))
+
 (defn export
   "The world file `start` with its :locations and :routes replaced by the
-  live world's map, and its :items by the live items if the world has items.
-  Locations, routes and items keep the order they had in `start`; new ones
-  follow. Closed routes are left out."
+  live world's map, its :items by the live items if the world has items,
+  and its agents' :aspects by theirs now. Locations, routes and items keep
+  the order they had in `start`; new ones follow. Closed routes are left out."
   [world start]
   (let [locs (get-in world [:space :locations])
         routes (get-in world [:space :routes])
@@ -218,7 +236,8 @@
                                          :let [c (connects id)]]
                                      (cond-> (get locs id) (seq c) (assoc :connects-to c))))
                    :routes (export-routes routes start two-way?))
-      (items/enabled? world) (assoc :items (export-items world start)))))
+      (items/enabled? world) (assoc :items (export-items world start))
+      (:agents start) (assoc :agents (export-agents world start)))))
 
 (def ^:private key-order [:id :name])
 

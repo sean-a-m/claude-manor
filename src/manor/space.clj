@@ -111,11 +111,12 @@
 
 (defn- person
   "Someone in a view of the people here: who they are, how to address them
-  if their position says (manor.positions), their appearance and what they're doing."
+  if their position says (manor.positions), their appearance, how they
+  differ from it now (:aspects, see manor.items) and what they're doing."
   [world id]
   (let [a (w/agent world id)
         address (positions/addressed-as world id)]
-    (cond-> (select-keys a [:id :name :role :appearance])
+    (cond-> (select-keys a [:id :name :role :appearance :aspects])
       address (assoc :address-as address)
       (:busy a) (assoc :doing (get-in a [:busy :activity])))))
 

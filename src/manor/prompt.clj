@@ -132,6 +132,7 @@ Take your turn now.")
                          {:round (:round world)})
                        (observe world agent-id))
                 (update :you #(merge {:id agent-id :name (:name a) :role (name (:role a))} %)))
+      (seq (:aspects a)) (assoc-in [:you :aspects] (:aspects a))
       (get-in a [:busy :interrupted-by])
       (assoc-in [:you :busy] (cond-> {:activity (get-in a [:busy :activity])
                                       :interrupted-by (:name (w/agent world (get-in a [:busy :interrupted-by])))}
@@ -295,7 +296,7 @@ Each message to you gives the recent events, oldest first, then the time now and
   "What the GM is shown of the world unless a scenario sets :gm-view."
   [world]
   (cond-> {:state (gm-state world)
-           :agents (mapv #(select-keys % [:id :name :role :status :persona :appearance :situation :location :travel :busy])
+           :agents (mapv #(select-keys % [:id :name :role :status :persona :appearance :aspects :situation :location :travel :busy])
                          (w/agents-in-order world))}
     (space/enabled? world) (assoc :space (:space world))
     (items/enabled? world) (assoc :items (items/gm-view world))

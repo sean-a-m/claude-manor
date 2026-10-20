@@ -12,6 +12,7 @@
             [manor.people :as people]
             [manor.positions :as positions]
             [manor.prompt :as prompt]
+            [manor.scenarios.claudeworth :as claudeworth]
             [manor.space :as space]
             [manor.store :as store]
             [manor.world :as w]))
@@ -126,6 +127,38 @@
       (replay! run)
       (finally (e/stop-run run)))))
 
+(deftest self-recommendation-is-rejected-without-pausing
+  (let [run (start {:mock-policy (fn [{:keys [world agent-id used] :as ctx}]
+                                  (if (and (= "recommender" agent-id) (= 2 (:round world))
+                                           (not (some #{"recommend"} used)))
+                                    {:tool :recommend :args {:position "housemaid" :for agent-id}}
+                                    (policy ctx)))} {})]
+    (try
+      (rounds! run 1)
+      (let [world (e/world run)
+            args {:position "housemaid" :for "recommender"}
+            result {:candidate (first-person world) :new? false :reputation {}}
+            reason (h/recommend-reason world "recommender" args)]
+        (is (= "ask someone else here to recommend to you, not yourself" reason))
+        (is (nil? (h/recommendation-events world "recommender" args result)))
+        (testing "event construction remains duplicate-safe even if validation is bypassed"
+          (with-redefs [h/recommend-reason (constantly nil)]
+            (let [events (h/recommendation-events world "recommender" args result)
+                  recommended (second events)]
+              (is (= [:people/reputation-known :people/recommended] (mapv :type events)))
+              (is (every? #(= #{"recommender"} (:visible-to %)) events))
+              (is (= #{"recommender"} (get-in recommended [:data :knowers])))))))
+      (rounds! run 1)
+      (let [events (e/events run)
+            calls (filter #(and (= "recommender" (:agent %)) (= 2 (:round %)))
+                          (store/read-llm (:dir run)))]
+        (is (= "error: ask someone else here to recommend to you, not yourself"
+               (get-in (first calls) [:replies 0 :content])))
+        (is (not-any? #(and (= 2 (:round %)) (= :bridge/called (:type %))) events))
+        (is (not-any? #(#{:action/forfeited :run/pause-requested} (:type %)) events)))
+      (replay! run)
+      (finally (e/stop-run run)))))
+
 (deftest reputation-selects-written-circumstances-and-basic-readings
   (let [stubs (assoc h/offline-stubs :people/reputation
                      (fn [{:keys [person knower]} _]
@@ -149,6 +182,122 @@
         (is (empty? (:reputations (h/observe world "employer"))))
         (is (empty? (:reputations (h/observe world "bystander")))))
       (rounds! run 2)
+      (replay! run)
+      (finally (e/stop-run run)))))
+
+(deftest query-refresh-preserves-turn-limits
+  (let [recommend {:tool :recommend :args {:position "housemaid" :for "employer"}}
+        run (start {:mock-policy (fn [{:keys [world agent-id step]}]
+                                  (if (and (= "recommender" agent-id) (= 1 (:round world)))
+                                    (get [recommend
+                                          {:tool :say :args {:text "I know someone."}}
+                                          {:tool :say :args {:text "Another word."}}
+                                          recommend recommend
+                                          {:tool :send-for :args {:candidate (:id (first-person world))}}]
+                                         step {:tool :pass})
+                                    {:tool :pass}))}
+                   {:max-steps 6 :max-queries 2})]
+    (try
+      (rounds! run 2)
+      (let [events (e/events run)
+            calls (filterv #(and (= "recommender" (:agent %)) (= 1 (:round %)))
+                           (store/read-llm (:dir run)))
+            replies (mapv #(get-in % [:replies 0 :content]) calls)]
+        (is (= 6 (count calls)))
+        (is (= 2 (count (filter #(= :people/recommended (:type %)) events))))
+        (is (= 1 (count (filter #(= :agent/said (:type %)) events))))
+        (is (= "rejected: you can use say or whisper only once per turn; take your turn-ending action now, and use them again next turn"
+               (replies 2)))
+        (is (= "error: query limit reached for this turn (2); take your action now, and query again next turn"
+               (replies 4)))
+        (is (= "done" (replies 5)) "send-for became callable after the query")
+        (is (= :here (:status (first-person (e/world run)))))
+        (is (= 1 (:round (first (filter #(= :people/sent-for (:type %)) events)))))
+        (is (some #(and (= "user" (:role %)) (str/includes? (:content %) "`send-for`"))
+                  (:replies (calls 1))) "reminders name the refreshed turn-ending tools")
+        (is (not-any? #(#{:action/forfeited :run/pause-requested} (:type %)) events)))
+      (replay! run)
+      (finally (e/stop-run run)))))
+
+(deftest walk-interview-offer-and-accept-in-one-round
+  (let [hire (fn [{:keys [world agent-id used] :as ctx}]
+               (let [p (first-person world)
+                     id (:agent-id p)]
+                 (cond
+                   (and (= "employer" agent-id) (= 2 (:round world)) (not (some #{"walk"} used)))
+                   {:tool :walk :args {:to "room"}}
+                   (and (= "employer" agent-id) (= 3 (:round world)))
+                   (cond
+                     (not (some #{"walk"} used)) {:tool :walk :args {:to "gate"}}
+                     (not (some #{"converse"} used)) {:tool :converse :args {:with [id] :text "Shall we agree the terms?"}}
+                     :else {:tool :engage :args {:who id :position "housemaid" :terms "Twelve pounds." :bedroom "room"}})
+                   (and (= id agent-id) (get-in world [:state :place-offers id]))
+                   {:tool :accept-place :args {:conditions "Sunday afternoons free."}}
+                   :else (policy ctx))))
+        run (start {:actions (conj h/actions (first (filter #(= :walk (:name %)) claudeworth/actions)))
+                    :mock-policy hire} {})]
+    (try
+      (rounds! run 3)
+      (let [world (e/world run) p (first-person world) id (:agent-id p)
+            interview (filterv #(and (= "employer" (:agent %)) (= 3 (:round %)) (nil? (:conversation %)))
+                               (store/read-llm (:dir run)))
+            tools (mapv (comp set :tools) interview)
+            events (e/events run)
+            milestones (filter #(or (= :people/offered (:type %))
+                                    (and (= :people/post-changed (:type %)) (= id (get-in % [:data :id]))
+                                         (= :housemaid (get-in % [:data :position])))
+                                    (and (= :people/candidate-updated (:type %))
+                                         (= :engaged (get-in % [:data :changes :status])))) events)]
+        (is (= 3 (count interview)))
+        (is (not (contains? (first tools) "engage")) "the candidate is elsewhere at turn start")
+        (is (contains? (second tools) "engage") "walking makes engage available")
+        (is (= (:tool-digests (second interview)) (:tool-digests (nth interview 2 nil)))
+            "an interview with no availability change keeps tool schemas and order identical")
+        (is (= (:tool-digests (first interview))
+               (take (count (:tools (first interview))) (:tool-digests (second interview))))
+            "newly available tools leave the existing cacheable prefix unchanged")
+        (is (= ["walk" "converse" "engage"]
+               (mapv #(get-in % [:response :tool_calls 0 :function :name])
+                     (filter #(and (= "employer" (:agent %)) (= 3 (:round %)) (nil? (:conversation %)))
+                             (store/read-llm (:dir run))))))
+        (is (= [:people/offered :people/post-changed :people/candidate-updated] (mapv :type milestones)))
+        (is (every? #(= 3 (:round %)) milestones))
+        (is (= ["accept-place"]
+               (mapv #(get-in % [:response :tool_calls 0 :function :name])
+                     (filter #(and (= id (:agent %)) (= 3 (:round %)) (nil? (:conversation %)))
+                             (store/read-llm (:dir run))))))
+        (is (= :engaged (:status p)))
+        (is (= :housemaid (:role (w/agent world id))))
+        (is (= "Twelve pounds." (get-in world [:state :posts id :terms])))
+        (is (= "Sunday afternoons free." (get-in world [:state :posts id :conditions])))
+        (is (= "room" (get-in world [:state :bedrooms id])))
+        (is (empty? (h/tick (:scenario run) (assoc world :round 99))))
+        (is (not-any? #(#{:action/forfeited :run/pause-requested} (:type %)) events))
+        (is (not-any? #(str/starts-with? (:content %) "error:")
+                      (mapcat :replies (store/read-llm (:dir run))))))
+      (replay! run)
+      (finally (e/stop-run run)))))
+
+(deftest declining-removes-stale-offer-tools-within-the-turn
+  (let [run (start {:mock-policy
+                    (fn [{:keys [world agent-id used] :as ctx}]
+                      (let [id (:agent-id (first-person world))]
+                        (cond
+                          (and (= "employer" agent-id) (= 3 (:round world)))
+                          {:tool :engage :args {:who id :position "housemaid"}}
+                          (and (= id agent-id) (not (some #{"decline-place"} used)))
+                          {:tool :decline-place :args {}}
+                          :else (policy ctx))))} {})]
+    (try
+      (rounds! run 3)
+      (let [world (e/world run) id (:agent-id (first-person world))
+            calls (filterv #(and (= id (:agent %)) (nil? (:conversation %))) (store/read-llm (:dir run)))]
+        (is (= 2 (count calls)))
+        (is (every? (set (:tools (first calls))) ["accept-place" "decline-place"]))
+        (is (not-any? (set (:tools (second calls))) ["accept-place" "decline-place"]))
+        (is (nil? (get-in world [:state :place-offers id])))
+        (is (= :here (:status (first-person world))))
+        (is (not-any? #(#{:action/forfeited :run/pause-requested} (:type %)) (e/events run))))
       (replay! run)
       (finally (e/stop-run run)))))
 

@@ -952,9 +952,21 @@
         (when (and result on-result)
           (emit! run (on-result @(:world run) requester args result)))))))
 
+(defn- composed!
+  "A system's :compose, given the composed-query services: {:result r}, or
+  {:error msg} if it threw (recorded for the operator)."
+  [run system-name compose]
+  (try {:result (compose @(:world run) (query-services run "system"))}
+       (catch Exception e
+         (emit! run [{:type :adjudication/failed :visible-to :system
+                      :data {:task system-name :caller "system" :reason (ex-message e)}}])
+         {:error (ex-message e)})))
+
 (defn- run-systems! [run]
-  (doseq [{:keys [name bridge bridge-args tick]} (:systems (:scenario run))]
-    (let [res (when bridge
+  (doseq [{:keys [name bridge bridge-args compose tick]} (:systems (:scenario run))]
+    (let [res (cond
+                compose (composed! run name compose)
+                bridge
                 (let [bargs (bridge-args @(:world run))
                       r (bridge/call (:scenario run) (:opts run) (bridge-ctx run) bridge bargs)]
                   (emit! run [{:type :bridge/called :visible-to :gm

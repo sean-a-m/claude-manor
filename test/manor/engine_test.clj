@@ -3,6 +3,7 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
+            [manor.adjudication :as adjudication]
             [manor.builtins :as b]
             [manor.clock :as clock]
             [manor.engine :as e]
@@ -540,4 +541,60 @@
       (is (empty? (of-type run :agent/whispered)))
       (is (= 2 (count (filter #(= "lord-claudeworth" (:actor %)) (of-type run :agent/passed)))))
       (is (empty? (of-type run :action/forfeited))))
+    (e/stop-run run)))
+
+;; ---------------------------------------------------------------------------
+;; Systems that compose: round-start I/O through the composed-query services
+
+(defmethod w/apply-event :compose-test/made [world {:keys [data]}]
+  (assoc-in world [:state :made] data))
+
+(defn- composing-prize
+  "The prize scenario with a system that, once, calls a bridge and a model."
+  [bridge-fn]
+  (assoc (e/load-scenario :prize)
+         :bridges {:compose-test/name {:call bridge-fn}}
+         :adjudicators {:compose-test/judge
+                        {:request (fn [_ _ {:keys [name]}]
+                                    {:messages [{:role "user" :content (str "Judge " name)}]
+                                     :tools [{:type "function" :function {:name "answer" :parameters {:type "object"}}}]
+                                     :ctx {:name name}})
+                         :check #(adjudication/answer "answer" % (fn [raw] (:args (a/decode-args {:args [:map [:fine :boolean]]} raw))))
+                         :mock (fn [_] {:tool :answer :args {:fine true}})}}
+         :systems [{:name :compose-test/maker
+                    :compose (fn [world {:keys [bridge adjudicate]}]
+                               (when-not (get-in world [:state :made])
+                                 (let [{:keys [name]} (bridge :compose-test/name {:round (:round world)})]
+                                   {:name name :verdict (adjudicate :compose-test/judge {:name name})})))
+                    :tick (fn [_ {:keys [result error]}]
+                            (cond error [{:type :compose-test/failed :visible-to :gm :data {:error error}}]
+                                  result [{:type :compose-test/made :visible-to :gm :data result}]
+                                  :else []))}]))
+
+(defn- composing-run [bridge-fn]
+  (with-redefs [e/load-scenario (constantly (composing-prize bridge-fn))]
+    (e/start-run :prize {:llm :mock :offline? true :test? true :gm :off :run-id (test-id "compose")})))
+
+(deftest systems-can-compose-calls-out
+  (let [run (rounds! (composing-run (fn [_ _] {:name "Pat"})) 3)
+        world (e/world run)
+        calls (store/read-llm (:dir run))]
+    (testing "compose's bridge and model calls reach tick once, and later rounds call nothing"
+      (is (= {:name "Pat" :verdict {:fine true}} (get-in world [:state :made])))
+      (is (= 1 (count (of-type run :compose-test/made))))
+      (is (= 1 (count (filter #(= "system" (:actor %)) (of-type run :bridge/called)))))
+      (is (= 1 (count (filter #(= "adjudicator/compose-test/judge" (:agent %)) calls)))))
+    (testing "the calls are operator-only, and their usage is recorded"
+      (is (every? #(= :system (:visible-to %)) (filter #(= "system" (:actor %)) (of-type run :bridge/called))))
+      (is (some #(= "adjudicator/compose-test/judge" (:actor %)) (of-type run :llm/usage))))
+    (testing "replay rebuilds the world without composing"
+      (is (= world (w/replay (store/read-events (:dir run))))))
+    (e/stop-run run)))
+
+(deftest a-failing-compose-reaches-tick-as-an-error
+  (let [run (rounds! (composing-run (fn [_ _] (throw (ex-info "no names today" {})))) 1)]
+    (is (nil? (get-in (e/world run) [:state :made])))
+    (is (= ["no names today"] (map (comp :error :data) (of-type run :compose-test/failed))))
+    (is (= [{:task :compose-test/maker :caller "system" :reason "no names today"}]
+           (map :data (of-type run :adjudication/failed))))
     (e/stop-run run)))

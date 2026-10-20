@@ -499,6 +499,22 @@ the world as changed by the previous systems.
 with a sensible fallback (the village uses neutral weather). Bridge calls made by systems are
 recorded as `:bridge/called` events, visible to the GM.
 
+A system needing several dependent calls out, or model calls, gives `:compose` instead of
+`:bridge`:
+
+```clojure
+{:name :deliveries/arrivals
+ :compose (fn [world {:keys [bridge adjudicate]}] result) ; may call out; changes nothing
+ :tick (fn [world compose-response] [events])}           ; pure, as always
+```
+
+`services` are those of a composed query ("Composed queries"): `bridge` and `adjudicate`,
+with the run's budget checked before each call and every call recorded, as agent `"system"`
+(adjudicators use the run's `:model`). `compose-response` is `{:result r}`, or `{:error msg}`
+if compose threw, which also records an operator-only `:adjudication/failed`. Compose runs
+every round, so it should return nil without calling anything when there's nothing to do.
+Everything it produced must reach the world through tick's events: replay never composes.
+
 Travellers still exist while in transit; systems that iterate agents (upkeep, wages) include them
 unless you filter on `(:travel agent)`.
 

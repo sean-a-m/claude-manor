@@ -830,7 +830,12 @@ validation was run; the user will do real runs. No generated cast files were re-
   knows who summoned them. No catalogue position becomes GM-spawnable. Timed appointments
   beyond next-round arrival are not implemented.
 - **Offers:** `engage {who position terms? bedroom?}` is final; any character may offer a
-  present candidate a non-GM position. It replaces an earlier offer. `decline-place {reason?}`
+  present candidate a non-GM position. Normal turns refresh tools from the live world between
+  model steps, so walking to the interview and conversing no longer hides `engage` until the
+  next round. This also exposes `send-for` immediately after a recommendation, and removes
+  acceptance tools after a free decline, without resetting turn budgets. Speaking turns keep
+  their restricted tools; the offer is made after `converse` returns. It replaces an earlier
+  offer. `decline-place {reason?}`
   is free; haggling is ordinary conversation. `accept-place {conditions?}` is final, sets the
   role and post together, records employer/terms/conditions, optionally assigns the named
   bedroom and marks the candidate engaged. Both parties retain the agreement in their

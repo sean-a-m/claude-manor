@@ -153,7 +153,7 @@ Each action is a map. Each role's actions become that role's LLM tools.
  :roles   #{:explorer}               ; or :all (every non-GM role, the default)
  :needs   :shop-clerk                ; optional: a capability the agent's position must give
  :kind    :final                     ; :final (default) | :free | :query | :act (| :converse, built in)
- :available? (fn [world actor] bool) ; optional: leave the tool out of this turn
+ :available? (fn [world actor] bool) ; optional: leave the tool out of this model step
  :valid?  (fn [world actor args] nil-or-reason-string)
  :effect  (fn [world actor args] [events])
  :per-turn  1                        ; optional: at most this many accepted uses per turn
@@ -169,6 +169,16 @@ several positions might do: the shop's `quote-goods` is `:roles :all :needs :sho
 butcher and a shopkeeper can both quote and an earl can't. Code that treats someone as something
 should ask the same way, `(manor.positions/capable? world id :architect)`, never compare roles.
 `:valid?` should still check it, for a call that reaches the action another way.
+
+**Availability within a turn:** normal agent and GM turns start with the snapshot's tools,
+then refresh availability and capabilities from the live world between model steps. A free
+`walk`, a query result or a completed `converse` can therefore add or remove tools for the
+next call. Calls in one response still use the tools that response was offered, with current
+`:valid?` checks before effects. Refreshing never resets query/free limits, the step budget or
+turn completion. Reminders name the refreshed turn-ending tools. Speaking turns keep their
+separate, restricted line tools; `engage` is used after `converse` returns, not inside a line.
+Tool ordering remains stable, with conditional tools last so the unconditional prefix stays
+cacheable; a change in availability still changes the conditional tail.
 
 **Kinds:**
 
@@ -1334,7 +1344,9 @@ Its positions must include `:none`; its meeting place must exist.
   and the summoner. No GM-spawnable positions are added.
 - `engage {who position terms? bedroom?}` is final and replaces any previous offer. Anyone
   may offer a present candidate any non-GM position; no authority, sex or vacancy restriction.
-  `who` is the arrived agent id, not the pool id. `accept-place {conditions?}` is final;
+  `who` is the arrived agent id, not the pool id. Walking to the candidate and interviewing
+  with `converse` makes `engage` available on the next model step of the same turn.
+  `accept-place {conditions?}` is final;
   `decline-place {reason?}` is free. Discuss a new offer to haggle. Acceptance changes role/post,
   marks the pool entry engaged, records employer, terms and conditions, and optionally assigns
   the named bedroom. A bedroom must exist and be a bedroom, but occupancy and the need for a

@@ -578,17 +578,19 @@
 (defn- run-calls
   "The model calls of one turn (or speaking turn), until it's done or
   `max-steps` calls are made. `messages` start the conversation with the
-  model, `actions` are its tools, `remind` (fn [turn-state calls-made]) may
-  add a reminder after a call, `ctx` goes to the LLM with each call and
-  `log` into each llm.edn entry. Returns the turn state."
-  [run agent-id {:keys [model messages actions max-steps call-opts remind ctx log]}]
-  (let [{:keys [opts]} run
-        by-name (a/by-name actions)
-        tools (mapv a/->tool actions)]
-    (loop [messages messages, step 0, st {:finals [] :queries 0 :used [] :nudged false}]
+  model, `actions` are its initial tools. Optional `refresh-actions` (fn [])
+  supplies the next step's actions from the live world. `remind` (fn
+  [turn-state calls-made next-actions]) may add a reminder after a call.
+  `ctx` goes to the LLM with each call and `log` into each llm.edn entry.
+  Returns the turn state."
+  [run agent-id {:keys [model messages actions refresh-actions max-steps call-opts remind ctx log]}]
+  (let [{:keys [opts]} run]
+    (loop [messages messages, actions actions, step 0, st {:finals [] :queries 0 :used [] :nudged false}]
       (if (or (:done? st) (>= step max-steps))
         st
-        (let [request {:model model :messages messages :tools tools
+        (let [by-name (a/by-name actions)
+              tools (mapv a/->tool actions)
+              request {:model model :messages messages :tools tools
                        :max-tokens (:max-tokens opts) :reasoning (:reasoning opts)
                        :tool-choice (:tool-choice opts)}
               response (complete! run
@@ -600,11 +602,14 @@
                        (catch Throwable t
                          (record-call! run agent-id request response [] log)
                          (throw t)))
+              next-actions (if (and refresh-actions (not (:done? st')))
+                             (refresh-actions)
+                             actions)
               replies (cond-> (:replies st')
-                        (not (:done? st')) (add-reminder (remind st' (inc step))))]
+                        (not (:done? st')) (add-reminder (remind st' (inc step) next-actions)))]
           (record-call! run agent-id request response replies log)
           (recur (into (conj-reply messages (:message response)) replies)
-                 (inc step) (dissoc st' :replies)))))))
+                 next-actions (inc step) (dissoc st' :replies)))))))
 
 (defn- turn-actions
   "The actions `agent-id` has on this turn. A conversation isn't offered
@@ -619,7 +624,6 @@
   (let [{:keys [scenario opts]} run
         gm? (= role :gm)
         actions (turn-actions run snapshot agent-id turn)
-        final-names (map (comp name :name) (filter a/ends-turn? actions))
         agent (w/agent snapshot agent-id)
         max-steps (if gm? (+ 2 (:gm-max-actions opts)) (:max-steps opts))]
     (run-calls run agent-id
@@ -628,12 +632,14 @@
                             (prompt/gm-messages scenario snapshot @(:events run) reasons opts)
                             (prompt/agent-messages scenario snapshot @(:events run) agent-id opts))
                 :actions actions
+                :refresh-actions #(turn-actions run @(:world run) agent-id turn)
                 :max-steps max-steps
                 :call-opts {:commit commit :max-finals max-finals :max-queries (:max-queries opts)}
                 ;; the GM's turn has no forfeit, so only participants are reminded
-                :remind (fn [st calls-made]
+                :remind (fn [st calls-made next-actions]
                           (when (and (not gm?) (empty? (:finals st)))
-                            (turn-reminder calls-made max-steps final-names)))
+                            (turn-reminder calls-made max-steps
+                                           (map (comp name :name) (filter a/ends-turn? next-actions)))))
                 :ctx {:role role :reasons reasons}})))
 
 (defn- extra-speaking-actions
@@ -652,7 +658,7 @@
 
 (defn- speaking-reminder
   "The reminder before a speaking turn's last call."
-  [actions max-steps st calls-made]
+  [max-steps st calls-made actions]
   (when (and (empty? (:finals st)) (= calls-made (dec max-steps)))
     (str "This is your last call for this line. Answer now with "
          (or-list (map (comp name :name) (filter a/ends-turn? actions))) ".")))
@@ -685,7 +691,7 @@
                                        :max-finals 1 :max-queries (if query? 1 0) :keep-occupation? true
                                        ;; models often write the line as plain text, not as a reply
                                        :text-as "reply"}
-                           :remind (partial speaking-reminder actions max-steps)
+                           :remind (partial speaking-reminder max-steps)
                            :ctx {:role (:role (w/agent world speaker))
                                  :conversation (assoc (select-keys conv [:id :initiator :members])
                                                       :pass (:pass turn) :final? (boolean (:final? turn)))}

@@ -99,7 +99,7 @@
 
 (defn available
   "Actions whose :available? check passes for `actor` right now. Unavailable
-  actions are left out of the agent's tools for this turn. Actions with an
+  actions are left out of the agent's tools for this model step. Actions with an
   :available? check come after those without, so a tool that comes and goes
   changes only the end of the tool list: what's before it stays the same, and
   the provider's prompt cache can reuse it."

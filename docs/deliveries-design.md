@@ -1,6 +1,7 @@
 # Deliveries: design and implementation plan
 
-**Status:** designed; the user's decisions of 2026-10-19 are below. Not started. Phase 3
+**Status:** phases 1 and 2 done (branch `deliveries`), with the mock day's delivery from phase 4
+brought forward. Phase 3
 (couriers) waits for the `character-generation` branch to be merged: see "Couriers and the
 people server".
 

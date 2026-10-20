@@ -267,7 +267,7 @@ whole, and creates for each quote one portable item, a parcel of the whole quant
 bought ("20 × 1 lb"), where work can later say what's left, and `:state`, the appraiser's
 `condition` ("fresh, dry"). It is `:consumable?` when the appraiser says the goods are used up in
 use (food, fuel, soap; not tools or crockery). The appraiser's `unit` (at most 30 characters) is
-short so the amount fits an aspect; its `condition` is at most 80. No fixed inventory, bulk counters, delivery or bargaining. Amounts are integer
+short so the amount fits an aspect; its `condition` is at most 80. No fixed inventory, bulk counters or bargaining; delivery is below. Amounts are integer
 old pence; world-file starting funds and architect bridge prices remain authored in pounds.
 All Claudeworth characters can buy and commission from the shared household account and
 see its balance. There is no spender-role allowlist: authority to spend is a social decision
@@ -275,6 +275,23 @@ for the agents, not an engine permission. Buyer-bound quotes, affordability, pla
 co-location and opening-hours checks still apply. The GM is not a character and does not
 receive these actions.
 Old Claudeworth runs are intentionally unsupported after this contract change.
+
+**Deliveries** (`manor.scenarios.deliveries`, design in `docs/deliveries-design.md`). A shop
+sends goods out when its location has a `:delivery-profile`: at most 400 characters, describing
+its delivery scope in general terms, never a list of goods (so it doesn't suggest purchases).
+A `quote-goods` line may set `deliver true`; at a shop without a profile such a call is refused
+before any model call. The appraiser sees the delivery profile and which lines are for delivery,
+judges those against it (larger quantities and goods too big to carry are fine when it covers
+them) and gives each available one `lead-hours` (1–120); a delivery line without it gets the
+usual correction. The quote records `:deliver {:lead-hours :to}`, where `:to` is the delivery
+place, hiring's `:meeting-place`. `buy` takes counter and delivery quotes together: a delivery
+quote emits `:deliveries/ordered`, which pays at once and keeps the order under
+`[:state :orders]`, due at `deliveries/due-round` (at least next round, moved to the shop's next
+opening time when it falls outside its `:hours`). The buyer and the clerk see it under `orders`
+in their view. The `deliveries/arrivals` system, at round start, adds each due order's parcel
+at the delivery place (owner household, `:amount` and `:state` aspects, `:consumable?`, and
+`:order-id`) and emits `:deliveries/arrived`, heard by everyone within walking distance of that
+place. Couriers are a later phase.
 
 #### Composed queries
 
@@ -674,6 +691,9 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
   the judge or steward put the thing back; the exported map retains it. **Absorbable** means
   not fixed, not a store, and either `:consumable?` or `:drawn-from` (`items/absorbable?`).
   A watch or the family's silver cannot be absorbed or used up.
+- **`:order-id`** marks goods delivered for an order (`manor.scenarios.deliveries`). The nightly
+  steward never draws them as candidates, wherever they've been taken; work can still use
+  them up. The exported map retains it.
 - **Starting items** come from `:init` (`:items`, a vector, holders and owners as ids), or from a
   world file's `:items` (see World files). The engine checks them and adds each with an
   `:item/added` event, visible to the GM, after the agents are spawned.
@@ -1081,7 +1101,7 @@ day's already-past 02:00 and runs at the next 02:00; starting exactly at 02:00 r
 `:items/steward-ran {:day "1904-10-16"}` records the day under `:items-steward-day` in the
 world, even with no candidates; replay reproduces the once-per-day decision.
 
-Code selects absorbable items not carried or inside closed containers, untouched for at least
+Code selects absorbable items not carried or inside closed containers, without an `:order-id`, untouched for at least
 `idle-hours` of game time. Starting items age from the clock start. Candidates are grouped by
 place (place-id order), oldest `:touched` first, id breaking ties, at most `max-per-call` per
 place; excess waits for another night. Places with no candidates cost nothing.

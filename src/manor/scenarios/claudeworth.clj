@@ -29,6 +29,7 @@
             [manor.narrate :as narrate]
             [manor.positions :as positions]
             [manor.scenarios.building :as building]
+            [manor.scenarios.deliveries :as deliveries]
             [manor.scenarios.shop :as shop]
             [manor.space :as space]
             [manor.world :as w]
@@ -362,7 +363,7 @@
          "If you are waiting on someone or nothing needs doing, `pass` is the way to wait a turn; you act again next turn. "
          "Opening hours are shown in your view where a place has them. "
          (if architect? "Purchases and commissions" "Purchases")
-         " are paid from the household account (`household` in your view). There is no engine-enforced spending restriction by role: whether you should spend depends on your station, instructions and relationships. At an open shop, ask the shopkeeper with `say` for portable goods and quantities; there is no fixed catalogue. The shopkeeper checks availability and quotes firm prices, a whole shopping list in one `quote-goods`. Accept offers made for you with `buy {quote-ids}`, from `offers` in your view: one `buy` can take the whole list. Payment is separate from asking; no bargaining, bulk counters or delivery. Prices are old sterling: £1 = 20 shillings = 240 pence (12d = 1s). "
+         " are paid from the household account (`household` in your view). There is no engine-enforced spending restriction by role: whether you should spend depends on your station, instructions and relationships. At an open shop, ask the shopkeeper with `converse` for portable goods and quantities; there is no fixed catalogue. The shopkeeper checks availability and quotes firm prices, a whole shopping list in one `quote-goods`. Accept offers made for you with `buy {quote-ids}`, from `offers` in your view: one `buy` can take the whole list. Payment is separate from asking; no bargaining or bulk counters. A shop that sends goods out can quote a line for delivery, for goods too large or too many to carry away: it's paid for when you buy, and left at the delivery place when due (`orders` in your view). Prices are old sterling: £1 = 20 shillings = 240 pence (12d = 1s). "
          (when architect?
            (str "Building is arranged at the architect's office while it is open, not at the house: talk at home is for deciding what you want. "
                 "At the office you can search reference books (`consult-references`), ask for the `price-list` and have plans drawn (`draw-plans`); any character can `commission` a plan they hold, but should judge whether they have the social authority to do so. `show-plans` shares plans with everyone present, anywhere. "
@@ -491,7 +492,8 @@
   ones first). Turns not listed pass. Breakfast (where the countess draws the
   earl into a conversation, see `mock-conversation`), the earl's visit to Mr Pugh,
   the countess moving the candlesticks, visiting the abbey and buying a
-  duster to give the housemaid, Mr Hale's errands and secretarial work,
+  duster to give the housemaid, Mr Hale's errands (silver polish, and a sack
+  of flour sent up, which Nellie puts away) and secretarial work,
   Nellie the housemaid's round of the house (unless :housemaid? is false),
   Mr Pugh's drawing board, bed, and Mr Hale rousing the earl at 06:30."
   {"lord-claudeworth"
@@ -540,8 +542,9 @@
     "08:30" [[:spend-time {:doing "breakfasting" :hours 1}]]
     "09:30" [[:walk {:to "study"}] [:spend-time {:doing "writing letters" :hours 2}]]
     "11:30" [[:travel {:to "general-store"}]]
-    "12:00" [[:request-goods {:item "tin of silver polish" :qty 1}]]
-    "12:30" [[:accept-offer {:item "tin of silver polish"}]]
+    "12:00" [[:request-goods {:goods [{:item "tin of silver polish" :qty 1}
+                                      {:item "sack of flour" :qty 1 :deliver true}]}]]
+    "12:30" [[:accept-offer {:items ["tin of silver polish" "sack of flour"]}]]
     "13:00" [[:travel {:to "carriage-sweep"}]]
     "13:30" [[:walk {:to "dining-room"}] [:spend-time {:doing "lunching" :hours 0.5}]]
     "14:00" [[:walk {:to "study"}] [:spend-time {:doing "filing correspondence" :hours 4}]]
@@ -562,7 +565,9 @@
              [:spend-time {:on ["kitchen-range" "housemaids-cupboard"] :doing "blacking the kitchen range" :hours 2}]]
     "13:30" [[:walk {:to "entrance-hall"}]
              [:spend-time {:on ["entrance-hall" "stags-head"] :doing "dusting the hall and the stag's head" :hours 1}]]
-    "14:30" [[:walk {:to "drawing-room"}]]
+    "14:30" [[:walk {:to "carriage-sweep"}] [:take {:item "sack-of-flour"}] [:walk {:to "kitchen"}]
+             [:walk {:to "pantry"}] [:put-in {:item "sack-of-flour" :container "pantry-shelves"}]
+             [:walk {:to "drawing-room"}]]
     "18:00" [[:spend-time {:on ["china-cabinet"] :doing "dusting the china cabinet and the glass with her new duster" :hours 1}]]
     "21:30" [[:walk {:to "maids-room"}] [:sleep {:until "06:30"}]]}
 
@@ -678,7 +683,7 @@
    :bridges (merge building/bridges hiring/bridges)
    :offline-stubs (merge building/offline-stubs hiring/offline-stubs)
    :mcp-servers (merge building/mcp-servers people/mcp-servers)
-   :systems [building/construction]
+   :systems [building/construction deliveries/arrivals]
    :items {:steward {:at "02:00" :idle-hours 4 :max-per-call 8}
            :find-allowed? (fn [world _ place]
                             (when (seq (:services (space/location world place)))

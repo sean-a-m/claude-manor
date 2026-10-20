@@ -359,6 +359,35 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   dropping or replacing the basic data.
   Real simulation acceptance runs remain with the user; outdoor housing and dismissal are deferred.
 
+### B12. Person aspects
+
+- **Why:** characters' state never changes. A judge's summary said Lady Claudeworth was "evening
+  gown on, hair done", but only the room's aspects could be recorded
+  (`old-test-runs/claudeworth-stores-phase6`), and a cook sweeping the flue stays clean.
+- **Design:** [person-aspects-design.md](person-aspects-design.md), with the user's decisions of
+  2026-10-20. People get open, keyed aspects that everyone present sees; `spend-time` changes
+  the worker and the people named in `on` who are there at the end; the nightly steward removes
+  sleepers' aspects that wouldn't last the night. Three phases, tested with a fixture world.
+  **Not started.**
+- Follow-ups, from the same decisions:
+  - **Private states** (the user may take this up next): inner conditions only the person
+    sees, such as hunger, tiredness, moods and physical feelings. They need a visibility rule
+    of their own, and an answer to who changes them (the judge after work, sleep and meals, or
+    the person themselves).
+  - **Fixed keys alongside open ones:** some keys always present for everyone (`:dress`, say),
+    with the rest open as now. It would give the views a stable order and let the steward or
+    code treat known keys predictably.
+  - **Appearance worded as habit:** the people writer (`manor.people` polish and appearance)
+    may need to write changeable things as what's usual ("usually in a print frock and
+    apron"), so the fixed baseline doesn't contradict aspects. Check what it writes for
+    clothing first.
+  - **Bystanders:** whether the judge may change people present who weren't named (soot over
+    everyone in the kitchen while the flue is swept), and how to keep that from becoming a
+    licence to change everyone in the room.
+  - **Quick changes:** a free or short way to change your own state ("taking off my apron")
+    instead of half an hour of `spend-time`, perhaps like quick put-away jobs. Deferred as too
+    complex for the first build.
+
 ---
 
 ## C. Known issues and small fixes

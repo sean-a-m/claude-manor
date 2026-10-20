@@ -368,7 +368,13 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   2026-10-20. People get open, keyed aspects that everyone present sees; `spend-time` changes
   the worker and the people named in `on` who are there at the end; the nightly steward removes
   sleepers' aspects that wouldn't last the night. Three phases, tested with a fixture world.
-  **Not started.**
+  **Done (all three phases), mock-tested only:** the fixture is `test/fixtures/dressing.edn`
+  with `test/manor/scenarios/dressing.clj` and `test/manor/person_aspects_test.clj`. The design's
+  defaults were taken as written (the name aspects, the cap of 4, only the judge, steward, views
+  and GM see them, people made during a run start with none). Every activity with time worked is
+  now judged, even at an empty place, because the worker can change. Not yet seen: how a real
+  judge and steward handle people (a short real run of the fixture or Claudeworth, with the
+  user's go-ahead).
 - Follow-ups, from the same decisions:
   - **Private states** (the user may take this up next): inner conditions only the person
     sees, such as hunger, tiredness, moods and physical feelings. They need a visibility rule

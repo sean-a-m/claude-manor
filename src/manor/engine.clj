@@ -55,7 +55,7 @@
    :max-steps 10                    ; model calls per agent turn (a cost guard, not game time)
    :max-queries 2                   ; bridge/adjudication queries per agent turn
    :gm-max-actions 4
-   :event-window 30                 ; recent events shown to each agent
+   :event-window 80                 ; recent events shown to each agent
    :gm-check-in-every 0             ; 0 = only when triggered
    :max-cost 5.0                    ; USD; pauses the run when reached
    :max-rounds nil

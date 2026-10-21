@@ -1,5 +1,5 @@
 (ns manor.scenarios.dressing
-  "Test scenario for person aspects (manor.items): a lady, her maid and a
+  "Test scenario for person aspects (manor.mechanics.items): a lady, her maid and a
   cook in a small house loaded from test/fixtures/dressing.edn, starting at
   18:00, with the hamlet's sleep, rouse and check-time. Its mock judge
   changes people: work on others dresses their hair, and work on nothing
@@ -9,10 +9,12 @@
   goes to bed.
 
     clojure -M:dev:run dressing --mock --test --port 8091"
-  (:require [manor.items :as items]
+  (:require [manor.io.worldfile :as worldfile]
+            [manor.mechanics.items.judge :as item-judge]
+            [manor.mechanics.items.steward :as item-steward]
+            [manor.mechanics.items.work :as item-work]
             [manor.scenarios.hamlet :as hamlet]
-            [manor.world :as w]
-            [manor.worldfile :as worldfile]))
+            [manor.world :as w]))
 
 (def world-file "test/fixtures/dressing.edn")
 
@@ -41,18 +43,18 @@
   [{:keys [world job] :as ctx}]
   (let [{:keys [actor doing]} job
         named (remove #{actor} (:people job))
-        here (filter (set named) (items/judged-people world job))
+        here (filter (set named) (item-work/judged-people world job))
         people (if (seq named)
                  (for [id here] {:thing id :aspect "hair" :value (str "dressed by " (:name (w/agent world actor)))})
                  [{:thing actor :aspect "dress" :value (cap (str "changed: " doing))}])]
-    (update-in (items/mock-judge ctx) [:args :changes]
+    (update-in (item-judge/mock-judge ctx) [:args :changes]
                #(into (vec (remove (fn [c] (w/agent world (:thing c))) %)) people))))
 
 (defn mock-steward
   "items/mock-steward for things; each sleeper's hair is let down, and
   their other aspects stay."
   [{:keys [sleepers] :as ctx}]
-  (update-in (items/mock-steward ctx) [:args :changes] (fnil into [])
+  (update-in (item-steward/mock-steward ctx) [:args :changes] (fnil into [])
              (for [{:keys [id aspects]} sleepers :when (:hair aspects)]
                {:thing id :aspect "hair" :value ""})))
 

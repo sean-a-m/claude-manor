@@ -6,8 +6,8 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
             [manor.engine :as e]
-            [manor.prompt :as prompt]
-            [manor.store :as store]))
+            [manor.io.store :as store]
+            [manor.prompt :as prompt]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
 

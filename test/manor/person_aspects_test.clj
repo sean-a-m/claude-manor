@@ -1,5 +1,5 @@
 (ns manor.person-aspects-test
-  "Person aspects (manor.items) in the dressing fixture world: checks, views,
+  "Person aspects (manor.mechanics.items) in the dressing fixture world: checks, views,
   judged work on oneself and on others, job scope, the nightly steward and
   replay. Nothing here depends on Claudeworth's content."
   (:require [clojure.java.io :as io]
@@ -8,14 +8,18 @@
             [jsonista.core :as json]
             [manor.actions]
             [manor.engine :as e]
-            [manor.items :as items]
-            [manor.llm :as llm]
+            [manor.io.llm :as llm]
+            [manor.io.store :as store]
+            [manor.io.worldfile :as wf]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.items.judge :as item-judge]
+            [manor.mechanics.items.steward :as item-steward]
+            [manor.mechanics.items.views :as item-views]
+            [manor.mechanics.items.work :as item-work]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.scenarios.dressing :as dressing]
-            [manor.store :as store]
-            [manor.world :as w]
-            [manor.worldfile :as wf]))
+            [manor.world :as w]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
 
@@ -88,7 +92,7 @@
                   :aspects {:apron "spattered with grease"}}
                  (update (person-here (view run "dawson") "mrs-pell") :role name)))
           (is (= {:apron "spattered with grease"}
-                 (:aspects (first (:people (items/look (e/world run) "dawson")))))))
+                 (:aspects (first (:people (item-views/look (e/world run) "dawson")))))))
         (testing "the GM sees them"
           (is (= {:apron "spattered with grease"}
                  (:aspects (first (filter #(= "mrs-pell" (:id %)) (:agents (prompt/default-gm-view world)))))))))
@@ -119,7 +123,7 @@
         (is (= #{"lady-ashby" "dawson"} (:visible-to done))))
       (testing "Dawson, in the room, sees it; the transcript shows it"
         (is (= {:dress "changed: changing for dinner"} (:aspects (person-here (view run "dawson") "lady-ashby"))))
-        (is (str/includes? (manor.transcript/render (:dir run)) "(Lady Ashby: changed: changing for dinner)")))
+        (is (str/includes? (manor.tools.transcript/render (:dir run)) "(Lady Ashby: changed: changing for dinner)")))
       (testing "the exported map keeps the live aspects, and loads again"
         (let [map-file (io/file (:dir run) "map.edn")
               agents (:agents (wf/load-world (str map-file)))]
@@ -135,12 +139,12 @@
       (e/emit! run [{:type :item/work-begun :visible-to :gm
                      :data {:id "job-x" :actor "mrs-pell" :items [] :doing "changing her apron" :place "kitchen" :started 0 :due 1}}])
       (let [world (e/world run)
-            things (items/judged-things world (items/job world "job-x"))
-            verdict (:verdict (items/judgement {:tool-calls [{:id "j" :name "judge"
-                                                              :arguments "{\"changes\":[{\"thing\":\"mrs-pell\",\"aspect\":\"apron\",\"value\":\"\"}],\"summary\":\"x\"}"}]}
-                                               world things))]
+            things (item-work/judged-things world (items/job world "job-x"))
+            verdict (:verdict (item-judge/judgement {:tool-calls [{:id "j" :name "judge"
+                                                                   :arguments "{\"changes\":[{\"thing\":\"mrs-pell\",\"aspect\":\"apron\",\"value\":\"\"}],\"summary\":\"x\"}"}]}
+                                                    world things))]
         (is (= [{:person "mrs-pell" :aspect :apron :from "spattered with grease" :to nil}] (:changes verdict)))
-        (e/emit! run [(items/work-done world (items/job world "job-x") {:minutes 30} verdict)])
+        (e/emit! run [(item-work/work-done world (items/job world "job-x") {:minutes 30} verdict)])
         (is (not (contains? (w/agent (e/world run) "mrs-pell") :aspects)) "no aspects left, no :aspects")
         (is (= "Mrs Pell finishes changing her apron. x (Mrs Pell: no longer spattered with grease)."
                (n/describe (last (of-type run :item/work-done)) (n/names (e/world run)))))
@@ -173,8 +177,8 @@
           (is (= ["lady-ashby"] (get-in begun [:data :people])))
           (is (= "Dawson starts doing her hair (job-x, on dressing-table, lady-ashby, until 18:30)."
                  (n/describe (assoc-in begun [:data :id] "job-x") (n/names world))))
-          (is (contains? (items/job-scope world (:data begun)) [:person "lady-ashby"]))
-          (is (contains? (items/job-scope world (:data begun)) [:person "dawson"]))))
+          (is (contains? (item-work/job-scope world (:data begun)) [:person "lady-ashby"]))
+          (is (contains? (item-work/job-scope world (:data begun)) [:person "dawson"]))))
       (finally (e/stop-run run)))))
 
 (def ^:private hair [(spend ["lady-ashby"] "dressing her ladyship's hair" 1.0)])
@@ -226,9 +230,9 @@
                      :data {:id "job-x" :actor "dawson" :items ["dressing-table"] :people ["lady-ashby"]
                             :doing "doing her hair" :place "bedroom" :started 0 :due 1}}])
       (let [world (e/world run)
-            things (items/judged-things world (items/job world "job-x"))
-            judge #(items/judgement {:tool-calls [{:id "j" :name "judge" :arguments (json/write-value-as-string (assoc % :summary "x"))}]}
-                                    world things)]
+            things (item-work/judged-things world (items/job world "job-x"))
+            judge #(item-judge/judgement {:tool-calls [{:id "j" :name "judge" :arguments (json/write-value-as-string (assoc % :summary "x"))}]}
+                                         world things)]
         (is (= ["bedroom" "dressing-table" "dawson" "lady-ashby"] (map :id things)) "people last, by id")
         (is (str/starts-with? (:error (judge {:used-up ["lady-ashby"]})) "you may use up only consumable items among these"))
         (is (str/starts-with? (:error (judge {:absorbed [{:thing "dawson" :into "dressing-table"}]})) "absorb only unfixed"))
@@ -288,19 +292,19 @@
     (try
       (rounds! run 1)
       (let [world (e/world run)
-            sleepers (items/steward-sleepers world)]
+            sleepers (item-steward/steward-sleepers world)]
         (testing "only people asleep with aspects; Mrs Pell is awake"
           (is (= {"bedroom" ["lady-ashby"]} (update-vals sleepers #(mapv :id %)))))
         (testing "the request shows the sleepers, as they look"
-          (let [request (items/steward-request world "bedroom" [] (get sleepers "bedroom"))
+          (let [request (item-steward/steward-request world "bedroom" [] (get sleepers "bedroom"))
                 content (get-in request [:messages 1 :content])]
             (is (str/includes? content "\"sleepers\""))
             (is (str/includes? content "dressed high, with combs"))
             (is (str/includes? content "usually in a grey day dress"))
             (is (not (str/includes? content "grease")))
-            (is (str/includes? items/steward-instructions "Never set or change a sleeper's aspect"))))
+            (is (str/includes? item-steward/steward-instructions "Never set or change a sleeper's aspect"))))
         (testing "a sleeper's aspects may only be removed"
-          (let [check #(items/stewardship (say %) world "bedroom" [] (get sleepers "bedroom"))]
+          (let [check #(item-steward/stewardship (say %) world "bedroom" [] (get sleepers "bedroom"))]
             (is (= [{:person "lady-ashby" :aspect :hair :from "dressed high, with combs" :to nil}]
                    (:changes (:verdict (check {:changes [{:thing "lady-ashby" :aspect "hair" :value ""}]})))))
             (is (= "a sleeper's aspects can only be removed, with the value \"\"; not lady-ashby hair \"let down\""

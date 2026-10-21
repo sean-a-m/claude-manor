@@ -1,16 +1,19 @@
 (ns manor.steward-test
   "The nightly steward: selection, narrow requests, checked effects and replay."
-  (:require [clojure.string :as str]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [jsonista.core :as json]
             [manor.engine :as e]
-            [manor.items :as items]
-            [manor.llm :as llm]
+            [manor.engine.work :as work]
+            [manor.io.llm :as llm]
+            [manor.io.store :as store]
+            [manor.io.worldfile :as wf]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.items.steward :as item-steward]
+            [manor.mechanics.items.work :as item-work]
             [manor.narrate :as n]
-            [manor.store :as store]
-            [manor.world :as w]
-            [manor.worldfile :as wf]))
+            [manor.world :as w]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
 
@@ -30,7 +33,7 @@
 
 (defn- start [& [opts]]
   (e/start-run :hamlet (merge {:llm :mock :test? true :start "1904-10-15T20:00"
-                                :run-id (str (gensym "steward-"))} opts)))
+                               :run-id (str (gensym "steward-"))} opts)))
 
 (defn- at-round! [run round]
   (e/emit! run [{:type :round/started :data {:round round} :visible-to :all}]))
@@ -45,22 +48,22 @@
       (at-round! run 13) ; exactly six hours later, 02:00
       (e/emit! run (items/init-events [{:id "fresh" :name "Fresh bun" :desc "A bun." :place "hall" :consumable? true}]))
       (let [world (e/world run)
-            selected (items/steward-candidates world config)]
+            selected (item-steward/steward-candidates world config)]
         (is (= {"bedroom" ["bedroom-food"] "hall" ["loaf-sugar" "tin" "visible"]}
                (update-vals selected #(mapv :id %))))
-        (is (= ["loaf-sugar"] (map :id (get (items/steward-candidates world (assoc config :max-per-call 1)) "hall"))))
-        (is (= "1904-10-16" (items/steward-day world config)))
-        (is (nil? (items/steward-day (assoc world :round 1) config)) "skip the first day's already-past 02:00")
-        (is (nil? (items/steward-day world nil)))
-        (is (= "1904-10-16" (items/steward-day (assoc world :round 14) config)) "first round after at is also due")
-        (is (= "1904-10-16" (items/steward-day (assoc world :round 1 :clock {:start "1904-10-16T02:00" :minutes-per-round 30}) config)))
-        (is (nil? (items/steward-day (w/apply-event world {:type :items/steward-ran :data {:day "1904-10-16"}}) config))))
+        (is (= ["loaf-sugar"] (map :id (get (item-steward/steward-candidates world (assoc config :max-per-call 1)) "hall"))))
+        (is (= "1904-10-16" (item-steward/steward-day world config)))
+        (is (nil? (item-steward/steward-day (assoc world :round 1) config)) "skip the first day's already-past 02:00")
+        (is (nil? (item-steward/steward-day world nil)))
+        (is (= "1904-10-16" (item-steward/steward-day (assoc world :round 14) config)) "first round after at is also due")
+        (is (= "1904-10-16" (item-steward/steward-day (assoc world :round 1 :clock {:start "1904-10-16T02:00" :minutes-per-round 30}) config)))
+        (is (nil? (item-steward/steward-day (w/apply-event world {:type :items/steward-ran :data {:day "1904-10-16"}}) config))))
       (testing "taking, putting down, or finishing work protects handled things"
         (e/emit! run [{:type :item/taken :actor "ben" :data {:item "tin"}}])
         (e/emit! run [{:type :item/put-down :actor "ben" :data {:item "tin" :place "hall"}}])
         (e/emit! run [{:type :item/work-begun :data {:id "job-test" :actor "ben" :place "hall" :items ["loaf-sugar"]}}])
-        (e/emit! run [(items/work-done (e/world run) (items/job (e/world run) "job-test") {:minutes 30} nil)])
-        (is (= ["visible"] (map :id (get (items/steward-candidates (e/world run) config) "hall"))))
+        (e/emit! run [(item-work/work-done (e/world run) (items/job (e/world run) "job-test") {:minutes 30} nil)])
+        (is (= ["visible"] (map :id (get (item-steward/steward-candidates (e/world run) config) "hall"))))
         (is (= 13 (:touched (items/item (e/world run) "loaf-sugar")))))
       (is (= (e/world run) (w/replay (e/events run))))
       (finally (e/stop-run run)))))
@@ -71,20 +74,20 @@
       (e/emit! run (items/init-events supplies))
       (at-round! run 13)
       (let [world (e/world run)
-            candidates (get (items/steward-candidates world config) "hall")
-            check #(items/stewardship (say (assoc % :summary "Tidied.")) world "hall" candidates)]
+            candidates (get (item-steward/steward-candidates world config) "hall")
+            check #(item-steward/stewardship (say (assoc % :summary "Tidied.")) world "hall" candidates)]
         (testing "each candidate may be absorbed, used up, changed, or left; no other things may change"
           (doseq [args [{:absorbed [{:thing "clock" :into "pantry"}]}
-                       {:absorbed [{:thing "tin" :into "closed"}]}
-                       {:used-up ["hidden"]}
-                       {:changes [{:thing "pantry" :aspect "stock" :value "full"}]}
-                       {:changes [{:thing "hall" :aspect "cleanliness" :value "clean"}]}]]
+                        {:absorbed [{:thing "tin" :into "closed"}]}
+                        {:used-up ["hidden"]}
+                        {:changes [{:thing "pantry" :aspect "stock" :value "full"}]}
+                        {:changes [{:thing "hall" :aspect "cleanliness" :value "clean"}]}]]
             (is (:error (check args))))
           (let [verdict (:verdict (check {:used-up ["tin"] :fates {"tin" "worn out and discarded"}
-                                        :absorbed [{:thing "loaf-sugar" :into "pantry"}]
-                                        :changes [{:thing "visible" :aspect "state" :value "stale"}]
-                                        :made [{:name "Impossible invention"}]}))
-                event (items/stewarded world "hall" verdict)
+                                          :absorbed [{:thing "loaf-sugar" :into "pantry"}]
+                                          :changes [{:thing "visible" :aspect "state" :value "stale"}]
+                                          :made [{:name "Impossible invention"}]}))
+                event (item-steward/stewarded world "hall" verdict)
                 after (w/apply-event world event)]
             (is (= :gm (:visible-to event)))
             (is (not (contains? (:data event) :made)))
@@ -93,12 +96,12 @@
             (is (= "stale" (get-in (items/item after "visible") [:aspects :state])))
             (is (some? (items/item after "hidden")))))
         (testing "mock absorbs into the first store, otherwise leaves candidates alone"
-          (let [mock (items/mock-steward {:world world :place "hall" :candidates candidates})]
+          (let [mock (item-steward/mock-steward {:world world :place "hall" :candidates candidates})]
             (is (= (map :id candidates) (map :thing (get-in mock [:args :absorbed]))))
             (is (nil? (:error (check (:args mock))))))
-          (is (empty? (get-in (items/mock-steward {:world world :place "bedroom" :candidates [(items/item world "bedroom-food")]}) [:args :absorbed]))))
+          (is (empty? (get-in (item-steward/mock-steward {:world world :place "bedroom" :candidates [(items/item world "bedroom-food")]}) [:args :absorbed]))))
         (testing "request contains only the candidates and local stores; no hidden ids or private context"
-          (let [request (items/steward-request world "hall" candidates)
+          (let [request (item-steward/steward-request world "hall" candidates)
                 user (get-in request [:messages 1 :content])
                 tool (get-in request [:tools 0 :function :parameters :properties])]
             (is (not (contains? tool :made)))
@@ -113,13 +116,13 @@
       (e/emit! run (items/init-events supplies))
       (let [run (assoc-in run [:scenario :items :steward] config)]
         (at-round! run 1)
-        (#'e/run-steward! run)
+        (work/run-steward! run)
         (is (not-any? #(= :items/steward-ran (:type %)) (e/events run)))
         (at-round! run 13)
-        (#'e/run-steward! run)
-        (#'e/run-steward! run)
+        (work/run-steward! run)
+        (work/run-steward! run)
         (at-round! run 14)
-        (#'e/run-steward! run)
+        (work/run-steward! run)
         (let [world (e/world run)
               markers (filter #(= :items/steward-ran (:type %)) (e/events run))
               events (filter #(= :items/stewarded (:type %)) (e/events run))
@@ -132,22 +135,21 @@
           (is (some? (items/item world "bedroom-food")))
           (is (= world (w/replay (store/read-events (:dir run))))))
         (at-round! run 61) ; next 02:00
-        (#'e/run-steward! run)
+        (work/run-steward! run)
         (is (= 2 (count (filter #(= :items/steward-ran (:type %)) (e/events run))))))
       (finally (e/stop-run run)))))
-
 
 (deftest steward-container-safety
   (let [run (start)]
     (try
       (e/emit! run (items/init-events (into supplies
-                                          [{:id "bag" :name "Bag" :desc "A bag." :place "hall" :consumable? true :container :closed}
-                                           {:id "bag-bun" :name "Secret bun" :desc "A bun." :in "bag" :consumable? true}])))
+                                            [{:id "bag" :name "Bag" :desc "A bag." :place "hall" :consumable? true :container :closed}
+                                             {:id "bag-bun" :name "Secret bun" :desc "A bun." :in "bag" :consumable? true}])))
       (at-round! run 13)
       (let [world (e/world run)
-            candidates (get (items/steward-candidates world config) "hall")
-            mock (items/mock-steward {:world world :place "hall" :candidates candidates})
-            check #(items/stewardship (say (assoc % :summary "Tidied.")) world "hall" candidates)]
+            candidates (get (item-steward/steward-candidates world config) "hall")
+            mock (item-steward/mock-steward {:world world :place "hall" :candidates candidates})
+            check #(item-steward/stewardship (say (assoc % :summary "Tidied.")) world "hall" candidates)]
         (is (some #(= "bag" (:id %)) candidates))
         (is (not-any? #(= "bag-bun" (:id %)) candidates))
         (is (not-any? #(= "bag" (:thing %)) (get-in mock [:args :absorbed])))
@@ -162,16 +164,16 @@
                          (if (= 1 (swap! attempts inc))
                            {:tool :steward :args {:used-up ["hidden"] :summary "Invalid."}}
                            {:tool :steward :args {:used-up ["loaf-sugar"] :fates {"loaf-sugar" "eaten by the staff"}
-                                                 :summary "The sugar was eaten."}})))
+                                                  :summary "The sugar was eaten."}})))
         run (start {:llm-impl (reify llm/LLM
                                 (complete [_ request]
                                   (assoc-in (llm/complete mock request) [:usage :cost] 0.01)))})]
     (try
       (e/emit! run (items/init-events (remove #(= "bedroom-food" (:id %)) supplies)))
       (is (= "pantry" (:drawn-from (first (filter #(= "tin" (:id %))
-                                                               (:items (wf/read-file (str (io/file (:dir run) "map.edn")))))))))
+                                                  (:items (wf/read-file (str (io/file (:dir run) "map.edn")))))))))
       (at-round! run 13)
-      (#'e/run-steward! (assoc-in run [:scenario :items :steward] config))
+      (work/run-steward! (assoc-in run [:scenario :items :steward] config))
       (is (= 2 @attempts))
       (is (= 0.02 (w/total-cost (e/world run))))
       (is (= "eaten by the staff" (get-in (e/world run) [:items-gone "loaf-sugar" :fate])))

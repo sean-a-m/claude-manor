@@ -19,8 +19,8 @@ happens. Narrative is a view of that state, never a source of truth.
 | Space | Optional engine-level locations graph: locations plus directed routes with a travel time in rounds, which can be opened and closed. Agents have a position; `move` along a route is immediate for travel 1, otherwise the agent is in transit (skips turns) until arrival. `say`, `whisper`, movement and scenario events use `space/here` so only people present hear them. Every agent's view gets a `:location` section (here, exits, people here). |
 | Time | Optional clock from the scenario (`{:start .. :minutes-per-round ..}`), stored in the world. Prompts then show times ("Saturday 15 October 1904, 09:30") instead of round numbers. |
 | Occupation | An agent can be busy until a round (asleep, reading). Like a traveller, they skip turns at no model cost and are freed at the start of that round; people present see what they are doing. A `rouse` in the same room marks the occupation interrupted, and the agent takes a turn next round: `carry-on` keeps the occupation and its deadline, any other accepted action frees them first. A forfeited or failed turn leaves the occupation interrupted, and the agent is freed when its time is up. A scenario's `:hibernate` can also take an agent nobody needs out of play with no end time (an occupation with `:hibernating? true`), placing them where it says, and free them when someone comes near. |
-| Conversations | `converse` draws up to 3 people present into a conversation inside the initiator's turn: round-robin, initiator first, up to 2 passes and a last word, each line a short model call by the speaker (`manor.conversation`; the engine runs it). It uses nobody's turn and doesn't touch occupations; lines are ordinary `say` events, heard by everyone present. Not offered in simultaneous groups. |
-| World files | A scenario's starting world can be an EDN file (`manor.worldfile`): locations with `:connects-to` (`:travel 0` routes), journeys, clock, agents, scenario sections. The file is a template; each run keeps a copy (`world-start.edn`) and the engine writes the live map back as `map.edn`. Replay never reads world files. |
+| Conversations | `converse` draws up to 3 people present into a conversation inside the initiator's turn: round-robin, initiator first, up to 2 passes and a last word, each line a short model call by the speaker (`manor.mechanics.conversation`; the engine runs it). It uses nobody's turn and doesn't touch occupations; lines are ordinary `say` events, heard by everyone present. Not offered in simultaneous groups. |
+| World files | A scenario's starting world can be an EDN file (`manor.io.worldfile`): locations with `:connects-to` (`:travel 0` routes), journeys, clock, agents, scenario sections. The file is a template; each run keeps a copy (`world-start.edn`) and the engine writes the live map back as `map.edn`. Replay never reads world files. |
 | Turns | Rounds made of schedule groups. A group of one commits immediately; a larger group acts simultaneously on one snapshot and is resolved in order, so conflicts are rejected. |
 | Humans | Operator (commands queued between rounds; approvals) and/or player (a seat with `:controller :human`; the round waits for their input). |
 | Run control | Step, step N, auto (optional delay), pause. Auto-pauses on GM `ask-human`, errors, cost limit, max rounds, scenario `:pause-when`, or an empty world. |
@@ -31,27 +31,22 @@ happens. Narrative is a view of that state, never a source of truth.
 
 ```
 src/manor/
-  world.clj      world value, event reducer (multimethod), visibility
-  narrate.clj    event -> text (multimethod)
-  actions.clj    action specs -> tools; decoding and validation
-  builtins.clj   pass/carry-on/note/say/whisper/pray; GM spawn/retire/announce/ask-human/done
-  conversation.clj converse: who can be drawn in, speaking-turn tools, events
-  space.clj      locations graph, positions, travel, move + GM route actions, pathfinding
-  prompt.clj     builds agent and GM requests
-  llm.clj        LLM protocol; OpenRouter and Mock implementations
-  bridge.clj     bridge executor (timeouts, truncation, stubs, MCP tools)
-  mcp.clj        minimal MCP client (stdio JSON-RPC) and per-run server pool
-  http.clj       JDK HTTP client helpers
-  engine.clj     runs, rounds, activations, GM, operator commands, load/branch
-  store.clj      run directory I/O
-  web.clj        control panel
   main.clj       CLI entry point
-  rng.clj        deterministic rolls from seed + key
+  engine.clj     the engine's interface: start/load/branch runs, run control, operator commands
+  engine/        its parts: run (state, emit!), models, judges, resolve, turn, talk, seat, work, round
+  world.clj      world value, event reducer (multimethod), visibility
+  actions.clj    action specs -> tools; decoding and validation
+  narrate.clj    event -> text (multimethod)
+  prompt.clj     builds agent and GM requests
   clock.clj      optional game time: rounds <-> times
-  worldfile.clj  world files: load and check EDN starting worlds; export the live map
-  scenarios/village.clj   full example scenario
-  scenarios/treasure.clj  small example scenario
-  scenarios/quiz.clj      MCP bridge example: a private pi assistant per agent
+  rng.clj        deterministic rolls from seed + key
+  mechanics/     rules scenarios combine: builtins, conversation, space, items (+ items/: views,
+                 actions, work, judge, steward, find), adjudication, people, positions, hiring
+  io/            what leaves the process: llm, bridge, mcp, http, store (run directories),
+                 worldfile (EDN starting worlds; export the live map)
+  tools/         for the operator: web (control panel), transcript, cache_report
+  scenarios/     village (full example), treasure (small), quiz (MCP: a private pi per agent),
+                 claudeworth (+ claudeworth/: building, shop, deliveries, money), lodge
 mcp-servers/pi/  pi as an MCP server (Node, no dependencies): one persistent pi session per caller
 config/          mcp.example.edn; local mcp.edn (gitignored) for machine-specific server settings
 dev/user.clj     REPL controls

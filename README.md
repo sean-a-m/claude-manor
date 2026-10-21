@@ -141,7 +141,7 @@ saw them, then every model call with its tool calls and the engine's replies.
 
 ## Cache and cost report
 
-`manor.cache-report` reads a run's `llm.edn` (it never calls a model) and shows how well its
+`manor.tools.cache-report` reads a run's `llm.edn` (it never calls a model) and shows how well its
 prompts hit the provider's prompt cache. Prices, peak hours and the cache block size are in
 `resources/pricing.edn`.
 

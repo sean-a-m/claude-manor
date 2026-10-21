@@ -78,8 +78,8 @@
 (defn busy
   "What `id` is occupied with, {:activity \"asleep\" :until 47 :asleep? true}, or nil.
   Occupied agents skip their turns until round :until. A hibernating agent
-  ({:activity .. :hibernating? true}, see manor.builtins) has no :until: the
-  scenario wakes them. Work on items (manor.items) adds the :job it belongs to."
+  ({:activity .. :hibernating? true}, see manor.mechanics.builtins) has no :until: the
+  scenario wakes them. Work on items (manor.mechanics.items) adds the :job it belongs to."
   [world id]
   (:busy (agent world id)))
 

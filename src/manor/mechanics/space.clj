@@ -1,4 +1,4 @@
-(ns manor.space
+(ns manor.mechanics.space
   "Locations as a graph.
 
   World shape:
@@ -24,7 +24,7 @@
   Ada saw Ben in the hall in round 4, going to the porch (:went only for
   the one who stayed). `last-seen` reads it for views."
   (:require [manor.clock :as clock]
-            [manor.positions :as positions]
+            [manor.mechanics.positions :as positions]
             [manor.world :as w]))
 
 ;; ---------------------------------------------------------------------------
@@ -111,8 +111,8 @@
 
 (defn- person
   "Someone in a view of the people here: who they are, how to address them
-  if their position says (manor.positions), their appearance, how they
-  differ from it now (:aspects, see manor.items) and what they're doing."
+  if their position says (manor.mechanics.positions), their appearance, how they
+  differ from it now (:aspects, see manor.mechanics.items) and what they're doing."
   [world id]
   (let [a (w/agent world id)
         address (positions/addressed-as world id)]

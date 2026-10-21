@@ -7,7 +7,7 @@
   not read is kept in `:errors` and skipped, so a half-written `llm.edn` from
   a live run can still be reviewed.
 
-  `llm.edn` is one printed map per line (see `manor.store`); the viewer keeps
+  `llm.edn` is one printed map per line (see `manor.io.store`); the viewer keeps
   that shape: `:calls` is a vector of call maps in run order, each with the
   engine's own `:messages`, `:response`, `:replies`, `:thoughts` and `:usage`."
   (:require [babashka.fs :as fs]

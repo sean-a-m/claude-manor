@@ -156,7 +156,7 @@ Field rules:
 - `:floor`, `:kind` and `:zone` are descriptive. In the slice they are shown to agents and kept
   on built rooms, but no rule depends on them.
 
-**Loading** (`manor.worldfile`, engine-level and reusable):
+**Loading** (`manor.io.worldfile`, engine-level and reusable):
 
 - read the file, check it against a malli schema, then cross-check it: unique ids; every
   `:connects-to`, route endpoint and agent `:location` exists; the clock parses. The scenario
@@ -165,7 +165,7 @@ Field rules:
 - return `{:space :clock :agents :world-file}`; the scenario reads its own sections (`:meta`,
   `:roles`) from `:world-file`, and its own keys on agents/locations (`:bedroom`, `:store-profile`)
 
-**Exporting:** `(manor.worldfile/export world start)` turns the live world back into the shape of
+**Exporting:** `(manor.io.worldfile/export world start)` turns the live world back into the shape of
 the starting file (`->edn-string` prints it readably). The engine writes it to
 `<run-dir>/map.edn` whenever the map changes. There's also a REPL helper `(export-map! path)`.
 
@@ -240,7 +240,7 @@ in a fraction of a second.
 - All characters see it and can spend from it; social authority is left to the agents.
 - The architect has a private purse and earns a fee (10% of each commission) on plans he drew:
   an in-world reason to encourage bigger, grander works.
-- Integer old pence throughout runtime state: £1 = 20s = 240d. `manor.money` formats amounts
+- Integer old pence throughout runtime state: £1 = 20s = 240d. `manor.scenarios.claudeworth.money` formats amounts
   as pounds/shillings/pence; no floats. World-file starting funds and architect MCP prices
   remain authored in whole pounds and are converted at those boundaries. Fees round down
   to a penny. This change intentionally invalidates old runs; no migration is maintained.
@@ -402,7 +402,7 @@ exactly as before.
 | E2 | **`:exclude-actions`** | scenario key, applied in `engine/all-actions` |
 | E3 | **Clock** | `manor.clock` (labels, `round-at` for "until 07:00", `rounds-for`); `:init` may return `:clock`, stored by `:world/initialized`; prompts, notes and the GM inbox use times; agents' prompts leave out round markers; the view has `:time` and exits in `:travel-minutes`; `narrate/at` for descriptions; the panel shows the time |
 | E4 | **`:travel 0` routes** | tests; GM `open-route` accepts 0; new `space/area` (everything next door, for `walk`) and `space/distance` (journey length, for `travel`) |
-| E5 | **World files** | `manor.worldfile`: `load-world` (path or classpath resource; malli schema plus cross-checks with readable errors), `export` and `->edn-string`; the engine saves `world-start.edn` at start (and on branch) and rewrites `map.edn` from `emit!` whenever space events are emitted; REPL `(export-map! path)` |
+| E5 | **World files** | `manor.io.worldfile`: `load-world` (path or classpath resource; malli schema plus cross-checks with readable errors), `export` and `->edn-string`; the engine saves `world-start.edn` at start (and on branch) and rewrites `map.edn` from `emit!` whenever space events are emitted; REPL `(export-map! path)` |
 | E6 | **Grouped map** | worlds whose locations have `:domain` are drawn as one labelled grid per domain, largest first; busy people show their activity; journeys are labelled in minutes |
 
 Not needed: a "final action that calls a bridge" kind, and general timed events (roadmap B4).
@@ -413,7 +413,7 @@ The plan/commission split and a construction system cover the slice.
 ```
 resources/worlds/claudeworth.edn          starting map, agents, shop
 src/manor/scenarios/claudeworth.clj       the scenario (split out building.clj if it passes ~600 lines)
-src/manor/clock.clj, src/manor/worldfile.clj
+src/manor/clock.clj, src/manor/io/worldfile.clj
 mcp-servers/architect/bb.edn
 mcp-servers/architect/src/architect/server.clj      MCP stdio loop and tool dispatch
 mcp-servers/architect/src/architect/references.clj  reference library and search
@@ -451,7 +451,7 @@ abbey"). Then, from the first real run (`docs/claudeworth-phase1-fixes.md`):
 - `travel` accepts an area name (a `:domain`) and goes to its nearest place (decision 14);
   unknown ids get a list of ids to use
 - briefs are functions of the world, with the setting and roles in the world file (decision 12)
-- `manor.transcript` writes a readable `transcript.md` for any run
+- `manor.tools.transcript` writes a readable `transcript.md` for any run
 
 After review (2026-10-16): `:max-steps` 10 with a reminder to end the turn (decision 15), the
 engine's replies to a turn's last call recorded in `llm.edn` and shown in transcripts, no
@@ -507,7 +507,7 @@ under `old-test-runs/`):
 The full-length real run (about two simulated days) is not part of the phase; the full slice is
 checked by the mock policy.
 
-**Items: done.** The engine's `manor.items` module supplies carrying, `look` and timed `work-on`
+**Items: done.** The engine's `manor.mechanics.items` module supplies carrying, `look` and timed `work-on`
 with a judge at the end. Claudeworth's starting items, shop goods and mock day use it; see
 [the completed items brief](archived/items-brief.md) for the real-run findings.
 
@@ -636,8 +636,8 @@ Decision after phase 2 (2026-10-16):
 
 Decisions for items (done):
 
-23. **Items are an engine module.** `manor.items` is opt-in through a scenario's `:items` key,
-    like `manor.space`. Items load from the world file and export to `map.edn`; purchases create
+23. **Items are an engine module.** `manor.mechanics.items` is opt-in through a scenario's `:items` key,
+    like `manor.mechanics.space`. Items load from the world file and export to `map.edn`; purchases create
     carried items. Existing household counters remain, but new store purchases are portable
     objects only (decision 36 supersedes the old bulk-buying path).
 24. **Conditions are free text.** Superseded by aspects (decision 40, built in phase 1 of
@@ -659,7 +659,7 @@ Decisions for items (done):
 28. **`look` is minimal.** It shows items here in detail, what people here carry, and an optional
     extra paragraph about the room. It is free, changes nothing, and its reply is kept in
     `llm.edn`, not as an event. Broader changing room states are later work.
-29. **Read items through accessors.** Only `manor.items` reads the item map directly or writes it
+29. **Read items through accessors.** Only `manor.mechanics.items` reads the item map directly or writes it
     through its reducers. The accessors scan for now. Future indexes belong inside the module,
     maintained by pure reducers and rebuilt by replay; any database must be a derived read
     store, rebuilt from the event log, never the source of truth. Neither is needed yet.

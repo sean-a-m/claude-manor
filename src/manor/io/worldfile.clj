@@ -1,4 +1,4 @@
-(ns manor.worldfile
+(ns manor.io.worldfile
   "World files: a scenario's starting world as EDN data instead of code.
 
     {:meta {:name \"Claudeworth Manor\"
@@ -6,13 +6,13 @@
             :minutes-per-round 30}
      :locations [{:id \"entrance-hall\" :name \"Entrance hall\" :desc \"...\"
                   :connects-to [\"study\" \"drawing-room\"]   ; next door: :travel 0
-                  :aspects {:cleanliness \"dusty\"}          ; optional, see manor.items
+                  :aspects {:cleanliness \"dusty\"}          ; optional, see manor.mechanics.items
                   :domain :house :floor :ground}            ; any other keys are kept
                  ...]
      :routes [[\"carriage-sweep\" \"village-green\" 1]       ; journeys, as in :space
               [\"cliff\" \"beach\" 1 :one-way]]
      :agents [{:name \"Hale\" :role :secretary :location \"study\"}]
-     :items [{:id \"pocket-watch\" :name \"Pocket watch\" :holder \"Hale\"   ; optional, see manor.items
+     :items [{:id \"pocket-watch\" :name \"Pocket watch\" :holder \"Hale\"   ; optional, see manor.mechanics.items
               :owner \"Hale\" :aspects {:state \"keeping good time\"} :desc \"...\"}]
      ...}                                                   ; anything else is the scenario's
 
@@ -21,7 +21,7 @@
   loading turns those into agent ids, and exporting turns them back.
   `load-world` reads and checks a file and returns the parts a scenario's
   :init needs. The file is a template: no run writes to it (`set-agent-keys`
-  is for the REPL's roll-cast!, see manor.people). The engine keeps
+  is for the REPL's roll-cast!, see manor.mechanics.people). The engine keeps
   a copy of it in the run directory (world-start.edn) and writes the live map
   back in the same format (map.edn) whenever the map changes, see `export`."
   (:require [clojure.edn :as edn]
@@ -30,9 +30,9 @@
             [clojure.string :as str]
             [malli.core :as m]
             [malli.error :as me]
-            [manor.builtins :as b]
             [manor.clock :as clock]
-            [manor.items :as items]
+            [manor.mechanics.builtins :as b]
+            [manor.mechanics.items :as items]
             [manor.world :as w]))
 
 (def Location
@@ -44,10 +44,10 @@
    [:connects-to {:optional true} [:vector :string]]])
 
 (def Agent
-  "An agent of a world file. The trait keys (see manor.people) are optional;
+  "An agent of a world file. The trait keys (see manor.mechanics.people) are optional;
   `roll-cast!` writes them. A :situation is shown only in their own prompt,
   and nothing rewrites it. An optional :appearance is public at a glance,
-  and optional :aspects (see manor.items) say how they differ from it at
+  and optional :aspects (see manor.mechanics.items) say how they differ from it at
   the start."
   [:map
    [:name :string]

@@ -1,27 +1,29 @@
 (ns manor.claudeworth-test
   (:require [clojure.edn :as edn]
-            [clojure.java.shell :as shell]
             [clojure.java.io :as io]
+            [clojure.java.shell :as shell]
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [jsonista.core :as json]
             [manor.actions :as a]
-            [manor.builtins :as b]
             [manor.clock :as clock]
             [manor.engine :as e]
-            [manor.items :as items]
-            [manor.prompt :as prompt]
-            [manor.llm :as llm]
-            [manor.mcp :as mcp]
-            [manor.money :as money]
+            [manor.engine.resolve :as resolve]
+            [manor.io.llm :as llm]
+            [manor.io.mcp :as mcp]
+            [manor.io.store :as store]
+            [manor.io.worldfile :as wf]
+            [manor.mechanics.builtins :as b]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.items.views :as item-views]
+            [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
-            [manor.scenarios.building :as building]
+            [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as cw]
+            [manor.scenarios.claudeworth.building :as building]
+            [manor.scenarios.claudeworth.money :as money]
             [manor.scenarios.household :as fixture]
-            [manor.space :as space]
-            [manor.store :as store]
-            [manor.world :as w]
-            [manor.worldfile :as wf]))
+            [manor.world :as w]))
 
 ;; All runs here use {:test? true}, so they live under test-runs/.
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
@@ -29,7 +31,7 @@
 ;; Mechanics tests never inherit the bundled world's content or cast defaults.
 (defn- start [& [opts]]
   (e/start-run :household (merge {:llm :mock :offline? true :test? true :run-id (str (gensym "claudeworth-"))}
-                                   opts)))
+                                 opts)))
 
 (defn- rounds! [run n]
   (e/auto! run n)
@@ -132,7 +134,7 @@
       (is (nil? (check clerk "lord-claudeworth" :draw-plans draft)))
       (is (nil? (check clerk "lord-claudeworth" :draw-plans (assoc draft :floor "Ground floor"))))
       (is (= :first (:floor (get-in (drafted clerk "lord-claudeworth" (assoc draft :floor "First Floor"))
-                                   [:state :plans "library"]))))
+                                    [:state :plans "library"]))))
       (is (str/includes? (check clerk "lord-claudeworth" :draw-plans (assoc draft :for "hale")) "only for you"))
       (is (= "floor must be one of: first, ground" (check clerk "lord-claudeworth" :draw-plans (assoc draft :floor "attic"))))
       (is (str/includes? (check clerk "lord-claudeworth" :draw-plans (assoc draft :connects-to ["abbey-church"])) "not a room of the house"))
@@ -182,32 +184,32 @@
 
 (deftest architect-server-contract
   (if-not (bb-available?) (println "Skipping architect MCP contracts: bb unavailable")
-    (let [run (start)
-          conn (mcp/connect :architect (:architect building/mcp-servers) {:run-id (:id run) :run-dir (str (:dir run))})
-          call (fn [tool args] (:value (mcp/call-tool conn tool args 20000)))
-          args {:house [{:id "study" :floor "ground"}] :taken ["library"] :request draft}]
-      (try
-        (is (= #{"consult_references" "price_list" "draft_plans"} (set (map :name (mcp/list-tools conn)))))
-        (is (= (edn/read-string (slurp "mcp-servers/architect/prices.edn"))
-               (call "price_list" {}) ((:architect/prices building/offline-stubs) {} {})))
-        (is (= (building/draft-stub args {}) (call "draft_plans" args)))
-        (is (= "library-2" (get-in (call "draft_plans" args) [:plan :id])))
-        (doseq [request [(assoc draft :name " ") (assoc draft :size "huge") (assoc draft :connects-to ["nowhere"])]]
-          (is (thrown? clojure.lang.ExceptionInfo (call "draft_plans" (assoc args :request request)))))
-        (let [result (call "consult_references" {:query "library"}) text (pr-str result)]
-          (is (seq (:matches result)))
-          (is (<= (reduce + (map (comp count :text) (:matches result))) 2500))
-          (is (not (re-find #"precedence|staffing_tiers|reports_to|:access" text))))
-        (let [result (call "consult_references" {:query "portraits"}) text (pr-str result)]
-          (is (str/includes? text "Main stair hung with family portraits"))
-          (is (not (str/includes? text "Servants do not use"))))
-        (finally (mcp/close! conn) (e/stop-run run))))))
+          (let [run (start)
+                conn (mcp/connect :architect (:architect building/mcp-servers) {:run-id (:id run) :run-dir (str (:dir run))})
+                call (fn [tool args] (:value (mcp/call-tool conn tool args 20000)))
+                args {:house [{:id "study" :floor "ground"}] :taken ["library"] :request draft}]
+            (try
+              (is (= #{"consult_references" "price_list" "draft_plans"} (set (map :name (mcp/list-tools conn)))))
+              (is (= (edn/read-string (slurp "mcp-servers/architect/prices.edn"))
+                     (call "price_list" {}) ((:architect/prices building/offline-stubs) {} {})))
+              (is (= (building/draft-stub args {}) (call "draft_plans" args)))
+              (is (= "library-2" (get-in (call "draft_plans" args) [:plan :id])))
+              (doseq [request [(assoc draft :name " ") (assoc draft :size "huge") (assoc draft :connects-to ["nowhere"])]]
+                (is (thrown? clojure.lang.ExceptionInfo (call "draft_plans" (assoc args :request request)))))
+              (let [result (call "consult_references" {:query "library"}) text (pr-str result)]
+                (is (seq (:matches result)))
+                (is (<= (reduce + (map (comp count :text) (:matches result))) 2500))
+                (is (not (re-find #"precedence|staffing_tiers|reports_to|:access" text))))
+              (let [result (call "consult_references" {:query "portraits"}) text (pr-str result)]
+                (is (str/includes? text "Main stair hung with family portraits"))
+                (is (not (str/includes? text "Servants do not use"))))
+              (finally (mcp/close! conn) (e/stop-run run))))))
 
 (declare moves-to)
 
 (deftest full-building-slice
   (doseq [opts (cond-> [{:offline? true} {:offline? true :architect? false}]
-                (bb-available?) (conj {:offline? false}))]
+                 (bb-available?) (conj {:offline? false}))]
     (let [run (start (merge {:build-rounds 6} opts))]
       (rounds! run 7)
       (let [event (first (of-type run :claudeworth/commissioned))
@@ -276,7 +278,7 @@
     (doseq [id ["lord-claudeworth" "lady-claudeworth" "hale"]]
       (is (not (str/includes? (text id) "quiet reading table"))))
     (rounds! run 1)
-    (is (= 5 (:round (first (of-type run :claudeworth/consulted)))) )
+    (is (= 5 (:round (first (of-type run :claudeworth/consulted)))))
     (is (= 6 (:round (first (of-type run :claudeworth/plans-drawn)))))
     (e/stop-run run))
   (let [run (rounds! (start {:architect? false :bridge-stubs {:architect/draft (fn [_ _] "bad draft")}}) 6)]
@@ -587,7 +589,7 @@
         (is (= {:tool :walk :args {:to "architects-lodgings"}} (fixture/mock-policy ctx)))
         (is (= {:tool :sleep :args {:until "07:30"}}
                (fixture/mock-policy (assoc ctx :world (assoc-in world [:agents "pugh" :location] "architects-lodgings")
-                                      :used ["walk"]))))
+                                           :used ["walk"]))))
         (is (= {:tool :travel :args {:to "architects-lodgings"}}
                (fixture/mock-policy (assoc ctx :world (assoc-in world [:agents "pugh" :location] "study")))))))
     (testing "the scripted evening follows the clock: Hale sleeps at 22:00 and rouses the earl at 06:30"
@@ -635,7 +637,7 @@
       (is (not (contains? (:here (cw/observe shop "hale")) :sells))))
     (testing "look in the drawing room: its detail, the furniture, and the earl's watch"
       (let [room (-> world (at "hale" "drawing-room") (at "lord-claudeworth" "drawing-room"))
-            seen (items/look room "hale")]
+            seen (item-views/look room "hale")]
         (is (= "Drawing room" (get-in seen [:place :name])))
         (is (str/starts-with? (get-in seen [:place :detail]) "Faded rose wallpaper"))
         (is (= [["china-cabinet" "household" true {:cleanliness "dusty, the glass smeared"}]
@@ -698,7 +700,7 @@
         (is (every? #(seq (get-in % [:data :changes])) done))
         (is (every? #(= {:aspect :cleanliness :to "just seen to"} (select-keys (get-in % [:data :changes 0]) [:aspect :to])) done))
         (is (= 5 (count (filter #(and (= "judge" (:agent %))
-                                              (str/includes? (get-in % [:messages 1 :content]) "- Worker: Nellie.")) calls))))
+                                      (str/includes? (get-in % [:messages 1 :content]) "- Worker: Nellie.")) calls))))
         (testing "the cabinet is dusty until the job that dusts it finishes"
           (let [due (get-in (first (filter #(= ["china-cabinet"] (get-in % [:data :items])) begun)) [:data :due])
                 before (w/replay (take-while #(< (:round %) due) evs))]
@@ -789,7 +791,7 @@
         (e/emit! run [{:type :agent/placed :data {:id "hale" :to place}}])
         (let [before (e/events run)
               calls (store/read-llm (:dir run))
-              result (#'e/run-query! run "hale" (action run :find) {:what "sugar"})]
+              result (resolve/run-query! run "hale" (action run :find) {:what "sugar"})]
           (is (= "this isn't your house to search; ask for it here instead" (:error result)))
           (is (= before (e/events run)))
           (is (= calls (store/read-llm (:dir run))))))

@@ -2,12 +2,12 @@
 
 **Status:** done. Phases 1–4 are built and mock-tested, and the real-run check is below
 ("Real run"). As built, the shared functions are
-`hiring/new-person`, `hiring/spawn-spec` and `hiring/idle-rounds` (in `manor.hiring`, which owns
+`hiring/new-person`, `hiring/spawn-spec` and `hiring/idle-rounds` (in `manor.mechanics.hiring`, which owns
 the people bridges and adjudicators), not `people/...` as sketched below.
 
 Read `AGENTS.md` first, then "Internal adjudication queries", "Composed queries", `:systems`,
 "The nightly steward" and "Runtime candidates and hiring" in `docs/scenario-authoring.md`,
-`src/manor/scenarios/shop.clj` and `src/manor/hiring.clj`.
+`src/manor/scenarios/claudeworth/shop.clj` and `src/manor/mechanics/hiring.clj`.
 
 ## Why
 
@@ -132,7 +132,7 @@ positions.
 
 ### Arrival
 
-`manor.scenarios.deliveries` adds a system, `:deliveries/arrivals`, after hiring's visits. Its tick
+`manor.scenarios.claudeworth.deliveries` adds a system, `:deliveries/arrivals`, after hiring's visits. Its tick
 is pure. For each shop with orders due by this round, in shop-id order:
 
 1. Each order's parcel is added at the delivery place with `items/added`: owner household,
@@ -208,7 +208,7 @@ tick's events.
 
 ### The steward
 
-`items/steward-candidates` skips items with an `:order-id`, wherever they've been taken. The item
+`item-steward/steward-candidates` skips items with an `:order-id`, wherever they've been taken. The item
 schema gains `[:order-id {:optional true} :string]`, as it has `:candidate-id` for references.
 Work can still use delivered food up: only the nightly pass leaves it alone.
 
@@ -308,7 +308,7 @@ Each phase ends with `clojure -M:test` passing and a commit.
   - `observe` adds `orders` and the delivery profile;
   - `mock-appraisal` gives delivery lines `lead-hours 2`;
   - `scripted-clerk` passes `deliver` through.
-- New `src/manor/scenarios/deliveries.clj`: due-round arithmetic, order reducers and narration,
+- New `src/manor/scenarios/claudeworth/deliveries.clj`: due-round arithmetic, order reducers and narration,
   and the system with tick only (no couriers yet). Install it from `claudeworth/scenario`, so
   Lodge gets it too.
 - `items.clj`: the `:order-id` key, and the steward skips such items.

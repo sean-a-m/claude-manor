@@ -11,7 +11,7 @@
     clojure -M:run lodge --max-rounds 6 --test    a short real check (then Auto in the panel)
     clojure -M:run claudeworth --no-address        no forms of address in prompts"
   (:require [manor.engine :as e]
-            [manor.web :as web])
+            [manor.tools.web :as web])
   (:gen-class))
 
 (defn- parse-args [args]

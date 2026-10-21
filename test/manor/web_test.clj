@@ -3,8 +3,8 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.engine :as e]
-            [manor.store :as store]
-            [manor.web :as web]))
+            [manor.io.store :as store]
+            [manor.tools.web :as web]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
 

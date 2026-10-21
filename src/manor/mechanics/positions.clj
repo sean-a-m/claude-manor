@@ -1,4 +1,4 @@
-(ns manor.positions
+(ns manor.mechanics.positions
   "Positions and posts: what a job is, and who holds which.
 
   A position is an entry of a shared catalogue (resources/positions/), which

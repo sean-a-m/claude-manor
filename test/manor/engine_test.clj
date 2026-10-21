@@ -3,14 +3,14 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
-            [manor.adjudication :as adjudication]
-            [manor.builtins :as b]
             [manor.clock :as clock]
             [manor.engine :as e]
-            [manor.llm :as llm]
+            [manor.io.llm :as llm]
+            [manor.io.store :as store]
+            [manor.mechanics.adjudication :as adjudication]
+            [manor.mechanics.builtins :as b]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
-            [manor.store :as store]
             [manor.world :as w]))
 
 ;; All runs here use {:test? true}, so they live under test-runs/.

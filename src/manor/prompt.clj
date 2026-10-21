@@ -15,12 +15,13 @@
   (:require [clojure.string :as str]
             [jsonista.core :as json]
             [manor.clock :as clock]
-            [manor.conversation :as conversation]
-            [manor.items :as items]
+            [manor.mechanics.conversation :as conversation]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.items.views :as item-views]
+            [manor.mechanics.people :as people]
+            [manor.mechanics.positions :as positions]
+            [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
-            [manor.people :as people]
-            [manor.positions :as positions]
-            [manor.space :as space]
             [manor.world :as w]))
 
 (def ^:private pretty-mapper (json/object-mapper {:pretty true}))
@@ -79,7 +80,7 @@
   worker-only events. Use the same visibility and narration as their prompt."
   [world events {:keys [id actor]}]
   (let [since (rest (drop-while #(not (and (= :item/work-begun (:type %))
-                                          (= id (get-in % [:data :id])))) events))
+                                           (= id (get-in % [:data :id])))) events))
         shared (->> (visible-events since actor (count since) true)
                     (remove (fn [{audience :visible-to}]
                               (and (set? audience) (empty? (disj audience actor :gm)))))
@@ -139,7 +140,7 @@ Take your turn now.")
                                (get-in a [:busy :until])
                                (assoc :until (narrate/at (narrate/names world) (get-in a [:busy :until])))))
       (space/enabled? world) (assoc :location (space/view world agent-id))
-      (items/enabled? world) (items/add-to-view world agent-id))))
+      (items/enabled? world) (item-views/add-to-view world agent-id))))
 
 (defn- brief-text
   "A role's :brief: a string, or a function of the world (and, for agents,
@@ -299,7 +300,7 @@ Each message to you gives the recent events, oldest first, then the time now and
            :agents (mapv #(select-keys % [:id :name :role :status :persona :appearance :aspects :situation :location :travel :busy])
                          (w/agents-in-order world))}
     (space/enabled? world) (assoc :space (:space world))
-    (items/enabled? world) (assoc :items (items/gm-view world))
+    (items/enabled? world) (assoc :items (item-views/gm-view world))
     (seq (items/jobs world)) (assoc :item-jobs (vec (items/jobs world)))))
 
 (defn gm-messages

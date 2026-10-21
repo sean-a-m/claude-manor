@@ -2,22 +2,22 @@
   "Positions, posts, situations, capabilities, forms of address and the
   household's bedrooms, on the bundled Claudeworth world (mock and offline)."
   (:require [clojure.java.io :as io]
-            [jsonista.core :as json]
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
+            [jsonista.core :as json]
             [manor.actions :as a]
-            [manor.builtins :as b]
             [manor.engine :as e]
+            [manor.io.llm :as llm]
+            [manor.io.store :as store]
+            [manor.io.worldfile :as wf]
             [manor.main :as main]
-            [manor.llm :as llm]
-            [manor.people :as people]
-            [manor.positions :as positions]
+            [manor.mechanics.builtins :as b]
+            [manor.mechanics.people :as people]
+            [manor.mechanics.positions :as positions]
             [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.shop :as shop]
-            [manor.store :as store]
-            [manor.world :as w]
-            [manor.worldfile :as wf]))
+            [manor.scenarios.claudeworth.shop :as shop]
+            [manor.world :as w]))
 
 ;; Every run here lives under test-runs/.
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))

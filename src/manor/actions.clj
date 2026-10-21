@@ -9,7 +9,7 @@
      :args    [:map [:grain pos-int?]]      ; malli schema (default [:map])
      :roles   #{:farmer} | :all             ; :all = every non-GM role
      :needs   :shop-clerk                   ; optional: a capability the agent's
-                                            ; position must give (manor.positions)
+                                            ; position must give (manor.mechanics.positions)
      :kind    :final | :free | :query | :act
      :available? (fn [world actor]) => bool ; optional: offer the tool only when true
      :valid?  (fn [world actor args]) => nil or a reason string
@@ -51,7 +51,7 @@
     :act    a real-world bridge with side effects; ends the turn and waits
             for operator approval, then runs at the next round boundary
     :converse  a conversation the engine runs within the turn, with others
-            present taking turns to speak (manor.conversation); free"
+            present taking turns to speak (manor.mechanics.conversation); free"
   (:require [clojure.string :as str]
             [jsonista.core :as json]
             [malli.core :as m]

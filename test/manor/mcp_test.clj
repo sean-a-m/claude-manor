@@ -6,8 +6,8 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.engine :as e]
-            [manor.mcp :as mcp]
-            [manor.store :as store]
+            [manor.io.mcp :as mcp]
+            [manor.io.store :as store]
             [manor.world :as w]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))

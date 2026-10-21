@@ -3,8 +3,8 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.engine :as e]
-            [manor.store :as store]
-            [manor.transcript :as transcript])
+            [manor.io.store :as store]
+            [manor.tools.transcript :as transcript])
   (:import (java.time Instant)
            (java.util.concurrent TimeUnit)))
 

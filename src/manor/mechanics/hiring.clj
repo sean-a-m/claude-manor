@@ -1,13 +1,13 @@
-(ns manor.hiring
+(ns manor.mechanics.hiring
   "Candidate records, private recommendations and event-owned hiring.
   I/O runs through the engine's composed-query services; reducers never call out."
   (:require [clojure.string :as str]
-            [manor.builtins :as b]
-            [manor.items :as items]
+            [manor.mechanics.builtins :as b]
+            [manor.mechanics.items.actions :as item-actions]
+            [manor.mechanics.people :as people]
+            [manor.mechanics.positions :as positions]
+            [manor.mechanics.space :as space]
             [manor.narrate :as n]
-            [manor.people :as people]
-            [manor.positions :as positions]
-            [manor.space :as space]
             [manor.world :as w]))
 
 (def pool-limit 40)
@@ -36,9 +36,9 @@
   {:people/appearance {:request (fn [_ _ {:keys [record]}] (people/appearance-request record))
                        :mock (fn [_] {:tool :appearance :args {:appearance "A young figure in plain working clothes and spectacles."}})}
    :people/polish {:request (fn [world _ {:keys [record appearance]}]
-                             (people/polish-request {:setting (get-in world [:state :setting])
-                                                     :position (:position record) :record record
-                                                     :notes (str "Keep these visible physical facts consistent: " appearance)}))
+                              (people/polish-request {:setting (get-in world [:state :setting])
+                                                      :position (:position record) :record record
+                                                      :notes (str "Keep these visible physical facts consistent: " appearance)}))
                    :mock people/mock-polish}})
 
 (defn pool [world] (get-in world [:state :pool] {}))
@@ -58,7 +58,7 @@
 (defn- area [world actor] (place-area world (space/location-of world actor)))
 (defn taken-names
   "Names already in use: everyone spawned, every candidate, and the shops'
-  couriers, who are named before they first appear (manor.scenarios.deliveries)."
+  couriers, who are named before they first appear (manor.scenarios.claudeworth.deliveries)."
   [world]
   (concat (map :name (vals (:agents world))) (map :name (vals (pool world)))
           (keep (comp :name :person) (vals (get-in world [:state :couriers])))))
@@ -111,7 +111,7 @@
   (let [record (check-record
                 (first (:people (bridge :people/generate
                                         (assoc (people/generate-args position (get-in world [:state :positions position])
-                                                                    {:seed seed :taken-names taken-names})
+                                                                     {:seed seed :taken-names taken-names})
                                                :area area)))))]
     {:name (:name record) :record record :lives (:lives record)}))
 
@@ -159,7 +159,7 @@
         record (:record p)
         reputation (or (get-in world [:state :reputations actor (:id p)])
                        (bridge :people/reputation {:person record :knower (:name (w/agent world actor))
-                                                  :relation "neighbour" :seed (str (:seed world) "/" actor "/" (:id p))}))]
+                                                   :relation "neighbour" :seed (str (:seed world) "/" actor "/" (:id p))}))]
     (when-not (and (map? reputation) (string? (:acquaintance reputation)) (map? (:knows reputation)))
       (throw (ex-info "The people server returned an invalid reputation." {})))
     {:candidate p :new? (nil? old) :reputation reputation}))
@@ -178,12 +178,12 @@
           id (:id candidate)]
       (when candidate
         (vec (concat
-          (when (and new? (>= (count (pool world)) pool-limit))
-            [{:type :people/evicted :visible-to :system :data {:id (:id (eviction world))}}])
-          (when new? [{:type :people/pooled :visible-to :system :data candidate}])
-          [{:type :people/reputation-known :visible-to #{actor} :data {:id id :reputation reputation}}
-           {:type :people/recommended :visible-to (conj #{} actor for)
-            :data (assoc (select-keys candidate [:id :name :seeks]) :knowers (conj #{} actor for))}]))))))
+              (when (and new? (>= (count (pool world)) pool-limit))
+                [{:type :people/evicted :visible-to :system :data {:id (:id (eviction world))}}])
+              (when new? [{:type :people/pooled :visible-to :system :data candidate}])
+              [{:type :people/reputation-known :visible-to #{actor} :data {:id id :reputation reputation}}
+               {:type :people/recommended :visible-to (conj #{} actor for)
+                :data (assoc (select-keys candidate [:id :name :seeks]) :knowers (conj #{} actor for))}]))))))
 
 (defmethod n/describe :people/recommended [{:keys [data]} _]
   (str (:name data) " (" (:id data) ") seeks " (str/join ", " (map name (:seeks data)))
@@ -216,7 +216,7 @@
 (defn sent-for [world actor {:keys [candidate]}]
   [(changed candidate {:status :sent-for :arrival (inc (:round world)) :summoner actor})
    {:type :people/sent-for :visible-to #{actor} :data {:name (:name (get (pool world) candidate))
-                                                    :at (get-in world [:state :meeting-place])}}])
+                                                       :at (get-in world [:state :meeting-place])}}])
 (defmethod n/describe :people/sent-for [{:keys [data]} names]
   (str "Word is sent to " (:name data) "; they are expected next round at " (n/place names (:at data)) "."))
 
@@ -261,13 +261,13 @@
    (reduce
     (fn [[world events] p]
       (let [evs (cond
-                 (and (= :sent-for (:status p)) (<= (:arrival p) (:round world))
-                      (< (count (w/active-agents world)) (get-in world [:state :hiring-max-agents] b/default-max-agents)))
-                 (arrival-events scenario world p)
-                 (and (= :here (:status p)) (w/active? world (:agent-id p))
-                      (>= (idle-rounds world (:agent-id p) (:arrived p)) leave-after))
-                 (departure world (:agent-id p) "the visit has ended")
-                 :else [])]
+                  (and (= :sent-for (:status p)) (<= (:arrival p) (:round world))
+                       (< (count (w/active-agents world)) (get-in world [:state :hiring-max-agents] b/default-max-agents)))
+                  (arrival-events scenario world p)
+                  (and (= :here (:status p)) (w/active? world (:agent-id p))
+                       (>= (idle-rounds world (:agent-id p) (:arrived p)) leave-after))
+                  (departure world (:agent-id p) "the visit has ended")
+                  :else [])]
         [(reduce w/apply-event world evs) (into events evs)]))
     [world []] (ordered world))))
 
@@ -293,12 +293,12 @@
         p (for-agent world actor)
         audience #{actor employer}]
     (cond-> [(positions/post-changed world actor position {:household household :terms terms :conditions conditions
-                                                          :employer employer :visible-to audience})
+                                                           :employer employer :visible-to audience})
              (changed (:id p) {:status :engaged})
              {:type :people/offer-closed :visible-to :system :data {:who actor}}
              {:type :agent/updated :visible-to :system
               :data {:id actor :changes {:situation (str "You have taken the " (name position) " place with "
-                                                       (:name (w/agent world employer)) ". Your post records the agreed terms.")}}}]
+                                                         (:name (w/agent world employer)) ". Your post records the agreed terms.")}}}]
       bedroom (conj (assoc (positions/bedroom-assigned actor bedroom) :visible-to audience)))))
 
 (defmethod n/describe :people/offered [{:keys [data]} names]
@@ -408,9 +408,9 @@
         (cond-> (:items scenario)
           (update :actions (fn [actions]
                              (conj (vec (remove #(= :spend-time (:name %)) actions))
-                                   (reference-activity (first (filter #(= :spend-time (:name %)) (items/actions))))))))
+                                   (reference-activity (first (filter #(= :spend-time (:name %)) (item-actions/actions))))))))
         (update :systems #(conj (vec (remove (fn [s] (= :people/visits (:name s))) %))
-                               {:name :people/visits :tick (fn [world _] (tick scenario world))})))))
+                                {:name :people/visits :tick (fn [world _] (tick scenario world))})))))
 
 (def rules
   "To find staff, ask someone for a recommendation; they must use recommend with a position id and your id in for, not invent a person. The recommendation gives a candidate id: use send-for to bring them to meeting-place next round. Interview by converse, then engage with who (their agent id), position, terms and optionally bedroom. The candidate may accept-place with conditions, decline-place and haggle, or take-leave. Send-away ends an unengaged visit. An unengaged visitor leaves after three rounds without a conversation. Nobody new arrives except through send-for. Outdoor servants' lodging and dismissal of hired staff are not yet modelled.")

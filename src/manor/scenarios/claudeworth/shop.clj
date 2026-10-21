@@ -1,21 +1,21 @@
-(ns manor.scenarios.shop
+(ns manor.scenarios.claudeworth.shop
   "Claudeworth's general store: a clerk obtains checked offers; customers
   accept them. A line may be quoted for delivery at a shop that sends goods
-  out (manor.scenarios.deliveries). No catalogue, bulk counters, or
+  out (manor.scenarios.claudeworth.deliveries). No catalogue, bulk counters, or
   model-owned money."
   (:require [clojure.string :as str]
             [jsonista.core :as json]
             [malli.json-schema :as mjs]
             [manor.actions :as a]
-            [manor.adjudication :as adjudication]
             [manor.clock :as clock]
-            [manor.items :as items]
-            [manor.money :as money]
+            [manor.mechanics.adjudication :as adjudication]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.positions :as positions]
+            [manor.mechanics.space :as space]
             [manor.narrate :as n]
-            [manor.positions :as positions]
-            [manor.scenarios.building :as building]
-            [manor.scenarios.deliveries :as deliveries]
-            [manor.space :as space]
+            [manor.scenarios.claudeworth.building :as building]
+            [manor.scenarios.claudeworth.deliveries :as deliveries]
+            [manor.scenarios.claudeworth.money :as money]
             [manor.world :as w]))
 
 (def max-unit-price 240000) ; £1000: bound untrusted arithmetic, not a price list

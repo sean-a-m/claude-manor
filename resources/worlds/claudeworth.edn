@@ -179,7 +179,7 @@
           ["abbey-gatehouse" "village-green" 1]]
 
  ;; the positions people hold: the shared catalogue named in :meta :positions,
- ;; with these entries merged over it (see manor.positions). Duties only:
+ ;; with these entries merged over it (see manor.mechanics.positions). Duties only:
  ;; who holds them and their situations are the agents'.
  :roles
  {:secretary {:workplace ["study"]}
@@ -199,7 +199,7 @@
   :laundress {:workplace ["laundress-cottage"]}
   :gm {:about "A quiet period household: the family, their secretary and servants, and the village tradespeople going about their days."}}
 
- ;; things in the world; :holder and an agent :owner are agent names (see manor.items).
+ ;; things in the world; :holder and an agent :owner are agent names (see manor.mechanics.items).
  ;; A :container holds things :in it: :open shows them to the room, :closed only to `open`.
  :items
  [{:id "stags-head" :name "Stag's head" :place "entrance-hall" :owner "household" :fixed? true :aspects {:cleanliness "dusty" :repair "one glass eye loose"} :desc "A mounted twelve-pointer above the fireplace, shot by the sixth earl."}

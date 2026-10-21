@@ -1,4 +1,4 @@
-(ns manor.http
+(ns manor.io.http
   "Outbound HTTP on the JDK's java.net.http client (no compression, no
   extra dependencies). Used by the LLM client and by bridges."
   (:require [clojure.string :as str]

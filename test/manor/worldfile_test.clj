@@ -4,11 +4,11 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.engine :as e]
-            [manor.items :as items]
-            [manor.space :as space]
-            [manor.store :as store]
-            [manor.world :as w]
-            [manor.worldfile :as wf]))
+            [manor.io.store :as store]
+            [manor.io.worldfile :as wf]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.space :as space]
+            [manor.world :as w]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
 

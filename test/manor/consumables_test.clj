@@ -1,5 +1,5 @@
 (ns manor.consumables-test
-  "Consumables (manor.items): items marked :consumable? that the judge may
+  "Consumables (manor.mechanics.items): items marked :consumable? that the judge may
   use up when work ends, and the things it makes from them, in a variant of
   the hamlet world with a kitchen's worth of things in the hall. Checks on
   the judge's answer, the :item/work-done event and its reducer, narration,
@@ -10,15 +10,17 @@
             [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
-            [manor.items :as items]
-            [manor.llm :as llm]
+            [manor.io.llm :as llm]
+            [manor.io.store :as store]
+            [manor.io.worldfile :as wf]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.items.judge :as item-judge]
+            [manor.mechanics.items.work :as item-work]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.scenarios.hamlet :as hamlet]
-            [manor.store :as store]
-            [manor.transcript :as transcript]
-            [manor.world :as w]
-            [manor.worldfile :as wf]))
+            [manor.tools.transcript :as transcript]
+            [manor.world :as w]))
 
 ;; All runs here use {:test? true}, so they live under test-runs/.
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
@@ -70,9 +72,9 @@
 (deftest the-judge-sees-what-is-consumable
   (let [run (start)
         world (e/world run)
-        user (:content (second (:messages (items/judge-request (:scenario run) world job {:minutes 60 :luck 50}))))
+        user (:content (second (:messages (item-judge/judge-request (:scenario run) world job {:minutes 60 :luck 50}))))
         judged (:focus (json/read-value (second (re-find #"(?s)```json\n(.*)\n```" user)) json/keyword-keys-object-mapper))
-        system (:content (first (:messages (items/judge-request (:scenario run) world job {:minutes 60}))))]
+        system (:content (first (:messages (item-judge/judge-request (:scenario run) world job {:minutes 60}))))]
     (is (= {"beef" [true nil] "saucepan" [nil true] "bag" [true true] "bun" [true nil] "clock" [nil nil]}
            (select-keys (into {} (map (juxt :id (juxt :consumable :container))) judged)
                         ["beef" "saucepan" "bag" "bun" "clock"])))
@@ -84,8 +86,8 @@
 (deftest checking-used-up-and-made
   (let [run (start)
         world (e/world run)
-        reach (items/judged-things world job)
-        judge #(items/judgement (judge-says %) world reach)
+        reach (item-work/judged-things world job)
+        judge #(item-judge/judgement (judge-says %) world reach)
         error #(:error (judge (assoc % :summary "Done.")))]
     (testing "a good answer: what's used up, and what's made from it; a change to a used-up item is dropped"
       (is (= {:summary "The beef went into stock." :changes [{:item "saucepan" :aspect :cleanliness :from "clean" :to "greasy"}]
@@ -141,10 +143,10 @@
 (deftest work-done-uses-up-and-makes
   (let [run (start)
         world (e/world run)
-        reach (items/judged-things world job)
-        verdict-of #(:verdict (items/judgement (judge-says %) world reach))
-        done (items/work-done world job {:minutes 60 :stopped-early? false :luck 50}
-                              (verdict-of {:used-up ["beef"] :made [stock bones] :summary "Ben made stock of the beef."}))
+        reach (item-work/judged-things world job)
+        verdict-of #(:verdict (item-judge/judgement (judge-says %) world reach))
+        done (item-work/work-done world job {:minutes 60 :stopped-early? false :luck 50}
+                                  (verdict-of {:used-up ["beef"] :made [stock bones] :summary "Ben made stock of the beef."}))
         after (w/apply-event world done)]
     (testing "the data names what was used up and holds the new items"
       (is (= [{:item "beef" :name "Rib of beef" :fate "used up while making stock"}] (get-in done [:data :used-up])))
@@ -172,14 +174,14 @@
         (is (some #(= [{:id "beef-stock" :name "Beef stock"}] (:contents %)) (get-in ben [:location :here :items])))
         (is (not-any? #(= "beef" (:id %)) (:items (prompt/default-gm-view after))))))
     (testing "made from something the worker carried: the worker holds it"
-      (let [d (items/work-done world (assoc job :items ["apple"]) {:minutes 30 :luck 50}
-                               (verdict-of {:used-up ["apple"] :made [{:consumable true :name "Apple core" :desc "A core." :aspects {:state "brown"}}]
-                                            :summary "Ben ate the apple."}))]
+      (let [d (item-work/work-done world (assoc job :items ["apple"]) {:minutes 30 :luck 50}
+                                   (verdict-of {:used-up ["apple"] :made [{:consumable true :name "Apple core" :desc "A core." :aspects {:state "brown"}}]
+                                                :summary "Ben ate the apple."}))]
         (is (= {:holder "ben" :consumable? true} (select-keys (first (get-in d [:data :made])) [:holder :consumable? :place])))
         (is (= ["apple-core" "pipe"] (map :id (items/held-by (w/apply-event world d) "ben"))))))
     (testing "two made with one name get their own ids"
-      (let [d (items/work-done world job {:minutes 30 :luck 50}
-                               (verdict-of {:used-up ["beef"] :made [bones bones] :summary "x"}))]
+      (let [d (item-work/work-done world job {:minutes 30 :luck 50}
+                                   (verdict-of {:used-up ["beef"] :made [bones bones] :summary "x"}))]
         (is (= ["beef-bones" "beef-bones-2"] (map :id (get-in d [:data :made]))))))
     (testing "an old-shaped event, without used-up or made, still applies"
       (is (= (items/all (w/apply-event world (update done :data dissoc :used-up :made)))
@@ -253,12 +255,12 @@
   (let [run (start)
         world (e/world run)
         hidden (w/apply-event world {:type :item/added :data {:item {:id "secret" :name "Secret" :desc "Hidden."
-                                                                    :in "bag" :consumable? true}}})
+                                                                     :in "bag" :consumable? true}}})
         ;; Use a closed consumable bag, then an open one whose contents exceed the scene cap.
         hidden (assoc-in hidden [:items "bag" :container] :closed)
         activity (assoc job :items [] :doing "dining")
-        attempt (fn [world] (items/judgement (judge-says {:used-up ["bag"] :summary "Eaten."}) world
-                                              (items/judged-things world activity)))
+        attempt (fn [world] (item-judge/judgement (judge-says {:used-up ["bag"] :summary "Eaten."}) world
+                                                  (item-work/judged-things world activity)))
         generic "the Paper bag (bag) still holds things not shown here; leave it, or name it with `on` next time"]
     (is (= generic (:error (attempt hidden))))
     (is (not (str/includes? (:error (attempt hidden)) "secret")))
@@ -266,9 +268,9 @@
                                      :in "bag" :consumable? true})
           crowded (reduce w/apply-event world (items/init-events extra))]
       (is (= generic (:error (attempt crowded)))))
-    (let [things (items/judged-things hidden (assoc activity :items ["bag"]))
-          result (items/judgement (judge-says {:used-up ["bag" "bun" "secret"] :summary "Used it all."}) hidden things)
-          done (items/work-done hidden activity {:minutes 30} (:verdict result))
+    (let [things (item-work/judged-things hidden (assoc activity :items ["bag"]))
+          result (item-judge/judgement (judge-says {:used-up ["bag" "bun" "secret"] :summary "Used it all."}) hidden things)
+          done (item-work/work-done hidden activity {:minutes 30} (:verdict result))
           after (w/apply-event hidden done)]
       (is (nil? (:error result)))
       (is (every? #(nil? (items/item after %)) ["bag" "bun" "secret"])))
@@ -284,27 +286,26 @@
                         {:id "tin" :name "Dripping tin" :desc "A tin." :place "hall" :drawn-from "pantry"}]))
         activity (assoc job :items [] :doing "putting things away")
         check (fn [activity args]
-                (items/judgement (judge-says (assoc args :summary "Things were put away.")) world (items/judged-things world activity)))
+                (item-judge/judgement (judge-says (assoc args :summary "Things were put away.")) world (item-work/judged-things world activity)))
         tin {:name "Dripping tin" :desc "A tin of dripping." :consumable false :from "pantry" :aspects {:state "full"}}]
     (try
       (testing "draw from an in-scope serving store without using anything up"
         (let [{:keys [verdict error]} (check activity {:made [tin]})
-              event (items/work-done world activity {:minutes 30} verdict)
+              event (item-work/work-done world activity {:minutes 30} verdict)
               made (first (get-in event [:data :made]))]
           (is (nil? error))
           (is (= {:holder "ben" :drawn-from "pantry" :consumable? false}
                  (select-keys made [:holder :place :drawn-from :consumable?])))
           (is (= {:state "full"} (:aspects made)))
-          (is (= "Dripping tin" (get (items/names (w/apply-event world event)) [:item (:id made)])))
-          ))
+          (is (= "Dripping tin" (get (items/names (w/apply-event world event)) [:item (:id made)])))))
       (testing "placement in a container, at a named place-bound focus, or in the hands"
         (doseq [[focus entry expected] [[["saucepan"] (assoc tin :in "saucepan") {:in "saucepan"}]
-                                       [["hall"] tin {:place "hall"}]
-                                       [["beef"] tin {:place "hall"}]
-                                       [["apple"] tin {:holder "ben"}]
-                                       [[] (assoc tin :consumable true) {:holder "ben"}]]]
+                                        [["hall"] tin {:place "hall"}]
+                                        [["beef"] tin {:place "hall"}]
+                                        [["apple"] tin {:holder "ben"}]
+                                        [[] (assoc tin :consumable true) {:holder "ben"}]]]
           (let [activity (assoc activity :items focus)
-                done (items/work-done world activity {:minutes 30} (:verdict (check activity {:made [entry]})))
+                done (item-work/work-done world activity {:minutes 30} (:verdict (check activity {:made [entry]})))
                 made (first (get-in done [:data :made]))]
             (is (= expected (select-keys made [:in :place :holder])))
             (is (= (not (:consumable entry)) (contains? made :drawn-from))))))
@@ -322,9 +323,9 @@
         (is (:error (check activity {:absorbed [{:thing "beef" :into "pantry"} {:thing "beef" :into "pantry"}]})))
         (is (:verdict (check activity {:absorbed [{:thing "beef" :into "pantry"}] :made [(dissoc tin :from)]})))
         (let [verdict (:verdict (check activity {:absorbed [{:thing "beef" :into "pantry"} {:thing "tin" :into "pantry"}]
-                                                :changes [{:thing "pantry" :aspect "stock" :value "well stocked"}
-                                                          {:thing "beef" :aspect "state" :value "stored"}]}))
-              after (w/apply-event world (items/work-done world activity {:minutes 30} verdict))]
+                                                 :changes [{:thing "pantry" :aspect "stock" :value "well stocked"}
+                                                           {:thing "beef" :aspect "state" :value "stored"}]}))
+              after (w/apply-event world (item-work/work-done world activity {:minutes 30} verdict))]
           (is (= {:name "Rib of beef" :place "hall" :round 0 :fate "put away in the Pantry shelves"}
                  (get-in after [:items-gone "beef"])))
           (is (nil? (items/item after "tin")))
@@ -333,16 +334,16 @@
       (testing "containers require all world contents absorbed, including hidden contents"
         (is (:error (check activity {:absorbed [{:thing "bag" :into "pantry"}]})))
         (let [args {:absorbed [{:thing "bag" :into "pantry"} {:thing "bun" :into "pantry"}]}
-              event (items/work-done world activity {:minutes 30} (:verdict (check activity args)))
+              event (item-work/work-done world activity {:minutes 30} (:verdict (check activity args)))
               after (w/apply-event world event)
               hidden (assoc-in world [:items "bag" :container] :closed)
-              refused (items/judgement (judge-says (assoc args :summary "Put away.")) hidden (items/judged-things hidden activity))]
+              refused (item-judge/judgement (judge-says (assoc args :summary "Put away.")) hidden (item-work/judged-things hidden activity))]
           (is (= ["hall" "hall"] (map #(get-in after [:items-gone % :place]) ["bag" "bun"])))
           (is (:error refused))
           (is (not (str/includes? (:error refused) "Bun")))))
       (testing "explicit and default fates, including a carried item's location, keep old lines named"
         (let [verdict (:verdict (check (assoc activity :items ["apple"]) {:used-up ["beef" "apple"] :fates {"beef" "eaten at supper"}}))
-              after (w/apply-event world (items/work-done world activity {:minutes 30} verdict))]
+              after (w/apply-event world (item-work/work-done world activity {:minutes 30} verdict))]
           (is (= "eaten at supper" (get-in after [:items-gone "beef" :fate])))
           (is (= {:name "Apple" :place "hall" :round 0 :fate "used up while putting things away"}
                  (get-in after [:items-gone "apple"])))
@@ -351,7 +352,7 @@
           (is (:error (check activity {:used-up ["beef"] :fates {"beef" ""}})))))
       (testing "work narration distinguishes things put away and fetched"
         (let [verdict (:verdict (check activity {:absorbed [{:thing "beef" :into "pantry"}] :made [tin]}))
-              done (items/work-done world activity {:minutes 30} verdict)]
+              done (item-work/work-done world activity {:minutes 30} verdict)]
           (is (= "Ben finishes putting things away. Things were put away. Put away: Rib of beef (in the Pantry shelves). Fetched: Dripping tin."
                  (n/describe done (n/names (w/apply-event world done)))))))
       (finally (e/stop-run run)))))
@@ -377,16 +378,16 @@
         (is (str/ends-with? (n/describe done (n/names world)) "Made: Household list; Clear soup."))
         (is (= world (w/replay (store/read-events (:dir run)))))
         (doseq [[focus entry expected] [[[] (dissoc letter :held) {:holder "ben"}]
-                                       [["hall"] (dissoc letter :held) {:place "hall"}]
-                                       [[] dish {:place "hall"}]
-                                       [["hall"] (assoc letter :in "saucepan") {:in "saucepan"}]]]
+                                        [["hall"] (dissoc letter :held) {:place "hall"}]
+                                        [[] dish {:place "hall"}]
+                                        [["hall"] (assoc letter :in "saucepan") {:in "saucepan"}]]]
           (let [activity (assoc job :items focus)
-                verdict (:verdict (items/judgement (judge-says {:made [entry] :summary "Made."}) world
-                                                    (items/judged-things world (assoc activity :items ["saucepan"]))))
-                made (first (get-in (items/work-done world activity {:minutes 30} verdict) [:data :made]))]
+                verdict (:verdict (item-judge/judgement (judge-says {:made [entry] :summary "Made."}) world
+                                                        (item-work/judged-things world (assoc activity :items ["saucepan"]))))
+                made (first (get-in (item-work/work-done world activity {:minutes 30} verdict) [:data :made]))]
             (is (= expected (select-keys made [:holder :place :in])))))
-        (let [bad (items/judgement (judge-says {:made [(assoc letter :held "yes")] :summary "Made."}) world
-                                     (items/judged-things world job))]
+        (let [bad (item-judge/judgement (judge-says {:made [(assoc letter :held "yes")] :summary "Made."}) world
+                                        (item-work/judged-things world job))]
           (is (:error bad))))
       (finally (e/stop-run run)))))
 
@@ -397,21 +398,21 @@
                    (is (nil? (a/check (action name) (e/world run) "ben" args)))
                    (e/emit! run (a/effect-events (action name) (e/world run) "ben" args)))]
     (try
-      (is (str/includes? items/judge-instructions "Taking or carrying something elsewhere is not using it up"))
-      (is (str/includes? items/judge-instructions "Leaving any thing untouched is always a valid answer"))
+      (is (str/includes? item-judge/judge-instructions "Taking or carrying something elsewhere is not using it up"))
+      (is (str/includes? item-judge/judge-instructions "Leaving any thing untouched is always a valid answer"))
       (let [activity (assoc job :items ["beef"] :doing "carrying the joint to the porch")
-            verdict (:verdict (items/judgement (judge-says {:summary "The joint was left for Ben to carry."})
-                                                (e/world run) (items/judged-things (e/world run) activity)))]
-        (e/emit! run [(items/work-done (e/world run) activity {:minutes 30} verdict)])
+            verdict (:verdict (item-judge/judgement (judge-says {:summary "The joint was left for Ben to carry."})
+                                                    (e/world run) (item-work/judged-things (e/world run) activity)))]
+        (e/emit! run [(item-work/work-done (e/world run) activity {:minutes 30} verdict)])
         (is (= "hall" (:place (items/item (e/world run) "beef")))))
       (perform! :take {:item "beef"})
       (perform! :move {:to "porch"})
       (is (= "ben" (:holder (items/item (e/world run) "beef"))))
       (let [world (e/world run)
             activity (assoc job :items ["beef"] :place "porch" :doing "eating the joint")
-            verdict (:verdict (items/judgement (judge-says {:used-up ["beef"] :summary "Ben ate the joint."})
-                                                world (items/judged-things world activity)))]
-        (e/emit! run [(items/work-done world activity {:minutes 30} verdict)]))
+            verdict (:verdict (item-judge/judgement (judge-says {:used-up ["beef"] :summary "Ben ate the joint."})
+                                                    world (item-work/judged-things world activity)))]
+        (e/emit! run [(item-work/work-done world activity {:minutes 30} verdict)]))
       (is (= "porch" (get-in (e/world run) [:items-gone "beef" :place])))
       (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
       (finally (e/stop-run run)))))

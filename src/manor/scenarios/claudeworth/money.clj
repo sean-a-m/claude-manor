@@ -1,4 +1,4 @@
-(ns manor.money
+(ns manor.scenarios.claudeworth.money
   "Claudeworth's pre-decimal sterling. State uses integer old pence, never floats.
   This is unrelated to model usage costs (USD)."
   (:require [clojure.string :as str]))

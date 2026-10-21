@@ -2,8 +2,8 @@
 
 **Status:** Phases 0–7 done, including the phase 5 and 6 real runs; phase 7 fixes mock-tested. Each phase below has its own status line; update it as work lands.
 
-Read `AGENTS.md` first (invariants, run directories, cost rules), then "Items (`manor.items`)" and
-"Work and the judge" in `docs/scenario-authoring.md`, and `src/manor/items.clj`. This document
+Read `AGENTS.md` first (invariants, run directories, cost rules), then "Items (`manor.mechanics.items`)" and
+"Work and the judge" in `docs/scenario-authoring.md`, and `src/manor/mechanics/items.clj`. This document
 replaces `docs/archived/room-conditions-brief.md`: its R1/R2 are folded into phases 1 and 5, and
 its R3 (rooms getting dirty again) is answered by phase 2 (judged pastimes: use makes mess).
 
@@ -218,7 +218,7 @@ additions:
 4. **The room goes to the judge** whenever the job names its place: an entry with
    `"room": true`, its id, name, `desc` and aspects. The room-only shortcut in
    `engine/finish-job!` goes (a room-only job is judged). `in-reach` stays items-only (container
-   code depends on it); add `items/judged-things` for reach plus room, used by
+   code depends on it); add `item-work/judged-things` for reach plus room, used by
    `judge-request`, `verdict` and the mock judge's ctx.
 5. **Narration** (`n/describe :item/work-done`): "(Drawing room: swept, the hearth clean;
    Piano: dusted)". Show the new value, or "no longer <aspect>" for a removal.
@@ -250,7 +250,7 @@ the kitchen; the rest of phase 5's content is untouched. Small deviations and sa
   stores remain in `look.items` for container contents as well as `look.stores` for the in-scope
   supply list; per-turn `here.items` omits them.
 - The internal job still calls its focus ids `:items`, including jobs from `spend-time :on`.
-  `items/focus-things` is the old named-things scope; `items/judged-things` is now the whole
+  `item-work/focus-things` is the old named-things scope; `item-work/judged-things` is now the whole
   changeable scene. Mock ctx includes both `:focus` and `:things`.
 - `prompt/scene-recent` builds the shared recent lines in the engine (items cannot require
   prompt, which already requires items). It uses `visible-events` and the same narrated lines
@@ -305,7 +305,7 @@ stores, and use a two-call latch to prove independent calls overlap.
   otherwise; change only the aspects the activity affected.
 
 **2c. One timed activity (D3).** Claudeworth's `spend-time` and the engine's `work-on` become one
-engine action in `manor.items`:
+engine action in `manor.mechanics.items`:
 
 - `spend-time {doing, hours, on?}`: `doing` 3–120 characters (reads after "is"), `hours`
   0.5–4, default 0.5, `on` an optional list of up to 6 ids (items in reach, the place, stores in

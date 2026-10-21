@@ -7,11 +7,11 @@
 
     clojure -M:dev:run hamlet --mock --test
     clojure -M:dev:run hamlet --test --max-cost 0.05"
-  (:require [manor.builtins :as b]
-            [manor.clock :as clock]
-            [manor.space :as space]
-            [manor.world :as w]
-            [manor.worldfile :as worldfile]))
+  (:require [manor.clock :as clock]
+            [manor.io.worldfile :as worldfile]
+            [manor.mechanics.builtins :as b]
+            [manor.mechanics.space :as space]
+            [manor.world :as w]))
 
 (def actions
   [{:name :sleep

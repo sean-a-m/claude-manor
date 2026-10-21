@@ -1,4 +1,4 @@
-(ns manor.mcp
+(ns manor.io.mcp
   "A minimal MCP client: the engine calls tools on MCP servers so that
   scenario bridges can reach them. Only the stdio transport is supported
   (newline-delimited JSON-RPC 2.0 on the server's stdin/stdout).

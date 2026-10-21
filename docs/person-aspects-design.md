@@ -23,15 +23,15 @@ dinner), and the result stays on them until something else changes it.
 - Items and locations have **aspects**: at most 4 keyed phrases (`items/max-aspects`), keys
   such as `:cleanliness`, values advised to 80 characters and capped at 200. Item conditions
   became aspects in decision 40 of `claudeworth-design.md`, so this is the house vocabulary.
-- The **judge** (`items/judge-request`) gets a `scene` with `place`, `focus`, `also_here`,
+- The **judge** (`item-judge/judge-request`) gets a `scene` with `place`, `focus`, `also_here`,
   `stores`, `people` (`{:name :doing}` only, as context) and `recent`. It returns
   `changes [{thing aspect value}]`, which `checked-verdict` validates against the judged things;
   the `:item/work-done` reducer applies them through `items/changed` (an item or a place).
   People are explicitly "context, not things to change".
 - `spend-time {doing hours? on?}`: `on` accepts items here or carried, the place, and stores
-  in scope (`items/work-reason`). Not people.
+  in scope (`item-actions/work-reason`). Not people.
 - Agents have a fixed `:appearance` (written at roll-cast or hiring) that shows in
-  `people-here` every turn (`space/person`), in `look` (`items/look-person`) and in the
+  `people-here` every turn (`space/person`), in `look` (`item-views/look-person`) and in the
   character's own system prompt ("What people see:").
 - Jobs with disjoint `job-scope` are judged concurrently; overlapping scopes run in order.
 - The nightly **steward** (`:items :steward`) makes one call per place with idle candidates,
@@ -113,7 +113,7 @@ Defaults taken where nothing was decided, to confirm when the build starts:
 - An agent may have `:aspects`, checked as an item's are (`items/aspect-key?`, value lengths,
   `max-aspects`). World files and `:init` agents may give them; `worldfile` checks them, and
   `map.edn` exports them.
-- `space/person` (`people-here`) and `items/look-person` add `:aspects` when there are some;
+- `space/person` (`people-here`) and `item-views/look-person` add `:aspects` when there are some;
   `prompt/agent-view` adds `:you :aspects`; the GM view's agents include them. The system
   prompt is unchanged, so its cached prefix is too.
 - The panel's agent list and the transcript show them.
@@ -141,7 +141,7 @@ Defaults taken where nothing was decided, to confirm when the build starts:
   record departures from it, and an aspect that only restates it should be removed. Most work
   leaves the worker as they were. Change another person only when the activity was done to
   them.* Scenarios can suggest person keys through the existing `:aspect-keys`.
-- `items/mock-judge` gives each named person a placeholder aspect, and leaves the worker alone
+- `item-judge/mock-judge` gives each named person a placeholder aspect, and leaves the worker alone
   unless named, so existing mock scripts and their results don't change.
 
 ### 5.3 The steward overnight
@@ -155,7 +155,7 @@ Defaults taken where nothing was decided, to confirm when the build starts:
   value `""`; setting anything is refused and corrected once, as usual.
 - Changes come out in `:items/stewarded` (GM-only) as `{:person id :aspect k :from v :to nil}`.
   The sleeper finds them gone from their view on waking; nobody is told.
-- The default `items/mock-steward` removes nothing from sleepers, so existing mock days don't
+- The default `item-steward/mock-steward` removes nothing from sleepers, so existing mock days don't
   change; the fixture scenario's mock steward removes something.
 
 ### 5.4 What agents are told

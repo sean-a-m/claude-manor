@@ -1,4 +1,4 @@
-(ns manor.store
+(ns manor.io.store
   "Run persistence. A run is a directory (runs/ or test-runs/, see below):
 
     runs/<id>/config.edn   scenario, seed, options

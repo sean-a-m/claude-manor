@@ -4,9 +4,9 @@
 
   The world is in resources/worlds/claudeworth.edn (run option :world-file
   overrides it): the map, the clock, the agents with their personas and
-  situations, the things in the house (:items, see manor.items), the setting
+  situations, the things in the house (:items, see manor.mechanics.items), the setting
   (:meta :setting), and the positions they hold: the shared catalogue it
-  names (:meta :positions) and its own :roles over it (see manor.positions).
+  names (:meta :positions) and its own :roles over it (see manor.mechanics.positions).
   This namespace holds only the rules, and briefs and tool docs say nothing
   a world file could make false. Areas are the locations' :domains. `walk` (free) goes
   anywhere in the current area; `travel` (a turn) goes to another area.
@@ -20,20 +20,21 @@
     clojure -M:dev:run claudeworth --mock --test
     clojure -M:run claudeworth --test --max-cost 0.25"
   (:require [clojure.string :as str]
-            [manor.builtins :as b]
             [manor.clock :as clock]
-            [manor.conversation :as conversation]
-            [manor.items :as items]
-            [manor.hiring :as hiring]
-            [manor.people :as people]
+            [manor.io.worldfile :as worldfile]
+            [manor.mechanics.builtins :as b]
+            [manor.mechanics.conversation :as conversation]
+            [manor.mechanics.hiring :as hiring]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.items.views :as item-views]
+            [manor.mechanics.people :as people]
+            [manor.mechanics.positions :as positions]
+            [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
-            [manor.positions :as positions]
-            [manor.scenarios.building :as building]
-            [manor.scenarios.deliveries :as deliveries]
-            [manor.scenarios.shop :as shop]
-            [manor.space :as space]
-            [manor.world :as w]
-            [manor.worldfile :as worldfile])
+            [manor.scenarios.claudeworth.building :as building]
+            [manor.scenarios.claudeworth.deliveries :as deliveries]
+            [manor.scenarios.claudeworth.shop :as shop]
+            [manor.world :as w])
   (:import (java.time LocalTime)))
 
 (def max-sleep-hours 12)
@@ -95,7 +96,7 @@
   [world id]
   (let [here (space/location-of world id)
         hours (:hours (space/location world here))
-        loc (:location (items/add-to-view {:location (space/view world id)} world id))]
+        loc (:location (item-views/add-to-view {:location (space/view world id)} world id))]
     (cond-> (select-keys loc [:here :people-here])
       hours (update :here merge {:open (str/join "-" hours) :open-now? (open-now? world hours)}))))
 
@@ -692,34 +693,34 @@
 (def scenario
   (deliveries/install
    (hiring/install
-   {:name :claudeworth
-   :doc "Claudeworth Manor, 1904: a family and their servants, a village architect, shops, a public house and cottage trades, living from day to day."
-   :init init
-   :roles roles
-   :agent-brief agent-brief
-   :on-spawn positions/starting-events
-   :actions (vec (concat actions building/actions shop/actions hiring/actions))
-   :adjudicators (merge shop/adjudicators hiring/adjudicators)
-   :bridges (merge building/bridges hiring/bridges)
-   :offline-stubs (merge building/offline-stubs hiring/offline-stubs)
-   :mcp-servers (merge building/mcp-servers people/mcp-servers)
-   :systems [building/construction]
-   :items {:steward {:at "02:00" :idle-hours 4 :max-per-call 8}
-           :find-allowed? (fn [world _ place]
-                            (when (seq (:services (space/location world place)))
-                              "this isn't your house to search; ask for it here instead"))
-           :judge-brief judge-brief
-           :aspect-keys {:cleanliness "how clean" :repair "damage and needed repairs"
-                         :state "lit, hot, cooking, carved" :amount "how much remains, or parcel quantity"
-                         :stock "general level of supplies" :lacking "notable absences"
-                         :dress "what a person has on, where it differs from their usual appearance"
-                         :hair "how a person's hair is done, where it differs from usual"
-                         :grime "dirt, soot, flour or wet on a person's hands, face or clothes"}}
-   :exclude-actions #{:move :work-on}
-   :speaking-actions speaking-actions
-   :hibernate hibernate
-   :reference reference
-   :observe observe
-   :mock-policy mock-policy
-   :mock-conversation mock-conversation}
-   "carriage-sweep")))
+    {:name :claudeworth
+     :doc "Claudeworth Manor, 1904: a family and their servants, a village architect, shops, a public house and cottage trades, living from day to day."
+     :init init
+     :roles roles
+     :agent-brief agent-brief
+     :on-spawn positions/starting-events
+     :actions (vec (concat actions building/actions shop/actions hiring/actions))
+     :adjudicators (merge shop/adjudicators hiring/adjudicators)
+     :bridges (merge building/bridges hiring/bridges)
+     :offline-stubs (merge building/offline-stubs hiring/offline-stubs)
+     :mcp-servers (merge building/mcp-servers people/mcp-servers)
+     :systems [building/construction]
+     :items {:steward {:at "02:00" :idle-hours 4 :max-per-call 8}
+             :find-allowed? (fn [world _ place]
+                              (when (seq (:services (space/location world place)))
+                                "this isn't your house to search; ask for it here instead"))
+             :judge-brief judge-brief
+             :aspect-keys {:cleanliness "how clean" :repair "damage and needed repairs"
+                           :state "lit, hot, cooking, carved" :amount "how much remains, or parcel quantity"
+                           :stock "general level of supplies" :lacking "notable absences"
+                           :dress "what a person has on, where it differs from their usual appearance"
+                           :hair "how a person's hair is done, where it differs from usual"
+                           :grime "dirt, soot, flour or wet on a person's hands, face or clothes"}}
+     :exclude-actions #{:move :work-on}
+     :speaking-actions speaking-actions
+     :hibernate hibernate
+     :reference reference
+     :observe observe
+     :mock-policy mock-policy
+     :mock-conversation mock-conversation}
+    "carriage-sweep")))

@@ -1,5 +1,5 @@
 (ns manor.containers-test
-  "Containers (manor.items): items that hold items, in a variant of the
+  "Containers (manor.mechanics.items): items that hold items, in a variant of the
   hamlet world with an open shelf and a closed cupboard in the hall. World
   files, accessors, views, open, take, put-in, privacy, work and the judge,
   a mock run, replay and the exported map."
@@ -9,14 +9,18 @@
             [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
-            [manor.items :as items]
-            [manor.llm :as llm]
+            [manor.engine.work :as work]
+            [manor.io.llm :as llm]
+            [manor.io.store :as store]
+            [manor.io.worldfile :as wf]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.items.judge :as item-judge]
+            [manor.mechanics.items.views :as item-views]
+            [manor.mechanics.items.work :as item-work]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.scenarios.hamlet :as hamlet]
-            [manor.store :as store]
-            [manor.world :as w]
-            [manor.worldfile :as wf]))
+            [manor.world :as w]))
 
 ;; All runs here use {:test? true}, so they live under test-runs/.
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
@@ -139,7 +143,7 @@
         (is (= {:id "shelf" :name "Shelf" :contents []}
                (nth (get-in (prompt/agent-view (:scenario run) emptied "ada") [:location :here :items]) 2)))))
     (testing "look: the same, in detail"
-      (let [seen (:items (items/look world "ada"))]
+      (let [seen (:items (item-views/look world "ada"))]
         (is (= {:id "cupboard" :name "Cupboard" :desc "A tall painted cupboard." :aspects {:state "shut tight"}
                 :fixed? true :closed true}
                (first seen)))
@@ -147,7 +151,7 @@
                 :contents [{:id "spoon" :name "Spoon" :desc "A pewter spoon." :aspects {:state "bent"}}]}
                (get-in (nth seen 2) [:contents 1])))))
     (testing "nothing in the cupboard reaches a view or look"
-      (doseq [s [(pr-str (prompt/agent-view (:scenario run) world "ada")) (pr-str (items/look world "ada"))]
+      (doseq [s [(pr-str (prompt/agent-view (:scenario run) world "ada")) (pr-str (item-views/look world "ada"))]
               word ["candle" "key" "hook" "\"box\""]]
         (is (not (str/includes? s word)) word)))
     (e/stop-run run)))
@@ -248,25 +252,25 @@
         job {:id "job-9" :actor "ben" :items ["cupboard" "candle"] :doing "cleaning out the cupboard"
              :place "hall" :started 1 :due 4}
         reach (items/in-reach world job)
-        user (:content (second (:messages (items/judge-request (:scenario run) world job {:minutes 60 :luck 50}))))
+        user (:content (second (:messages (item-judge/judge-request (:scenario run) world job {:minutes 60 :luck 50}))))
         judged (:focus (json/read-value (second (re-find #"(?s)```json\n(.*)\n```" user)) json/keyword-keys-object-mapper))]
     (testing "the judge's reach is the container and everything inside it, once each"
       (is (= ["cupboard" "box" "key" "candle" "hook"] (ids reach))))
     (testing "the judge sees what's in what"
       (is (= [nil "cupboard" "box" "cupboard" "cupboard"] (map :in judged)))
-      (is (str/includes? (:content (first (:messages (items/judge-request (:scenario run) world job {:minutes 60}))))
+      (is (str/includes? (:content (first (:messages (item-judge/judge-request (:scenario run) world job {:minutes 60}))))
                          "A thing listed with `in` is inside another")))
     (testing "an item named alone shows no :in, since its container isn't in reach"
       (is (= [{:id "key" :name "Key" :desc "An iron key." :aspects {:state "rusty"}}]
-             (-> (items/judge-request (:scenario run) world (assoc job :items ["key"]) {:minutes 30})
+             (-> (item-judge/judge-request (:scenario run) world (assoc job :items ["key"]) {:minutes 30})
                  :messages second :content (->> (re-find #"(?s)```json\n(.*)\n```") second)
                  (json/read-value json/keyword-keys-object-mapper) :focus))))
     (testing "the judge may change what's inside"
-      (let [{:keys [verdict]} (items/judgement {:tool-calls [{:id "j" :name "judge"
-                                                              :arguments (json/write-value-as-string
-                                                                          {:changes [{:thing "key" :aspect "state" :value "oiled"}]
-                                                                           :summary "Ben cleaned it out."})}]}
-                                               world reach)]
+      (let [{:keys [verdict]} (item-judge/judgement {:tool-calls [{:id "j" :name "judge"
+                                                                   :arguments (json/write-value-as-string
+                                                                               {:changes [{:thing "key" :aspect "state" :value "oiled"}]
+                                                                                :summary "Ben cleaned it out."})}]}
+                                                    world reach)]
         (is (= [{:item "key" :aspect :state :from "rusty" :to "oiled"}] (:changes verdict)))))
     (testing "work-on accepts things inside containers here"
       (is (nil? (a/check (action run :work-on) world "ben" {:items ["key" "cup"] :doing "oiling the key"}))))
@@ -278,7 +282,7 @@
 
 (defn- policy [{:keys [world agent-id role step] :as ctx}]
   (cond
-    (= :judge role) (items/mock-judge ctx)
+    (= :judge role) (item-judge/mock-judge ctx)
     (not= agent-id "ben") (hamlet/mock-policy ctx)
     :else (get-in {1 [{:tool :open :args {:container "cupboard"}}
                       {:tool :take :args {:item "candle"}}
@@ -334,7 +338,7 @@
 
 (deftest store-put-ins-merge-and-are-judged-next-round-without-occupation
   (let [policy (fn [{:keys [world agent-id step role] :as ctx}]
-                 (cond (= role :judge) (items/mock-judge ctx)
+                 (cond (= role :judge) (item-judge/mock-judge ctx)
                        (and (= "ben" agent-id) (= 1 (:round world)))
                        (get [{:tool :put-in :args {:item "sugar" :container "pantry"}}
                              {:tool :put-in :args {:item "salt" :container "pantry"}}] step {:tool :pass})
@@ -350,14 +354,14 @@
                (select-keys job [:quick? :store :started :due :items])))
         (is (= "putting the loaf sugar and the salt away in the pantry shelves" (:doing job)))
         (is (nil? (w/busy world "ben")))
-        (is (empty? (items/ending-jobs world)) "never judged in the put-in round")
+        (is (empty? (item-work/ending-jobs world)) "never judged in the put-in round")
         (is (every? #(= "pantry" (:in (items/item world %))) ["sugar" "salt"]))
         (is (empty? (filter #(= "judge" (:agent %)) (store/read-llm (:dir run)))))
         (is (= 1 (count (of-type run :item/work-begun))))
         (is (= 1 (count (of-type run :item/work-extended))))
         (is (= world (w/replay (store/read-events (:dir run)))))
-        (is (str/includes? (get-in (items/judge-request (:scenario run) (dissoc world :clock) job {:minutes 0})
-                                  [:messages 1 :content]) "- Time: round 1")))
+        (is (str/includes? (get-in (item-judge/judge-request (:scenario run) (dissoc world :clock) job {:minutes 0})
+                                   [:messages 1 :content]) "- Time: round 1")))
       (rounds! run 1)
       (let [world (e/world run)
             [done] (of-type run :item/work-done)
@@ -404,7 +408,7 @@
 
 (deftest ordinary-container-put-in-needs-no-judge
   (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true :gm :off
-                                      :run-id (str (gensym "sideboard-no-judge-"))})]
+                                       :run-id (str (gensym "sideboard-no-judge-"))})]
     (try
       (e/emit! run [{:type :agent/placed :data {:id "hale" :to "dining-room"}}])
       (let [act (first (filter #(= :put-in (:name %)) (:actions run)))
@@ -415,7 +419,7 @@
       (is (empty? (items/jobs (e/world run))))
       (is (empty? (store/read-llm (:dir run))))
       (let [before (e/world run)]
-        (#'e/finish-jobs! run (items/ending-jobs before))
+        (work/finish-jobs! run (item-work/ending-jobs before))
         (is (= before (e/world run)))
         (is (empty? (store/read-llm (:dir run)))))
       (is (= (e/world run) (w/replay (store/read-events (:dir run)))))

@@ -1,4 +1,4 @@
-(ns manor.llm
+(ns manor.io.llm
   "Model access. The engine builds every request itself (messages and tools)
   and keeps no conversation state here, so each call is self-contained.
 
@@ -23,7 +23,7 @@
   provider's prompt cache depends on)."
   (:require [clojure.string :as str]
             [jsonista.core :as json]
-            [manor.http :as http])
+            [manor.io.http :as http])
   (:import (java.nio.charset StandardCharsets)
            (java.security MessageDigest)))
 

@@ -1,4 +1,4 @@
-(ns manor.conversation
+(ns manor.mechanics.conversation
   "Conversations within a turn. `converse` draws up to three people in the
   same place into an exchange: the initiator opens, then everyone speaks in
   turn, the initiator first, for up to two passes, and the initiator has
@@ -6,16 +6,16 @@
   may stay silent or leave. It uses nobody's turn, and it doesn't touch
   anyone's occupation: someone busy talks while they work.
 
-  The engine runs the exchange (manor.engine/run-conversation!), one short
+  The engine runs the exchange (manor.engine.talk/run-conversation!), one short
   model call per speaking turn. This namespace has the rules: who can be
   drawn in, the tools of a speaking turn, the events and their narration.
   Lines are ordinary `:agent/said` events, heard by everyone in the place.
   The conversation's state (who is still in it, the pass) lives only in the
   engine's loop; the events are the record."
   (:require [clojure.string :as str]
-            [manor.builtins :as b]
+            [manor.mechanics.builtins :as b]
+            [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
-            [manor.space :as space]
             [manor.world :as w]))
 
 (def max-others "People the initiator can draw in." 3)

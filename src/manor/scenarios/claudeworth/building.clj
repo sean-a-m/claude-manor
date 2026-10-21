@@ -2,12 +2,12 @@
   "Claudeworth's household money, plans and construction. All changes are events."
   (:require [clojure.edn :as edn]
             [clojure.string :as str]
-            [manor.builtins :as b]
             [manor.clock :as clock]
+            [manor.mechanics.builtins :as b]
+            [manor.mechanics.positions :as positions]
+            [manor.mechanics.space :as space]
             [manor.narrate :as n]
-            [manor.positions :as positions]
             [manor.scenarios.claudeworth.money :as money]
-            [manor.space :as space]
             [manor.world :as w])
   (:import (java.time LocalTime)))
 

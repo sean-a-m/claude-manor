@@ -1,6 +1,6 @@
 ;; Positions in an English country house and its village, 1904: a catalogue
 ;; shared between worlds. A world file names it in :meta :positions and may
-;; add or override entries in its own :roles (see manor.positions).
+;; add or override entries in its own :roles (see manor.mechanics.positions).
 ;;
 ;; :about gives the duties only: no names, personality or situation, and no
 ;; forms of address. :addressed-as gives those, and a run shows them unless

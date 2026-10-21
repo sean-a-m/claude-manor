@@ -2,10 +2,10 @@
   "The narrow model calls that answer one checked question: the work judge,
   the nightly steward and scenario adjudicators. Each gets a checked
   answer, one correction attempt and a safe failure; the domain code
-  (manor.items, the scenario) owns the prompts and the checks."
+  (manor.mechanics.items, the scenario) owns the prompts and the checks."
   (:require [manor.engine.models :as models]
             [manor.engine.run :as run]
-            [manor.items :as items]
+            [manor.mechanics.items :as items]
             [manor.prompt :as prompt]))
 
 (defn ask-structured!

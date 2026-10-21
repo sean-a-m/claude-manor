@@ -1,8 +1,8 @@
 (ns manor.main-test
   (:require [clojure.test :refer [deftest is]]
             [manor.engine :as e]
-            [manor.main :as main]
-            [manor.store :as store]))
+            [manor.io.store :as store]
+            [manor.main :as main]))
 
 (deftest max-rounds-cli-option
   (let [{:keys [scenario opts port]} (#'main/parse-args ["lodge" "--max-rounds" "6" "--mock" "--offline" "--test" "--port" "8081"])

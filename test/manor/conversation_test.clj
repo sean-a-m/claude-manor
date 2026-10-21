@@ -2,13 +2,13 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
-            [manor.builtins :as b]
-            [manor.conversation :as conversation]
             [manor.engine :as e]
-            [manor.llm :as llm]
+            [manor.io.llm :as llm]
+            [manor.io.store :as store]
+            [manor.mechanics.builtins :as b]
+            [manor.mechanics.conversation :as conversation]
             [manor.narrate :as n]
-            [manor.store :as store]
-            [manor.transcript :as transcript]
+            [manor.tools.transcript :as transcript]
             [manor.world :as w]))
 
 ;; All runs here use {:test? true}, so they live under test-runs/.

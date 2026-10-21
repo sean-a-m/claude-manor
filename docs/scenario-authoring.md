@@ -142,7 +142,7 @@ from the `:gm` run option (`:llm`, `:human`, or `:off`).
   from the world, so a new position needs no code.
 - The scenario's own `:on-spawn`, `(fn [world id spec] [events])`, runs after every spawn (from
   `:init`, an operator or the GM), after the role's, and gets the whole spawn spec. Claudeworth's
-  is `manor.positions/starting-events`: the agent's post, bedroom and routine.
+  is `manor.mechanics.positions/starting-events`: the agent's post, bedroom and routine.
 
 ### `:actions`
 
@@ -169,7 +169,7 @@ and, if it has `:needs`, their position gives that capability (`:capabilities` i
 `[:state :positions]`, see "Positions, posts and situations"). Use `:needs` for what a holder of
 several positions might do: the shop's `quote-goods` is `:roles :all :needs :shop-clerk`, so a
 butcher and a shopkeeper can both quote and an earl can't. Code that treats someone as something
-should ask the same way, `(manor.positions/capable? world id :architect)`, never compare roles.
+should ask the same way, `(manor.mechanics.positions/capable? world id :architect)`, never compare roles.
 `:valid?` should still check it, for a call that reaches the action another way.
 
 **Availability within a turn:** normal agent and GM turns start with the snapshot's tools,
@@ -241,7 +241,7 @@ entries with the same key.
 
 The engine uses `:judge-model` (falling back to `:model`), with the run's reasoning, token and
 tool-choice options. It asks once more after an invalid answer, using the checker's replies.
-`manor.adjudication/answer` implements first-tool-call selection and replies; domain code
+`manor.mechanics.adjudication/answer` implements first-tool-call selection and replies; domain code
 supplies the tool name and raw-argument checker. The work judge uses the same runner/parser,
 but keeps its own prompts, domain checks and round-start scheduling.
 
@@ -355,7 +355,7 @@ judge override). One composed action uses one query slot; each model may have on
 The function must not mutate world state or do I/O directly. Its result goes to the usual
 `:on-result`, and its `:reply` should project only what the caller may know. An exception
 emits an operator-only `:adjudication/failed` and returns a neutral error without running
-`:on-result`. `manor.hiring/recommend!` is the example: generate a record, write a public
+`:on-result`. `manor.mechanics.hiring/recommend!` is the example: generate a record, write a public
 appearance from visible fields, polish privately, and obtain a private sampled reputation.
 
 #### Replies and arguments
@@ -397,7 +397,7 @@ it isn't an event, so anything that must be remembered or replayed belongs in `:
 - Randomness: `(manor.rng/roll world [(:round world) actor :purpose] n)` gives an int in `[0, n)`
   determined by the run seed and the key. **Record the outcome in the event data** (e.g.
   `{:yield 15}`). Reducers must never roll.
-- Effects may return engine events too: `(manor.builtins/spawn-events scenario world spec)`,
+- Effects may return engine events too: `(manor.mechanics.builtins/spawn-events scenario world spec)`,
   `{:type :agent/retired :data {:id .. :reason ..} :visible-to :all}`,
   `{:type :run/pause-requested :data {:reason ".."} :visible-to :gm}`.
 - Ids for new things should be deterministic, e.g. `(str "offer-" (inc (:seq world)))`.
@@ -470,7 +470,7 @@ Event shape (returned by effects, ticks and hooks; the engine stamps `:id` and `
   - `:system`: operator only, never in any prompt.
 
   **The default if you omit it is `:gm`**, which hides the event from agents. Always set it
-  deliberately. For things that happen at a place use `(manor.space/here world actor)`. For a
+  deliberately. For things that happen at a place use `(manor.mechanics.space/here world actor)`. For a
   private outcome use `#{actor}`.
 - **Reducers:** one per event type that changes state.
   ```clojure
@@ -597,7 +597,7 @@ The only way to touch the real world.
 - `ctx` is `{:run-id :run-dir :opts :mcp}`. Write files only under `run-dir`.
 - Results must be plain data (they are stored in the event log and shown to models as JSON).
   Exceptions and timeouts become `{:error msg}`.
-- Use `manor.bridge/get-json` (JDK HTTP client) for simple GET APIs. Don't use http-kit's client
+- Use `manor.io.bridge/get-json` (JDK HTTP client) for simple GET APIs. Don't use http-kit's client
   (it broke on gzip responses).
 - Provide `:offline-stubs` with the same signature so `{:offline? true}` runs need no network.
 - Treat results as untrusted input: keep them small and structured.
@@ -647,7 +647,7 @@ example a sandbox wrapper), `PI_MCP_MODEL` (default `deepseek/deepseek-v4.1-flas
 OpenRouter), `PI_MCP_TOOLS` (pi tools allowed; default none), `PI_MCP_ISOLATED` (default on: no
 extensions, skills, context files or MCP inside pi), `PI_MCP_SYSTEM_PROMPT`, timeouts and limits.
 
-### Locations (`manor.space`)
+### Locations (`manor.mechanics.space`)
 
 When `:init` returns `:space`, the engine provides:
 - agent positions (`:location` on the agent; `nil` while travelling)
@@ -691,7 +691,7 @@ under `:place`; a place with none shows none.
 State that belongs to a location (prices, opening rules) goes in your `:state`, keyed by location
 id. Objects people can pick up and carry are items (next section).
 
-### Items (`manor.items`)
+### Items (`manor.mechanics.items`)
 
 Items are things with a description and a few aspects that lie in a place, are carried by
 someone, or are inside another item: a piano, a pocket watch, an umbrella someone bought, the
@@ -770,7 +770,7 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
   :amount "20 × 1 lb")` adds the amount to the event, read after the name. `(items/added-events
   world [fields ...] visible-to)` makes several, each with its own id. Don't build item maps or
   events by hand.
-- **Events** (reducers in `manor.items`; narration looks up the item's name):
+- **Events** (reducers in `manor.mechanics.items`; narration looks up the item's name):
 
   | Event | Data | Visible to | Reads |
   |---|---|---|---|
@@ -1254,7 +1254,7 @@ removes nothing from sleepers.
 Stores of provisions can be consumable items, a parcel each, whose `:amount` the judge rewrites as
 they are used (Claudeworth's purchases).
 
-### World files (`manor.worldfile`)
+### World files (`manor.io.worldfile`)
 
 A scenario can keep its starting world in an EDN file instead of code: locations, routes, the
 clock, starting agents, and any sections of its own. Put it under `resources/worlds/` and load it
@@ -1262,7 +1262,7 @@ in `:init`:
 
 ```clojure
 :init (fn [opts]
-        (assoc (manor.worldfile/load-world (or (:world-file opts) "worlds/my-world.edn"))
+        (assoc (manor.io.worldfile/load-world (or (:world-file opts) "worlds/my-world.edn"))
                :state {...}))
 ```
 
@@ -1380,7 +1380,7 @@ data, so there's one source and no call.
   There are **no behavioural descriptors or circumstance templates**. Levels, sizes and
   faculty-selection distributions are unchanged; removing descriptor draws changes exact
   readings for old seeds. The engine passes age/sex defaults from the position catalogue.
-- The **character writer**, still called the **polish** (`manor.people/polish!`), returns
+- The **character writer**, still called the **polish** (`manor.mechanics.people/polish!`), returns
   `{circumstances persona manner appearance}` in one checked model call. It receives only
   setting, position, basic identity/readings and optional authored notes; legacy descriptors,
   circumstances and prose are stripped from its record and mock context.
@@ -1421,7 +1421,7 @@ data, so there's one source and no call.
 
 #### Runtime candidates and hiring
 
-Claudeworth and Lodge include `manor.hiring`. A derivative scenario with another entrance
+Claudeworth and Lodge include `manor.mechanics.hiring`. A derivative scenario with another entrance
 should call `(hiring/install scenario "entrance-id")`: it sets `:meeting-place`, initial
 state's meeting place/cap, the visit system and the writing-job extension. A new scenario
 must also include `hiring/actions`, `hiring/adjudicators`, `hiring/bridges`,
@@ -1477,7 +1477,7 @@ Its positions must include `:none`; its meeting place must exist.
 #### Positions, posts and situations
 
 Who someone is (their persona and traits) is kept apart from the job they hold (their position)
-and from their circumstances in this world (their situation). The code is `manor.positions`.
+and from their circumstances in this world (their situation). The code is `manor.mechanics.positions`.
 
 **Positions** come from a catalogue shared between worlds, `resources/positions/england-1904.edn`
 (country-house and village positions in 1904, plus `:none`). A world file names it
@@ -1575,7 +1575,7 @@ and are freed at the start of that round. This makes nights and long activities 
 
 ```clojure
 :effect (fn [world actor {:keys [until]}]
-          [(manor.builtins/occupy world actor "asleep" (clock/round-at (:clock world) (:round world) until))])
+          [(manor.mechanics.builtins/occupy world actor "asleep" (clock/round-at (:clock world) (:round world) until))])
 ```
 
 - `(b/occupy world id activity until)` is an `:agent/occupied` event, visible to everyone present.
@@ -1636,7 +1636,7 @@ matters: someone woken in the wrong place doesn't know why they were woken. Movi
 areas skips the journey, so only do it when nobody is there to see (Claudeworth checks both areas).
 Waking tells the agent that someone has come near; keep that in mind for scenarios where it matters.
 
-### Conversations (`manor.conversation`)
+### Conversations (`manor.mechanics.conversation`)
 
 Every scenario has the built-in `converse {with?, text}`, so back-and-forth talk doesn't take a
 round per answer. It's free: the conversation runs inside the initiator's turn, who then carries
@@ -1647,7 +1647,7 @@ on with it. It uses nobody else's turn either.
   people asleep (`b/asleep?`), hibernating, travelling, elsewhere, or in a human seat. Someone
   busy but awake can talk, and the conversation doesn't touch their occupation: no interrupt, and
   their work ends when it was going to. An interrupted member stays interrupted and decides on
-  their own turn. `manor.conversation/check` gives the reasons.
+  their own turn. `manor.mechanics.conversation/check` gives the reasons.
 - **Order:** the initiator opens with `text`, then everyone speaks in turn, the initiator first
   (then `with`'s order, or spawn order), for up to 2 passes, then the initiator has a last word.
   Each speaking turn is one short model call (at most 3 with retries) with its own prompt (the
@@ -1726,13 +1726,13 @@ Lets the scenario run for free with `{:llm :mock}`. It's essential for testing.
   free and once per turn, so guard them with `(not (used "say"))` and pass afterwards.
 - For the GM (`role :gm`) return `{:tool :done}` unless testing GM behaviour.
 - The judge of work on items (`role :judge`) never reaches the policy: the engine sends it to the
-  scenario's `:mock-judge`, or `manor.items/mock-judge` (see Items). Nor does the nightly steward
-  (`role :steward`): it goes to `:mock-steward`, or `manor.items/mock-steward`.
+  scenario's `:mock-judge`, or `manor.mechanics.items/mock-judge` (see Items). Nor does the nightly steward
+  (`role :steward`): it goes to `:mock-steward`, or `manor.mechanics.items/mock-steward`.
 - Internal adjudication calls (`role :adjudicator`) go to the task's registered `:mock`,
   not this policy (see Internal adjudication queries).
 - Nor do speaking turns in a conversation (the context has `:conversation {:id :initiator
   :members :pass :final?}`): they go to the scenario's `:mock-conversation`, and when that is
-  missing or returns nil, to `manor.conversation/mock-default` (the initiator ends it, the others
+  missing or returns nil, to `manor.mechanics.conversation/mock-default` (the initiator ends it, the others
   stay silent).
 - Only choose valid actions. The scenario smoke test fails on forfeited turns.
 

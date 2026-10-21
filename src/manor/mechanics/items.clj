@@ -1,6 +1,6 @@
-(ns manor.items
+(ns manor.mechanics.items
   "Items: objects with a description and a few aspects that lie in a place or
-  are carried by an agent. An opt-in engine module, like manor.space: a
+  are carried by an agent. An opt-in engine module, like manor.mechanics.space: a
   scenario turns it on with the key :items (a map, possibly empty), and its
   :init may return starting :items.
 
@@ -59,12 +59,12 @@
             [malli.error :as me]
             [malli.json-schema :as mjs]
             [manor.actions :as a]
-            [manor.adjudication :as adjudication]
-            [manor.builtins :as b]
             [manor.clock :as clock]
+            [manor.mechanics.adjudication :as adjudication]
+            [manor.mechanics.builtins :as b]
+            [manor.mechanics.space :as space]
             [manor.narrate :as n]
             [manor.rng :as rng]
-            [manor.space :as space]
             [manor.world :as w]))
 
 (def max-desc 400)

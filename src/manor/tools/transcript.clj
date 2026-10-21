@@ -1,4 +1,4 @@
-(ns manor.transcript
+(ns manor.tools.transcript
   "A readable record of a run, for reading after the fact:
 
     (write! \"runs/claudeworth-20261015-101500\")  ; => \".../transcript.md\"
@@ -18,8 +18,8 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [manor.clock :as clock]
+            [manor.io.store :as store]
             [manor.narrate :as narrate]
-            [manor.store :as store]
             [manor.world :as w]))
 
 (def ^:private hidden #{:llm/usage :round/started :round/ended})

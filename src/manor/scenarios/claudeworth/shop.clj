@@ -7,15 +7,15 @@
             [jsonista.core :as json]
             [malli.json-schema :as mjs]
             [manor.actions :as a]
-            [manor.adjudication :as adjudication]
             [manor.clock :as clock]
-            [manor.items :as items]
+            [manor.mechanics.adjudication :as adjudication]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.positions :as positions]
+            [manor.mechanics.space :as space]
             [manor.narrate :as n]
-            [manor.positions :as positions]
             [manor.scenarios.claudeworth.building :as building]
             [manor.scenarios.claudeworth.deliveries :as deliveries]
             [manor.scenarios.claudeworth.money :as money]
-            [manor.space :as space]
             [manor.world :as w]))
 
 (def max-unit-price 240000) ; £1000: bound untrusted arithmetic, not a price list

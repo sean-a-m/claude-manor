@@ -6,13 +6,13 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [jsonista.core :as json]
             [manor.engine :as e]
-            [manor.llm :as llm]
-            [manor.mcp :as mcp]
-            [manor.people :as people]
-            [manor.positions :as positions]
-            [manor.prompt :as prompt]
-            [manor.store :as store]
-            [manor.worldfile :as wf]))
+            [manor.io.llm :as llm]
+            [manor.io.mcp :as mcp]
+            [manor.io.store :as store]
+            [manor.io.worldfile :as wf]
+            [manor.mechanics.people :as people]
+            [manor.mechanics.positions :as positions]
+            [manor.prompt :as prompt]))
 
 ;; Everything here lives under test-runs/.
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))

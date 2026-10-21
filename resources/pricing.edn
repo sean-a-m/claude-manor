@@ -1,4 +1,4 @@
-;; Model prices for manor.cache-report, keyed by model id.
+;; Model prices for manor.tools.cache-report, keyed by model id.
 ;;
 ;; :tiers        USD per token, by price tier: :input (uncached prompt tokens),
 ;;               :cache-read (cached prompt tokens) and :output (completion
@@ -14,7 +14,7 @@
 ;;               from a least-squares fit of prompt tokens on rendered message
 ;;               characters and tool count, :tokens-per-char as its prompt
 ;;               tokens over its rendered characters. See
-;;               manor.cache-report/calibration.
+;;               manor.tools.cache-report/calibration.
 {"deepseek/deepseek-v4.1-flash"
  {:tiers {:off-peak {:input 1.5e-7 :cache-read 3e-9 :output 6e-7}
           :peak {:input 3e-7 :cache-read 6e-9 :output 1.2e-6}}

@@ -4,7 +4,7 @@
   (:require [clojure.set :as set]
             [manor.engine.judges :as judges]
             [manor.engine.run :as run]
-            [manor.items :as items]))
+            [manor.mechanics.items :as items]))
 
 (defn- job-result
   "Prepare a job's ending on a snapshot, with model calls and their records

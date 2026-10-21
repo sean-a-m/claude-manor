@@ -1,5 +1,5 @@
 (ns manor.items-test
-  "Items (manor.items) in the hamlet test world: world files, take, put-down
+  "Items (manor.mechanics.items) in the hamlet test world: world files, take, put-down
   and give, look and free actions' replies, views, privacy, replay and the
   exported map."
   (:require [clojure.java.io :as io]
@@ -7,18 +7,18 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [jsonista.core :as json]
             [manor.actions :as a]
-            [manor.builtins :as b]
             [manor.engine :as e]
             [manor.engine.work :as work]
-            [manor.items :as items]
-            [manor.llm :as llm]
+            [manor.io.llm :as llm]
+            [manor.io.store :as store]
+            [manor.io.worldfile :as wf]
+            [manor.mechanics.builtins :as b]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.space :as space]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.scenarios.hamlet :as hamlet]
-            [manor.space :as space]
-            [manor.store :as store]
-            [manor.world :as w]
-            [manor.worldfile :as wf]))
+            [manor.world :as w]))
 
 ;; All runs here use {:test? true}, so they live under test-runs/.
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
@@ -456,7 +456,7 @@
           (is (= ["judge"] (:tools call)))
           (is (= [{:role "tool" :tool_call_id "mock-0-judge" :content "ok"}] (:replies call)))))
       (testing "the transcript lists the judge like any other agent"
-        (let [text (manor.transcript/render (:dir run))]
+        (let [text (manor.tools.transcript/render (:dir run))]
           (is (str/includes? text "| judge | 1 | $0.0100 |"))
           (is (str/includes? text "- **judge** judge {"))
           (is (str/includes? text "Ben finishes polishing the clock. (Grandfather clock: just seen to; Pipe: just seen to)."))))

@@ -15,7 +15,7 @@ The user's decisions (2026-10-20):
 
 ## 1. What exists now
 
-`manor.web` is server-rendered hiccup with a little vanilla JS. The index page re-fetches
+`manor.tools.web` is server-rendered hiccup with a little vanilla JS. The index page re-fetches
 `/partial/status` whenever the SSE stream reports an event or a status change. Its map
 (`map-svg`) draws each location as a dot with a label. Worlds whose locations have a `:domain` get
 one three-column grid per domain, and the others get a circle. Routes are lines (dashed when
@@ -270,7 +270,7 @@ Clicking a token opens these sections, the long ones folded:
   are enough.
 
 Everything reads the world through the existing accessors (`items/items-at`, `items/contents`,
-`items/jobs`, `space/present`...), never raw `(:items world)`, as `manor.items` asks.
+`items/jobs`, `space/present`...), never raw `(:items world)`, as `manor.mechanics.items` asks.
 
 ## 6. Scenario hook
 

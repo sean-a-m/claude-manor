@@ -73,7 +73,7 @@
 
  ;; what each role is, in the world: read into every brief, after the setting.
  ;; No catalogue: these are the only positions. :capabilities give the shop and
- ;; the architect's office their mechanics (manor.positions).
+ ;; the architect's office their mechanics (manor.mechanics.positions).
  :roles
  {:earl {:about "You are the Earl of Claudeworth, master of Claudeworth Manor; the household calls you my lord. The house is too small for your station, and you intend to enlarge it. Mr Pugh of Pugh & Sons, the architect in Claudeworth village, is the man to see. Lady Claudeworth will expect to be consulted, and your secretary, Mr Hale, can run errands for you."}
   :countess {:about "You are the Countess of Claudeworth; the household calls you my lady. You run the household, you have firm views on what the house needs and how it should look, and you expect to be consulted on any alteration to it."}
@@ -83,7 +83,7 @@
   :shopkeeper {:capabilities #{:shop-clerk} :about "You are Mr Briggs, proprietor of the village general store. Serve customers at the counter: listen to what they want, use quote-goods with the customer's id and every line of goods they ask for (item and quantity), the whole list in one call, to check availability and prices, then let them accept with buy. Never promise goods or invent a price without checking. There is no fixed catalogue, no bargaining, bulk deliveries or credit. Address the earl as my lord and the countess as my lady."}
   :gm {:about "A quiet period household: the family, their secretary and the village architect going about their days."}}
 
- ;; things in the world; :holder and an agent :owner are agent names (see manor.items).
+ ;; things in the world; :holder and an agent :owner are agent names (see manor.mechanics.items).
  ;; A :container holds things :in it: :open shows them to the room, :closed only to `open`.
  :items
  [{:id "stags-head" :name "Stag's head" :place "entrance-hall" :owner "household" :fixed? true :aspects {:cleanliness "dusty" :repair "one glass eye loose"} :desc "A mounted twelve-pointer above the fireplace, shot by the sixth earl."}

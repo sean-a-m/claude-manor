@@ -1,5 +1,5 @@
 (ns manor.containers-test
-  "Containers (manor.items): items that hold items, in a variant of the
+  "Containers (manor.mechanics.items): items that hold items, in a variant of the
   hamlet world with an open shelf and a closed cupboard in the hall. World
   files, accessors, views, open, take, put-in, privacy, work and the judge,
   a mock run, replay and the exported map."
@@ -10,14 +10,14 @@
             [manor.actions :as a]
             [manor.engine :as e]
             [manor.engine.work :as work]
-            [manor.items :as items]
-            [manor.llm :as llm]
+            [manor.io.llm :as llm]
+            [manor.io.store :as store]
+            [manor.io.worldfile :as wf]
+            [manor.mechanics.items :as items]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.scenarios.hamlet :as hamlet]
-            [manor.store :as store]
-            [manor.world :as w]
-            [manor.worldfile :as wf]))
+            [manor.world :as w]))
 
 ;; All runs here use {:test? true}, so they live under test-runs/.
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))

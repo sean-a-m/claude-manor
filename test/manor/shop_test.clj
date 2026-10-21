@@ -4,17 +4,17 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [jsonista.core :as json]
             [manor.actions :as a]
-            [manor.builtins :as b]
             [manor.engine :as e]
-            [manor.items :as items]
-            [manor.llm :as llm]
+            [manor.io.llm :as llm]
+            [manor.io.store :as store]
+            [manor.mechanics.builtins :as b]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.space :as space]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as cw]
             [manor.scenarios.claudeworth.shop :as shop]
             [manor.scenarios.household :as household]
-            [manor.space :as space]
-            [manor.store :as store]
             [manor.world :as w]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))

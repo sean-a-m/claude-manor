@@ -2,15 +2,15 @@
   "The small bundled world exercises production household mechanics for a day."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.engine :as e]
-            [manor.hiring :as hiring]
-            [manor.items :as items]
+            [manor.io.store :as store]
+            [manor.io.worldfile :as worldfile]
+            [manor.mechanics.hiring :as hiring]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.space :as space]
             [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as cw]
             [manor.scenarios.claudeworth.building :as building]
-            [manor.space :as space]
-            [manor.store :as store]
-            [manor.world :as w]
-            [manor.worldfile :as worldfile]))
+            [manor.world :as w]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
 

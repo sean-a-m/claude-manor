@@ -4,10 +4,10 @@
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
             [manor.engine :as e]
-            [manor.items :as items]
+            [manor.io.store :as store]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.space :as space]
             [manor.scenarios.claudeworth :as cw]
-            [manor.space :as space]
-            [manor.store :as store]
             [manor.world :as w]))
 
 (def bundled [:village :treasure :quiz :claudeworth :lodge :dressing])

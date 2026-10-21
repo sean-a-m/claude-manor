@@ -6,8 +6,8 @@ The empty-shop judge bug (below) is being fixed separately with world-file data 
 
 Read `AGENTS.md` first, then "Conversations", "Hibernation", "Turn order: `:schedule`" and
 "Internal adjudication queries" (the shop's quotes) in `docs/scenario-authoring.md`,
-`src/manor/conversation.clj`, `src/manor/scenarios/claudeworth/shop.clj`, and hibernation in
-`src/manor/builtins.clj` and `src/manor/scenarios/claudeworth.clj`.
+`src/manor/mechanics/conversation.clj`, `src/manor/scenarios/claudeworth/shop.clj`, and hibernation in
+`src/manor/mechanics/builtins.clj` and `src/manor/scenarios/claudeworth.clj`.
 
 ## Why
 

@@ -1,4 +1,4 @@
-(ns manor.bridge
+(ns manor.io.bridge
   "Bridges are the only way the simulation touches the real world. Agents
   never get raw tools or credentials: an action names a bridge, the engine
   validates the call, runs it here, and records the result as an event so
@@ -10,7 +10,7 @@
      :timeout-ms 15000
      :max-chars 4000}       ; results are truncated to this when printed
 
-  or a tool on an MCP server (see manor.mcp); the bridge args are the tool's
+  or a tool on an MCP server (see manor.io.mcp); the bridge args are the tool's
   arguments and the result is the tool's text (or structured) content:
     {:doc \"Message your pi assistant\"
      :mcp {:server :pi :tool \"send_message\"}
@@ -19,8 +19,8 @@
   ctx is {:run-id ... :run-dir ... :opts ... :mcp <the run's server pool>}.
   Run options can replace any bridge through :bridge-stubs
   {bridge-name (fn [args ctx])}, for offline runs and tests."
-  (:require [manor.http :as http]
-            [manor.mcp :as mcp]))
+  (:require [manor.io.http :as http]
+            [manor.io.mcp :as mcp]))
 
 (defn- truncate-result
   "Keep results small and inert. Large results are replaced by a truncated

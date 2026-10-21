@@ -4,9 +4,9 @@
 
   The world is in resources/worlds/claudeworth.edn (run option :world-file
   overrides it): the map, the clock, the agents with their personas and
-  situations, the things in the house (:items, see manor.items), the setting
+  situations, the things in the house (:items, see manor.mechanics.items), the setting
   (:meta :setting), and the positions they hold: the shared catalogue it
-  names (:meta :positions) and its own :roles over it (see manor.positions).
+  names (:meta :positions) and its own :roles over it (see manor.mechanics.positions).
   This namespace holds only the rules, and briefs and tool docs say nothing
   a world file could make false. Areas are the locations' :domains. `walk` (free) goes
   anywhere in the current area; `travel` (a turn) goes to another area.
@@ -20,20 +20,20 @@
     clojure -M:dev:run claudeworth --mock --test
     clojure -M:run claudeworth --test --max-cost 0.25"
   (:require [clojure.string :as str]
-            [manor.builtins :as b]
             [manor.clock :as clock]
-            [manor.conversation :as conversation]
-            [manor.hiring :as hiring]
-            [manor.items :as items]
+            [manor.io.worldfile :as worldfile]
+            [manor.mechanics.builtins :as b]
+            [manor.mechanics.conversation :as conversation]
+            [manor.mechanics.hiring :as hiring]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.people :as people]
+            [manor.mechanics.positions :as positions]
+            [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
-            [manor.people :as people]
-            [manor.positions :as positions]
             [manor.scenarios.claudeworth.building :as building]
             [manor.scenarios.claudeworth.deliveries :as deliveries]
             [manor.scenarios.claudeworth.shop :as shop]
-            [manor.space :as space]
-            [manor.world :as w]
-            [manor.worldfile :as worldfile])
+            [manor.world :as w])
   (:import (java.time LocalTime)))
 
 (def max-sleep-hours 12)

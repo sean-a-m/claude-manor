@@ -1,4 +1,4 @@
-(ns manor.adjudication
+(ns manor.mechanics.adjudication
   "Pure response handling for narrow engine-run LLM judgements. Domain code
   supplies the tool and argument checker; the engine owns calls and events.")
 

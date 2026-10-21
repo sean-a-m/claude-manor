@@ -16,10 +16,10 @@
   approval (send-letter), world systems, and the GM spawning newcomers."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [manor.bridge :as bridge]
+            [manor.io.bridge :as bridge]
+            [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
             [manor.rng :as rng]
-            [manor.space :as space]
             [manor.world :as w])
   (:import (java.time LocalDate)))
 

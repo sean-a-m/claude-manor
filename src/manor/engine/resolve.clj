@@ -3,10 +3,10 @@
   current world and applies its effect, and `run-query!` runs a query
   (a bridge, an adjudication or a composed query) and its :on-result."
   (:require [manor.actions :as a]
-            [manor.bridge :as bridge]
-            [manor.builtins :as b]
             [manor.engine.judges :as judges]
             [manor.engine.run :as run]
+            [manor.io.bridge :as bridge]
+            [manor.mechanics.builtins :as b]
             [manor.prompt :as prompt]
             [manor.world :as w]))
 

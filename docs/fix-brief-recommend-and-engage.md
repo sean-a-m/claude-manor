@@ -36,7 +36,7 @@ recommend {"position": "kitchen-maid", "for": "lady-claudeworth"}
 
 i.e. it recommended a candidate **to itself**, so `actor == for`.
 
-1. `recommend-reason` (`src/manor/hiring.clj:84-89`) only requires `for` to be active, non-GM and
+1. `recommend-reason` (`src/manor/mechanics/hiring.clj:84-89`) only requires `for` to be active, non-GM and
    `space/together?` with the caller. `(space/together? world actor actor)` is true, so
    self-recommendation validates and the query runs.
 2. `recommend!` found an existing reusable candidate (`reusable`, `hiring.clj:57-63`: Lizzie Ward,

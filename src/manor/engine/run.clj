@@ -6,10 +6,10 @@
   The manor.engine.* namespaces are the engine's parts; code outside the
   engine uses manor.engine."
   (:require [manor.actions :as a]
-            [manor.store :as store]
-            [manor.transcript :as transcript]
-            [manor.world :as w]
-            [manor.worldfile :as worldfile]))
+            [manor.io.store :as store]
+            [manor.io.worldfile :as worldfile]
+            [manor.tools.transcript :as transcript]
+            [manor.world :as w]))
 
 (defn world [run] @(:world run))
 (defn events [run] @(:events run))

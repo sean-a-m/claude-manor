@@ -1,4 +1,4 @@
-(ns manor.web
+(ns manor.tools.web
   "A small control panel: run controls, roster, pending approvals, human
   input, and a live event feed (server-sent events). `?as=<agent-id>` shows
   the feed exactly as that agent sees it, which is useful for checking
@@ -10,10 +10,10 @@
             [manor.actions :as a]
             [manor.clock :as clock]
             [manor.engine :as e]
+            [manor.mechanics.positions :as positions]
+            [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
-            [manor.positions :as positions]
             [manor.prompt :as prompt]
-            [manor.space :as space]
             [manor.world :as w]
             [org.httpkit.server :as hk])
   (:import (java.net URLDecoder)))
@@ -209,7 +209,7 @@ form.inline{display:inline}")]]
   (let [world (e/world run)
         {:keys [state mode remaining acting awaiting pause-reasons error last-human-feedback]} (e/status run)
         input @(:input run)
-        ;; the scenario's roles, and the world's positions (manor.positions)
+        ;; the scenario's roles, and the world's positions (manor.mechanics.positions)
         roles (sort (map name (keys (dissoc (merge (:roles (:scenario run)) (get-in world [:state :positions])) :gm))))]
     (html
      [:section

@@ -21,15 +21,15 @@
     (clean-test-runs!)                ; delete everything under test-runs/"
   (:require [clojure.pprint :refer [pprint]]
             [manor.engine :as e]
-            [manor.llm :as llm]
+            [manor.io.llm :as llm]
+            [manor.io.store :as store]
+            [manor.io.worldfile :as worldfile]
+            [manor.mechanics.people :as people]
             [manor.narrate :as n]
-            [manor.people :as people]
             [manor.prompt :as prompt]
-            [manor.store :as store]
-            [manor.transcript :as transcript]
-            [manor.web :as web]
-            [manor.world :as w]
-            [manor.worldfile :as worldfile]))
+            [manor.tools.transcript :as transcript]
+            [manor.tools.web :as web]
+            [manor.world :as w]))
 
 (defonce ^:private current (atom nil))
 
@@ -151,7 +151,7 @@
 (defn roll-cast!
   "Roll every character in the world file at `path` afresh with the people
   server and polish each into a persona, writing the results into the file
-  for review with git diff (see manor.people/roll-cast!). Uses the run
+  for review with git diff (see manor.mechanics.people/roll-cast!). Uses the run
   defaults' model and the manor key, unless {:llm :mock}. Its log and every
   call go to test-runs/roll-cast-<time>/ (move a real one to old-test-runs/).
   The cast has a default :max-cost of $0.20, checked before each model call.

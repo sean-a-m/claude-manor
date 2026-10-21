@@ -15,12 +15,12 @@
   (:require [clojure.string :as str]
             [jsonista.core :as json]
             [manor.clock :as clock]
-            [manor.conversation :as conversation]
-            [manor.items :as items]
+            [manor.mechanics.conversation :as conversation]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.people :as people]
+            [manor.mechanics.positions :as positions]
+            [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
-            [manor.people :as people]
-            [manor.positions :as positions]
-            [manor.space :as space]
             [manor.world :as w]))
 
 (def ^:private pretty-mapper (json/object-mapper {:pretty true}))

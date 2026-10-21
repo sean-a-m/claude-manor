@@ -1,7 +1,7 @@
 (ns manor.cache-report-test
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
-            [manor.cache-report :as c]))
+            [manor.tools.cache-report :as c]))
 
 ;; inferred/: six calls with costs but no cached tokens, one of each kind;
 ;; the first two off-peak, the rest peak.

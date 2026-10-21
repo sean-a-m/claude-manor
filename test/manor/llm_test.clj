@@ -4,7 +4,7 @@
   engine sends back."
   (:require [clojure.test :refer [deftest is testing]]
             [jsonista.core :as json]
-            [manor.llm :as llm]))
+            [manor.io.llm :as llm]))
 
 (def ^:private body
   (json/write-value-as-string

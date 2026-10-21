@@ -47,7 +47,7 @@ The scenario boundary is already clean: the engine only reads the keys listed in
 - **Now:** `:mock-policy` is per scenario. `test/manor/scenarios_test.clj` smoke-tests bundled
   scenarios using their own policies.
 - **Approach:**
-  - `manor.llm/random-policy`: picks a random *available* tool for the agent and generates
+  - `manor.io.llm/random-policy`: picks a random *available* tool for the agent and generates
     arguments from its malli schema with `malli.generator`. That needs the
     `org.clojure/test.check` dependency; seed it from the run seed so runs are reproducible.
     Prefer turn-ending tools after a free or query call. For the GM, choose `done` most of the
@@ -66,7 +66,7 @@ The scenario boundary is already clean: the engine only reads the keys listed in
     - state-changing event types with no reducer (hard to detect in general; skip, or compare
       world before/after for events with no reducer)
     - observation size per agent (characters)
-- **Files:** `deps.edn` (test.check), `src/manor/llm.clj`, new `src/manor/smoke.clj`, tests, and a
+- **Files:** `deps.edn` (test.check), `src/manor/io/llm.clj`, new `src/manor/smoke.clj`, tests, and a
   REPL helper in `dev/user.clj` (`(smoke! :name)`).
 - **Done when:** `(smoke! :treasure)` and `(smoke! :village)` produce a clean report, and a
   scenario with a throwing effect or a missing describe is flagged.
@@ -141,7 +141,7 @@ The scenario boundary is already clean: the engine only reads the keys listed in
 
 ### B1. MCP bridges: done (2026-10-14)
 
-The engine is an MCP client (`manor.mcp`, stdio only). A bridge spec `{:mcp {:server :pi :tool
+The engine is an MCP client (`manor.io.mcp`, stdio only). A bridge spec `{:mcp {:server :pi :tool
 "send_message"}}` calls an MCP tool; servers come from the scenario's `:mcp-servers`,
 `config/mcp.edn` and the run option `:mcp-servers`. One server process per run, started lazily and
 closed by `stop-run`. Tool costs reported in `_meta "manor/cost"` count towards the run.
@@ -191,7 +191,7 @@ pi state on branches is for the GM/orchestrator to handle later; no cost limits 
 - **Approach:** record `{:scenario-version (:version scenario) :scenario-hash <sha of source file>}`
   in `config.edn` at `start-run`. Warn on mismatch in `load-run` and `branch-run`. Optionally add a
   `:version` key to scenarios.
-- **Files:** `src/manor/engine.clj`, `src/manor/store.clj`.
+- **Files:** `src/manor/engine.clj`, `src/manor/io/store.clj`.
 
 ### B4. Timed events
 
@@ -227,7 +227,7 @@ pi state on branches is for the GM/orchestrator to handle later; no cost limits 
 
 ### B7. State held by locations: largely done
 
-`manor.items` is an opt-in engine module: items at places, carried by people or inside
+`manor.mechanics.items` is an opt-in engine module: items at places, carried by people or inside
 containers, keyed aspects on items and places (stores design phase 1), `take`, `put-down`,
 `give`, `look`, `open`, `put-in`, and timed `work-on` jobs. A separate judge decides
 aspect changes when work ends, using the time actually worked. Claudeworth has starting
@@ -396,7 +396,7 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   - **Fixed keys alongside open ones:** some keys always present for everyone (`:dress`, say),
     with the rest open as now. It would give the views a stable order and let the steward or
     code treat known keys predictably.
-  - **Appearance worded as habit:** the people writer (`manor.people` polish and appearance)
+  - **Appearance worded as habit:** the people writer (`manor.mechanics.people` polish and appearance)
     may need to write changeable things as what's usual ("usually in a print frock and
     apron"), so the fixed baseline doesn't contradict aspects. Check what it writes for
     clothing first.
@@ -486,7 +486,7 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
 15. **Phrase and regex checks on model prose: done.** Removed from the polish, with the
     instruction against period jargon; the instructions now welcome it. These broke the user's guideline (AGENTS.md: no
     hard-coded phrase or regex checks on what models write). All are in the polish
-    (`src/manor/people.clj`): the phrenology jargon list on persona and manner (which also
+    (`src/manor/mechanics/people.clj`): the phrenology jargon list on persona and manner (which also
     works against the user's wish to keep period jargon), the third-person check (subject He, She
     or the name; must begin "You"), and `appearance-problem` (begins "You", contains the name,
     trait words like "drinks" or "honest"). Remove them, keeping the schema and length checks;

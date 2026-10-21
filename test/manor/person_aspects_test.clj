@@ -1,5 +1,5 @@
 (ns manor.person-aspects-test
-  "Person aspects (manor.items) in the dressing fixture world: checks, views,
+  "Person aspects (manor.mechanics.items) in the dressing fixture world: checks, views,
   judged work on oneself and on others, job scope, the nightly steward and
   replay. Nothing here depends on Claudeworth's content."
   (:require [clojure.java.io :as io]
@@ -8,14 +8,14 @@
             [jsonista.core :as json]
             [manor.actions]
             [manor.engine :as e]
-            [manor.items :as items]
-            [manor.llm :as llm]
+            [manor.io.llm :as llm]
+            [manor.io.store :as store]
+            [manor.io.worldfile :as wf]
+            [manor.mechanics.items :as items]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.scenarios.dressing :as dressing]
-            [manor.store :as store]
-            [manor.world :as w]
-            [manor.worldfile :as wf]))
+            [manor.world :as w]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
 
@@ -119,7 +119,7 @@
         (is (= #{"lady-ashby" "dawson"} (:visible-to done))))
       (testing "Dawson, in the room, sees it; the transcript shows it"
         (is (= {:dress "changed: changing for dinner"} (:aspects (person-here (view run "dawson") "lady-ashby"))))
-        (is (str/includes? (manor.transcript/render (:dir run)) "(Lady Ashby: changed: changing for dinner)")))
+        (is (str/includes? (manor.tools.transcript/render (:dir run)) "(Lady Ashby: changed: changing for dinner)")))
       (testing "the exported map keeps the live aspects, and loads again"
         (let [map-file (io/file (:dir run) "map.edn")
               agents (:agents (wf/load-world (str map-file)))]

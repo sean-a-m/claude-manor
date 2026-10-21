@@ -11,7 +11,7 @@
     2. travellers who are due arrive, and occupied agents who are due are
        freed; the scenario's :hibernate puts agents out of play or wakes
        them; work on items that ends now is judged and its results applied
-       (manor.items); run act-bridges the operator approved
+       (manor.mechanics.items); run act-bridges the operator approved
     3. run world systems (ticks, possibly fed by bridges)
     4. for each schedule group: activate its agents, resolve their actions
     5. call the GM if anything triggers it
@@ -19,7 +19,7 @@
 
   Whenever the run stops running rounds (a pause, the end of `auto!`'s
   rounds, a manual step, `pause!`, `stop-run`) it writes
-  <run-dir>/transcript.md (see manor.transcript), on the executor so it
+  <run-dir>/transcript.md (see manor.tools.transcript), on the executor so it
   sees whole rounds.
 
   This namespace is the engine's interface: making, loading and branching
@@ -30,19 +30,19 @@
   (jobs and the steward) and round."
   (:require [clojure.string :as str]
             [manor.actions :as a]
-            [manor.builtins :as b]
             [manor.clock :as clock]
-            [manor.conversation :as conversation]
             [manor.engine.round :as round]
             [manor.engine.run :as run]
-            [manor.items :as items]
-            [manor.llm :as llm]
-            [manor.mcp :as mcp]
-            [manor.positions :as positions]
-            [manor.space :as space]
-            [manor.store :as store]
-            [manor.world :as w]
-            [manor.worldfile :as worldfile])
+            [manor.io.llm :as llm]
+            [manor.io.mcp :as mcp]
+            [manor.io.store :as store]
+            [manor.io.worldfile :as worldfile]
+            [manor.mechanics.builtins :as b]
+            [manor.mechanics.conversation :as conversation]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.positions :as positions]
+            [manor.mechanics.space :as space]
+            [manor.world :as w])
   (:import (java.util.concurrent ExecutorService Future TimeUnit)))
 
 (def default-opts
@@ -65,7 +65,7 @@
    :start nil                       ; e.g. "1904-10-15T21:00": start the scenario's clock then
    :auto-delay-ms 0
    :offline? false                  ; use scenario :offline-stubs for bridges
-   :addressed-as? true              ; positions' forms of address in prompts (manor.positions)
+   :addressed-as? true              ; positions' forms of address in prompts (manor.mechanics.positions)
    :test? false})                   ; store under test-runs/ (disposable) instead of runs/
 
 (def ^:private non-data-opts [:bridge-stubs :llm-impl])
@@ -95,7 +95,7 @@
 
 (defn- conversation-mock
   "`policy`, with speaking turns (ctx :conversation) sent to the scenario's
-  :mock-conversation, or else manor.conversation/mock-default."
+  :mock-conversation, or else manor.mechanics.conversation/mock-default."
   [scenario policy]
   (let [converse (:mock-conversation scenario (constantly nil))]
     (fn [ctx]
@@ -107,7 +107,7 @@
   "The scenario policy handles characters. Work uses :mock-judge (or the
   default); internal adjudication queries use their registered :mock, never
   a live provider; speaking turns in a conversation use :mock-conversation,
-  falling back to manor.conversation/mock-default. Character policies need
+  falling back to manor.mechanics.conversation/mock-default. Character policies need
   not know about these calls."
   [scenario]
   (let [policy (conversation-mock scenario (or (:mock-policy scenario) (constantly nil)))
@@ -352,7 +352,7 @@
 
 (defn- init!
   "Build the starting world from the scenario's :init. A :world-file in the
-  result (see manor.worldfile) is saved as <run-dir>/world-start.edn. The
+  result (see manor.io.worldfile) is saved as <run-dir>/world-start.edn. The
   run option :start overrides the clock's start time. If the scenario has
   :items, the starting items are added after the agents."
   [run]

@@ -1,5 +1,5 @@
 (ns manor.consumables-test
-  "Consumables (manor.items): items marked :consumable? that the judge may
+  "Consumables (manor.mechanics.items): items marked :consumable? that the judge may
   use up when work ends, and the things it makes from them, in a variant of
   the hamlet world with a kitchen's worth of things in the hall. Checks on
   the judge's answer, the :item/work-done event and its reducer, narration,
@@ -10,15 +10,15 @@
             [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
-            [manor.items :as items]
-            [manor.llm :as llm]
+            [manor.io.llm :as llm]
+            [manor.io.store :as store]
+            [manor.io.worldfile :as wf]
+            [manor.mechanics.items :as items]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.scenarios.hamlet :as hamlet]
-            [manor.store :as store]
-            [manor.transcript :as transcript]
-            [manor.world :as w]
-            [manor.worldfile :as wf]))
+            [manor.tools.transcript :as transcript]
+            [manor.world :as w]))
 
 ;; All runs here use {:test? true}, so they live under test-runs/.
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))

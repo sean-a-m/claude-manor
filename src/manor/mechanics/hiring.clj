@@ -1,13 +1,13 @@
-(ns manor.hiring
+(ns manor.mechanics.hiring
   "Candidate records, private recommendations and event-owned hiring.
   I/O runs through the engine's composed-query services; reducers never call out."
   (:require [clojure.string :as str]
-            [manor.builtins :as b]
-            [manor.items :as items]
+            [manor.mechanics.builtins :as b]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.people :as people]
+            [manor.mechanics.positions :as positions]
+            [manor.mechanics.space :as space]
             [manor.narrate :as n]
-            [manor.people :as people]
-            [manor.positions :as positions]
-            [manor.space :as space]
             [manor.world :as w]))
 
 (def pool-limit 40)

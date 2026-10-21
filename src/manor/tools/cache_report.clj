@@ -1,4 +1,4 @@
-(ns manor.cache-report
+(ns manor.tools.cache-report
   "How well a run's prompts hit the provider's prompt cache, and what that
   costs. Reads <run-dir>/llm.edn only; never calls a model.
 
@@ -24,7 +24,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [jsonista.core :as json]
-            [manor.store :as store])
+            [manor.io.store :as store])
   (:import (java.time DayOfWeek Instant ZoneOffset)
            (java.util Arrays)))
 

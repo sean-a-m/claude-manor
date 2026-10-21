@@ -4,7 +4,7 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.walk :as walk]
-            [manor.hiring :as hiring]
+            [manor.mechanics.hiring :as hiring]
             [manor.scenarios.claudeworth :as cw]
             [manor.scenarios.claudeworth.deliveries :as deliveries]))
 

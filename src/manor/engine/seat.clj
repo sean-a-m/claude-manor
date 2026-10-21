@@ -3,11 +3,11 @@
   input through manor.engine/act!. A turn without a turn-ending action is
   forfeited."
   (:require [manor.actions :as a]
-            [manor.builtins :as b]
             [manor.engine.run :as run]
             [manor.engine.talk :as talk]
             [manor.engine.turn :as turn]
-            [manor.positions :as positions]
+            [manor.mechanics.builtins :as b]
+            [manor.mechanics.positions :as positions]
             [manor.prompt :as prompt]
             [manor.world :as w]))
 

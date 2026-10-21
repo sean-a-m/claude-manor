@@ -19,11 +19,11 @@
   the model noticed the new text."
   (:require [clojure.string :as str]
             [manor.actions :as a]
-            [manor.conversation :as conv]
             [manor.engine :as e]
-            [manor.items :as items]
-            [manor.llm :as llm]
-            [manor.store :as store]))
+            [manor.io.llm :as llm]
+            [manor.io.store :as store]
+            [manor.mechanics.conversation :as conv]
+            [manor.mechanics.items :as items]))
 
 (defn calls
   "The recorded model calls of the run in `run-dir`, as a vector."

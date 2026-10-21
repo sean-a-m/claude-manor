@@ -1,7 +1,7 @@
-(ns manor.builtins
+(ns manor.mechanics.builtins
   "Actions every scenario gets. Scenarios can override any of them by name."
   (:require [clojure.string :as str]
-            [manor.space :as space]
+            [manor.mechanics.space :as space]
             [manor.world :as w]))
 
 (defn slug [s]
@@ -13,16 +13,16 @@
     (first (remove taken (cons base (map #(str base "-" %) (iterate inc 2)))))))
 
 (def trait-keys
-  "A person's hidden traits (see manor.people): only their own prompt shows them."
+  "A person's hidden traits (see manor.mechanics.people): only their own prompt shows them."
   [:sex :manner :temperament :faculties :circumstances])
 
 (defn spawn-events
   "Events that add an agent of `role` to the world, followed by the role's
   own :on-spawn events (starting holdings and so on), then the scenario's
   :on-spawn events, `(fn [world id spec])`, which see everything the agent
-  was spawned with (a post, a bedroom; see manor.positions). An agent's
+  was spawned with (a post, a bedroom; see manor.mechanics.positions). An agent's
   :situation is kept: only their own prompt shows it. The public
-  :appearance is kept too, and :aspects if there are any (manor.items)."
+  :appearance is kept too, and :aspects if there are any (manor.mechanics.items)."
   [scenario world {:keys [role name persona model controller location situation appearance aspects] :as spec}]
   (let [id (unique-id world (slug name))
         location (or location (get-in scenario [:roles role :start-location]))
@@ -53,7 +53,7 @@
   "Event: `id` is busy with `activity` and next acts in round `until`.
   `activity` reads after \"is\": \"asleep\", \"reading in the library\".
   With `{:asleep? true}` they are asleep, which matters to anyone who would
-  talk to them (manor.conversation). Everyone present sees it."
+  talk to them (manor.mechanics.conversation). Everyone present sees it."
   ([world id activity until] (occupy world id activity until nil))
   ([world id activity until {:keys [asleep?]}]
    {:type :agent/occupied :actor id :visible-to (space/here world id)

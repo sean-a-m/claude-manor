@@ -1,4 +1,4 @@
-(ns manor.conversation
+(ns manor.mechanics.conversation
   "Conversations within a turn. `converse` draws up to three people in the
   same place into an exchange: the initiator opens, then everyone speaks in
   turn, the initiator first, for up to two passes, and the initiator has
@@ -13,9 +13,9 @@
   The conversation's state (who is still in it, the pass) lives only in the
   engine's loop; the events are the record."
   (:require [clojure.string :as str]
-            [manor.builtins :as b]
+            [manor.mechanics.builtins :as b]
+            [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
-            [manor.space :as space]
             [manor.world :as w]))
 
 (def max-others "People the initiator can draw in." 3)

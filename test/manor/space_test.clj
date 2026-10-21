@@ -2,9 +2,9 @@
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.io.store :as store]
+            [manor.mechanics.space :as space]
             [manor.prompt :as prompt]
-            [manor.space :as space]
-            [manor.store :as store]
             [manor.world :as w]))
 
 ;; All runs here use {:test? true}, so they live under test-runs/.

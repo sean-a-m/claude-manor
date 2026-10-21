@@ -85,7 +85,7 @@ viewer/src/manor/viewer/
 viewer/test/            tests (fixture run; no network, no old-test-runs)
 ```
 
-`data.clj` reads a run the same way `manor.store/read-lines` writes it (one EDN
+`data.clj` reads a run the same way `manor.io.store/read-lines` writes it (one EDN
 form per line), but tolerantly: a line that will not read is counted and
 skipped (`:errors`), so a run being written can still be looked at. Runs are
 cached in memory keyed on file mtimes, so a live run refreshes.

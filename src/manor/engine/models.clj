@@ -3,8 +3,8 @@
   and the call itself in llm.edn."
   (:require [clojure.string :as str]
             [manor.engine.run :as run]
-            [manor.llm :as llm]
-            [manor.store :as store])
+            [manor.io.llm :as llm]
+            [manor.io.store :as store])
   (:import (java.time Instant)))
 
 (defn record-usage! [run agent-id request response]

@@ -1,13 +1,13 @@
 (ns manor.engine.talk
-  "Running a conversation (manor.conversation has its rules): the speaking
+  "Running a conversation (manor.mechanics.conversation has its rules): the speaking
   turns, each a short model call by the speaker, and the summary the
   initiator gets back as the reply to `converse`."
   (:require [clojure.string :as str]
             [manor.actions :as a]
-            [manor.conversation :as conversation]
             [manor.engine.resolve :as resolve]
             [manor.engine.run :as run]
             [manor.engine.turn :as turn]
+            [manor.mechanics.conversation :as conversation]
             [manor.narrate :as narrate]
             [manor.prompt :as prompt]
             [manor.world :as w]))
@@ -81,7 +81,7 @@
 
 (defn- converse!
   "Run the speaking turns of `conv` after the initiator's opening line, and
-  return how it ended (a key of manor.conversation/endings): up to
+  return how it ended (a key of manor.mechanics.conversation/endings): up to
   `conversation/passes` passes, the initiator first (who opened pass 1
   already), then the initiator's last word. It ends early when the
   initiator ends it, when everyone else has left, when nobody else speaks

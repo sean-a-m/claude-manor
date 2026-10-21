@@ -1,5 +1,5 @@
 (ns manor.find-test
-  "Finding (manor.items): local facts, checked oracle, seeded outcomes and replay."
+  "Finding (manor.mechanics.items): local facts, checked oracle, seeded outcomes and replay."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [jsonista.core :as json]
@@ -7,11 +7,11 @@
             [manor.engine :as e]
             [manor.engine.resolve :as resolve]
             [manor.engine.turn :as turn]
-            [manor.items :as items]
-            [manor.llm :as llm]
+            [manor.io.llm :as llm]
+            [manor.io.store :as store]
+            [manor.mechanics.items :as items]
             [manor.narrate :as n]
             [manor.rng :as rng]
-            [manor.store :as store]
             [manor.world :as w]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))

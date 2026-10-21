@@ -2,12 +2,12 @@
 
 **Status:** done. Phases 1–4 are built and mock-tested, and the real-run check is below
 ("Real run"). As built, the shared functions are
-`hiring/new-person`, `hiring/spawn-spec` and `hiring/idle-rounds` (in `manor.hiring`, which owns
+`hiring/new-person`, `hiring/spawn-spec` and `hiring/idle-rounds` (in `manor.mechanics.hiring`, which owns
 the people bridges and adjudicators), not `people/...` as sketched below.
 
 Read `AGENTS.md` first, then "Internal adjudication queries", "Composed queries", `:systems`,
 "The nightly steward" and "Runtime candidates and hiring" in `docs/scenario-authoring.md`,
-`src/manor/scenarios/claudeworth/shop.clj` and `src/manor/hiring.clj`.
+`src/manor/scenarios/claudeworth/shop.clj` and `src/manor/mechanics/hiring.clj`.
 
 ## Why
 

@@ -5,15 +5,15 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.clock :as clock]
             [manor.engine :as e]
-            [manor.hiring :as hiring]
-            [manor.items :as items]
+            [manor.io.store :as store]
+            [manor.mechanics.hiring :as hiring]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.positions :as positions]
             [manor.narrate :as n]
-            [manor.positions :as positions]
             [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as cw]
             [manor.scenarios.claudeworth.deliveries :as deliveries]
             [manor.scenarios.claudeworth.shop :as shop]
-            [manor.store :as store]
             [manor.world :as w]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))

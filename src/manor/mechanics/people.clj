@@ -1,4 +1,4 @@
-(ns manor.people
+(ns manor.mechanics.people
   "People: the people server's base records (mcp-servers/people), the
   writer that turns basic readings into circumstances and character prose,
   and `roll-cast!`, which refreshes a world file's cast.
@@ -24,11 +24,11 @@
             [jsonista.core :as json]
             [malli.json-schema :as mjs]
             [manor.actions :as a]
-            [manor.adjudication :as adjudication]
-            [manor.llm :as llm]
-            [manor.mcp :as mcp]
-            [manor.positions :as positions]
-            [manor.worldfile :as worldfile]))
+            [manor.io.llm :as llm]
+            [manor.io.mcp :as mcp]
+            [manor.io.worldfile :as worldfile]
+            [manor.mechanics.adjudication :as adjudication]
+            [manor.mechanics.positions :as positions]))
 
 (def mcp-servers {:people {:command ["bb" "-m" "people.server"] :cwd "mcp-servers/people"}})
 
@@ -323,7 +323,7 @@
   No previous persona, sketch, manner, appearance or traits reach the polish.
   A successful roll removes any legacy :sketch rather than preserving it.
 
-  opts: :llm (a manor.llm/LLM), :model, :max-tokens, :reasoning,
+  opts: :llm (a manor.io.llm/LLM), :model, :max-tokens, :reasoning,
   :tool-choice, :max-cost (checked before each model call across the cast),
   :seed (fresh UUID by default; pass a seed to reproduce basic traits),
   :only (agent names to roll; default

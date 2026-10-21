@@ -2,13 +2,13 @@
   "Regression coverage for the boundary between test conditions and bundled content."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.engine :as e]
-            [manor.items :as items]
+            [manor.io.store :as store]
+            [manor.io.worldfile :as wf]
+            [manor.mechanics.items :as items]
             [manor.scenarios.claudeworth :as cw]
             [manor.scenarios.claudeworth.money :as money]
             [manor.scenarios.household :as fixture]
-            [manor.store :as store]
-            [manor.world :as w]
-            [manor.worldfile :as wf]))
+            [manor.world :as w]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
 

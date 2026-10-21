@@ -215,13 +215,13 @@ Done. The contract is in "People and traits" in `docs/scenario-authoring.md`.
   `test/manor/people_test.clj` check determinism, five axes, one faculty per group, one or two
   circumstances from different groups never in an excluded pair, untaken names and the position
   weights, and they check `reputation` against the person's own traits.
-- **The polish** is `manor.people/polish!`: one call with one correction, a free `mock-polish`,
+- **The polish** is `manor.mechanics.people/polish!`: one call with one correction, a free `mock-polish`,
   and checks that the persona names the person, keeps to the lengths and uses no jargon.
 - **Traits on agents:** world-file agents may carry `:sex :manner :temperament :faculties
   :circumstances` and a `:sketch`. The agent's own prompt shows the persona, then the manner and
   a line of readings. A test proves no other agent's view or prompt contains them, and that an
   agent without traits gets the same prompt as before.
-- **`roll-cast!`** (`dev/user.clj`, over `manor.people/roll-cast!`) writes into the world file
+- **`roll-cast!`** (`dev/user.clj`, over `manor.mechanics.people/roll-cast!`) writes into the world file
   in place, keeping comments and layout. Loading a world never calls out.
 - **Claudeworth's cast** was rolled with seed 1 by `deepseek/deepseek-v4.1-flash`. The first roll
   cost $0.0046 for 13 calls. Seven characters were written; Lord Claudeworth and Nellie overshot
@@ -456,7 +456,7 @@ and replay pass.
 ### 4.3 Phase 2 as built
 
 Done. The contract is in "Positions, posts and situations" (and "People and traits") in
-`docs/scenario-authoring.md`; the code is `manor.positions`, and the tests are in
+`docs/scenario-authoring.md`; the code is `manor.mechanics.positions`, and the tests are in
 `test/manor/positions_test.clj`.
 
 - **The catalogue** is `resources/positions/england-1904.edn`: the 43 positions of section 4.2
@@ -467,7 +467,7 @@ Done. The contract is in "Positions, posts and situations" (and "People and trai
   position. A world without a catalogue (the test fixtures) has only its `:roles`. The merged
   table is kept in `[:state :positions]` (it was `[:state :roles]`).
 - **The people server** takes `ages` and `sex` in `generate_people`; the engine passes them from
-  the catalogue entry (`manor.people/generate-args`). Its own `positions.edn` is gone, so there is
+  the catalogue entry (`manor.mechanics.people/generate-args`). Its own `positions.edn` is gone, so there is
   one list.
 - **Briefs:** Claudeworth's code map of roles lists only `:gm`. A role that `:roles` doesn't list
   gets the scenario's new `:agent-brief`, so every non-GM agent gets `agent-brief`, which reads
@@ -676,7 +676,7 @@ what must be connected first, how to test, and what the user still has to decide
   deterministic from a seed and tested, but **neither is registered for use inside a run** (open
   question 4): add the server to the scenario's `:mcp-servers`, `:bridges` and `:offline-stubs`,
   as `building.clj` does for the architect.
-- The polish (`manor.people/polish-request`, `polish!`, `mock-polish`) writes persona, manner and
+- The polish (`manor.mechanics.people/polish-request`, `polish!`, `mock-polish`) writes persona, manner and
   appearance from a base record. It runs only from `roll-cast!` today. In a run it must go through
   the engine as a scenario adjudicator (the shop appraiser's pattern): the `{:messages :tools :ctx
   :check}` shape is ready. Its checks are lengths and blanks only (roadmap C15); don't add phrase
@@ -800,7 +800,7 @@ An engine-level status alongside `:active` and `:retired`:
 
 ### 6.6 Phase 4 as built
 
-Implemented in `manor.hiring`, shared by Claudeworth and Lodge. Only mock/offline
+Implemented in `manor.mechanics.hiring`, shared by Claudeworth and Lodge. Only mock/offline
 validation was run; the user will do real runs. No generated cast files were re-polished.
 
 - **Recommendations:** `recommend {position for}` costs one query slot. The caller and

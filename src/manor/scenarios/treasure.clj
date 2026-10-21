@@ -1,8 +1,8 @@
 (ns manor.scenarios.treasure
   "Example scenario: explorers search a small map for one buried treasure."
-  (:require [manor.narrate :as narrate]
+  (:require [manor.mechanics.space :as space]
+            [manor.narrate :as narrate]
             [manor.rng :as rng]
-            [manor.space :as space]
             [manor.world :as w]))
 
 ;; --- Reducers: the only way this scenario's state changes -----------------

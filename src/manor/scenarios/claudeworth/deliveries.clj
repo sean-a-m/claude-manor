@@ -7,15 +7,15 @@
   customers know who sends orders up), written and spawned at its first
   delivery, and comes back for every delivery after. See docs/deliveries-design.md."
   (:require [clojure.string :as str]
-            [manor.builtins :as b]
             [manor.clock :as clock]
-            [manor.hiring :as hiring]
-            [manor.items :as items]
+            [manor.mechanics.builtins :as b]
+            [manor.mechanics.hiring :as hiring]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.positions :as positions]
+            [manor.mechanics.space :as space]
             [manor.narrate :as n]
-            [manor.positions :as positions]
             [manor.scenarios.claudeworth.building :as building]
             [manor.scenarios.claudeworth.money :as money]
-            [manor.space :as space]
             [manor.world :as w]))
 
 (def max-lead-hours 120)

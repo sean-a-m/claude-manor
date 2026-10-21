@@ -3,14 +3,14 @@
   the steward; approved act-bridges; world systems; each schedule group's
   turns; the GM if anything triggers it. See manor.engine for the outline."
   (:require [manor.actions :as a]
-            [manor.bridge :as bridge]
-            [manor.builtins :as b]
             [manor.engine.resolve :as resolve]
             [manor.engine.run :as run]
             [manor.engine.seat :as seat]
             [manor.engine.work :as work]
-            [manor.items :as items]
-            [manor.space :as space]
+            [manor.io.bridge :as bridge]
+            [manor.mechanics.builtins :as b]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.space :as space]
             [manor.world :as w]))
 
 (defn- schedule

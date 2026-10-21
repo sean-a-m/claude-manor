@@ -151,6 +151,6 @@
   [world]
   (cond-> (merge (into {} (map (juxt key (comp :name val))) (:agents world))
                  (into {} (map (fn [[id l]] [[:loc id] (:name l)])) (get-in world [:space :locations]))
-                 ;; resolved at call time: manor.items requires this namespace for its describe methods
-                 ((requiring-resolve 'manor.items/names) world))
+                 ;; resolved at call time: manor.mechanics.items requires this namespace for its describe methods
+                 ((requiring-resolve 'manor.mechanics.items/names) world))
     (:clock world) (assoc [:clock] (:clock world) [:today] (:round world))))

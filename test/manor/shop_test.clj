@@ -11,7 +11,7 @@
             [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.shop :as shop]
+            [manor.scenarios.claudeworth.shop :as shop]
             [manor.scenarios.household :as household]
             [manor.space :as space]
             [manor.store :as store]

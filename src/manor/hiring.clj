@@ -58,7 +58,7 @@
 (defn- area [world actor] (place-area world (space/location-of world actor)))
 (defn taken-names
   "Names already in use: everyone spawned, every candidate, and the shops'
-  couriers, who are named before they first appear (manor.scenarios.deliveries)."
+  couriers, who are named before they first appear (manor.scenarios.claudeworth.deliveries)."
   [world]
   (concat (map :name (vals (:agents world))) (map :name (vals (pool world)))
           (keep (comp :name :person) (vals (get-in world [:state :couriers])))))

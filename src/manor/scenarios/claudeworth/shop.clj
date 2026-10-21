@@ -1,7 +1,7 @@
-(ns manor.scenarios.shop
+(ns manor.scenarios.claudeworth.shop
   "Claudeworth's general store: a clerk obtains checked offers; customers
   accept them. A line may be quoted for delivery at a shop that sends goods
-  out (manor.scenarios.deliveries). No catalogue, bulk counters, or
+  out (manor.scenarios.claudeworth.deliveries). No catalogue, bulk counters, or
   model-owned money."
   (:require [clojure.string :as str]
             [jsonista.core :as json]
@@ -10,11 +10,11 @@
             [manor.adjudication :as adjudication]
             [manor.clock :as clock]
             [manor.items :as items]
-            [manor.money :as money]
             [manor.narrate :as n]
             [manor.positions :as positions]
-            [manor.scenarios.building :as building]
-            [manor.scenarios.deliveries :as deliveries]
+            [manor.scenarios.claudeworth.building :as building]
+            [manor.scenarios.claudeworth.deliveries :as deliveries]
+            [manor.scenarios.claudeworth.money :as money]
             [manor.space :as space]
             [manor.world :as w]))
 

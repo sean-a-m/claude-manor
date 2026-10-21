@@ -2,11 +2,11 @@
   "The small bundled world exercises production household mechanics for a day."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.engine :as e]
-            [manor.items :as items]
             [manor.hiring :as hiring]
+            [manor.items :as items]
             [manor.prompt :as prompt]
-            [manor.scenarios.building :as building]
             [manor.scenarios.claudeworth :as cw]
+            [manor.scenarios.claudeworth.building :as building]
             [manor.space :as space]
             [manor.store :as store]
             [manor.world :as w]

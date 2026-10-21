@@ -1,4 +1,4 @@
-(ns manor.scenarios.deliveries
+(ns manor.scenarios.claudeworth.deliveries
   "Orders sent up from a shop: a delivery quote bought at the counter becomes
   an order, paid for at once, and at its due round the goods are left at the
   delivery place (hiring's meeting place), brought by the shop's courier. A
@@ -11,10 +11,10 @@
             [manor.clock :as clock]
             [manor.hiring :as hiring]
             [manor.items :as items]
-            [manor.money :as money]
             [manor.narrate :as n]
             [manor.positions :as positions]
-            [manor.scenarios.building :as building]
+            [manor.scenarios.claudeworth.building :as building]
+            [manor.scenarios.claudeworth.money :as money]
             [manor.space :as space]
             [manor.world :as w]))
 

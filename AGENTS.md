@@ -87,7 +87,6 @@ src/manor/
   space.clj      locations graph, positions, travel, move + GM route tools, pathfinding
   items.clj      items, carrying, look, work-on jobs, judge requests and checked condition changes
   adjudication.clj  shared checked-tool-response parser (work judge and scenario adjudication queries)
-  money.clj      Claudeworth sterling: integer old pence, pounds/shillings/pence formatting
   people.clj     people and traits: the polish (checked persona call), the prompt's "Your nature", roll-cast!
   positions.clj  positions (a shared catalogue plus the world's :roles), posts, capabilities, forms of address,
                  bedroom and routine events
@@ -110,11 +109,12 @@ src/manor/
   transcript.clj readable run record: <run-dir>/transcript.md from events.edn and llm.edn
   cache_report.clj  prompt-cache and cost report from llm.edn: report, simulate (offline cache model), compare
   scenarios/     village.clj (full example), treasure.clj (small example), quiz.clj (MCP/pi),
-                 claudeworth.clj + building.clj (Claudeworth Manor: daily life, money, shop, plans,
-                 architect and construction; shop.clj adds Mr Briggs, store-profile-grounded
-                 adjudication and portable purchases via firm quotes; runtime money is old pence;
-                 Nellie the housemaid unless :housemaid? is false, whose
-                 work-on jobs exercise the judge)
+                 lodge.clj (Ashby Lodge, on Claudeworth mechanics), claudeworth.clj (Claudeworth Manor: daily life,
+                 Nellie the housemaid unless :housemaid? is false, whose work-on jobs exercise the judge)
+    claudeworth/ Claudeworth's parts: building.clj (money, plans, architect and construction),
+                 shop.clj (Mr Briggs, store-profile-grounded adjudication, portable purchases via
+                 firm quotes), deliveries.clj (orders sent up), money.clj (sterling: integer old
+                 pence, pounds/shillings/pence formatting)
 resources/worlds/ world files on the classpath; claudeworth.edn is Claudeworth's fresh world
 resources/positions/ shared catalogues of positions; england-1904.edn is a country house and village
 resources/pricing.edn model prices, peak hours and cache block size for manor.cache-report

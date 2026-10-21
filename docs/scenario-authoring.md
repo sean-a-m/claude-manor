@@ -266,7 +266,7 @@ count toward the normal run cost cap. One action invocation uses one query slot 
 adjudicator needs a correction. In mock runs the registered `:mock` handles these calls,
 separately from character `:mock-policy`; supply a responder for every task used offline.
 
-Claudeworth's `manor.scenarios.shop` is an example. Every appraisal receives the actual
+Claudeworth's `manor.scenarios.claudeworth.shop` is an example. Every appraisal receives the actual
 location's `:store-profile` (required, non-blank, at most 2000 characters), name/description,
 setting/date and goods/quantity. It refuses unsuitable stock before pricing. The checked
 response creates a buyer-bound quote for each line of a request (`quote-goods {for goods}` takes
@@ -298,7 +298,7 @@ protects their supplies. Their repairs, sweeping, hairdressing and washing use o
 `spend-time` on actual items, places or people; no paid-service or mail-transport contract is
 implied. Each resident has a bedroom and routine just like the existing shopkeepers.
 
-**Deliveries** (`manor.scenarios.deliveries`, design in `docs/deliveries-design.md`). A shop
+**Deliveries** (`manor.scenarios.claudeworth.deliveries`, design in `docs/deliveries-design.md`). A shop
 sends goods out when its location has a `:delivery-profile`: at most 400 characters, describing
 its delivery scope in general terms, never a list of goods (so it doesn't suggest purchases).
 A `quote-goods` line may set `deliver true`; at a shop without a profile such a call is refused
@@ -739,7 +739,7 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
   the judge or steward put the thing back; the exported map retains it. **Absorbable** means
   not fixed, not a store, and either `:consumable?` or `:drawn-from` (`items/absorbable?`).
   A watch or the family's silver cannot be absorbed or used up.
-- **`:order-id`** marks goods delivered for an order (`manor.scenarios.deliveries`). The nightly
+- **`:order-id`** marks goods delivered for an order (`manor.scenarios.claudeworth.deliveries`). The nightly
   steward never draws them as candidates, wherever they've been taken; work can still use
   them up. The exported map retains it.
 - **Starting items** come from `:init` (`:items`, a vector, holders and owners as ids), or from a

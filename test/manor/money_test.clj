@@ -1,6 +1,6 @@
 (ns manor.money-test
   (:require [clojure.test :refer [deftest is]]
-            [manor.money :as money]))
+            [manor.scenarios.claudeworth.money :as money]))
 
 (deftest old-sterling
   (is (= 720000 (money/pounds->pence 3000)))

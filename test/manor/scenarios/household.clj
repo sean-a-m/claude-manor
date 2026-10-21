@@ -4,7 +4,7 @@
   Reuse the production mechanics so regressions in those still fail tests."
   (:require [clojure.edn :as edn]
             [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.shop :as shop]))
+            [manor.scenarios.claudeworth.shop :as shop]))
 
 (def world-file "test/fixtures/household.edn")
 

@@ -240,7 +240,7 @@ in a fraction of a second.
 - All characters see it and can spend from it; social authority is left to the agents.
 - The architect has a private purse and earns a fee (10% of each commission) on plans he drew:
   an in-world reason to encourage bigger, grander works.
-- Integer old pence throughout runtime state: £1 = 20s = 240d. `manor.money` formats amounts
+- Integer old pence throughout runtime state: £1 = 20s = 240d. `manor.scenarios.claudeworth.money` formats amounts
   as pounds/shillings/pence; no floats. World-file starting funds and architect MCP prices
   remain authored in whole pounds and are converted at those boundaries. Fees round down
   to a penny. This change intentionally invalidates old runs; no migration is maintained.

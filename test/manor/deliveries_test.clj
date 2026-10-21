@@ -11,8 +11,8 @@
             [manor.positions :as positions]
             [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.deliveries :as deliveries]
-            [manor.scenarios.shop :as shop]
+            [manor.scenarios.claudeworth.deliveries :as deliveries]
+            [manor.scenarios.claudeworth.shop :as shop]
             [manor.store :as store]
             [manor.world :as w]))
 

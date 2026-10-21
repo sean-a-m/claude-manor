@@ -42,7 +42,8 @@ src/manor/
   bridge.clj     bridge executor (timeouts, truncation, stubs, MCP tools)
   mcp.clj        minimal MCP client (stdio JSON-RPC) and per-run server pool
   http.clj       JDK HTTP client helpers
-  engine.clj     runs, rounds, activations, GM, operator commands, load/branch
+  engine.clj     the engine's interface: start/load/branch runs, run control, operator commands
+  engine/        its parts: run (state, emit!), models, judges, resolve, turn, talk, seat, work, round
   store.clj      run directory I/O
   web.clj        control panel
   main.clj       CLI entry point

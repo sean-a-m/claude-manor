@@ -96,7 +96,11 @@ src/manor/
   bridge.clj     bridge executor: timeout, truncation, stubs, MCP tools; never throws
   mcp.clj        minimal MCP client (stdio JSON-RPC 2.0) + per-run lazy server pool
   http.clj       JDK java.net.http helpers (don't use http-kit's client: gzip bug)
-  engine.clj     runs, rounds, turns, GM, operator commands, start/load/branch
+  engine.clj     the engine's interface: start/load/branch runs, run control, operator commands
+  engine/        its parts, lowest first: run (the run's state, emit!), models (making and recording
+                 model calls), judges (checked narrow calls: work judge, steward, adjudicators),
+                 resolve (applying actions and queries), turn (a turn's tool-call loop), talk
+                 (conversations), seat (one seat's turn), work (jobs ending, the steward), round
   store.clj      runs/<id>/{config.edn,events.edn,llm.edn}
   web.clj        control panel (http-kit server, SSE, hiccup)
   main.clj       CLI: clojure -M:run [scenario] [--mock] [--offline] [--port N] [--load id]

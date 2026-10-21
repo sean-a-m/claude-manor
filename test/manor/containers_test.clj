@@ -9,6 +9,7 @@
             [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.engine.work :as work]
             [manor.items :as items]
             [manor.llm :as llm]
             [manor.narrate :as n]
@@ -415,7 +416,7 @@
       (is (empty? (items/jobs (e/world run))))
       (is (empty? (store/read-llm (:dir run))))
       (let [before (e/world run)]
-        (#'e/finish-jobs! run (items/ending-jobs before))
+        (work/finish-jobs! run (items/ending-jobs before))
         (is (= before (e/world run)))
         (is (empty? (store/read-llm (:dir run)))))
       (is (= (e/world run) (w/replay (store/read-events (:dir run)))))

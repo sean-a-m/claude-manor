@@ -5,6 +5,8 @@
             [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.engine.resolve :as resolve]
+            [manor.engine.turn :as turn]
             [manor.items :as items]
             [manor.llm :as llm]
             [manor.narrate :as n]
@@ -31,7 +33,7 @@
     run))
 
 (defn- action [run] (get (a/by-name (:actions run)) "find"))
-(defn- query! [run what] (#'e/run-query! run "ada" (action run) {:what what}))
+(defn- query! [run what] (resolve/run-query! run "ada" (action run) {:what what}))
 (defn- response [args] {:tool-calls [{:id "f1" :name "finder" :arguments args}]})
 (defn- check [world args]
   ((:check (items/finder-request world "ada" {:what "mustard"})) (response args)))
@@ -184,7 +186,7 @@
       (let [by-name (a/by-name (:actions run))
             st {:finals [] :queries 0 :used [] :replies []}
             call {:id "f" :name "find" :arguments {:what "mustard"}}
-            step #(#'e/handle-call run "ada" by-name {:max-queries 2} % call)
+            step #(turn/handle-call run "ada" by-name {:max-queries 2} % call)
             before (:items (e/world run))
             st (step st)
             again (step (assoc st :replies []))]

@@ -9,6 +9,7 @@
             [manor.builtins :as b]
             [manor.clock :as clock]
             [manor.engine :as e]
+            [manor.engine.resolve :as resolve]
             [manor.items :as items]
             [manor.prompt :as prompt]
             [manor.llm :as llm]
@@ -789,7 +790,7 @@
         (e/emit! run [{:type :agent/placed :data {:id "hale" :to place}}])
         (let [before (e/events run)
               calls (store/read-llm (:dir run))
-              result (#'e/run-query! run "hale" (action run :find) {:what "sugar"})]
+              result (resolve/run-query! run "hale" (action run :find) {:what "sugar"})]
           (is (= "this isn't your house to search; ask for it here instead" (:error result)))
           (is (= before (e/events run)))
           (is (= calls (store/read-llm (:dir run))))))

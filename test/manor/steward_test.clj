@@ -5,6 +5,7 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [jsonista.core :as json]
             [manor.engine :as e]
+            [manor.engine.work :as work]
             [manor.items :as items]
             [manor.llm :as llm]
             [manor.narrate :as n]
@@ -113,13 +114,13 @@
       (e/emit! run (items/init-events supplies))
       (let [run (assoc-in run [:scenario :items :steward] config)]
         (at-round! run 1)
-        (#'e/run-steward! run)
+        (work/run-steward! run)
         (is (not-any? #(= :items/steward-ran (:type %)) (e/events run)))
         (at-round! run 13)
-        (#'e/run-steward! run)
-        (#'e/run-steward! run)
+        (work/run-steward! run)
+        (work/run-steward! run)
         (at-round! run 14)
-        (#'e/run-steward! run)
+        (work/run-steward! run)
         (let [world (e/world run)
               markers (filter #(= :items/steward-ran (:type %)) (e/events run))
               events (filter #(= :items/stewarded (:type %)) (e/events run))
@@ -132,7 +133,7 @@
           (is (some? (items/item world "bedroom-food")))
           (is (= world (w/replay (store/read-events (:dir run))))))
         (at-round! run 61) ; next 02:00
-        (#'e/run-steward! run)
+        (work/run-steward! run)
         (is (= 2 (count (filter #(= :items/steward-ran (:type %)) (e/events run))))))
       (finally (e/stop-run run)))))
 
@@ -171,7 +172,7 @@
       (is (= "pantry" (:drawn-from (first (filter #(= "tin" (:id %))
                                                                (:items (wf/read-file (str (io/file (:dir run) "map.edn")))))))))
       (at-round! run 13)
-      (#'e/run-steward! (assoc-in run [:scenario :items :steward] config))
+      (work/run-steward! (assoc-in run [:scenario :items :steward] config))
       (is (= 2 @attempts))
       (is (= 0.02 (w/total-cost (e/world run))))
       (is (= "eaten by the staff" (get-in (e/world run) [:items-gone "loaf-sugar" :fate])))

@@ -9,6 +9,7 @@
             [manor.actions :as a]
             [manor.builtins :as b]
             [manor.engine :as e]
+            [manor.engine.work :as work]
             [manor.items :as items]
             [manor.llm :as llm]
             [manor.narrate :as n]
@@ -969,9 +970,9 @@
                    before (count (e/events run))]
                (try
                  (if parallel?
-                   (#'e/finish-jobs! run works)
+                   (work/finish-jobs! run works)
                    (doseq [work works]
-                     (#'e/finish-job! run work (#'e/job-result run (e/world run) work))))
+                     (#'work/finish-job! run work (#'work/job-result run (e/world run) work))))
                  (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
                  (vec (drop before (e/events run)))
                  (finally (e/stop-run run)))))

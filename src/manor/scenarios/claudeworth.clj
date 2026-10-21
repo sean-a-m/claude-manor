@@ -710,12 +710,13 @@
                               (when (seq (:services (space/location world place)))
                                 "this isn't your house to search; ask for it here instead"))
              :judge-brief judge-brief
-             :aspect-keys {:cleanliness "how clean" :repair "damage and needed repairs"
-                           :state "lit, hot, cooking, carved" :amount "how much remains, or parcel quantity"
-                           :stock "general level of supplies" :lacking "notable absences"
-                           :dress "what a person has on, where it differs from their usual appearance"
+             :aspect-keys {:cleanliness "how clean or dirty it is" :repair "damage, wear or needed repairs"
+                           :state "its present condition, where no other key fits"
+                           :amount "how much there is of a single thing"
+                           :stock "a store's general level of supplies" :lacking "what a store has run out of"
+                           :dress "what a person is wearing, where it differs from usual"
                            :hair "how a person's hair is done, where it differs from usual"
-                           :grime "dirt, soot, flour or wet on a person's hands, face or clothes"}}
+                           :grime "dirt or stains on a person, where they show"}}
      :exclude-actions #{:move :work-on}
      :speaking-actions speaking-actions
      :hibernate hibernate

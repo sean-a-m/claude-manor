@@ -631,7 +631,7 @@
                           ["carriage-sweep" "motor car"] ["study" "ledgers"]]]
         (is (not (str/includes? (str/lower-case (:desc (space/location world loc))) word)) loc)))
     (testing "Hale's view lists what he carries, and the shop says to ask its clerk"
-      (is (= [{:id "pocket-notebook" :name "Pocket notebook" :aspects {:state "half full"}}]
+      (is (= [{:id "pocket-notebook" :name "Pocket notebook" :aspects {:amount "half full"}}]
              (get-in (prompt/agent-view (:scenario run) world "hale") [:you :carrying])))
       (is (str/includes? (get-in (cw/observe shop "hale") [:here :service]) "shopkeeper"))
       (is (not (contains? (:here (cw/observe shop "hale")) :sells))))

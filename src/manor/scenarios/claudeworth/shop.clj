@@ -56,7 +56,7 @@
        "and the delivery profile would cover it, you may say in the reason that it could be sent up if ordered for delivery. "
        "A line with deliver true is an order to be sent to the customer's house later: judge it against the delivery-profile as well as the store-profile. "
        "Larger quantities and goods too big to carry are acceptable when the delivery profile covers them, as physical goods of this shop's trade. "
-       "Still refuse anachronisms, goods this shop could not plausibly supply, services, property, people and unsupported mechanics; an abstract week's supplies is still not goods. "
+       "Still refuse anachronisms, goods this shop could not plausibly supply, services, and unsupported mechanics; an abstract week's supplies is still not goods. "
        "For an available delivery line also give lead-hours: a realistic whole number of hours, 1 to " deliveries/max-lead-hours ", until it is delivered, for this shop and this order. "
        "Do not make an unsuitable request available at an enormous price. Do not silently substitute a different object. "
        "For unavailable goods give available=false and a brief in-world reason. "

@@ -86,9 +86,9 @@ On items and on locations, replacing an item's `:condition`:
 - A scenario may suggest keys: `:items {:aspect-keys {:cleanliness "how clean" ...}}`. The
   suggestions go into the judge's prompt. The judge may coin other keys; the engine checks only
   the format and the cap.
-- Claudeworth's suggested keys: `:cleanliness`, `:repair`, `:state` (lit, hot, cooking,
-  carved), `:amount` (a parcel's "20 × 1 lb", which today leads the condition string),
-  `:stock`, `:lacking`.
+- Claudeworth's suggested keys: `:cleanliness`, `:repair`, `:state` (its present condition
+  where no other key fits), `:amount` (how much there is of a single thing, such as a parcel's
+  "20 × 1 lb"), and for stores `:stock` and `:lacking`.
 - Locations get `:aspects` too (the room itself: floor, hearth, air; never supplies, which
   belong to stores).
 

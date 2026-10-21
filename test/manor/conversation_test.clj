@@ -8,6 +8,7 @@
             [manor.mechanics.builtins :as b]
             [manor.mechanics.conversation :as conversation]
             [manor.narrate :as n]
+            [manor.prompt :as prompt]
             [manor.tools.transcript :as transcript]
             [manor.world :as w]))
 
@@ -115,24 +116,31 @@
         [earl-last] (filter #(= :last-word (get-in % [:conversation :pass])) (store/read-llm (:dir run)))
         system (comp :content first :messages)
         user (comp :content second :messages)]
-    (testing "a member is told it isn't their turn, and how to answer"
-      (is (str/includes? (user hale-first) "This is not your own turn"))
-      (is (str/includes? (user hale-first) "`stay-silent`"))
-      (is (str/includes? (user hale-first) "at most 400 characters"))
-      (is (str/includes? (user hale-first) "Lord Claudeworth started a conversation here with Lady Claudeworth and you."))
+    ;; These check what varies (who is told what, the tools named, the names, lines and numbers
+    ;; filled in), not the wording of fixed instructions, so rewording a prompt doesn't fail them.
+    (testing "a member is told someone else started it, and is offered the member's tools"
+      (is (str/includes? (user hale-first) (:member prompt/conversation-lines)))
+      (is (not (str/includes? (user hale-first) (:initiator prompt/conversation-lines))))
+      (is (not (str/includes? (user hale-first) (:last-word prompt/conversation-lines))))
+      (doseq [tool ["`reply`" "`stay-silent`" "`leave`" "`note`"]]
+        (is (str/includes? (user hale-first) tool) tool))
+      (is (not (str/includes? (user hale-first) "`end-conversation`")))
+      (is (str/includes? (user hale-first) "Lady Claudeworth and you"))
       (is (str/includes? (user hale-first) "Lady Claudeworth (Dining room) says: \"lady-claudeworth 1\""))
-      (is (str/includes? (user hale-first) "A line written as plain text, outside a tool call, isn't heard."))
-      (is (str/includes? (user hale-first) "nothing is handed over, made, mended or moved by talking"))
-      (is (str/includes? (user hale-first) "what you hold is under `carrying` in your view"))
-      (is (str/includes? (user hale-first) "`stay-silent` or `leave` rather than repeat it"))
-      (is (str/ends-with? (user hale-first) "Pass 1 of 2. Your turn: call `reply` with your line, or `stay-silent` or `leave`.")))
+      (is (str/includes? (user hale-first) (str conversation/line-limit)))
+      (is (str/includes? (user hale-first) "`carrying`") "with items on, it says where to see what you hold")
+      (is (str/includes? (user hale-first) (str "Pass 1 of " conversation/passes))))
     (testing "turns and speaking turns share the system message, for the prompt cache"
       (is (= (system hale-first)
              (system (first (filter #(and (= "hale" (:agent %)) (not (:conversation %))) (store/read-llm (:dir run))))))))
-    (testing "the initiator is told it's their last word"
-      (is (str/includes? (user earl-last) "when it's over, you carry on with your turn"))
-      (is (str/includes? (user earl-last) "`end-conversation` rather than repeat it"))
-      (is (str/ends-with? (user earl-last) "This is your last word: call `reply` with a closing line, or `end-conversation` to end it without one.")))
+    (testing "the initiator is told they started it, is offered the initiator's tools, and is told it's their last word"
+      (is (str/includes? (user earl-last) (:initiator prompt/conversation-lines)))
+      (is (not (str/includes? (user earl-last) (:member prompt/conversation-lines))))
+      (is (str/ends-with? (user earl-last) (:last-word prompt/conversation-lines)))
+      (is (not (str/includes? (user earl-last) "Pass ")) "the last word has no pass count")
+      (is (str/includes? (user earl-last) "`end-conversation`"))
+      (doseq [tool ["`stay-silent`" "`leave`"]]
+        (is (not (str/includes? (user earl-last) tool)) tool)))
     (e/stop-run run)))
 
 (deftest ways-a-conversation-ends

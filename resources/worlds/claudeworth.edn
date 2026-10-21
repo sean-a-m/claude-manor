@@ -212,7 +212,7 @@
   {:id "family-portrait" :name "Family portrait" :place "dining-room" :owner "household" :fixed? true :aspects {:repair "darkened with old varnish"} :desc "A gloomy full-length portrait of the third earl in a powdered wig, in a heavy gilt frame."}
   {:id "sideboard" :name "Sideboard" :place "dining-room" :owner "household" :fixed? true :container :closed :aspects {:cleanliness "polished" :repair "a ring mark on the top"} :desc "A long mahogany sideboard with cupboards below and baize-lined drawers for the plate."}
   {:id "silver-candlesticks" :name "Silver candlesticks" :in "sideboard" :owner "household" :aspects {:cleanliness "tarnished"} :desc "A pair of Georgian silver candlesticks with fluted columns."}
-  {:id "canteen-of-cutlery" :name "Canteen of cutlery" :in "sideboard" :owner "household" :aspects {:state "complete" :cleanliness "the forks tarnished"} :desc "An oak case of silver cutlery for twelve, each piece in its own green baize slot."}
+  {:id "canteen-of-cutlery" :name "Canteen of cutlery" :in "sideboard" :owner "household" :aspects {:amount "a complete set" :cleanliness "the forks tarnished"} :desc "An oak case of silver cutlery for twelve, each piece in its own green baize slot."}
   {:id "table-linen" :name "Table linen" :in "sideboard" :owner "household" :aspects {:state "starched and folded"} :desc "Damask tablecloths and napkins woven with the Claudeworth arms."}
   {:id "kitchen-range" :name "Kitchen range" :place "kitchen" :owner "household" :fixed? true :aspects {:state "cold and unlit"} :desc "A black cast-iron range with two ovens and a boiler."}
   {:id "kitchen-dresser" :name "Kitchen dresser" :place "kitchen" :owner "household" :fixed? true :container :open :store {:keeps "pans, tins, cloths, crockery and kitchen tools"} :aspects {:stock "well stocked with the usual kitchen ware" :cleanliness "scrubbed"} :desc "A tall deal dresser with open shelves above a broad worktop."}
@@ -234,7 +234,7 @@
   {:id "laundry-copper" :name "Laundry copper" :place "laundress-cottage" :owner "Mrs Dobbins" :fixed? true :aspects {:state "cold, emptied after use"} :desc "A copper washing boiler set in brickwork over a small firebox in the rear washhouse."}
   {:id "laundry-shelves" :name "Laundry shelves" :place "laundress-cottage" :owner "Mrs Dobbins" :fixed? true :store {:keeps "wash tubs, dolly, soap, washing soda, blue, starch, flat irons and ironing cloths"} :aspects {:stock "supplied for the usual washing and ironing"} :desc "Shelves and a low bench in the washhouse, keeping washing supplies apart from finished linen."}
   {:id "pocket-watch" :name "Pocket watch" :holder "Lord Claudeworth" :owner "Lord Claudeworth" :aspects {:state "keeping good time"} :desc "A gold half-hunter on a chain, engraved with the Claudeworth arms."}
-  {:id "pocket-notebook" :name "Pocket notebook" :holder "Hale" :owner "Hale" :aspects {:state "half full"} :desc "A small black notebook with a pencil in its spine, for his lordship's instructions."}]
+  {:id "pocket-notebook" :name "Pocket notebook" :holder "Hale" :owner "Hale" :aspects {:amount "half full"} :desc "A small black notebook with a pencil in its spine, for his lordship's instructions."}]
 
  :agents
  [{:name "Lord Claudeworth" :sex :male :role :earl :location "earls-bedroom" :bedroom "earls-bedroom"

@@ -92,7 +92,7 @@
   {:id "kitchen-range" :name "Kitchen range" :place "kitchen" :owner "household" :fixed? true :aspects {:state "cold and unlit"} :desc "A black cast-iron range with two ovens and a boiler."}
   {:id "motor-car" :name "Motor car" :place "carriage-sweep" :owner "household" :fixed? true :aspects {:cleanliness "polished"} :desc "A green Daimler tourer with brass lamps, rather out of place before the house."}
   {:id "pocket-watch" :name "Pocket watch" :holder "Lord Claudeworth" :owner "Lord Claudeworth" :aspects {:state "keeping good time"} :desc "A gold half-hunter on a chain, engraved with the Claudeworth arms."}
-  {:id "pocket-notebook" :name "Pocket notebook" :holder "Hale" :owner "Hale" :aspects {:state "half full"} :desc "A small black notebook with a pencil in its spine, for his lordship's instructions."}]
+  {:id "pocket-notebook" :name "Pocket notebook" :holder "Hale" :owner "Hale" :aspects {:amount "half full"} :desc "A small black notebook with a pencil in its spine, for his lordship's instructions."}]
 
  :agents
  [{:name "Lord Claudeworth" :role :earl :location "earls-bedroom" :bedroom "earls-bedroom"

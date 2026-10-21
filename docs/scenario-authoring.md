@@ -731,8 +731,10 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
   runs a little over isn't refused; over 200 is. A world file may use up to 200. Keys are plain keywords of lower-case
   letters and hyphens, at most 24 characters, starting with a letter (`items/aspect-key?`;
   `:cleanliness`, `:glass-eye`). The engine checks only the form and the cap; the keys are the
-  scenario's choice. Claudeworth uses `:cleanliness`, `:repair`, `:state` (lit, cold, half full),
-  `:amount` (a parcel's "20 × 1 lb"), `:stock` and `:lacking`. A thing with nothing notable has no
+  scenario's choice. Claudeworth uses `:cleanliness`, `:repair`, `:state` (its present condition
+  where no other key fits), `:amount` (how much there is of a single thing, such as a parcel's
+  "20 × 1 lb"), and for stores `:stock` (the general level) and `:lacking` (what it has run
+  out of). A thing with nothing notable has no
   `:aspects`. Work (and the optional steward on its candidates) changes them, one aspect at a time, so unrelated facts survive (see Work
   and the judge). Locations have them too (see Locations), and so do people (see People's aspects).
 - **`:touched`** is the round an item was last taken, put down, put in a container, given,
@@ -800,7 +802,7 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
      :items [{:id "piano" :name "Piano" :desc "..." :aspects {:repair "a little out of tune"}
               :owner "household" :fixed? true}]
      :people [{:name "Hale" :doing "dusting the china cabinet"
-               :carrying [{:id "pocket-notebook" :name "Pocket notebook" :desc "..." :aspects {:state "half full"}}]}]}
+               :carrying [{:id "pocket-notebook" :name "Pocket notebook" :desc "..." :aspects {:amount "half full"}}]}]}
     ```
   - `find {what}`: once per turn, counts as a query; see Finding below.
   - `take {item}`: the item lies where you are, directly or in a container (at any depth, open
@@ -1131,7 +1133,7 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
 - **The judge** is a narrow model call, not the GM and not a bridge; characters never hear of it.
   `item-judge/judge-request` builds it from the optional `:items :judge-brief` (`(fn [world] text)`),
   optional suggested aspect keys with short glosses (`:items {:aspect-keys {:cleanliness "how
-  clean" :repair "damage and needed repairs" ...}}`), time, worker's name and persona, doing,
+  clean or dirty it is" :repair "damage, wear or needed repairs" ...}}`), time, worker's name and persona, doing,
   what the worker carries (`- Carrying: Pipe (pipe)`, or `nothing`), minutes worked, whether stopped early, and luck (1–100, 50 ordinary, `rng` key `[:judge job-id]`).
   Claudeworth suggests cleanliness, repair, state, amount, stock and lacking. These aren't a
   closed vocabulary: other well-formed keys are allowed. The user message's scene is:

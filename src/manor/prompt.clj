@@ -233,6 +233,15 @@ Take your turn now.")
 (defn- and-list [xs]
   (if (next xs) (str (str/join ", " (butlast xs)) " and " (last xs)) (first xs)))
 
+(def conversation-lines
+  "The fixed sentences of a speaking turn that differ by who is speaking:
+  how the one who started it (:initiator) and everyone else (:member) are
+  told about the conversation, and the initiator's closing line at their
+  last word. Tests check which is used, not their wording."
+  {:initiator "You are in a conversation. You started it during this time period: when it's over, you carry on."
+   :member "You are in a conversation. This conversation was started by someone else: you are free to talk, and talking doesn't stop anything you are busy with."
+   :last-word "This is your last word: call `reply` with a closing line, or `end-conversation` to end it without one."})
+
 (defn- conversation-closing
   "Who is in the conversation, where it has got to, and whose line it is."
   [world agent-id {:keys [initiator members]} {:keys [pass final? in extra-actions]}]
@@ -243,9 +252,7 @@ Take your turn now.")
         gone (remove (set in) members)
         busy (w/busy world agent-id)]
     (str "## The conversation\n"
-         (if you?
-           "You are in a conversation. You started it during your turn: when it's over, you carry on with your turn."
-           "You are in a conversation. This is not your own turn: talking here doesn't use it up, and doesn't stop anything you are busy with.")
+         (conversation-lines (if you? :initiator :member))
          "\n\n"
          (if you? "You started a conversation here with " (str (nm initiator) " started a conversation here with "))
          (and-list (map #(if (= % agent-id) "you" (nm %)) (rest members))) ". "
@@ -260,7 +267,7 @@ Take your turn now.")
                 "; talking doesn't stop it."))
          "\n\n" (how-to-answer you? extra-actions (items/enabled? world))
          "\n\n"
-         (cond final? "This is your last word: call `reply` with a closing line, or `end-conversation` to end it without one."
+         (cond final? (:last-word conversation-lines)
                you? (str "Pass " pass " of " conversation/passes ". Your turn: call `reply` with your line, or `end-conversation` to end it now.")
                :else (str "Pass " pass " of " conversation/passes ". Your turn: call `reply` with your line, or `stay-silent` or `leave`.")))))
 

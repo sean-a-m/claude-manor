@@ -9,7 +9,7 @@
             [manor.engine.work :as work]
             [manor.io.bridge :as bridge]
             [manor.mechanics.builtins :as b]
-            [manor.mechanics.items :as items]
+            [manor.mechanics.items.work :as item-work]
             [manor.mechanics.space :as space]
             [manor.world :as w]))
 
@@ -130,7 +130,7 @@
     (run/emit! run [{:type :round/started :data {:round round} :visible-to :all}])
     (work/finish-jobs! run (locking (:world run)
                    ;; decided before releases, so a worker whose job is due still holds it
-                             (let [ending (items/ending-jobs @(:world run))]
+                             (let [ending (item-work/ending-jobs @(:world run))]
                                (run/emit! run (space/arrivals @(:world run)))
                                (let [released (b/releases @(:world run))]
                                  (run/emit! run released)

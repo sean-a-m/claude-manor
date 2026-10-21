@@ -95,7 +95,10 @@ src/manor/
     builtins.clj   pass/carry-on/note/say/whisper/pray + GM spawn/retire/announce/ask-human/done
     conversation.clj converse: conversations within a turn (rules, speaking-turn tools, events)
     space.clj      locations graph, positions, travel, move + GM route tools, pathfinding
-    items.clj      items, carrying, look, work-on jobs, judge requests and checked condition changes
+    items.clj      items: accessors, checks, every item event's reducer and narration
+    items/         its parts: views (look, open, agents' views), actions (carrying, work-on), work (jobs
+                   that end, the judged scene), judge (its request, tool and checked verdict), steward,
+                   find
     adjudication.clj shared checked-tool-response parser (work judge and scenario adjudication queries)
     people.clj     people and traits: the polish (checked persona call), the prompt's "Your nature", roll-cast!
     positions.clj  positions (a shared catalogue plus the world's :roles), posts, capabilities, forms of

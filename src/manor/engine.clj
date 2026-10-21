@@ -40,6 +40,10 @@
             [manor.mechanics.builtins :as b]
             [manor.mechanics.conversation :as conversation]
             [manor.mechanics.items :as items]
+            [manor.mechanics.items.actions :as item-actions]
+            [manor.mechanics.items.find :as item-find]
+            [manor.mechanics.items.judge :as item-judge]
+            [manor.mechanics.items.steward :as item-steward]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.world :as w])
@@ -87,7 +91,7 @@
   (let [excluded (set (:exclude-actions scenario))]
     (remove #(excluded (:name %))
             (a/merge-actions (b/agent-actions) [conversation/converse] (space/actions)
-                             (when (:items scenario) (items/actions (:items scenario)))
+                             (when (:items scenario) (item-actions/actions (:items scenario)))
                              (b/gm-actions scenario) (:actions scenario)))))
 
 ;; ---------------------------------------------------------------------------
@@ -111,11 +115,11 @@
   not know about these calls."
   [scenario]
   (let [policy (conversation-mock scenario (or (:mock-policy scenario) (constantly nil)))
-        judge (or (:mock-judge scenario) items/mock-judge)]
+        judge (or (:mock-judge scenario) item-judge/mock-judge)]
     (llm/mock (fn [ctx]
                 (case (:role ctx)
                   :judge (judge ctx)
-                  :steward ((or (:mock-steward scenario) items/mock-steward) ctx)
+                  :steward ((or (:mock-steward scenario) item-steward/mock-steward) ctx)
                   :adjudicator (if-let [mock (get-in scenario [:adjudicators (:task ctx) :mock])]
                                  (mock ctx)
                                  (throw (ex-info "adjudicator needs a mock responder" {:task (:task ctx)})))
@@ -128,7 +132,7 @@
         :openrouter (llm/openrouter))))
 
 (defn- make-run [id dir scenario opts]
-  (let [scenario (cond-> scenario (:items scenario) (update :adjudicators #(merge items/adjudicators %)))
+  (let [scenario (cond-> scenario (:items scenario) (update :adjudicators #(merge item-find/adjudicators %)))
         opts (cond-> opts
                (:offline? opts) (update :bridge-stubs #(merge (:offline-stubs scenario) %)))]
     {:id id

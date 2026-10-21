@@ -9,7 +9,9 @@
             [manor.mechanics.builtins :as b]
             [manor.mechanics.conversation :as conversation]
             [manor.mechanics.hiring :as h]
-            [manor.mechanics.items :as items]
+            [manor.mechanics.items.actions :as item-actions]
+            [manor.mechanics.items.judge :as item-judge]
+            [manor.mechanics.items.work :as item-work]
             [manor.mechanics.people :as people]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
@@ -59,7 +61,7 @@
   ([changes opts]
    (with-redefs [e/load-scenario (constantly (merge (scenario) changes))]
      (e/start-run :hiring-fixture (merge {:test? true :llm :mock :offline? true :gm :off
-                                         :max-cost 0.20 :run-id (str (gensym "hiring-"))} opts)))))
+                                          :max-cost 0.20 :run-id (str (gensym "hiring-"))} opts)))))
 (defn rounds! [run n]
   (e/auto! run n)
   (is (= :idle (e/wait-idle run 60000))))
@@ -86,8 +88,8 @@
 (deftest recommendation-arrival-privacy-and-default-model
   (let [secret "private-candidate-sentinel"
         polish (fn [_] {:tool :polish :args {:persona (str "You keep " secret " to yourself.")
-                                            :circumstances [secret]
-                                            :manner "You are civil." :appearance secret}})
+                                             :circumstances [secret]
+                                             :manner "You are civil." :appearance secret}})
         run (start {:adjudicators (assoc-in h/adjudicators [:people/polish :mock] polish)}
                    {:model "default-test-model" :judge-model "other-judge-model"})]
     (try
@@ -129,10 +131,10 @@
 
 (deftest self-recommendation-is-rejected-without-pausing
   (let [run (start {:mock-policy (fn [{:keys [world agent-id used] :as ctx}]
-                                  (if (and (= "recommender" agent-id) (= 2 (:round world))
-                                           (not (some #{"recommend"} used)))
-                                    {:tool :recommend :args {:position "housemaid" :for agent-id}}
-                                    (policy ctx)))} {})]
+                                   (if (and (= "recommender" agent-id) (= 2 (:round world))
+                                            (not (some #{"recommend"} used)))
+                                     {:tool :recommend :args {:position "housemaid" :for agent-id}}
+                                     (policy ctx)))} {})]
     (try
       (rounds! run 1)
       (let [world (e/world run)
@@ -188,14 +190,14 @@
 (deftest query-refresh-preserves-turn-limits
   (let [recommend {:tool :recommend :args {:position "housemaid" :for "employer"}}
         run (start {:mock-policy (fn [{:keys [world agent-id step]}]
-                                  (if (and (= "recommender" agent-id) (= 1 (:round world)))
-                                    (get [recommend
-                                          {:tool :say :args {:text "I know someone."}}
-                                          {:tool :say :args {:text "Another word."}}
-                                          recommend recommend
-                                          {:tool :send-for :args {:candidate (:id (first-person world))}}]
-                                         step {:tool :pass})
-                                    {:tool :pass}))}
+                                   (if (and (= "recommender" agent-id) (= 1 (:round world)))
+                                     (get [recommend
+                                           {:tool :say :args {:text "I know someone."}}
+                                           {:tool :say :args {:text "Another word."}}
+                                           recommend recommend
+                                           {:tool :send-for :args {:candidate (:id (first-person world))}}]
+                                          step {:tool :pass})
+                                     {:tool :pass}))}
                    {:max-steps 6 :max-queries 2})]
     (try
       (rounds! run 2)
@@ -344,7 +346,7 @@
             summoned (effect away "employer" :send-for {:candidate (:id p)})
             returned (reduce w/apply-event (assoc summoned :round 4) (h/tick (:scenario run) (assoc summoned :round 4)))
             talking (w/apply-event returned {:type :conversation/started :actor "employer" :round 6
-                                            :data {:members ["employer" id]}})]
+                                             :data {:members ["employer" id]}})]
         (is (= :away (:status (w/agent away id))))
         (is (nil? (space/location-of away id)))
         (is (not (contains? (space/present away "gate") id)))
@@ -373,8 +375,8 @@
       (let [world (e/world run) p (first-person world)
             full (assoc-in world [:state :pool]
                            (into {} (for [i (range 40)] [(str i) (assoc p :id (str i) :created i
-                                                                       :record (assoc (:record p) :name (str "Person " i))
-                                                                       :seeks [:footman] :status :pooled)])))
+                                                                        :record (assoc (:record p) :name (str "Person " i))
+                                                                        :seeks [:footman] :status :pooled)])))
             protected (-> full
                           (assoc-in [:state :pool "0" :status] :sent-for)
                           (assoc-in [:state :pool "1" :status] :here)
@@ -439,13 +441,13 @@
       (rounds! run 1)
       (let [p (first-person (e/world run))
             world (assoc (e/world run) :clock {:start "1904-10-15T08:00" :minutes-per-round 30})
-            spec (h/reference-activity (first (filter #(= :spend-time (:name %)) (items/actions))))
+            spec (h/reference-activity (first (filter #(= :spend-time (:name %)) (item-actions/actions))))
             args {:doing "writing a character" :candidate (:id p) :hours 0.5}
             events ((:effect spec) world "recommender" args)
             job (get-in (first events) [:data])
-            request (items/judge-request {} world job {:minutes 30 :luck 50})
-            done (items/work-done world job {:minutes 30 :luck 50}
-                                 {:made [{:name "Written character" :desc "A letter of reference." :aspects {} :held true :consumable false}]})]
+            request (item-judge/judge-request {} world job {:minutes 30 :luck 50})
+            done (item-work/work-done world job {:minutes 30 :luck 50}
+                                      {:made [{:name "Written character" :desc "A letter of reference." :aspects {} :held true :consumable false}]})]
         (is (nil? (a/check spec world "recommender" args)))
         (is (a/check spec world "bystander" args))
         (testing "ordinary activities accept an omitted or empty candidate"
@@ -475,5 +477,5 @@
         (is (= :sent-for (:status (first-person world))))
         (is (some #(= :people/arrived (:type %))
                   (h/tick (:scenario run) (-> world (assoc :round 3)
-                                                    (w/apply-event {:type :agent/retired :data {:id "bystander"}}))))))
+                                              (w/apply-event {:type :agent/retired :data {:id "bystander"}}))))))
       (finally (e/stop-run run)))))

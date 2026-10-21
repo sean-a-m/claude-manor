@@ -4,7 +4,8 @@
   (:require [clojure.set :as set]
             [manor.engine.judges :as judges]
             [manor.engine.run :as run]
-            [manor.mechanics.items :as items]))
+            [manor.mechanics.items.steward :as item-steward]
+            [manor.mechanics.items.work :as item-work]))
 
 (defn- job-result
   "Prepare a job's ending on a snapshot, with model calls and their records
@@ -13,7 +14,7 @@
   (cond
     (= :dropped outcome) {:ended :retired}
     (and (zero? minutes) (not (:quick? job))) {:ended :no-time}
-    :else (judges/ask-judge run world job work (items/judged-things world job))))
+    :else (judges/ask-judge run world job work (item-work/judged-things world job))))
 
 (defn- finish-job!
   "Record and apply a prepared ending in job order. Build new item ids on
@@ -23,9 +24,9 @@
   (doseq [record! records] (record!))
   (let [world @(:world run)]
     (run/emit! run (if ended
-                     [(items/work-ended world job ended)]
-                     (cond-> [(items/work-done world job work verdict)]
-                       failure (conj (items/judge-failed job failure)))))))
+                     [(item-work/work-ended world job ended)]
+                     (cond-> [(item-work/work-done world job work verdict)]
+                       failure (conj (item-work/judge-failed job failure)))))))
 
 (defn- independent-prefix
   "The longest consecutive prefix with disjoint scopes. Never move a job
@@ -43,7 +44,7 @@
   (loop [works (seq works)]
     (when works
       (let [world @(:world run)
-            batch (independent-prefix #(items/job-scope world (:job %)) works)
+            batch (independent-prefix #(item-work/job-scope world (:job %)) works)
             results (mapv #(future (job-result run world %)) batch)]
         (doseq [[work result] (map vector batch results)]
           (finish-job! run work @result))
@@ -57,14 +58,14 @@
   [run]
   (let [world @(:world run)
         config (get-in run [:scenario :items :steward])]
-    (when-let [day (items/steward-day world config)]
+    (when-let [day (item-steward/steward-day world config)]
       (run/emit! run [{:type :items/steward-ran :visible-to :gm :data {:day day}}])
-      (let [all-candidates (items/steward-candidates world config)
-            all-sleepers (items/steward-sleepers world)]
+      (let [all-candidates (item-steward/steward-candidates world config)
+            all-sleepers (item-steward/steward-sleepers world)]
         (doseq [place (sort (distinct (concat (keys all-candidates) (keys all-sleepers))))]
           (let [candidates (get all-candidates place [])
                 sleepers (get all-sleepers place [])
                 {:keys [verdict failure]} (judges/ask-steward run world place candidates sleepers)]
-            (run/emit! run (cond-> [(items/stewarded @(:world run) place verdict)]
+            (run/emit! run (cond-> [(item-steward/stewarded @(:world run) place verdict)]
                              failure (conj {:type :items/steward-failed :visible-to :system
                                             :data {:place place :reason failure}})))))))))

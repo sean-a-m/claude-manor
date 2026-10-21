@@ -5,7 +5,9 @@
   (manor.mechanics.items, the scenario) owns the prompts and the checks."
   (:require [manor.engine.models :as models]
             [manor.engine.run :as run]
-            [manor.mechanics.items :as items]
+            [manor.mechanics.items.judge :as item-judge]
+            [manor.mechanics.items.steward :as item-steward]
+            [manor.mechanics.items.work :as item-work]
             [manor.prompt :as prompt]))
 
 (defn ask-structured!
@@ -49,12 +51,12 @@
   run's cost."
   [run world job work things]
   (let [work (assoc work :recent (prompt/scene-recent world (run/events run) job))
-        request (assoc (items/judge-request (:scenario run) world job work)
+        request (assoc (item-judge/judge-request (:scenario run) world job work)
                        :label "judge" :defer-records? true
                        :ctx (assoc (select-keys work [:minutes :stopped-early? :luck])
                                    :role :judge :world world :job job :things things
-                                   :focus (items/focus-things world job)))
-        {:keys [verdict] :as result} (ask-structured! run "judge" request #(items/judgement % world things))]
+                                   :focus (item-work/focus-things world job)))
+        {:keys [verdict] :as result} (ask-structured! run "judge" request #(item-judge/judgement % world things))]
     (assoc result :verdict verdict)))
 
 (defn adjudicate
@@ -77,7 +79,7 @@
   "Ask the nightly steward what to do with the `candidates` (idle
   leftovers) and `sleepers` at `place`: {:verdict v}, or {:failure reason}."
   [run world place candidates sleepers]
-  (let [request (assoc (items/steward-request world place candidates sleepers)
+  (let [request (assoc (item-steward/steward-request world place candidates sleepers)
                        :label "steward" :ctx {:role :steward :world world :place place
                                               :candidates candidates :sleepers sleepers})]
-    (ask-structured! run "steward" request #(items/stewardship % world place candidates sleepers))))
+    (ask-structured! run "steward" request #(item-steward/stewardship % world place candidates sleepers))))

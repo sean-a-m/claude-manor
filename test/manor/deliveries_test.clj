@@ -8,6 +8,7 @@
             [manor.io.store :as store]
             [manor.mechanics.hiring :as hiring]
             [manor.mechanics.items :as items]
+            [manor.mechanics.items.steward :as item-steward]
             [manor.mechanics.positions :as positions]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
@@ -52,26 +53,26 @@
 
 (defn scenario [shop-extra]
   (deliveries/install
-  {:name :delivery-fixture
-   :roles (into {} (for [role [:secretary :shopkeeper :bystander :errand-boy :gm]] [role {:brief (fn [_ _] "Test role.")}]))
-   :init (fn [_]
-           {:agents agents
-            :clock {:start "1904-10-15T10:00" :minutes-per-round 30}
-            :space {:locations [(merge {:id "counter" :name "Counter" :desc "A counter." :services #{:general-store}
-                                        :store-profile profile :hours ["08:00" "18:00"]}
-                                       (dissoc shop-extra :hiring-max-agents))
-                                {:id "front-door" :name "Front door" :desc "The front door of the house."}
-                                {:id "hall" :name "Hall" :desc "A hall."}]
-                    :routes [["front-door" "hall" 0] ["counter" "front-door" 1]]}
-            :state (merge {:setting "Rural England, 1904." :household {:funds 600}
-                           :positions {:shopkeeper {:capabilities #{:shop-clerk}} :errand-boy errand-boy}
-                           :quotes {} :meeting-place "front-door"}
-                          (select-keys shop-extra [:hiring-max-agents]))
-            :items []})
-   :actions shop/actions :items {}
-   :adjudicators (merge hiring/adjudicators (assoc-in shop/adjudicators [:shop/appraise :mock] appraisal))
-   :bridges hiring/bridges :offline-stubs hiring/offline-stubs
-   :observe shop/observe :mock-policy policy}))
+   {:name :delivery-fixture
+    :roles (into {} (for [role [:secretary :shopkeeper :bystander :errand-boy :gm]] [role {:brief (fn [_ _] "Test role.")}]))
+    :init (fn [_]
+            {:agents agents
+             :clock {:start "1904-10-15T10:00" :minutes-per-round 30}
+             :space {:locations [(merge {:id "counter" :name "Counter" :desc "A counter." :services #{:general-store}
+                                         :store-profile profile :hours ["08:00" "18:00"]}
+                                        (dissoc shop-extra :hiring-max-agents))
+                                 {:id "front-door" :name "Front door" :desc "The front door of the house."}
+                                 {:id "hall" :name "Hall" :desc "A hall."}]
+                     :routes [["front-door" "hall" 0] ["counter" "front-door" 1]]}
+             :state (merge {:setting "Rural England, 1904." :household {:funds 600}
+                            :positions {:shopkeeper {:capabilities #{:shop-clerk}} :errand-boy errand-boy}
+                            :quotes {} :meeting-place "front-door"}
+                           (select-keys shop-extra [:hiring-max-agents]))
+             :items []})
+    :actions shop/actions :items {}
+    :adjudicators (merge hiring/adjudicators (assoc-in shop/adjudicators [:shop/appraise :mock] appraisal))
+    :bridges hiring/bridges :offline-stubs hiring/offline-stubs
+    :observe shop/observe :mock-policy policy}))
 
 (defn start
   ([] (start {:delivery-profile delivery-profile}))
@@ -144,7 +145,7 @@
         (testing "the nightly steward leaves delivered goods alone"
           (let [loose (items/added world {:name "loose mutton" :desc "Mutton." :place "front-door" :consumable? true} :gm)
                 later (assoc (w/apply-event world loose) :round 40)]
-            (is (= ["loose mutton"] (map :name (get (items/steward-candidates later {:idle-hours 4 :max-per-call 8}) "front-door"))))))
+            (is (= ["loose mutton"] (map :name (get (item-steward/steward-candidates later {:idle-hours 4 :max-per-call 8}) "front-door"))))))
         (is (= world (w/replay (store/read-events (:dir run)))))
         (is (not-any? #(re-find #"^(error:|rejected:)" (:content % ""))
                       (mapcat :replies (store/read-llm (:dir run))))))
@@ -253,7 +254,7 @@
           (let [later (-> world
                           (assoc-in [:state :hiring-max-agents] 10)
                           (assoc-in [:state :orders "order-late"] (assoc (:data (first (of-type run :deliveries/ordered)))
-                                                                        :id "order-late" :due 7))
+                                                                         :id "order-late" :due 7))
                           (assoc :round 7))]
             (is (nil? (deliveries/compose later nil)) "no new person: the shop has one")
             (is (some #(= :agent/spawned (:type %)) (deliveries/tick (:scenario run) later {}))))))

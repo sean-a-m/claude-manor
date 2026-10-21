@@ -23,7 +23,7 @@
             [manor.io.llm :as llm]
             [manor.io.store :as store]
             [manor.mechanics.conversation :as conv]
-            [manor.mechanics.items :as items]))
+            [manor.mechanics.items.judge :as item-judge]))
 
 (defn calls
   "The recorded model calls of the run in `run-dir`, as a vector."
@@ -48,7 +48,7 @@
   ([call] (tools-for call :claudeworth))
   ([call scenario-key]
    (let [pool (tool-pool scenario-key)]
-     (mapv #(if (= "judge" %) @#'items/judge-tool (a/->tool (get pool %))) (:tools call)))))
+     (mapv #(if (= "judge" %) @#'item-judge/judge-tool (a/->tool (get pool %))) (:tools call)))))
 
 (defn check
   "The names of tools whose rebuilt definition differs from what was sent;

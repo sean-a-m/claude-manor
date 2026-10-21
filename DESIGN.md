@@ -40,8 +40,8 @@ src/manor/
   prompt.clj     builds agent and GM requests
   clock.clj      optional game time: rounds <-> times
   rng.clj        deterministic rolls from seed + key
-  mechanics/     rules scenarios combine: builtins, conversation, space, items, adjudication,
-                 people, positions, hiring
+  mechanics/     rules scenarios combine: builtins, conversation, space, items (+ items/: views,
+                 actions, work, judge, steward, find), adjudication, people, positions, hiring
   io/            what leaves the process: llm, bridge, mcp, http, store (run directories),
                  worldfile (EDN starting worlds; export the live map)
   tools/         for the operator: web (control panel), transcript, cache_report

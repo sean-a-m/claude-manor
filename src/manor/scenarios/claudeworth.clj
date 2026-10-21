@@ -26,6 +26,7 @@
             [manor.mechanics.conversation :as conversation]
             [manor.mechanics.hiring :as hiring]
             [manor.mechanics.items :as items]
+            [manor.mechanics.items.views :as item-views]
             [manor.mechanics.people :as people]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
@@ -95,7 +96,7 @@
   [world id]
   (let [here (space/location-of world id)
         hours (:hours (space/location world here))
-        loc (:location (items/add-to-view {:location (space/view world id)} world id))]
+        loc (:location (item-views/add-to-view {:location (space/view world id)} world id))]
     (cond-> (select-keys loc [:here :people-here])
       hours (update :here merge {:open (str/join "-" hours) :open-now? (open-now? world hours)}))))
 
@@ -692,34 +693,34 @@
 (def scenario
   (deliveries/install
    (hiring/install
-   {:name :claudeworth
-   :doc "Claudeworth Manor, 1904: a family and their servants, a village architect, shops, a public house and cottage trades, living from day to day."
-   :init init
-   :roles roles
-   :agent-brief agent-brief
-   :on-spawn positions/starting-events
-   :actions (vec (concat actions building/actions shop/actions hiring/actions))
-   :adjudicators (merge shop/adjudicators hiring/adjudicators)
-   :bridges (merge building/bridges hiring/bridges)
-   :offline-stubs (merge building/offline-stubs hiring/offline-stubs)
-   :mcp-servers (merge building/mcp-servers people/mcp-servers)
-   :systems [building/construction]
-   :items {:steward {:at "02:00" :idle-hours 4 :max-per-call 8}
-           :find-allowed? (fn [world _ place]
-                            (when (seq (:services (space/location world place)))
-                              "this isn't your house to search; ask for it here instead"))
-           :judge-brief judge-brief
-           :aspect-keys {:cleanliness "how clean" :repair "damage and needed repairs"
-                         :state "lit, hot, cooking, carved" :amount "how much remains, or parcel quantity"
-                         :stock "general level of supplies" :lacking "notable absences"
-                         :dress "what a person has on, where it differs from their usual appearance"
-                         :hair "how a person's hair is done, where it differs from usual"
-                         :grime "dirt, soot, flour or wet on a person's hands, face or clothes"}}
-   :exclude-actions #{:move :work-on}
-   :speaking-actions speaking-actions
-   :hibernate hibernate
-   :reference reference
-   :observe observe
-   :mock-policy mock-policy
-   :mock-conversation mock-conversation}
-   "carriage-sweep")))
+    {:name :claudeworth
+     :doc "Claudeworth Manor, 1904: a family and their servants, a village architect, shops, a public house and cottage trades, living from day to day."
+     :init init
+     :roles roles
+     :agent-brief agent-brief
+     :on-spawn positions/starting-events
+     :actions (vec (concat actions building/actions shop/actions hiring/actions))
+     :adjudicators (merge shop/adjudicators hiring/adjudicators)
+     :bridges (merge building/bridges hiring/bridges)
+     :offline-stubs (merge building/offline-stubs hiring/offline-stubs)
+     :mcp-servers (merge building/mcp-servers people/mcp-servers)
+     :systems [building/construction]
+     :items {:steward {:at "02:00" :idle-hours 4 :max-per-call 8}
+             :find-allowed? (fn [world _ place]
+                              (when (seq (:services (space/location world place)))
+                                "this isn't your house to search; ask for it here instead"))
+             :judge-brief judge-brief
+             :aspect-keys {:cleanliness "how clean" :repair "damage and needed repairs"
+                           :state "lit, hot, cooking, carved" :amount "how much remains, or parcel quantity"
+                           :stock "general level of supplies" :lacking "notable absences"
+                           :dress "what a person has on, where it differs from their usual appearance"
+                           :hair "how a person's hair is done, where it differs from usual"
+                           :grime "dirt, soot, flour or wet on a person's hands, face or clothes"}}
+     :exclude-actions #{:move :work-on}
+     :speaking-actions speaking-actions
+     :hibernate hibernate
+     :reference reference
+     :observe observe
+     :mock-policy mock-policy
+     :mock-conversation mock-conversation}
+    "carriage-sweep")))

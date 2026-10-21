@@ -208,7 +208,7 @@ tick's events.
 
 ### The steward
 
-`items/steward-candidates` skips items with an `:order-id`, wherever they've been taken. The item
+`item-steward/steward-candidates` skips items with an `:order-id`, wherever they've been taken. The item
 schema gains `[:order-id {:optional true} :string]`, as it has `:candidate-id` for references.
 Work can still use delivered food up: only the nightly pass leaves it alone.
 

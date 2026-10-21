@@ -236,7 +236,7 @@ The engine adds `:role :adjudicator`, `:task` and `:step` (attempt 0 or 1) to th
 A request may return its own `:check` closure (overriding the adapter's checker) to check
 against its narrow scene. It may instead return `{:result checked-data}` for a deterministic
 answer: no model call is made, and that result goes straight to `:on-result`. With `:items`
-enabled the engine registers `items/adjudicators` automatically; scenario adapters override
+enabled the engine registers `item-find/adjudicators` automatically; scenario adapters override
 entries with the same key.
 
 The engine uses `:judge-model` (falling back to `:model`), with the run's reasoning, token and
@@ -693,6 +693,9 @@ id. Objects people can pick up and carry are items (next section).
 
 ### Items (`manor.mechanics.items`)
 
+The core namespace holds the accessors, checks, every item event's reducer and narration; its
+parts are in `manor.mechanics.items.*`: `views`, `actions`, `work`, `judge`, `steward` and `find`.
+
 Items are things with a description and a few aspects that lie in a place, are carried by
 someone, or are inside another item: a piano, a pocket watch, an umbrella someone bought, the
 silver in the sideboard. They need locations. A scenario
@@ -1054,13 +1057,13 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   | otherwise | still going on |
 
   `carry-on` keeps the occupation and its job, so the work runs to its end.
-- For a stopped or finished job, **focus** (`items/focus-things`) is the named things still
+- For a stopped or finished job, **focus** (`item-work/focus-things`) is the named things still
   in reach: the room if named, and items at the job's place or carried by the worker, or stores
   in scope, each followed by everything inside it. `items/in-reach` stays items-only.
-  The **scene** (`items/scene`) always includes the place, focus, up to 12 other visible items
+  The **scene** (`item-work/scene`) always includes the place, focus, up to 12 other visible items
   (not inside closed containers), stores in scope, and people: those present, and the judged
-  people (`items/judged-people`: the worker, wherever they are, then the people named in `on` who
-  are still at the job's place). **Judged things** (`items/judged-things`) are the place, focus,
+  people (`item-work/judged-people`: the worker, wherever they are, then the people named in `on` who
+  are still at the job's place). **Judged things** (`item-work/judged-things`) are the place, focus,
   other visible items, stores and the judged people, once each (a person whose id is also a
   judged thing's isn't judged). With no time worked (except quick put-away jobs), the job ends
   with `:item/work-ended`, seen by the worker and people at the place, and no call. Every other
@@ -1126,7 +1129,7 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   as if it were counted or set out, and says in the summary that it wasn't there. Clothes,
   everyday things and a store's supplies are still to hand.
 - **The judge** is a narrow model call, not the GM and not a bridge; characters never hear of it.
-  `items/judge-request` builds it from the optional `:items :judge-brief` (`(fn [world] text)`),
+  `item-judge/judge-request` builds it from the optional `:items :judge-brief` (`(fn [world] text)`),
   optional suggested aspect keys with short glosses (`:items {:aspect-keys {:cleanliness "how
   clean" :repair "damage and needed repairs" ...}}`), time, worker's name and persona, doing,
   what the worker carries (`- Carrying: Pipe (pipe)`, or `nothing`), minutes worked, whether stopped early, and luck (1–100, 50 ordinary, `rng` key `[:judge job-id]`).
@@ -1192,7 +1195,7 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   neutral summary ("Hale finishes dusting the china cabinet."), plus an `:item/judge-failed`
   event (`:visible-to :system`) with the reason. The run isn't paused.
 - **Mock runs:** a call with role `:judge` goes to the scenario's `:mock-judge` if it has one,
-  else to `items/mock-judge` (each focused thing gets cleanliness "just seen to", and each person
+  else to `item-judge/mock-judge` (each focused thing gets cleanliness "just seen to", and each person
   named in `on` who is still here a state "just seen to"; it leaves the worker alone unless named,
   so without `on` it changes nothing and makes nothing). For quick put-away jobs the default mock instead
   absorbs deposited consumables (only with absorbable consumable contents) and clears matching
@@ -1201,7 +1204,7 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   `:mock-policy` never sees the judge. Its context has
   `:world :job :things` (all judged things), `:focus` (named things still in reach),
   `:minutes :stopped-early? :luck :step`, and it returns `{:tool :judge :args {..}}`.
-  `items/judgement` takes the response, world and judged things, so every check includes real
+  `item-judge/judgement` takes the response, world and judged things, so every check includes real
   container contents.
 
 #### The nightly steward
@@ -1220,7 +1223,7 @@ Code selects absorbable items not carried or inside closed containers, without a
 `idle-hours` of game time. Starting items age from the clock start. Candidates are grouped by
 place (place-id order), oldest `:touched` first, id breaking ties, at most `max-per-call` per
 place; excess waits for another night. The steward also sees **sleepers**
-(`items/steward-sleepers`): active people whose `:busy` has `:asleep?` and who have aspects,
+(`item-steward/steward-sleepers`): active people whose `:busy` has `:asleep?` and who have aspects,
 each at their location. A place with candidates or sleepers gets a call (in Claudeworth, about
 one per occupied bedroom per night, and only for sleepers with aspects); places with neither cost
 nothing. Nobody awake is ever seen: someone who stays up all night keeps their aspects.
@@ -1247,7 +1250,7 @@ Idle things were put away.", with its changes after the summary as for work ("(L
 longer dressed high, with combs)": a person's removed aspect reads by its old value).
 Characters see no steward event: a sleeper finds the aspects gone from their view on waking.
 A call with role `:steward` goes to the scenario's `:mock-steward` if it has one, else to the
-default mock (`items/mock-steward`, context `:world :place :candidates :sleepers :step`), which
+default mock (`item-steward/mock-steward`, context `:world :place :candidates :sleepers :step`), which
 absorbs everything it safely can into the first store in scope, otherwise leaves it, and
 removes nothing from sleepers.
 
@@ -1726,8 +1729,8 @@ Lets the scenario run for free with `{:llm :mock}`. It's essential for testing.
   free and once per turn, so guard them with `(not (used "say"))` and pass afterwards.
 - For the GM (`role :gm`) return `{:tool :done}` unless testing GM behaviour.
 - The judge of work on items (`role :judge`) never reaches the policy: the engine sends it to the
-  scenario's `:mock-judge`, or `manor.mechanics.items/mock-judge` (see Items). Nor does the nightly steward
-  (`role :steward`): it goes to `:mock-steward`, or `manor.mechanics.items/mock-steward`.
+  scenario's `:mock-judge`, or `manor.mechanics.items.judge/mock-judge` (see Items). Nor does the nightly steward
+  (`role :steward`): it goes to `:mock-steward`, or `manor.mechanics.items.steward/mock-steward`.
 - Internal adjudication calls (`role :adjudicator`) go to the task's registered `:mock`,
   not this policy (see Internal adjudication queries).
 - Nor do speaking turns in a conversation (the context has `:conversation {:id :initiator

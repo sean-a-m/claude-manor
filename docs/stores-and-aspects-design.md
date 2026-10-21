@@ -218,7 +218,7 @@ additions:
 4. **The room goes to the judge** whenever the job names its place: an entry with
    `"room": true`, its id, name, `desc` and aspects. The room-only shortcut in
    `engine/finish-job!` goes (a room-only job is judged). `in-reach` stays items-only (container
-   code depends on it); add `items/judged-things` for reach plus room, used by
+   code depends on it); add `item-work/judged-things` for reach plus room, used by
    `judge-request`, `verdict` and the mock judge's ctx.
 5. **Narration** (`n/describe :item/work-done`): "(Drawing room: swept, the hearth clean;
    Piano: dusted)". Show the new value, or "no longer <aspect>" for a removal.
@@ -250,7 +250,7 @@ the kitchen; the rest of phase 5's content is untouched. Small deviations and sa
   stores remain in `look.items` for container contents as well as `look.stores` for the in-scope
   supply list; per-turn `here.items` omits them.
 - The internal job still calls its focus ids `:items`, including jobs from `spend-time :on`.
-  `items/focus-things` is the old named-things scope; `items/judged-things` is now the whole
+  `item-work/focus-things` is the old named-things scope; `item-work/judged-things` is now the whole
   changeable scene. Mock ctx includes both `:focus` and `:things`.
 - `prompt/scene-recent` builds the shared recent lines in the engine (items cannot require
   prompt, which already requires items). It uses `visible-events` and the same narrated lines

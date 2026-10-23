@@ -389,10 +389,7 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   judge and steward handle people (a short real run of the fixture or Claudeworth, with the
   user's go-ahead).
 - Follow-ups, from the same decisions:
-  - **Private states** (the user may take this up next): inner conditions only the person
-    sees, such as hunger, tiredness, moods and physical feelings. They need a visibility rule
-    of their own, and an answer to who changes them (the judge after work, sleep and meals, or
-    the person themselves).
+  - **Private states:** moved to B13 (inner state), with the user's decisions of 2026-10-22.
   - **Fixed keys alongside open ones:** some keys always present for everyone (`:dress`, say),
     with the rest open as now. It would give the views a stable order and let the steward or
     code treat known keys predictably.
@@ -406,6 +403,38 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   - **Quick changes:** a free or short way to change your own state ("taking off my apron")
     instead of half an hour of `spend-time`, perhaps like quick put-away jobs. Deferred as too
     complex for the first build.
+
+### B13. Inner state
+
+- **Why:** characters have no inner state. Nothing records that a rebuke stung, that a day at
+  the copper left someone aching, or that a worry kept them up.
+- **Design:** [inner-state-design.md](inner-state-design.md), with the user's decisions of
+  2026-10-22. A private `inner` state per person, deliberately generic (moods, preoccupations,
+  physical things that don't show): a few fixed keys (`mood`, `body`, `mind` for Claudeworth)
+  plus up to 2 open ones, as short judged phrases with no meters, levels or automatic fading.
+  The work judge, a new conversation judge (one call per conversation) and the nightly steward
+  change it; the person only reads it. About 5% more per run. Three phases. **Proposed, not
+  started;** the defaults in its section 4 need confirming.
+- Follow-ups, from the same decisions:
+  - **Do characters act to improve their state?** The hoped-for result is that they do,
+    through ordinary actions (resting when tired, seeking company when low, keeping away from
+    someone who upset them), with no "improve my state" action and no instruction to manage
+    it. Investigate after the first real runs with inner state: have a model read the
+    transcripts' thoughts and actions beside the inner state shown at the time (no phrase
+    matching), and report examples and whether the rules' wording needs a nudge.
+  - **Periodic reflection** (the design's option C), only if the judges leave gaps: overheard
+    remarks, news, long waits, states that never change, people who never sleep. A few times a
+    day, one cheap call per agent over only their own visible events since the last pass sets
+    their inner state. It has the same shape as B2's rolling summary, so one call could do
+    both, and later update situations (people open question 7) or suggest small goals. About
+    4% more per run at once every 6 rounds per agent.
+  - **How people regard each other:** a separate structure for how one person regards another
+    (liking, resentment, trust), later. For now an entry's text may mention a person.
+  - **Overhearing:** whether the conversation judge should also change people present who
+    weren't members.
+  - **Serious harm** (plots, fights, injury, illness, death): no special guidance or limits for
+    now. If a judge decides something grave happened, it stands. Revisit only if it causes
+    problems in the simulation.
 
 ---
 

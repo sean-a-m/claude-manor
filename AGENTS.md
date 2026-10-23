@@ -21,6 +21,7 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/stores-and-aspects-design.md` | phased plan: stores, keyed aspects, the scene judge, `find`, the steward |
 | `docs/people-and-hiring-design.md` | phased plan: the people server and traits, positions, a small test world, hiring |
 | `docs/scene-view-design.md` | plan: the graphical scene page (automatic layout, inspector); not started |
+| `docs/inner-state-design.md` | proposal: private inner state, changed by the work judge, a conversation judge and the steward |
 | `docs/user-todos.md` | the user's own wishlist for later; not agent tasks |
 | `docs/archived/` | finished build briefs and old handoff notes: history, not the present state |
 
@@ -65,9 +66,11 @@ These came from the design conversation; respect them unless told otherwise.
   round). Always cap real runs with `:max-cost`.
 - **No hard-coded phrase or regex checks on what models write.** Don't judge prose with word
   lists or patterns ("contains 'at the gate'", "starts with 'You'", "mentions 'drinks'"): they
-  reject good text and miss new wordings. Check structure instead (schemas, lengths, ids that
-  exist, values from a list), shape behaviour with instructions, and review generated content at
-  the point it's made (`git diff` after `roll-cast!`). Regexes on identifiers and formats are fine.
+  are fragile, rejecting good text and missing new wordings. When what a text says matters, a
+  model judges it (a judge, an adjudicator, a checked answer with a retry); otherwise it isn't
+  checked at all. Code checks only structure (schemas, lengths, ids that exist, values from a
+  list). Shape behaviour with instructions, and review generated content at the point it's made
+  (`git diff` after `roll-cast!`). Regexes on identifiers and formats are fine.
 - **Don't design around server outages.** The MCP servers (people, architect, pi) run on the
   same machine as the engine, so don't add fallbacks, retries or degraded modes for one being
   down. If one fails, the existing error handling (a neutral error reply, a pause) is enough;

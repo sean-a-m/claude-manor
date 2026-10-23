@@ -63,6 +63,7 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :mcp-servers   {...}                    ; optional, MCP servers that bridges call
    :systems       [...]                    ; optional, per-round world processes
    :items         {:judge-brief (fn [world] "...")}   ; optional, turns on items (see Items)
+   :calendar      {:lookahead-days 30}     ; optional, in-world schedule (requires a clock)
    :inner         {:keys {:mood "gloss" ...} :open 2}  ; optional, turns on inner state (see Inner state)
    :hibernate     (fn [world agent-id] {:activity .. :location ..} or nil)  ; optional, see Hibernation
    :reference     (fn [world agent-id] {...})   ; optional: facts that rarely change, in the system prompt
@@ -87,7 +88,7 @@ The engine reads no other keys.
 
 ### `:init`
 
-`(fn [opts] {:state map, :space map, :agents [spec ...], :clock map, :items [item ...], :world-file map})`
+`(fn [opts] {:state map, :space map, :agents [spec ...], :clock map, :items [item ...], :calendar [entry ...], :world-file map})`
 (only `:state` is required), where `opts` are the run
 options (engine defaults, merged with your `:defaults`, merged with the caller's options). Custom
 option keys pass through, e.g. the village reads `:start-date`.
@@ -112,6 +113,7 @@ option keys pass through, e.g. the village reads `:start-date`.
 - `:clock`: optional game time, `{:start "1904-10-15T08:00" :minutes-per-round 30}` (see Time).
 - `:items`: optional starting items, used only when the scenario has the `:items` key (see Items).
   Holders and agent owners are agent ids here.
+- `:calendar`: optional starting entries, only used with scenario `:calendar` (see Calendar).
 - `:world-file`: the world file the scenario loaded, if any (see World files). The engine saves a
   copy as `<run-dir>/world-start.edn`.
 
@@ -1722,6 +1724,72 @@ If `:init` returns a `:clock`, rounds have times. Round 1 starts at `:start`, an
   changes: people start where the world file puts them (at 21:00 still in their 08:00 places), so
   a late start may need a mock script or world file that makes sense then.
 
+### Calendar (`manor.mechanics.calendar`)
+
+Opt in with scenario `:calendar {}` (default `:lookahead-days 30`, a non-negative integer).
+It requires a simulation clock. Return a vector of entries in `:init`'s `:calendar`, or pass
+through `worldfile/load-world`'s `:calendar` from a world file:
+
+```clojure
+[{:id "holiday-1904" :date "1904-11-11"
+  :description "A holiday." :visible-to :all}
+ {:id "visit-1904" :at "1904-10-21T14:00"
+  :description "Mr Smith is expected."
+  :visible-to #{"ada"} :gm-notes "Optional private guidance."}]
+```
+
+- IDs are unique lowercase letters/digits/underscore/hyphen identifiers, starting with a letter
+  or digit. Cancelled IDs remain reserved. Exactly one of `:date` (ISO local date) or `:at`
+  (ISO local datetime) is required. No recurrence, ranges, approximate dates or event payloads.
+- `:description` is 1–600 characters; optional `:gm-notes` is at most 1200. Only structure is
+  checked, not the meaning of prose. `:visible-to` defaults to `:gm`; other choices are `:all`
+  or an explicit set of existing **character IDs**, not names or positions. Unlike item holders,
+  calendar audiences are not converted to/from names in world files. Initial validation happens
+  after cast creation, so the IDs must match those actually spawned (including collision suffixes).
+- Public entries are known by later arrivals too. Restricted entries do not follow a post to its
+  replacement. Conversations and notes may convey knowledge but never automatically edit calendars.
+- Both turns and conversation requests put `## Your calendar` at the beginning of the user
+  message, before recent events, below the stable system/tool prefix. It shows only permitted
+  descriptions and absolute dates, with times only for `:at`. It is a schedule of known arrangements
+  and expectations, **not confirmation they happened**. Never put raw calendar/export data in a
+  character `:reference` or `:observe` projection: it includes private notes and audiences.
+- The visible window is today through `:lookahead-days` after today, inclusive. Sorting is by
+  date, date-only before timed entries, time and ID. With no edits its bytes stay unchanged all
+  day. Today's entries remain until midnight even after their appointed time or GM review.
+- After the existing pre-turn world systems, the engine queues pending entries whose review time
+  has been reached or crossed and gives the GM **one batch before characters act**. Date-only
+  entries use 05:00 internally; this is not a character-facing start time. Existing requests,
+  periodic checks and scenario GM triggers still run after turns, independently of calendar review.
+- Fresh-run initialization uses the final `:start` override and queues today's date-only entries
+  at/after 05:00. Before then they wait. Earlier dates and already-past timed starting entries
+  are historical, not a backlog. No model is called inside initialization. Load/branch uses saved
+  lifecycle, not this startup exception.
+- The GM has `add-calendar-entry`, `update-calendar-entry`, `cancel-calendar-entry`, all subject
+  to normal argument decoding and GM action limits. Operators use `engine/add-calendar-entry!`,
+  `engine/update-calendar-entry!` and `engine/cancel-calendar-entry!` (also REPL helpers), queued
+  between rounds. Updates take an ID and changed authored fields; setting `:date` replaces `:at`
+  and vice versa. Live creation/rescheduling rejects dates before today and past timed appointments.
+  A date-only entry added today after 05:00 waits until the next pre-turn boundary.
+- Description/note/audience edits preserve review status. Rescheduling to a future date/time makes
+  an entry pending again and clears an old queue record. Cancellation hides it and removes due
+  work. Revision-aware acknowledgements cannot overwrite edits/cancellation/rescheduling during
+  review. New due work never recursively invokes the GM in that round.
+- A completed intervention (including immediate `done` or reaching the GM action limit) reviews
+  the batch once. Failed/forfeited review stays due and requests a pause. Disabled or cost-blocked
+  GM review stays due. Due records are supplied directly, not through the recent-event window.
+- All calendar mutation/review events are GM-only, even for public entries. They never announce
+  anything to characters. Reducers are pure; calendar data lives under engine-owned `:calendar`
+  (`:entries` by ID and revision-aware `:due`). Entries store `:lifecycle {:status ... :revision ...}`.
+  Authors normally omit it; world-file export retains it to preserve reviewed/historical/cancelled
+  and due state when imported. Calendar changes also refresh the run's live `map.edn`.
+- Map export retains exact calendar audience IDs, but existing map export does **not** include
+  newly spawned cast members. If an entry names one, supply that cast record before starting
+  a new run from the map; otherwise initial validation rejects the missing ID. Nothing is silently
+  dropped or made public. Saved **load/branch** is the full-fidelity continuation path.
+- Calendar review never credits money, spawns a visitor or guarantees an outcome. Those need
+  separate supported actions. No scheduling schemas are added to work/conversation judges or
+  the steward. Scenarios without `:calendar` retain their existing prompts and tools.
+
 ### Occupation: sleep and other long activities
 
 An agent can be busy until a round. Like a traveller, they skip their turns (no model calls)
@@ -1865,6 +1933,8 @@ are fixed before the pass: someone woken during it waits until next round. Custo
 functions keep control of their groups and get no trailing pass.
 
 ### GM triggers and pausing
+
+Calendar due review is a separate pre-turn activation (see Calendar); the following stay after turns.
 
 - `:gm-triggers`: functions run after agents act each round. Any non-nil string calls the GM with
   that reason. The GM is also called when its inbox has requests, or every

@@ -18,6 +18,8 @@
      ...}                                                   ; anything else is the scenario's
 
   `:connects-to` is undirected: listing a neighbour on either side is enough.
+  Calendar audiences stay explicit character IDs and are checked after cast
+  creation by the engine; unlike item holders they are not name-converted.
   Items name their :holder (and an :owner who is an agent) by agent name;
   loading turns those into agent ids, and exporting turns them back.
   `load-world` reads and checks a file and returns the parts a scenario's
@@ -33,6 +35,7 @@
             [malli.error :as me]
             [manor.clock :as clock]
             [manor.mechanics.builtins :as b]
+            [manor.mechanics.calendar :as calendar]
             [manor.mechanics.inner :as inner]
             [manor.mechanics.items :as items]
             [manor.world :as w]))
@@ -75,7 +78,8 @@
    [:locations [:vector {:min 1} Location]]
    [:routes {:optional true} [:vector [:vector :any]]]
    [:agents {:optional true} [:vector Agent]]
-   [:items {:optional true} [:vector :map]]])
+   [:items {:optional true} [:vector :map]]
+   [:calendar {:optional true} [:vector :map]]])
 
 ;; ---------------------------------------------------------------------------
 ;; Reading and checking
@@ -168,8 +172,8 @@
 (defn load-world
   "Read and check a world file (a path, or a classpath resource such as
   \"worlds/claudeworth.edn\"). Throws with a list of problems if it is
-  wrong. Returns {:space :clock :agents :items :world-file}; all but the
-  last are ready for a scenario's :init (:clock, :agents and :items only if
+  wrong. Returns {:space :clock :agents :items :calendar :world-file}; all but the
+  last are ready for a scenario's :init (:clock, :agents, :items and :calendar only if
   the file has them), and :world-file is the data as read (the scenario
   reads its own sections from it; the engine saves a copy)."
   [source]
@@ -179,7 +183,8 @@
     (cond-> {:space (->space wf) :world-file wf}
       (->clock wf) (assoc :clock (->clock wf))
       (:agents wf) (assoc :agents (:agents wf))
-      (:items wf) (assoc :items (->items wf)))))
+      (:items wf) (assoc :items (->items wf))
+      (:calendar wf) (assoc :calendar (:calendar wf)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Exporting the live map
@@ -247,6 +252,7 @@
                                      (cond-> (get locs id) (seq c) (assoc :connects-to c))))
                    :routes (export-routes routes start two-way?))
       (items/enabled? world) (assoc :items (export-items world start))
+      (:calendar world) (assoc :calendar (calendar/export-entries world))
       (:agents start) (assoc :agents (export-agents world start)))))
 
 (def ^:private key-order [:id :name])

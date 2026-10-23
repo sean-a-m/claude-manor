@@ -9,12 +9,14 @@
   longest start a request shares with an earlier one: what rarely changes
   comes first (the system message: one preamble for every kind of call, the
   role, who they are, their situation and the reference), then the tools,
-  then the recent events (a window that only grows between jumps), and last
-  what changes every call: the time, the view, the notes and what is asked
+  then the optional daily calendar and recent events (a window that only
+  grows between jumps), and last what changes every call: the time, the
+  view, the notes and what is asked
   of them now."
   (:require [clojure.string :as str]
             [jsonista.core :as json]
             [manor.clock :as clock]
+            [manor.mechanics.calendar :as calendar]
             [manor.mechanics.conversation :as conversation]
             [manor.mechanics.items :as items]
             [manor.mechanics.items.views :as item-views]
@@ -193,7 +195,7 @@ Take your turn now.")
                     (when-not (str/blank? (:situation a)) (str "\n\n## Your situation\n" (:situation a)))
                     (reference-text scenario world agent-id))}
      {:role "user"
-      :content (str "## Recent events you witnessed\n"
+      :content (str (calendar/character-section world agent-id) "## Recent events you witnessed\n"
                     (event-lines world
                                  (visible-events events agent-id (or event-window 30) (some? (:clock world)))
                                  (narrate/names world))
@@ -317,7 +319,7 @@ Each message to you gives the recent events, oldest first, then the time now and
     (seq (items/jobs world)) (assoc :item-jobs (vec (items/jobs world)))))
 
 (defn gm-messages
-  [scenario world events reasons {:keys [event-window]}]
+  [scenario world events reasons {:keys [event-window calendar-due]}]
   (let [gm-view (or (:gm-view scenario) default-gm-view)]
     [{:role "system"
       :content (str gm-preamble
@@ -329,9 +331,12 @@ Each message to you gives the recent events, oldest first, then the time now and
                     (when (:clock world) (str " (round " (:round world) ")"))
                     " - you were called because:\n"
                     (str/join "\n" (map #(str "- " %) reasons))
+                    (when (seq calendar-due)
+                      (str "\n\n## Due calendar entries\nReview these due calendar entries and decide what, if anything, to do. Calling done is fine. Review does not mean an occasion occurred.\n```json\n"
+                           (->json calendar-due) "\n```"))
                     "\n\n## Requests addressed to you\n"
                     (if-let [inbox (seq (get-in world [:gm :inbox]))]
                       (str/join "\n" (map #(str "- " (stamp world (:round %)) " " (:from %) ": " (:text %)) inbox))
                       "(none)")
-                    "\n\n## World state\n```json\n" (->json (gm-view world)) "\n```"
+                    "\n\n## World state\n```json\n" (->json (cond-> (gm-view world) (:calendar world) (assoc :calendar (calendar/export-entries world)))) "\n```"
                     "\n\nDecide what, if anything, to do.")}]))

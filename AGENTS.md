@@ -22,6 +22,7 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/people-and-hiring-design.md` | phased plan: the people server and traits, positions, a small test world, hiring |
 | `docs/scene-view-design.md` | plan: the graphical scene page (automatic layout, inspector); not started |
 | `docs/inner-state-design.md` | proposal: private inner state, changed by the work judge, a conversation judge and the steward |
+| `docs/events-design.md` | in-world calendar contract and outcome: private/public entries and pre-turn GM review |
 | `docs/household-1904-proposal.md` | proposal: a second Claudeworth scenario, a modest household with new ironstone income that means to expand; not started |
 | `docs/user-todos.md` | the user's own wishlist for later; not agent tasks |
 | `docs/archived/` | finished build briefs and old handoff notes: history, not the present state |

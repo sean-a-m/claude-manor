@@ -440,7 +440,7 @@
 
 (defn gm-brief [world]
   (str/join "\n\n" (remove str/blank? [(setting world) (about world :gm)
-                                       "This slice has no rents or other income: never narrate money arriving on its own, and promise no future payments."
+                                       "This slice has no income credit action: scheduled expectations may be recorded in a calendar when available, but never narrate money arriving without an engine-recorded credit."
                                        "The engine keeps time and runs the world. Intervene only when asked, and lightly; otherwise call done."])))
 
 (def roles

@@ -193,15 +193,29 @@ pi state on branches is for the GM/orchestrator to handle later; no cost limits 
   `:version` key to scenarios.
 - **Files:** `src/manor/engine.clj`, `src/manor/io/store.clj`.
 
-### B4. Timed events
+### B4. Calendar events and GM review — done
 
-- **Why:** "the festival is in 5 rounds", deliveries, deadlines. Today only travel arrivals are
-  timed (a special case in `space/arrivals`).
-- **Approach:** an engine event `{:type :schedule/added :data {:at round :event {...}}}`, kept in
-  the world under `:scheduled`. At round start (next to arrivals) the engine emits due events and
-  a `:schedule/fired`. Effects can schedule future events. Travel arrivals could be reimplemented
-  on top of this.
-- **Files:** `src/manor/world.clj`, `src/manor/engine.clj`, docs.
+Implemented; see [the calendar design and outcome](events-design.md) and the scenario-authoring
+contract. Parent validation and independent review passed, including the incomplete-review regression.
+Focused offline calendar tests and the full suite pass; no real-model run was made.
+
+- **Why:** an in-world schedule of holidays, expected visitors, rent dates and private GM events,
+  distinct from the engine's event log and from confirmation that an outcome happened.
+- **Agreed scope:** one-off specific dates/times; public, explicit selected-agent or GM-only
+  knowledge; optional GM-only notes; scenario/operator/GM management. No recurrence, approximate
+  dates, character scheduling or judge scheduling in the first version.
+- **Context:** a date-refreshed calendar before recent events, defaulting to today through 30 days
+  ahead, with only permitted descriptions/dates/times. Date-only entries never display 05:00.
+- **Review:** batch due entries into a pre-turn GM intervention; date-only entries use 05:00
+  internally, with today's missed review queued by fresh-run initialization. Doing nothing counts
+  as reviewed. Preserve lifecycle state through replay/load/branch. Existing requests stay after
+  turns. Calendar entries do not directly emit arbitrary state-changing payloads.
+- **Separate work:** household income/account credits (B7 below). Existing travel, delivery and
+  work timing remain on their current paths, rather than migrating to a universal scheduler.
+- **Files:** `mechanics/calendar.clj`, `engine.clj`, `engine/round.clj`, `prompt.clj`, world-file
+  support, operator/REPL helpers and focused fixtures/tests; scenario-authoring and README updated.
+- **Export limitation:** audiences remain exact IDs. Existing map export excludes spawned people;
+  supply their cast records before starting that map, or use saved load/branch for full continuation.
 
 ### B5. GM adjudication of actions
 
@@ -269,6 +283,13 @@ Follow-ups, by need:
   account book listing each purchase and order for the household's members; tradesmen's
   accounts that run up and are settled weekly or quarterly, with a bill the shop sends; credit
   for some customers and not others.
+
+- **Household income / account credits.** The account has starting funds and spending reducers,
+  but no supported action for crediting rent, royalties or other income. Add an engine-validated,
+  event-recorded way to credit it, with an amount and reason, and decide who may invoke it.
+  Calendar entries may describe expected payments before this exists; neither a due date nor
+  a GM announcement should be treated as money received. Income mechanics remain separate
+  from the calendar/timed-events work.
 
 **[Stores, aspects and the scene judge](stores-and-aspects-design.md): phases 0–7 done**
 (phase 7 mock-tested; its next real-model check needs the user's go-ahead). It answers the meals, room-conditions and GM-tools

@@ -44,7 +44,7 @@
         (swap! (:events run) conj e)
         (store/append-event! (:dir run) e)
         (notify! run {:kind :event :event e})))
-    (when (some #(#{"space" "item" "items" "person"} (namespace (:type %))) events)
+    (when (some #(#{"space" "item" "items" "person" "calendar"} (namespace (:type %))) events)
       (export-map! run))))
 
 (defn write-transcript!

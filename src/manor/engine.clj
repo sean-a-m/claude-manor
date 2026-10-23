@@ -12,7 +12,7 @@
        freed; the scenario's :hibernate puts agents out of play or wakes
        them; work on items that ends now is judged and its results applied
        (manor.mechanics.items); run act-bridges the operator approved
-    3. run world systems (ticks, possibly fed by bridges)
+    3. run world systems (ticks, possibly fed by bridges), then batched calendar GM review
     4. for each schedule group: activate its agents, resolve their actions
     5. call the GM if anything triggers it
     6. :round/ended, then check pause conditions
@@ -38,6 +38,7 @@
             [manor.io.store :as store]
             [manor.io.worldfile :as worldfile]
             [manor.mechanics.builtins :as b]
+            [manor.mechanics.calendar :as calendar]
             [manor.mechanics.conversation :as conversation]
             [manor.mechanics.conversation.judge :as conversation-judge]
             [manor.mechanics.inner :as inner]
@@ -94,7 +95,7 @@
     (remove #(excluded (:name %))
             (a/merge-actions (b/agent-actions) [conversation/converse] (space/actions)
                              (when (:items scenario) (item-actions/actions (:items scenario)))
-                             (b/gm-actions scenario) (:actions scenario)))))
+                             (b/gm-actions scenario) (when (:calendar scenario) (calendar/actions)) (:actions scenario)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Making a run
@@ -305,6 +306,19 @@
   ([run text to]
    (operator! run (fn [_] [{:type :gm/announced :data {:text text} :visible-to to}]))))
 
+(defn add-calendar-entry!
+  "Record an occasion (see manor.mechanics.calendar/Entry). IDs stay reserved."
+  [run entry]
+  (operator! run #(calendar/command-events % :add entry)))
+
+(defn update-calendar-entry!
+  "Edit an entry's fields. Setting :date replaces :at, and vice versa."
+  [run id changes]
+  (operator! run #(calendar/command-events % :update (assoc changes :id id))))
+
+(defn cancel-calendar-entry! [run id]
+  (operator! run #(calendar/command-events % :cancel {:id id})))
+
 (defn approve! [run req-id]
   (operator! run (fn [world]
                    (when (get-in world [:pending-bridges req-id])
@@ -382,7 +396,9 @@
       (run/emit! run (b/spawn-events scenario @(:world run) (into {} (remove (comp nil? val)) spec))))
     (when (:items scenario)
       (check-items! @(:world run) items)
-      (run/emit! run (items/init-events items)))))
+      (run/emit! run (items/init-events items)))
+    (when (:calendar scenario)
+      (run/emit! run (calendar/init-events @(:world run) (:calendar scenario) (:calendar init))))))
 
 (defn start-run
   "Create and initialise a new run of `scenario-key` (e.g. :village)."

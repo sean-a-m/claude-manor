@@ -127,6 +127,9 @@
 (defn change-post!
   ([id position] @(e/change-post! (run) id position))
   ([id position opts] @(e/change-post! (run) id position opts)))
+(defn add-calendar-entry! [entry] @(e/add-calendar-entry! (run) entry))
+(defn update-calendar-entry! [id changes] @(e/update-calendar-entry! (run) id changes))
+(defn cancel-calendar-entry! [id] @(e/cancel-calendar-entry! (run) id))
 (defn approve! [req-id] @(e/approve! (run) req-id))
 (defn deny! [req-id] @(e/deny! (run) req-id))
 (defn act! [id action args] (e/act! (run) id action args))

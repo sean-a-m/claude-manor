@@ -126,6 +126,23 @@ From the REPL (`clj -M:dev`):
 (roll-cast! "test-runs/x/claudeworth.edn" {:llm :mock})   ; free, with the mock polish
 ```
 
+Scenarios may opt into an in-world calendar with `:calendar {:lookahead-days 30}` and a clock.
+Known arrangements appear before recent events in turns and conversations; due entries receive
+one GM review before character turns. Review is not proof the occasion occurred and changes no
+money or presence by itself. In such a scenario the operator can use:
+
+```clojure
+(add-calendar-entry! {:id "visit" :at "1904-10-21T14:00"
+                      :description "Mr Smith is expected." :visible-to #{"hale"}})
+(update-calendar-entry! "visit" {:at "1904-10-22T14:00"})
+(cancel-calendar-entry! "visit")
+```
+
+Audience values are character IDs; omitted visibility means GM-only. Optional `:gm-notes` never
+reach characters. See [the calendar contract](docs/scenario-authoring.md#calendar-manormechanicscalendar)
+for startup review, lifecycle and world-file export limitations. Bundled worlds do not acquire
+an annual calendar automatically.
+
 `roll-cast!` gives every character in a world file new traits from the people server
 (`mcp-servers/people/`) and persona, manner and appearance written from them, with **no old
 character descriptions as input**. It keeps names, sex, jobs and situations. Each call uses a

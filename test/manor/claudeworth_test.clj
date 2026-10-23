@@ -788,7 +788,7 @@
     (testing "the GM brief has the setting too, and the no-income guard"
       (is (str/includes? (:content (first (prompt/gm-messages (:scenario run) world (e/events run) ["test"] {})))
                          (get-in world [:state :setting])))
-      (is (str/includes? (cw/gm-brief world) "no rents")))
+      (is (str/includes? (cw/gm-brief world) "no income credit action")))
     (testing "the rules quote the query limit from the world, not a literal"
       (is (str/includes? (cw/rules world) "towards your 2 queries a turn"))
       (is (str/includes? (cw/rules (assoc-in world [:state :max-queries] 3)) "towards your 3 queries a turn")))

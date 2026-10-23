@@ -1,7 +1,8 @@
 (ns manor.engine.round
   "One round, in order: arrivals, releases and hibernation; work that ends;
   the steward; approved act-bridges; world systems; each schedule group's
-  turns; the GM if anything triggers it. See manor.engine for the outline."
+  turns; the GM if anything triggers it. Calendar review runs before turns.
+  See manor.engine for the outline."
   (:require [manor.actions :as a]
             [manor.engine.resolve :as resolve]
             [manor.engine.run :as run]
@@ -9,6 +10,7 @@
             [manor.engine.work :as work]
             [manor.io.bridge :as bridge]
             [manor.mechanics.builtins :as b]
+            [manor.mechanics.calendar :as calendar]
             [manor.mechanics.items.work :as item-work]
             [manor.mechanics.space :as space]
             [manor.world :as w]))
@@ -103,14 +105,39 @@
               ["scheduled check-in"])
             (keep #(% world) (:gm-triggers (:scenario run))))))))
 
-(defn- maybe-run-gm! [run]
-  (when-let [reasons (gm-reasons run @(:world run))]
+(defn- gm-enabled? [world]
+  (let [gm (w/gm world)]
+    (and gm (= :active (:status gm)) (not= :off (:controller gm)))))
+
+(defn- run-gm! [run reasons batch]
+  (when (and (gm-enabled? @(:world run)) (or (empty? batch) (not (run/cost-reached? run))))
     (let [gm-id (:id (w/gm @(:world run)))]
       (run/emit! run [{:type :gm/called :actor gm-id :visible-to :gm :data {:reasons reasons}}])
-      (seat/activate run @(:world run) gm-id
-                     {:role :gm :reasons reasons :max-finals (:gm-max-actions (:opts run))
-                      :commit (fn [action args] (resolve/resolve! run gm-id action args))})
-      (run/emit! run [{:type :gm/intervened :actor gm-id :visible-to :gm :data {:reasons reasons}}]))))
+      (let [result (seat/activate run @(:world run) gm-id
+                                  {:role :gm :reasons reasons :calendar-due batch
+                                   :max-finals (:gm-max-actions (:opts run))
+                                   :commit (fn [action args] (resolve/resolve! run gm-id action args))})
+            ;; :done? also ends an exhausted, twice-nudged response. Only
+            ;; an accepted done action or the action limit completes review.
+            completed? (and (:done? result) (seq (:finals result))
+                            (or (some #(= :done (get-in % [:action :name])) (:finals result))
+                                (>= (count (:finals result)) (:gm-max-actions (:opts run)))))]
+        (when (or (empty? batch) completed?)
+          (run/emit! run (cond-> [{:type :gm/intervened :actor gm-id :visible-to :gm
+                                  :data (cond-> {:reasons reasons} (seq batch) (assoc :calendar? true))}]
+                          (seq batch) (conj (calendar/reviewed-event batch)))))
+        (when (and (seq batch) (not completed?))
+          (run/emit! run [{:type :run/pause-requested :visible-to :system
+                           :data {:reason "calendar GM review did not complete"}}]))))))
+
+(defn- maybe-run-gm! [run]
+  (when-let [reasons (gm-reasons run @(:world run))]
+    (run-gm! run reasons nil)))
+
+(defn- review-calendar! [run]
+  (run/emit! run (calendar/due-events @(:world run)))
+  (when-let [batch (seq (calendar/due-records @(:world run)))]
+    (run-gm! run ["calendar entries are due for review"] (vec batch))))
 
 (defn- pause-reasons [run]
   (let [world @(:world run)
@@ -140,6 +167,7 @@
     (work/run-steward! run)
     (run-approved-bridges! run)
     (run-systems! run)
+    (review-calendar! run)
     (let [acted (reduce (fn [acted group]
                           (into acted (map :agent-id (run-group! run group))))
                         #{} (schedule run @(:world run)))]

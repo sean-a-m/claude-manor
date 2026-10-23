@@ -16,7 +16,8 @@
     :system   the operator only; never put into any prompt
 
   Engine-owned keys: :round :seq :agents :space :gm :pending-bridges
-  :pause-requests :usage, and :clock when the scenario has one (manor.clock)."
+  :pause-requests :usage, :calendar when opted in, and :clock when the
+  scenario has one (manor.clock)."
   (:refer-clojure :exclude [agent]))
 
 (defn new-world []
@@ -149,10 +150,13 @@
 (defmethod apply-event :gm/requested [world {:keys [id actor round data]}]
   (update-in world [:gm :inbox] conj {:event id :from actor :round round :text (:text data)}))
 
-(defmethod apply-event :gm/intervened [world {:keys [round]}]
-  (-> world
-      (assoc-in [:gm :inbox] [])
-      (assoc-in [:gm :last-intervention] round)))
+(defmethod apply-event :gm/intervened [world {:keys [round data]}]
+  ;; Calendar review is a separate pre-turn intervention, not consumption of
+  ;; requests or a replacement for the ordinary after-turn check-in.
+  (if (:calendar? data) world
+      (-> world
+          (assoc-in [:gm :inbox] [])
+          (assoc-in [:gm :last-intervention] round))))
 
 (defmethod apply-event :bridge/requested [world {:keys [data actor]}]
   (assoc-in world [:pending-bridges (:req-id data)]

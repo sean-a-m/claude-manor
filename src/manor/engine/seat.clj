@@ -20,7 +20,7 @@
     (or simultaneous? (= :human (:controller (w/agent world agent-id))))
     (remove #(= :converse (a/kind %)))))
 
-(defn- activate-llm [run snapshot agent-id {:keys [role reasons max-finals commit] :as turn}]
+(defn- activate-llm [run snapshot agent-id {:keys [role reasons calendar-due max-finals commit] :as turn}]
   (let [{:keys [scenario opts]} run
         gm? (= role :gm)
         actions (turn-actions run snapshot agent-id turn)
@@ -29,7 +29,7 @@
     (turn/run-calls run agent-id
                     {:model (or (:model agent) (when gm? (:gm-model opts)) (:model opts))
                      :messages (if gm?
-                                 (prompt/gm-messages scenario snapshot @(:events run) reasons opts)
+                                 (prompt/gm-messages scenario snapshot @(:events run) reasons (assoc opts :calendar-due calendar-due))
                                  (prompt/agent-messages scenario snapshot @(:events run) agent-id opts))
                      :actions actions
                      :refresh-actions #(turn-actions run @(:world run) agent-id turn)

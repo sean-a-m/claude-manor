@@ -25,7 +25,7 @@
            :name :claudeworth-medium
            :doc "Claudeworth Manor, 1904: a baron, his family and nine servants, the village tradespeople and the abbey, with new ironstone money and a house to enlarge."
            :defaults {:world-file "worlds/claudeworth-medium.edn"
-                      :max-cost 0.20
+                      :max-cost 10.00
                       ;; Master Claudeworth is at school: in the world file, out of the run.
                       :leave-out ["master-claudeworth"]}
            :mock-policy (fn [ctx] (cw/scripted-policy {} ctx))

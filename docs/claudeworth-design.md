@@ -24,6 +24,7 @@ The current cast:
 | Mr Briggs, shopkeeper | `shopkeeper` | general store | checks requested goods and quotes prices; lives above the shop |
 | Mrs Finch, cook | `cook` | kitchen | runs the kitchen, plans meals and arranges provisions |
 | Daisy, scullery maid | `scullery-maid` | scullery | assists the cook with washing up, cleaning and preparation |
+| Bert, hall boy | `hall-boy` | kitchen | runs household errands and helps with rough work in exchange for his keep; sleeps in the kitchen box-room |
 | Mr Hobbs, butcher | `butcher` | butcher's shop | quotes meat purchases using his own shop profile; lives above the shop |
 | Miss Ellis, draper | `draper` | draper's shop | sells cloth, linen and haberdashery; lives above the shop |
 | Mr Turner, publican | `publican` | the Crown public house | serves drinks and simple refreshments; lives upstairs |
@@ -42,7 +43,9 @@ usual provisions, lacking sugar. The kitchen dresser stores everyday kitchen war
 cupboard in her room supplies her housework, and a closed linen press stands in the gallery.
 Every indoor house place has one or two starting aspects. A scullery also opens from the
 kitchen. Mrs Finch and Daisy have bedrooms off a servants' landing at the back of the
-first-floor gallery; Nellie keeps her existing room off the kitchen.
+first-floor gallery; Nellie keeps her existing room off the kitchen. Bert has a folding iron
+bed among the hampers and trunks in a ventilated box-room off the kitchen, not a purpose-built
+servant's bedroom (decision 46).
 
 The design is done when a run supports this sequence, first with the mock policy (free,
 scripted) and then with real models:
@@ -827,3 +830,16 @@ Decisions for items (done):
     "Sister" are honorifics in forms of address. Two people sharing a workplace led to one
     change in hibernation (decision 11). Both were rolled with `roll-cast!`, along with the
     other trades residents, who had been written by hand without traits.
+
+46. **An informal hall boy for household errands.** Done. Bert, sixteen and local, helps for
+    meals and a place to sleep, with no regular money wage agreed. He holds the existing
+    `hall-boy` position; the world's duties emphasise instructed village errands, reporting
+    back, boots and carrying, rather than a butler or servants' hall that this modest house
+    does not have. Lady Claudeworth and Mrs Finch know the arrangement. His folding iron bed
+    occupies a little box-room off the kitchen among stored hampers and trunks, with an opening
+    window and a makeshift washstand. A repurposed store-room and board-and-lodging arrangement
+    suggest an improvised establishment rather than another formally appointed servant.
+    The room is mechanically a bedroom so existing sleep, household-bedroom and steward rules
+    work unchanged; the bed is a household item. Terms and folding the bed away are social
+    instructions, not new wage or furniture mechanics. The generic bundled-world checks cover
+    every resident's accessible bedroom and ability to sleep there, as well as mock/replay.

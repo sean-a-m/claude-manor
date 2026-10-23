@@ -127,7 +127,16 @@
                                       :run-id (str (gensym "claudeworth-activities-"))})]
     (try
       (let [world (e/world run)
-            stores (items/items-where world items/store?)]
+            stores (items/items-where world items/store?)
+            sleep (first (filter #(= :sleep (:name %)) (:actions run)))]
+        (testing "every resident has a reachable sleeping place, including makeshift bedrooms"
+          (doseq [agent (w/active-agents world) :when (not= :gm (:role agent))
+                  :let [id (:id agent)
+                        bed (get-in world [:state :bedrooms id])
+                        at-bed (w/apply-event world {:type :agent/placed :data {:id id :to bed}})]]
+            (is (= :bedroom (:kind (space/location world bed))) id)
+            (is (contains? (space/area world (space/location-of world id)) bed) id)
+            (is (nil? (a/check sleep at-bed id {:until "09:00"})) id)))
         (is (seq stores))
         (is (= {:at "02:00" :idle-hours 4 :max-per-call 8}
                (get-in run [:scenario :items :steward])))

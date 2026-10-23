@@ -109,7 +109,7 @@
           (is (= 0 (:since (positions/post world (:id a))))))
         (is (nil? (positions/post world "gm"))))
       (testing "the family and servants are of the household; the tradesmen keep their own"
-        (is (= #{"lord-claudeworth" "lady-claudeworth" "hale" "nellie" "mrs-finch" "daisy"}
+        (is (= #{"lord-claudeworth" "lady-claudeworth" "hale" "nellie" "mrs-finch" "daisy" "bert"}
                (set (filter #(positions/household-member? world %) (map :id (w/active-agents world)))))))
       (testing "each brief gives the position, its duties, the setting and the rules"
         (let [earl (system-prompt run world "lord-claudeworth")
@@ -273,7 +273,8 @@
             bedrooms (get-in (cw/observe world "nellie") [:household :bedrooms])]
         (testing "the household sees the house's bedrooms and who sleeps in each"
           (is (= {"cooks-room" ["Mrs Finch"] "countess-bedroom" ["Lady Claudeworth"] "earls-bedroom" ["Lord Claudeworth"]
-                  "maids-room" ["Nellie"] "scullery-maids-room" ["Daisy"] "secretarys-room" ["Hale"]}
+                  "maids-room" ["Nellie"] "scullery-maids-room" ["Daisy"] "secretarys-room" ["Hale"]
+                  "kitchen-box-room" ["Bert"]}
                  (into {} (map (juxt :id :sleeps)) bedrooms)))
           (is (= "Maid's room" (:name (first (filter #(= "maids-room" (:id %)) bedrooms))))))
         (testing "the tradesmen don't, though they have their own bedrooms"

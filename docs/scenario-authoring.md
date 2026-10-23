@@ -1444,8 +1444,12 @@ in `:init`:
   uses the unchanged agent-view projection. The scene is omniscient, presentation-only, and works
   without space. It derives generic frozen placement from existing location/route history, and
   shows current directed routes without relocating rooms. No scenario fields or events are needed.
-  [scene-web-api.md](scene-web-api.md) documents routes and client checks; detailed inspectors and
-  scenario-specific temporal hooks are not implemented yet.
+  Linked person/place/item inspectors are also omniscient: they include current private inner state,
+  closed-container contents and recorded model reasoning, never additional model calls. Recently
+  reads existing `llm.edn` and event evidence on live or loaded runs, distinguishing requested tools
+  from eventual outcomes. These surfaces are not safe agent-view endpoints. No authoring fields
+  are needed; [scene-web-api.md](scene-web-api.md) documents APIs, limits and client checks.
+  Scenario-specific temporal hooks are not implemented yet.
 - For an offline automatic room-plan preview, use `(scene-preview! "resources/worlds/my-world.edn"
   "/tmp/my-world.svg")` in the dev REPL. It writes an SVG without a run, server or model call.
   This is presentation-only: it needs no new simulation fields or events. The pure layout contract

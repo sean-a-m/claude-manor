@@ -1,8 +1,8 @@
 # The scene view: a graphical main page for the panel
 
 A plan for a more graphical main page in the control panel: the world drawn as a plan of boxes,
-people you can click for their full status, and rooms and items you can inspect. The pure layout, offline SVG preview and scene web page are built (phases 1–2);
-detailed inspectors and scenario history adapters are not. The implementation contract in section 9 records the approved constraints and phased
+people you can click for their full status, and rooms and items you can inspect. The pure layout, offline SVG preview, scene web page and detailed inspectors are built (phases 1–3);
+scenario history adapters are not. The implementation contract in section 9 records the approved constraints and phased
 handoffs; where it narrows an earlier sketch, section 9 takes precedence.
 
 The user's decisions (2026-10-20):
@@ -243,14 +243,16 @@ Clicking a token opens these sections, the long ones folded:
 - **Header:** name, position title, standing, status, controller and model, cost so far.
 - **Where and what:** location (clickable), current activity and when it ends, travel.
 - **Recently:**
-  - *Last action:* their last tool calls in their last turn, each with the engine's reply ("move
-    to drawing-room: done", "take silver-candlesticks: rejected: ..."). From `:last-calls`, so
-    rejected attempts show too.
+  - *Requested tools and recorded replies:* actual calls in their latest recorded round, grouped
+    by request continuation and conversation context, including rejected attempts. Read from existing
+    `llm.edn`, not the ephemeral `:last-calls`. Separate narrated event outcomes show later resolution;
+    a recorded "done" alone does not establish that a simultaneous action succeeded. Logs have no
+    persistent turn id, so separate roots are not falsely collapsed into one turn.
   - *Dialogue:* the last few things they said, whispered or heard (`:agent/said`,
     `:agent/whispered` and conversation events they could see), narrated as the feed narrates
     them.
-  - *Thoughts* (folded): the private reasoning text the model returned with its last reply, before
-    it acted. The characters never see it. It's the `thoughts:` line in transcripts, and the most
+  - *Thoughts* (folded per call): only the private reasoning text actually returned with each
+    recorded reply. The characters never see it. It's the `thoughts:` line in transcripts, and the most
     direct view of why an agent did something.
 - **Appearance and aspects:** their fixed appearance and how they differ from it now.
 - **Carrying:** items, with containers expandable and each item clickable.
@@ -313,8 +315,13 @@ documents the key when it's built.
    controls/SSE, pointer taps/drags, viewport/selection preservation and stale-response guards.
    See [scene-web-api.md](scene-web-api.md) for the seam, runnable checks and manual visual checks.
    Construction adapters and progress arcs remain phase 4; the busy ring is only a status mark.
-3. **The inspector.** Selection, and the person, place and item fragments, including "Recently".
-   Rendering tests against the household fixture.
+3. **The inspector — implemented.** Escaped person/place/item fragments, linked selection, current
+   private inner state, carrying/containers/stores/jobs and recorded item history. Recently reads
+   durable calls on live and loaded runs, preserves rejected attempts and conversation contexts,
+   and separates requested tools from event outcomes. Selected inspector/map/feed refresh from one
+   snapshot, with stale-response guards. Household, generic, loaded-run, privacy and actual Chromium
+   interaction checks pass. The projection/helper API and evidence limits are in
+   [scene-web-api.md](scene-web-api.md).
 4. **Change over time.** The presentation-only `:scene` hook, replayable ghosts for works in
    progress, built-room sizes derived from existing plans, closed-shop shading and job progress
    arcs. No simulation events or state are changed.

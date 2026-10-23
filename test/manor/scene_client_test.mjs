@@ -61,6 +61,25 @@ try {
   const selection = await evaluate('ManorScene.selection');
   assert.equal(selection.kind, 'agent');
   assert.ok(await evaluate('document.querySelector(".person.selected") !== null'));
+  await waitFor('!!document.querySelector("#inspector article")');
+  assert.ok(await evaluate('document.getElementById("inspector").textContent.includes("Omniscient operator")'));
+  await evaluate('document.querySelector("#inspector [data-kind=place]").click()');
+  await waitFor('ManorScene.selection.kind === "place" && document.getElementById("inspector").textContent.includes("Open exits")');
+  const itemPlace = await evaluate(`(async()=>{
+    for (const room of document.querySelectorAll('#scene-map .room[data-id]')) {
+      const text=await (await fetch('/partial/inspect/place/'+encodeURIComponent(room.dataset.id))).text();
+      if (new DOMParser().parseFromString(text,'text/html').querySelector('[data-kind=item]')) return room.dataset.id;
+    }
+    return null;
+  })()`);
+  if (itemPlace) {
+    await evaluate(`ManorScene.select({kind:'place',id:${JSON.stringify(itemPlace)}})`);
+    await waitFor('!!document.querySelector("#inspector [data-kind=item]")');
+    await evaluate('document.querySelector("#inspector [data-kind=item]").click()');
+    await waitFor('ManorScene.selection.kind === "item" && document.getElementById("inspector").textContent.includes("Last touched")');
+  }
+  await evaluate(`ManorScene.select(${JSON.stringify(selection)})`);
+  await waitFor('document.getElementById("inspector").textContent.includes("Recently")');
   const initialBox = await evaluate('document.getElementById("scene-map").getAttribute("viewBox")');
   await evaluate('document.querySelector("[data-view=in]").click()');
   const zoomed = await evaluate('document.getElementById("scene-map").getAttribute("viewBox")');
@@ -139,7 +158,21 @@ try {
   assert.equal(await evaluate('document.getElementById("inspector").textContent'), 'current inspector', 'stale selection ignored');
   await evaluate(`ManorScene.select({kind:'place',id:'deleted'}); requests[2].resolve({ok:false,text:async()=>''});`);
   await waitFor('document.getElementById("inspector").textContent==="Selection no longer available."');
-  await evaluate(`ManorScene.select(null); window.fetch=originalFetch; delete document.getElementById('scene-page').dataset.inspectBase; ManorScene.refresh();`);
+  // SSE refresh uses the same snapshot for inspector/map/feed, without a second
+  // fragment request. A selection made during that fetch must still win.
+  await evaluate('requests=[]; ManorScene.refresh()'); await waitFor('requests.length===1');
+  assert.ok((await evaluate('requests[0].url')).includes('kind=place&id=deleted'));
+  await evaluate(`requests[0].resolve({ok:true,json:async()=>({...state,selection:{kind:'place',id:'deleted'},inspector:'<b>coherent inspector</b>'})})`);
+  await waitFor('document.getElementById("inspector").textContent==="coherent inspector"');
+  assert.equal(await evaluate('requests.length'), 1, 'coherent refresh needs no second inspector fetch');
+  await evaluate('requests=[]; ManorScene.refresh()'); await waitFor('requests.length===1');
+  await evaluate(`ManorScene.select({kind:'agent',id:'newer-selection'});
+    requests[1].resolve({ok:true,text:async()=>'<b>newer inspector</b>'});`);
+  await waitFor('document.getElementById("inspector").textContent==="newer inspector"');
+  await evaluate(`requests[0].resolve({ok:true,json:async()=>({...state,selection:{kind:'place',id:'deleted'},inspector:'stale bundled inspector'})})`);
+  await sleep(100);
+  assert.equal(await evaluate('document.getElementById("inspector").textContent'), 'newer inspector', 'old bundled selection ignored');
+  await evaluate(`ManorScene.select(null); window.fetch=originalFetch; ManorScene.refresh();`);
   await sleep(300);
   assert.equal(await evaluate('ManorScene.selection'), null);
   assert.deepEqual(errors, [], 'no browser runtime exceptions');

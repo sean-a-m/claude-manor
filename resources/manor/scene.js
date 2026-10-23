@@ -21,8 +21,7 @@
       n.setAttribute('aria-pressed', match ? 'true' : 'false');
     });
   }
-  // Phase 3 can provide data-inspect-base="/partial/inspect/". IDs are always
-  // URL path components, never interpolated selectors, HTML or JavaScript.
+  // IDs are URL path components, never interpolated selectors, HTML or code.
   async function refreshSelection() {
     const epoch = ++selectionEpoch;
     if (selectionAbort) selectionAbort.abort();
@@ -52,8 +51,10 @@
 
   async function update(epoch) {
     refreshAbort = new AbortController();
+    const current = selected && {...selected}, inspectorEpoch = selectionEpoch;
+    const query = current && root.dataset.inspectBase ? '?' + new URLSearchParams(current) : '';
     try {
-      const response = await fetch('/partial/scene-state', {signal: refreshAbort.signal});
+      const response = await fetch('/partial/scene-state' + query, {signal: refreshAbort.signal});
       if (!response.ok) throw new Error('Scene refresh failed');
       const state = await response.json();
       if (epoch !== refreshEpoch) return;
@@ -76,7 +77,16 @@
       }
       setBox(previous);
       byId('scene-client-error').textContent = '';
-      refreshSelection();
+      if (inspectorEpoch === selectionEpoch && sameSelection(current, selected) &&
+          sameSelection(state.selection, selected) && typeof state.inspector === 'string') {
+        ++selectionEpoch;
+        if (selectionAbort) selectionAbort.abort();
+        byId('inspector').innerHTML = state.inspector;
+        root.dispatchEvent(new CustomEvent('scene:selection', {detail: {...selected}}));
+        markSelection();
+      } else if (inspectorEpoch === selectionEpoch) refreshSelection();
+      else markSelection(); // A newer selection owns its own fragment request.
+
     } catch (error) {
       if (error.name !== 'AbortError' && epoch === refreshEpoch) byId('scene-client-error').textContent = 'Scene refresh failed; waiting for the next update.';
     }

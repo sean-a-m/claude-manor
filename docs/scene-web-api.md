@@ -1,4 +1,4 @@
-# Scene web seam (phase 2)
+# Scene web and inspector seam (phases 2–3)
 
 Presentation only. No engine, mechanics, prompts, actions, events, persistence or scenario runtime
 code changes. `/` is the omniscient operator scene; `/panel` retains the old control panel and
@@ -7,13 +7,20 @@ not an agent-view mode. `/agent/<id>` still uses the existing agent-view project
 
 ## Routes and rendering
 
-- `GET /`: scene toolbar, SVG, pending-selection sidebar, away/retired strip and compact feed.
+- `GET /`: scene toolbar, SVG, inspector sidebar, away/retired strip and compact feed.
+- `GET /partial/inspect/{agent,place,item}/<encoded-id>`: escaped operator-only HTML fragment,
+  `Cache-Control: no-store`. Unknown entities return a neutral missing-selection fragment (200),
+  malformed encoding or unsupported kinds return 404. Removed items show recorded fates/history;
+  retired people remain inspectable.
 - `GET /panel`, `/partial/status`, `/stream`, `/agent/<id>`, `/world`, `POST /cmd/*`: existing
   behaviour. Panel SSE feed is now bounded to the same 300 entries as its initial render.
 - `GET /partial/scene`: escaped SVG only (`image/svg+xml`).
 - `GET /partial/scene-state`: JSON of escaped HTML strings with keys `scene`, `toolbar`,
   `navigation`, `away`, `feed`. All five come from **one snapshot**, not five independent fetches.
   The scene feed contains at most 70 newest events, newest first, including operator-only events.
+  Optional `?kind=agent|place|item&id=<encoded-id>` adds `selection` (`{kind,id}`) and `inspector`
+  HTML from that same world/event snapshot. Calls are sampled before the world snapshot, so no newer
+  completed call is paired with an older world. An in-flight call may appear only on the next refresh.
 - `GET /static/scene.{js,css}`: fixed classpath assets; no arbitrary file path serving.
 
 `manor.tools.scene` is the generic, read-only projection/render module:
@@ -63,17 +70,19 @@ viewBox. Fit, zoom and region buttons are delegated. Navigation is keyboard acce
 - `ManorScene.refresh()`: debounced coherent scene/toolbar/navigation/away/feed refresh.
 - `ManorScene.refreshSelection()`: refresh selected sidebar only.
 - `#scene-page` emits `scene:selection` with `{kind, id}` on selection/selection refresh.
-- Phase 3 can set `data-inspect-base="/partial/inspect/"` on `#scene-page` to activate the already
-  guarded fragment fetch: `base + encodeURIComponent(kind) + '/' + encodeURIComponent(id)`.
-  No inspector endpoints are implemented in phase 2. With no base, the sidebar shows selection
-  via `textContent` and makes **no** inspector request. A non-OK inspector reply shows a neutral
-  missing-selection message while retaining the pending id. Inspector fragments can contain
-  `data-kind`/`data-id` links and use the same delegated selection handler.
+- `data-inspect-base="/partial/inspect/"` on `#scene-page` activates guarded selection fetches:
+  `base + encodeURIComponent(kind) + '/' + encodeURIComponent(id)`. With no base, the client can
+  still show pending selection using `textContent`. Non-OK replies show a neutral missing-selection
+  message while retaining the id. Inspector buttons use the same delegated `data-kind`/`data-id`
+  handler, including item links. SSE scene-state requests include the selection and commit its
+  inspector together with the scene/feed, without a second fragment fetch. An intervening newer
+  selection owns its own fragment; the older bundled inspector cannot overwrite it.
 
 SSE `ev` and `status` invalidate prior requests immediately. AbortControllers plus monotonically
 increasing generations reject stale refresh/selection responses even if abort is ignored. A
 selection change also invalidates an earlier inspector request. The latest viewBox is read when a
-refresh commits (pans during fetch are retained), and selection is re-highlighted/re-fetched. The
+refresh commits (pans during fetch are retained), and selection is re-highlighted with its coherent
+fragment (or re-fetched when a caller supplies scene-state without a bundled inspector). The
 selected region's origin shift is added to the retained viewport after packing changes. Free pan
 and ordinary entity selection preserve the viewport but do not establish a region anchor. The
 feed is replaced, not appended, so it stays bounded. No polling, model calls or new dependencies.
@@ -83,7 +92,7 @@ feed is replaced, not appended, so it stays bounded. No polling, model calls or 
 Free/offline Clojure checks:
 
 ```sh
-clojure -M:test -n manor.web-test -n manor.scene-web-test
+clojure -M:test -n manor.web-test -n manor.scene-web-test -n manor.scene-inspect-test
 clojure -M:test
 ```
 
@@ -110,7 +119,9 @@ navigation, stair partner highlighting when present, viewport/selection preserva
 anchoring across a simulated outer-packing shift, command forms,
 **SSE without a client-triggered
 refresh**, bounded feed, escaped/encoded ids, missing selections, and deliberately reordered
-refresh/inspector responses (with abort ignored). `CHROMIUM=/path/to/chromium` overrides the binary.
+refresh/inspector responses (with abort ignored). Phase 3 also checks real inspector loading and
+place/item link selection, one-request coherent refresh, and an older bundled inspector arriving
+after a newer selection. `CHROMIUM=/path/to/chromium` overrides the binary.
 The script does submit Step to its panel; never point the standalone Node check at someone else's.
 
 ### Manual-only visual checks
@@ -133,3 +144,64 @@ crowding at useful zoom levels, pending selection and viewport surviving updates
 and `/panel?as=<agent-id>` filtering. Resize to a narrow screen. Stop this process when finished.
 Use village and quiz too (quiz has no space). Do not use 8080, real models or another operator's
 panel. Dense graphs can still cross connectors; styling and tooltip polish are not layout promises.
+
+## Inspector projection/helper API (phase 3)
+
+`manor.tools.scene-inspect` owns presentation only:
+
+- `read-calls run` reads the run directory's existing `llm.edn`, including after load; no
+  `:last-calls` dependency, writes, model calls or logging changes. Missing files return `[]`.
+  Only complete newline-terminated entries are sampled; a partial concurrent append waits for a
+  later refresh. Every refresh scans the log; no persistent index or unbounded cache is added.
+- `person snapshot calls id`, `place snapshot id`, `item snapshot id` return operator data or nil.
+  Snapshot is the existing scene snapshot, optionally augmented with `:opts` for the default model.
+  These use item, position and space accessors. `:items-gone`, bedrooms, routines and purses have no
+  equivalent accessors and are read from their existing recorded representation. Purse amounts are
+  explicitly labelled old pence; currency polish and scenario-specific extras remain phase 4.
+- `recently snapshot calls id` returns `:round`, `:groups` of call summaries, `:outcomes` and
+  `:dialogue`. Groups preserve requests/arguments, per-tool-id replies, other engine context,
+  conversation id/pass, model, timestamp, finish reason, returned text and actual `:thoughts` only.
+  Only the latest recorded round for that character is shown; earlier rejected attempts within it
+  are retained. Dialogue is the last eight visible said/whispered/conversation events, narrated
+  using the feed's narrator. Outcomes are that character's non-system events in the recorded round.
+- `call-groups calls` groups same-agent/round/conversation-context request continuations by actual
+  message-prefix extension. Separate roots stay separate. This also permits legacy reply recovery
+  from the next matching continuation when `:replies` was not recorded; a last call with no reply
+  evidence says so. Empty model responses (not appended by the engine) are handled explicitly.
+- `item-history events id` selects structurally related item events, including made/used-up/
+  absorbed/aspect records and job completion via earlier job-focus records. It does not match prose
+  or invent an item history from narrative.
+- `fragment snapshot calls kind id` returns escaped Hiccup, never raw generated HTML. Selection
+  kinds are strings `agent`, `place`, `item`. It is pure given those inputs. `encode-id id` safely
+  encodes link path/query components; entity ids never become selectors, script or file paths.
+
+The person fragment includes status/controller/model/cost, position/standing, location/travel/
+occupation, Recent, appearance/aspects, private current inner state, carrying trees, post/bedroom/
+current routine/purse, notes/last seen and persona/manner/temperament/faculties/circumstances, plus
+unchanged-view/feed links. Place and item fragments show descriptions/aspects, linked people,
+containers (including closed contents, explicitly operator-only), fixed marks, stores (keeps/stock/
+lacking and served places), jobs, open exits, touched round and removed-item fates/history. Long
+sections fold; item trees start expanded and guard against incomplete cyclic container records.
+
+### Evidence limits, not new simulation rules
+
+There is no persistent turn id or tool-to-outcome id in existing logs. Nested conversation calls
+can be logged before the initiator's enclosing call. The UI therefore labels the **latest recorded
+round** and separate request contexts, not an invented single turn chronology. It shows exact
+recorded replies alongside narrated event outcomes without claiming that `done` proves final
+resolution; later simultaneous `:action/rejected` events remain visible. For older logs lacking
+last-call replies, it does not fabricate them. No reasoning is inferred from actions or token counts.
+The loaded run's replayed event prefix is the same evidence source as the live event vector.
+
+An in-flight model call has no completed log entry yet, so recent calls can lag current activity;
+the UI never waits for a model or changes the run. Unrelated event types without item-id metadata
+cannot be attached to item history. Closed routes remain visible on the map, but the inspector's
+exits use `space/exits` and explicitly show only open exits. Private state/closed contents are for
+the operator only: `/agent/<id>` and `/panel?as=` are intentionally unchanged.
+
+`scene_inspect_test.clj` checks the fixed household, every bundled scenario, loaded durable logs,
+multi-call/rejected/simultaneous evidence, legacy and empty/text-only replies, closed contents,
+remote stores/jobs/removals, missing/retired/non-LLM selections, escaping/encoded ids and unchanged
+world/events/agent projections/feed privacy. Actual Chromium checks passed for village and
+Claudeworth. No new manual visual review beyond phase 2's documented screenshot checks; sidebar
+legibility, native tooltips, narrow screens, touch and cross-browser polish remain manual checks.

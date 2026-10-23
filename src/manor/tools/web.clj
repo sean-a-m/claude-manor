@@ -16,6 +16,7 @@
             [manor.narrate :as narrate]
             [manor.prompt :as prompt]
             [manor.tools.scene :as scene]
+            [manor.tools.scene-inspect :as inspect]
             [manor.world :as w]
             [org.httpkit.server :as hk])
   (:import (java.net URLDecoder)))
@@ -324,15 +325,22 @@ es.addEventListener('status',refresh);
             [:ul#feed (for [ev (feed-events run (if (= v "gm") :gm v) 300)] (event-li ev names))]]]
           [:script (h/raw client-js)])))
 
-(defn- scene-fragments [run]
-  (let [snap (scene/snapshot run)
-        result (scene/presentation snap scene-placement)
-        names (narrate/names (:world snap))]
-    {:scene (html (scene/svg snap result))
-     :toolbar (html (scene/toolbar snap))
-     :navigation (html (scene/navigation result))
-     :away (html (scene/away-strip snap result))
-     :feed (html (for [event (reverse (take-last 70 (:events snap)))] (event-li event names)))}))
+(defn- scene-fragments
+  ([run] (scene-fragments run nil))
+  ([run selection]
+   ;; Read completed calls first: never pair newer call evidence with an older
+   ;; world prefix. The log may lag an in-flight turn; rendering never waits on it.
+   (let [calls (when selection (inspect/read-calls run))
+         snap (assoc (scene/snapshot run) :opts (:opts run))
+         result (scene/presentation snap scene-placement)
+         names (narrate/names (:world snap))]
+     (cond-> {:scene (html (scene/svg snap result))
+              :toolbar (html (scene/toolbar snap))
+              :navigation (html (scene/navigation result))
+              :away (html (scene/away-strip snap result))
+              :feed (html (for [event (reverse (take-last 70 (:events snap)))] (event-li event names)))}
+       selection (assoc :selection selection
+                        :inspector (html (inspect/fragment snap calls (:kind selection) (:id selection))))))))
 
 (defn- scene-page [run]
   (let [fragments (scene-fragments run)]
@@ -340,7 +348,7 @@ es.addEventListener('status',refresh);
           [:link {:rel "stylesheet" :href "/static/scene.css"}]
           [:header [:b "manor"] [:span (name (:name (:scenario run)))]
            [:a {:href "/panel"} "panel"] [:a {:href "/world"} "world state"]]
-          [:main#scene-page
+          [:main#scene-page {:data-inspect-base "/partial/inspect/"}
            [:div#scene-toolbar (h/raw (:toolbar fragments))]
            [:div#scene-client-error {:role "status"}]
            [:section#scene-stage
@@ -440,6 +448,19 @@ es.addEventListener('status',refresh);
                                               :status (hk/send! ch (sse-message "status" "x") false)))))
                     :on-close (fn [_ _] (e/unlisten! run k))})))
 
+(defn- inspect-response [run uri]
+  (let [[_ kind encoded] (re-matches #"/partial/inspect/(agent|place|item)/(.+)" uri)
+        id (when encoded
+             (try (URLDecoder/decode (str/replace encoded "+" "%2B") "UTF-8")
+                  (catch IllegalArgumentException _ nil)))]
+    {:status (if id 200 404)
+     :headers {"Content-Type" "text/html; charset=utf-8" "Cache-Control" "no-store"}
+     :body (if id
+             (let [calls (inspect/read-calls run)
+                   snap (assoc (scene/snapshot run) :opts (:opts run))]
+               (html (inspect/fragment snap calls kind id)))
+             "Selection no longer available.")}))
+
 (defn- handler [req]
   (let [run @current-run
         uri (:uri req)]
@@ -451,7 +472,11 @@ es.addEventListener('status',refresh);
                                   {:status 200 :headers {"Content-Type" "image/svg+xml; charset=utf-8" "Cache-Control" "no-store"}
                                    :body (html (scene/svg snap (scene/presentation snap scene-placement)))})
       (= uri "/partial/scene-state") {:status 200 :headers {"Content-Type" "application/json; charset=utf-8" "Cache-Control" "no-store"}
-                                        :body (json/write-value-as-string (scene-fragments run))}
+                                        :body (let [{:keys [kind id]} (query-params req)]
+                                                (json/write-value-as-string
+                                                 (scene-fragments run (when (and (#{"agent" "place" "item"} kind) id)
+                                                                        {:kind kind :id id}))))}
+      (str/starts-with? uri "/partial/inspect/") (inspect-response run uri)
       (contains? scene-assets uri) (asset-response uri)
       (= uri "/partial/status") {:status 200 :headers {"Content-Type" "text/html; charset=utf-8"}
                                  :body (status-fragment run)}

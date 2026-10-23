@@ -16,4 +16,10 @@
 #scene-map [data-kind]:focus{outline:none}#scene-map [data-kind]:focus>rect,#scene-map [data-kind]:focus>circle{stroke:#fff}
 .away-strip{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.away-strip:empty{display:none}.away-strip .selected{outline:2px solid #ffeb79}
 #scene-feed{grid-column:1/-1}#scene-feed #feed{max-height:22vh}#inspector{overflow-wrap:anywhere}
+#scene-sidebar{max-height:75vh;overflow:auto}#inspector h3{font-size:14px;margin:14px 0 6px}
+#inspector h4{font-size:13px;margin:8px 0}#inspector details{margin:8px 0}#inspector summary{cursor:pointer;color:#bbcadc}
+#inspector ul{padding-left:20px}#inspector dd{margin-left:12px}#inspector dt{font-weight:600;color:#aebed1}
+#inspector .inspect-link{background:none;color:#8cf;padding:1px 3px;text-align:left;text-decoration:underline}
+#inspector .inspect-link.selected{outline:1px solid #ffeb79}#inspector .model-call{border-left:2px solid #536071;padding-left:7px;margin:10px 0}
+#inspector .routine-current{background:#303e50;font-weight:600}#inspector pre{max-height:35vh}
 @media(max-width:850px){#scene-page{grid-template-columns:1fr}#scene-container{height:55vh}#scene-sidebar{grid-column:1}}

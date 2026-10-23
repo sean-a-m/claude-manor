@@ -348,13 +348,28 @@ options are a "nothing has changed" reply to a repeat `look` and a `walk` reply 
 ### B8. Control panel improvements
 
 A graphical scene page as the new main page (an automatic plan of rooms and regions, clickable
-people, rooms and items) is planned in [scene-view-design.md](scene-view-design.md), not started.
+people, rooms and items) is tracked in [scene-view-design.md](scene-view-design.md). Phases 1–5
+are implemented and integration-checked: pure historical layout and offline preview, the scene at `/` and retained panel at
+`/panel`, and linked, omniscient person/place/item inspectors. The scene has directed routes,
+people/travellers, run controls, bounded feed, coherent SSE refresh and navigation. Inspectors show
+private inner state and durable recorded calls/replies, including rejected attempts on loaded runs;
+requested tools are distinguished from event outcomes. See [scene-layout-api.md](scene-layout-api.md)
+and [scene-web-api.md](scene-web-api.md) for APIs, checks and evidence limits. Presentation-only
+hooks now supply Claudeworth funds/plans/purses, replayable construction ghosts and built-room
+size evidence; generic hours shading and evidence-based busy arcs are implemented. Cross-seam
+regressions and a same-options mock/offline comparison against `0f7eae9` verify unchanged worlds,
+events, agent views and complete model requests, with rendering and optional hooks enabled/removed.
+Actual Chromium checks cover village, Claudeworth, no-space quiz and both pages. Manual visual,
+touch/cross-browser checks remain. Independent review confirmed the simulation boundary and
+identified four presentation defects, corrected with regression tests: connection visibility,
+shared-wall doors, encoded agent links and retained-panel live-feed behaviour.
 
 - Charts of chosen state values over rounds. A scenario could declare `:metrics (fn [world] {..})`,
   sampled at round end.
 - Run switcher (list `runs/`, load, branch from the UI).
-- A better map layout for more than about 12 locations. Partly done: worlds whose locations have a
-  `:domain` are drawn as one grid per domain. Worlds without domains still use the circle.
+- Automatic scene layout is implemented at `/` (domains, floors and domainless components);
+  `/panel` retains its original grid/circle map. Dense-graph connector/tooltip polish and manual
+  legibility checks remain, rather than a promise that all graphs can share walls.
 - Showing a human player their own view inline, not only via the agent page link.
 
 ### B9. Snapshots

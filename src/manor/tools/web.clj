@@ -3,7 +3,8 @@
   input, and a live event feed (server-sent events). `?as=<agent-id>` shows
   the feed exactly as that agent sees it, which is useful for checking
   private information doesn't leak."
-  (:require [clojure.pprint :as pp]
+  (:require [clojure.java.io :as io]
+            [clojure.pprint :as pp]
             [clojure.string :as str]
             [hiccup2.core :as h]
             [jsonista.core :as json]
@@ -14,12 +15,16 @@
             [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
             [manor.prompt :as prompt]
+            [manor.tools.scene :as scene]
+            [manor.tools.scene-inspect :as inspect]
             [manor.world :as w]
             [org.httpkit.server :as hk])
   (:import (java.net URLDecoder)))
 
 (defonce ^:private server (atom nil))
 (defonce ^:private current-run (atom nil))
+;; One disposable placement entry, never persisted or visible to the simulation.
+(defonce ^:private scene-placement (atom nil))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers
@@ -299,12 +304,13 @@ es.addEventListener('ev',m=>{const ul=document.getElementById('feed');ul.insertA
 es.addEventListener('status',refresh);
 ")
 
-(defn- index-page [run req]
+(defn- panel-page [run req]
   (let [world (e/world run)
         v (viewer req)
         names (narrate/names world)]
     (page (str "manor - " (:id run))
           [:header [:b "manor"] [:span (name (:name (:scenario run)))]
+           [:a {:href "/"} "scene"]
            [:a {:href "/world"} "world state"]
            [:form.inline {:method "get"}
             "feed as: "
@@ -319,6 +325,51 @@ es.addEventListener('status',refresh);
             [:ul#feed (for [ev (feed-events run (if (= v "gm") :gm v) 300)] (event-li ev names))]]]
           [:script (h/raw client-js)])))
 
+(defn- scene-fragments
+  ([run] (scene-fragments run nil))
+  ([run selection]
+   ;; Read completed calls first: never pair newer call evidence with an older
+   ;; world prefix. The log may lag an in-flight turn; rendering never waits on it.
+   (let [calls (when selection (inspect/read-calls run))
+         snap (assoc (scene/snapshot run) :opts (:opts run))
+         result (scene/presentation snap scene-placement)
+         names (narrate/names (:world snap))]
+     (cond-> {:scene (html (scene/svg snap result))
+              :toolbar (html (scene/toolbar snap))
+              :navigation (html (scene/navigation result))
+              :away (html (scene/away-strip snap result))
+              :feed (html (for [event (reverse (take-last 70 (:events snap)))] (event-li event names)))}
+       selection (assoc :selection selection
+                        :inspector (html (inspect/fragment snap calls (:kind selection) (:id selection))))))))
+
+(defn- scene-page [run]
+  (let [fragments (scene-fragments run)]
+    (page (str "manor scene - " (:id run))
+          [:link {:rel "stylesheet" :href "/static/scene.css"}]
+          [:header [:b "manor"] [:span (name (:name (:scenario run)))]
+           [:a {:href "/panel"} "panel"] [:a {:href "/world"} "world state"]]
+          [:main#scene-page {:data-inspect-base "/partial/inspect/"}
+           [:div#scene-toolbar (h/raw (:toolbar fragments))]
+           [:div#scene-client-error {:role "status"}]
+           [:section#scene-stage
+            [:div#scene-navigation (h/raw (:navigation fragments))]
+            [:div#scene-container (h/raw (:scene fragments))]
+            [:div#scene-away (h/raw (:away fragments))]]
+           [:section#scene-sidebar [:h2 "Selection"]
+            [:div#inspector {:aria-live "polite"} "Select a person or place."]]
+           [:section#scene-feed [:h2 "Recent events · operator"]
+            [:ul#feed (h/raw (:feed fragments))]]]
+          [:script {:src "/static/scene.js" :defer true}])))
+
+(def ^:private scene-assets
+  {"/static/scene.js" ["manor/scene.js" "text/javascript; charset=utf-8"]
+   "/static/scene.css" ["manor/scene.css" "text/css; charset=utf-8"]})
+
+(defn- asset-response [uri]
+  (let [[path content-type] (get scene-assets uri)]
+    {:status 200 :headers {"Content-Type" content-type}
+     :body (slurp (io/resource path))}))
+
 (defn- agent-page [run id]
   (let [world (e/world run)
         ag (w/agent world id)
@@ -326,7 +377,7 @@ es.addEventListener('status',refresh);
     (if-not ag
       {:status 404 :body "no such agent"}
       (page (str "manor - " id)
-            [:header [:a {:href "/"} "back"] [:b (:name ag)] [:span (name (:role ag))]]
+            [:header [:a {:href "/panel"} "back"] [:b (:name ag)] [:span (name (:role ag))]]
             [:main {:style "grid-template-columns:1fr 1fr"}
              [:div
               [:section [:h2 "Their view of the world"]
@@ -353,7 +404,7 @@ es.addEventListener('status',refresh);
 
 (defn- world-page [run]
   (page "manor - world"
-        [:header [:a {:href "/"} "back"] [:b "world state"]]
+        [:header [:a {:href "/panel"} "back"] [:b "world state"]]
         [:main {:style "grid-template-columns:1fr"}
          [:pre (with-out-str (pp/pprint (dissoc (e/world run) :usage)))]]))
 
@@ -397,17 +448,46 @@ es.addEventListener('status',refresh);
                                               :status (hk/send! ch (sse-message "status" "x") false)))))
                     :on-close (fn [_ _] (e/unlisten! run k))})))
 
+(defn- decode-path-id [encoded]
+  (when encoded
+    (try (URLDecoder/decode (str/replace encoded "+" "%2B") "UTF-8")
+         (catch IllegalArgumentException _ nil))))
+
+(defn- inspect-response [run uri]
+  (let [[_ kind encoded] (re-matches #"/partial/inspect/(agent|place|item)/(.+)" uri)
+        id (decode-path-id encoded)]
+    {:status (if id 200 404)
+     :headers {"Content-Type" "text/html; charset=utf-8" "Cache-Control" "no-store"}
+     :body (if id
+             (let [calls (inspect/read-calls run)
+                   snap (assoc (scene/snapshot run) :opts (:opts run))]
+               (html (inspect/fragment snap calls kind id)))
+             "Selection no longer available.")}))
+
 (defn- handler [req]
   (let [run @current-run
         uri (:uri req)]
     (cond
       (nil? run) {:status 503 :body "no run loaded"}
-      (= uri "/") (index-page run req)
+      (= uri "/") (scene-page run)
+      (= uri "/panel") (panel-page run req)
+      (= uri "/partial/scene") (let [snap (scene/snapshot run)]
+                                  {:status 200 :headers {"Content-Type" "image/svg+xml; charset=utf-8" "Cache-Control" "no-store"}
+                                   :body (html (scene/svg snap (scene/presentation snap scene-placement)))})
+      (= uri "/partial/scene-state") {:status 200 :headers {"Content-Type" "application/json; charset=utf-8" "Cache-Control" "no-store"}
+                                        :body (let [{:keys [kind id]} (query-params req)]
+                                                (json/write-value-as-string
+                                                 (scene-fragments run (when (and (#{"agent" "place" "item"} kind) id)
+                                                                        {:kind kind :id id}))))}
+      (str/starts-with? uri "/partial/inspect/") (inspect-response run uri)
+      (contains? scene-assets uri) (asset-response uri)
       (= uri "/partial/status") {:status 200 :headers {"Content-Type" "text/html; charset=utf-8"}
                                  :body (status-fragment run)}
       (= uri "/stream") (stream run req)
       (= uri "/world") (world-page run)
-      (str/starts-with? uri "/agent/") (agent-page run (subs uri 7))
+      (str/starts-with? uri "/agent/") (if-let [id (decode-path-id (subs uri 7))]
+                                         (agent-page run id)
+                                         {:status 404 :body "no such agent"})
       (and (= :post (:request-method req)) (str/starts-with? uri "/cmd/"))
       (command run (subs uri 5) (form-params req))
       :else {:status 404 :body "not found"})))
@@ -415,6 +495,7 @@ es.addEventListener('status',refresh);
 (defn show!
   "Point the panel at `run`."
   [run]
+  (reset! scene-placement nil)
   (reset! current-run run))
 
 (defn start!

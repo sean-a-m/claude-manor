@@ -28,6 +28,7 @@
             [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.tools.transcript :as transcript]
+            [manor.tools.scene-preview :as scene-preview]
             [manor.tools.web :as web]
             [manor.world :as w]))
 
@@ -143,6 +144,11 @@
     (do (spit path (worldfile/->edn-string (worldfile/export (world) start)))
         path)
     (println "This run did not start from a world file.")))
+
+(defn scene-preview!
+  "Write an inspectable world-file SVG without starting a run or server."
+  ([source] (scene-preview/scene-preview! source))
+  ([source output] (scene-preview/scene-preview! source output)))
 
 (defn transcript!
   "Write <run-dir>/transcript.md for the current run, or for the saved run

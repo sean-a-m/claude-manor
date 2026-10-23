@@ -836,10 +836,9 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
   holds only what's under `carrying`, whatever anyone says; and that characters never speak of
   views, tools or ids. Claudeworth's `rules` has the wording that was tested against
   `runs/claudeworth-20261019-233942` (roadmap C16).
-- An agent you may leave out: mark the world-file agent `:optional?`, naming the run option that
-  decides it. Claudeworth reads these in `:init`: Mr Pugh (`:optional? :architect?`) is in unless
-  `:architect? false`, and Nellie the housemaid (`:optional? :housemaid?`) is in unless
-  `:housemaid? false`. Leave out too the items such an agent holds.
+- Any character can be left out of a run: Claudeworth's `:init` drops the world-file agents
+  whose ids are in the run option `:leave-out` (`{:leave-out ["pugh" "nellie"]}`), with the items
+  they hold. Unknown ids are ignored. Nothing in the world file marks a character as optional.
 
 #### People's aspects
 
@@ -1433,7 +1432,7 @@ in `:init`:
   `"household"`, are kept). Each item is checked: its fields and lengths, a unique id, exactly one
   of `:place` (a location of the file) and `:holder` (an agent of the file). A scenario that leaves
   out one of the file's agents should leave out the items that agent holds (Claudeworth's
-  `:architect? false` and the housemaid do). A location's `:aspects` are checked the same way
+  `:leave-out` does). A location's `:aspects` are checked the same way
   ("location \"hall\": {:aspects {:hearth [\"should be at least 1 character\"]}}").
 - `:domain` groups locations into areas on the control panel's map (house, village, ...).
 - The file is a **template**: no run writes to it (only the REPL's `roll-cast!` does, see below).
@@ -1444,11 +1443,19 @@ in `:init`:
   and `:inner` (people who came during the run aren't added). A run can start from an exported map
   (`{:world-file "runs/<id>/map.edn"}`), and `(export-map! path)` at the REPL writes one anywhere.
 
+A Claudeworth-derived world with an architect's office names the architect's price list in
+`:meta :architect-prices`: a file or classpath resource such as `"architect/prices-1904.edn"`
+(`resources/architect/`), `{:sizes [{:size "small" :price 200 :build-days 1} ...]}` with prices in
+whole pounds. `:init` reads it into `:state :architect-prices`; `price-list` answers from it, the
+rules list its sizes, `draw-plans` accepts only those sizes, and each draft sends it to the
+architect server. A world without an office needs none.
+
 Claudeworth-derived worlds may omit architect services altogether (as Lodge does). If an
 architect service exists, the existing check still requires at least one with opening hours;
 all supplied hours are checked. With no architect service, the shared brief omits building-only
-instructions. Exclude the five architecture actions in that scenario as well; this does not
-change the clerk path at an existing office or the optional-character options. Each starting
+instructions. Exclude the five architecture actions in that scenario as well. Only an agent whose position
+has the `:architect` capability is offered `draw-plans`, and draws only for a client with them
+at the open office. Each starting
 character still needs a bedroom, including living-out shopkeepers; the empty maid's room must
 remain unassigned if it is to show as free in the household view.
 

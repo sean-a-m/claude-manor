@@ -53,8 +53,8 @@ scripted) and then with real models:
 1. The earl and countess talk in the house about a new room.
 2. The earl goes to the village himself, or sends the secretary (half an hour).
 3. At the architect's office the client describes what they want. The architect looks things up
-   in his reference books, may push back, and draws plans. If there is no architect agent, the
-   office clerk drafts exactly what the client asks for.
+   in his reference books, may push back, and draws plans. Only the architect draws: with
+   nobody holding the architect's position in the office, no plans are drawn.
 4. The client commissions the plans. The money leaves the household account and building begins.
 5. Everyone passes the time (activities, talk, a walk to the abbey) and sleeps at night.
 6. **One simulated day later** the new room appears on the map, joined to the rooms it was built
@@ -143,7 +143,7 @@ edited copy, or `map.edn` exported from an earlier run).
          :persona "..."}
         {:name "Hale" :role :secretary :location "study" :bedroom "secretarys-room" :persona "..."}
         {:name "Pugh" :role :architect :location "architects-office" :bedroom "architects-lodgings"
-         :optional? :architect? :persona "..."}
+         :persona "..."}
         {:name "Briggs" :role :shopkeeper :location "general-store" :bedroom "store-lodgings"
          :persona "..."}]}
 ;; Other residents and their routines are in the actual world file; no :shop catalogue.
@@ -290,8 +290,11 @@ construction system (every round)
   rooms are fine. `size` is `small`, `medium`, `large` or `grand` and sets the price. The engine
   adds the current house map (`:domain :house` places: id, name, floor, connects-to) to the bridge
   args; the model never supplies it.
-- **Who draws:** the architect agent draws for a client (`for`). If no architect agent is in the
-  office, a client may draw for themselves ("the clerk takes down your instructions").
+- **Who draws:** only the architect, for a client (`for`, required) who is with him at the open
+  office. `draw-plans` needs the `:architect` capability, so nobody else is offered it. (Until
+  2026-10-23 a client could draw for themselves when no architect was in the office, "the clerk
+  takes down your instructions"; that clerk path was removed because clients drew plan after
+  plan with it, even while Pugh was simply out, as in `runs/claudeworth-20261018-111357`.)
 - **What code enforces** (everything else is up to the agents):
   - the connected rooms exist and belong to the house
   - the name and description are non-empty and short enough for prompts (name ≤ 60, desc ≤ 600)
@@ -338,9 +341,9 @@ Tools:
   `../../external-resources/`, relative to the server). This is how the architect "knows how
   great houses are laid out" without the engine imposing it. A curated reference document can
   replace the Ashcombe files later (a separate cleanup task); only this tool changes.
-- **`price_list {}`** returns the sizes, prices (for example £200 / £500 / £1200 / £3000) and
-  build days.
-- **`draft_plans {house, request: {name, floor, desc, connects_to, size}}`** returns `{plan: {id,
+- The price list is the world's (`:meta :architect-prices`, decision 20): the engine answers
+  `price-list` itself and sends the list with each draft. The server has no `price_list` tool.
+- **`draft_plans {house, prices, request: {name, floor, desc, connects_to, size}}`** returns `{plan: {id,
   name, floor, desc, connects_to}, price, build_days}`. It normalizes the request (derives the id
   and tidies the strings) and refuses only structural impossibilities: unknown or non-house
   rooms in `connects_to`, empty names, unknown sizes. Its errors say how to fix the request.
@@ -420,7 +423,7 @@ src/manor/clock.clj, src/manor/io/worldfile.clj
 mcp-servers/architect/bb.edn
 mcp-servers/architect/src/architect/server.clj      MCP stdio loop and tool dispatch
 mcp-servers/architect/src/architect/references.clj  reference library and search
-mcp-servers/architect/src/architect/drafting.clj    price list and drafting
+mcp-servers/architect/src/architect/drafting.clj    drafting, priced from the list it's sent
 test/manor/clock_test.clj, worldfile_test.clj, occupation tests in engine_test.clj
 test/manor/claudeworth_test.clj           the slice, scripted, offline and with the real server
 ```
@@ -474,7 +477,7 @@ plans, `show-plans`, commission, construction, `map.edn` export, and the optiona
   offline stub and the real server. It asserts the new room exists only after the build delay, is
   joined to the right rooms, can be walked into, that money and fee moved correctly, and that
   `map.edn` contains the room.
-- The same holds with `:architect? false` (the clerk path).
+- The same holds with `:architect? false` (the clerk path, since removed).
 - An "odd" room goes through: a bathroom joined to the dining room and the gallery.
 - The structural refusals have tests: an unknown room in `connects-to`, a bad size, too little
   money.
@@ -622,7 +625,10 @@ Decisions for phase 2 (2026-10-16), detailed in `docs/claudeworth-phase2.md`:
 19. **The architect's office is marked in the world file** (`:services #{:architect}` on the
     location), not found by id in code.
 20. **The price list is a data file of the server** (`mcp-servers/architect/prices.edn`), read by
-    the server and by the offline stub, so it has one home. `:meta :build-days` goes. Tool
+    the server and by the offline stub, so it has one home. *Superseded (2026-10-23):* each world
+    names its own price list in `:meta :architect-prices` (Claudeworth's is
+    `resources/architect/prices-1904.edn`); the engine reads it into the world's state, answers
+    `price-list` from it and sends it to the server with each draft. `:meta :build-days` goes. Tool
     payloads use kebab-case keys (`connects-to`), not the snake_case of section 6.5.
 21. **Queries may span turns.** `:max-queries` stays 2 a turn. Reference and price queries leave a
     private record for the caller, so what they found is still in their prompt next turn.
@@ -672,6 +678,8 @@ Decisions for items (done):
     other character (decision 4), with social authority left to the agents. World-file
     agents that may be left out carry `:optional?`, naming the run option that decides them
     (`:architect?` for Mr Pugh, `:housemaid?` for Nellie); `:init` keeps each accordingly.
+    *Superseded (2026-10-23):* the markers and both options are gone. Any character can be left
+    out with `:leave-out` (a list of ids), and Nellie is always in Claudeworth's world file.
 31. **`look` is for close examination, not routine looking.** Conditions, descriptions and owners
     come only from `look`; the view lists what is here by name. The rules and the tool doc say to
     use it to inspect something, not on arrival. The housemaid run shows the wording alone does

@@ -32,7 +32,7 @@
                                 (if (= source "worlds/claudeworth.edn") bundled (read-file source)))
                   cw/mock-day {}
                   cw/scenario (assoc cw/scenario
-                                     :defaults {:housemaid? true :architect? false}
+                                     :defaults {:leave-out ["pugh"]}
                                      :mock-policy (fn [_] {:tool :pass}))]
       (let [live (start :claudeworth)
             fixed (start :household)]

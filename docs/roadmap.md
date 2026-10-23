@@ -382,6 +382,15 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   written facts. See design section 3.7. Clearer period wording remains future work, without
   dropping or replacing the basic data.
   Real simulation acceptance runs remain with the user; outdoor housing and dismissal are deferred.
+- **Hire existing villagers (deferred):** allow an established village character to take a manor
+  job only once in-world profession changes and filling the village jobs they leave vacant are
+  supported. Recruitment must keep the same agent, identity, memories and relationships, not
+  generate or summon a second person. Review the old post's workplace, routine and services
+  when someone leaves, and provide a way to recruit a replacement for the village vacancy.
+  Until then, the shared hiring prompt and `recommend` tool description tell characters not to
+  recruit or recommend established villagers. New candidates may still live locally, and
+  characters may describe knowing them through local acquaintances; `recommend` supplies
+  their actual names and details before anyone is named or promised.
 
 ### B12. Person aspects
 

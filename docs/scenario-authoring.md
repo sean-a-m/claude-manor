@@ -1568,7 +1568,13 @@ state's meeting place/cap, the visit system and the writing-job extension. A new
 must also include `hiring/actions`, `hiring/adjudicators`, `hiring/bridges`,
 `hiring/offline-stubs`, `people/mcp-servers`, `positions/starting-events` as `:on-spawn`,
 and project `hiring/observe` into its own observation (Claudeworth uses `:hiring`).
-Its positions must include `:none`; its meeting place must exist.
+Its positions must include `:none`; its meeting place must exist. Include `hiring/rules` in
+character briefs (Claudeworth and Lodge already do, for turns and conversations). These rules
+exclude recruiting established characters already living or working in the same village until
+profession changes and filling their vacated village jobs are supported. This is prompt guidance,
+not a prose validator. A new candidate may still live locally: characters may describe local
+acquaintances, but `recommend` supplies the candidate's name and details before anyone is named
+or promised. It does not select an existing villager.
 
 - `recommend {position for}`: one query, one candidate. Both parties must be present
   and distinct; self-recommendation is rejected with directions to ask someone else.

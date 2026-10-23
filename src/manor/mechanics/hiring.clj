@@ -311,7 +311,7 @@
 (def text-arg [:string {:min 1 :max 1000}])
 (def actions
   [{:name :recommend :kind :query :roles :all
-    :doc "Recommend one real candidate for a position to someone else here (for: their id, not your own). Privately learn what you know of the candidate, then speak in your own words. Both of you learn how to send-for them."
+    :doc "Recommend one candidate for a position to someone else here (for: their id, not your own). This finds a candidate from the hiring pool or creates one that you know, but it can't be an established figure living around the village, so do not promise to recommend someone already working in the village. Privately learn what you know of the candidate, then speak in your own words. Both of you learn how to send-for them."
     :args [:map [:position :string] [:for :string]] :valid? recommend-reason
     :query-fn recommend! :on-result recommendation-events
     :reply (fn [_ _ _ {:keys [events]}]
@@ -413,4 +413,4 @@
                                 {:name :people/visits :tick (fn [world _] (tick scenario world))})))))
 
 (def rules
-  "To find staff, ask someone for a recommendation; they must use recommend with a position id and your id in for, not invent a person. The recommendation gives a candidate id: use send-for to bring them to meeting-place next round. Interview by converse, then engage with who (their agent id), position, terms and optionally bedroom. The candidate may accept-place with conditions, decline-place and haggle, or take-leave. Send-away ends an unengaged visit. An unengaged visitor leaves after three rounds without a conversation. Nobody new arrives except through send-for. Outdoor servants' lodging and dismissal of hired staff are not yet modelled.")
+  "To find staff, ask someone for a recommendation; they must use recommend with a position id and your id in for. Do not try to recruit or recommend established characters already living or working in your village. This does not exclude a new candidate who lives locally but is not present yet as a character. You may describe knowing a possible candidate through local acquaintances, but use recommend to learn the candidate's name and details before naming or promising anyone. The recommendation gives a candidate id: use send-for to bring them to meeting-place next round. Interview by converse, then engage with who (their agent id), position, terms and optionally bedroom. The candidate may accept-place with conditions, decline-place and haggle, or take-leave. Send-away ends an unengaged visit. An unengaged visitor leaves after three rounds without a conversation. Nobody new arrives except through send-for. Outdoor servants' lodging and dismissal of hired staff are possible.")

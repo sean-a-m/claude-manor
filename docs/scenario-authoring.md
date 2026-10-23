@@ -861,8 +861,8 @@ things in it as habits ("usually in a print frock and apron").
   roster shows them. The system prompt is unchanged ("What people see:" stays the appearance).
   Other adjudicators (shop quotes, hiring interviews) don't see them.
 - **Overnight:** the nightly steward, when the scenario has one, removes from people asleep the
-  aspects that wouldn't last the night, and never sets one (see The nightly steward). Nothing else
-  reverts a person's aspects.
+  aspects that wouldn't last the night, and never sets one (see The nightly steward), even in a
+  scenario with inner state, where it may set that. Nothing else reverts a person's aspects.
 - **What the judge does:** the worker is always judged; work changes them only where the activity
   would ("Most work leaves the worker as they were"), and a pastime usually not at all.
   Scenarios can suggest person keys in the same `:aspect-keys` as items' (Claudeworth suggests
@@ -1237,13 +1237,21 @@ Code selects absorbable items not carried or inside closed containers, without a
 `idle-hours` of game time. Starting items age from the clock start. Candidates are grouped by
 place (place-id order), oldest `:touched` first, id breaking ties, at most `max-per-call` per
 place; excess waits for another night. The steward also sees **sleepers**
-(`item-steward/steward-sleepers`): active people whose `:busy` has `:asleep?` and who have aspects,
-each at their location. A place with candidates or sleepers gets a call (in Claudeworth, about
-one per occupied bedroom per night, and only for sleepers with aspects); places with neither cost
-nothing. Nobody awake is ever seen: someone who stays up all night keeps their aspects.
+(`item-steward/steward-sleepers`): active people whose `:busy` has `:asleep?`, each at their
+location. Without inner state only those who have aspects are sleepers; with the scenario's
+`:inner` (see Inner state) everyone asleep is, aspects or not. A place with candidates or
+sleepers gets a call (in Claudeworth, one per occupied bedroom per night; 5 in a mock day);
+places with neither cost nothing. Nobody awake is ever seen: someone who stays up all night
+keeps their aspects, and someone who goes to sleep after the steward's time isn't seen that
+night.
 
 One narrow `ask-structured!` call per place sees only its place, stores in scope, candidates
-and `sleepers [{id name appearance aspects}]`.
+and `sleepers [{id name appearance aspects}]`. With inner state each sleeper also has their
+`temperament`, their `inner` state (as the work judge sees it: every fixed key, with when each
+entry was set), `went_to_sleep` (the round of their last `:agent/occupied` asleep in the run's
+events, `item-steward/asleep-since`; left out when there's none, e.g. after a load that started
+them asleep) and `wakes` (their `:busy :until`), as short times ("Sat 22:30", "07:30"). No
+recent lines.
 The `steward` tool accepts `changes`, `used-up`, `fates`, `absorbed` and required `summary`,
 never `made`. It may absorb a candidate into a store in scope, use up a candidate with a fate,
 change its aspects or leave it. Even non-consumable drawn candidates may be used up (discarded).
@@ -1254,19 +1262,32 @@ judgement; a change that sets one is refused ("a sleeper's aspects can only be r
 value \"\"; ...") and corrected once, as usual. Container checks use all world
 contents as for work. Unknown fields are dropped; they cannot create anything.
 
+With inner state the tool also has `inner: [{person, key, value}]`, and the instructions add
+lines in this sense: sleepers have an inner state, which only they know, and each entry says
+when it was set; judge how each will wake, and set, change or clear it only where the night
+would; their temperament informs the judgement but doesn't decide it; then the keys and the
+open-key cap (`inner/key-instructions`). Nothing in them says that anything fades or that rest
+eases it: whether it does is the steward's call. The list is checked with
+`inner/checked-changes` with the place's sleepers as the judged people ("you may change the
+inner state only of these people: mrs-pell; not dawson"), and a bad answer is sent back once.
+Outward aspects stay remove-only.
+
 Calls are logged as agent `"steward"`, use `:judge-model` and count toward cost. The shared
 one-correction lifecycle applies; a final failure leaves things alone and records
 `:items/steward-failed` (`:system`). Every checked result is `:items/stewarded`, GM-only,
 with `{:place :summary :changes}`, plus named `:used-up` and `:absorbed` when nonempty. Its
 reducer records removals and fates, and touches changed candidates; a sleeper's removal is a
-change `{:person id :aspect k :from v :to nil}`. Its short narration is "Steward at Kitchen:
+change `{:person id :aspect k :from v :to nil}`. It never holds inner state: the sleepers'
+inner changes follow it as GM-only `:person/inner-changed` events with `:source {:steward
+"1904-10-16"}` (see Inner state). Its short narration is "Steward at Kitchen:
 Idle things were put away.", with its changes after the summary as for work ("(Lady Ashby: no
 longer dressed high, with combs)": a person's removed aspect reads by its old value).
 Characters see no steward event: a sleeper finds the aspects gone from their view on waking.
 A call with role `:steward` goes to the scenario's `:mock-steward` if it has one, else to the
 default mock (`item-steward/mock-steward`, context `:world :place :candidates :sleepers :step`), which
 absorbs everything it safely can into the first store in scope, otherwise leaves it, and
-removes nothing from sleepers.
+removes nothing from sleepers and changes no inner state. A scenario's `:mock-steward` may
+return `:inner` in its args (the dressing fixture's sleepers wake stiff, their mood cleared).
 
 Stores of provisions can be consumable items, a parcel each, whose `:amount` the judge rewrites as
 they are used (Claudeworth's purchases).
@@ -1303,10 +1324,10 @@ reads it. Opt in with a scenario `:inner` entry:
   and the GM (the default GM view's agents), the operator (the panel's roster) and the judges.
   Never `people-here`, `look`, or any other agent's request. Privacy comes from where it's put,
   not from checking text.
-- **What changes it:** the work judge and the conversation judge (below); the nightly steward
-  doesn't yet. The work judge sees everyone present's inner state and may change the judged
-  people's (the worker, and the people named in `on` who are still there), never a
-  bystander's. Its answer's `inner: [{person, key, value}]` list is checked in
+- **What changes it:** the work judge, the conversation judge and the nightly steward (below,
+  and The nightly steward, which judges how each sleeper will wake). The work judge sees
+  everyone present's inner state and may change the judged people's (the worker, and the
+  people named in `on` who are still there), never a bystander's. Its answer's `inner: [{person, key, value}]` list is checked in
   `item-judge/judgement` (given the scenario's `:inner`): the person is judged ("you may change
   the inner state only of these people: dawson, lady-ashby; not mrs-pell"), the key is
   well formed (normalised like argument names), the value fits, and nobody ends up with more
@@ -1316,7 +1337,7 @@ reads it. Opt in with a scenario `:inner` entry:
   the rest of the judge's answer. The judge is told, in this sense: change inner state only
   where the activity would and leave the rest; temperament informs the judgement but doesn't
   decide it; the summary is read by everyone present, so it says only what they could see or
-  hear, never anyone's inner state. The steward's tool has no `inner` field.
+  hear, never anyone's inner state.
 - **The conversation judge** (`manor.mechanics.conversation.judge`): when a conversation ends
   in a scenario with `:inner`, one narrow call (`judges/ask-conversation-judge`, recorded in
   `llm.edn` as agent `"conversation-judge"`, model `:judge-model` or else `:model`) judges how
@@ -1341,9 +1362,10 @@ reads it. Opt in with a scenario `:inner` entry:
   as `:about`, not `:conversation`, so they aren't among the conversation's own events. No
   member is told.
 - **The event:** the changes go in GM-only `:person/inner-changed` events, one per changed
-  person, emitted right after the job's `:item/work-done` (which holds no inner state) or the
-  `:conversation/judged`: `{:person id :source {:job id} :changes [{:key k :from v :to v'}]}`,
-  or `:source {:conversation id}` (`:to` nil when cleared). Its reducer sets `:inner` and `:inner-at` (the event's round). The person gets no
+  person, emitted right after the job's `:item/work-done` (which holds no inner state), the
+  `:conversation/judged`, or the place's `:items/stewarded` (which holds none either):
+  `{:person id :source {:job id} :changes [{:key k :from v :to v'}]}`, or `:source
+  {:conversation id}` or `{:steward "1904-10-16"}` (`:to` nil when cleared). Its reducer sets `:inner` and `:inner-at` (the event's round). The person gets no
   line in their event window; the transcript reads `Lady Ashby, inside (job job-12): mood
   "pleased with Dawson's work"; body cleared.`
 - **Mock runs:** `item-judge/mock-judge` leaves inner state alone. A scenario's `:mock-judge`
@@ -1351,7 +1373,8 @@ reads it. Opt in with a scenario `:inner` entry:
   (`role :conversation-judge`, with `:conversation {:id :initiator :members}` and `:lines`, the
   line events, in its context) goes to the scenario's `:mock-conversation-judge`, or else
   `conversation-judge/mock-judge`, which changes nothing; `conversation-judge/heard-by` gives
-  the members who heard a line.
+  the members who heard a line. The default mock steward changes no inner state either (see
+  The nightly steward).
 - **What to tell agents,** in the brief or rules, in this sense (Claudeworth's `rules` has
   it): *Under `you`, `inner` says how you are inside now: your spirits, how your body is, what's
   on your mind. Nobody else can see it unless you show or say so. It changes with what you do,

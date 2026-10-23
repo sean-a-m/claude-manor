@@ -5,8 +5,9 @@
   hamlet's sleep, rouse and check-time. Its mock judge changes people: work
   on others dresses their hair and pleases them, work on nothing else
   changes the worker's dress, and the worker is tired from it; its mock
-  steward lets sleepers' hair down overnight; its mock conversation judge
-  leaves each member turning over what the others said in their hearing.
+  steward lets sleepers' hair down overnight, and they wake stiff with
+  their mood cleared; its mock conversation judge leaves each member
+  turning over what the others said in their hearing.
   With the mock policy Dawson does her ladyship's hair, Mrs Pell cooks, and
   Lady Ashby changes for dinner, has a word with Dawson (who answers) and
   goes to bed.
@@ -70,11 +71,16 @@
 
 (defn mock-steward
   "items/mock-steward for things; each sleeper's hair is let down, and
-  their other aspects stay."
+  their other aspects stay. Each sleeper wakes stiff (their body) and with
+  their mood cleared."
   [{:keys [sleepers] :as ctx}]
-  (update-in (item-steward/mock-steward ctx) [:args :changes] (fnil into [])
-             (for [{:keys [id aspects]} sleepers :when (:hair aspects)]
-               {:thing id :aspect "hair" :value ""})))
+  (-> (item-steward/mock-steward ctx)
+      (update-in [:args :changes] (fnil into [])
+                 (for [{:keys [id aspects]} sleepers :when (:hair aspects)]
+                   {:thing id :aspect "hair" :value ""}))
+      (assoc-in [:args :inner] (vec (for [{:keys [id]} sleepers
+                                          [k v] [["body" "stiff from the night"] ["mood" ""]]]
+                                      {:person id :key k :value v})))))
 
 (defn mock-conversation-judge
   "Each member who heard someone else's line is left turning over what the

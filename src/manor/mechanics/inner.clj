@@ -162,7 +162,7 @@
 (defn changed-events
   "One GM-only :person/inner-changed per person, in the order they first
   come in `changes` ({:person :key :from :to}). `source` says what changed
-  it: {:job id} or {:conversation id}."
+  it: {:job id}, {:conversation id} or {:steward day}."
   [source changes]
   (for [id (distinct (map :person changes))]
     {:type :person/inner-changed :visible-to :gm

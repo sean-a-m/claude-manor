@@ -1,9 +1,9 @@
 # Inner state: how characters are inside
 
-Status: **phases 1 and 2 built** (data and the work judge, then the conversation judge;
-mock-tested, no real run yet). Phase 3 (the steward) is not started. The user's decisions of
-2026-10-22 are in section 4; the defaults at its end were taken as written. Follow-ups go to
-the roadmap (B13).
+Status: **all three phases built** (data and the work judge, the conversation judge, then
+the nightly steward), **mock-tested only**: no real run yet. The next check is a short real
+Claudeworth run, with the user's go-ahead. The user's decisions of 2026-10-22 are in section
+4; the defaults at its end were taken as written. Follow-ups go to the roadmap (B13).
 
 Where phase 1's build differs in detail, or fills a gap:
 
@@ -46,6 +46,27 @@ Where phase 2's build (`manor.mechanics.conversation.judge`, called from
   fixture's leaves each member who heard someone else's line turning over what they said (the
   open key `mind`), and its mock day has Lady Ashby ask Dawson about her silk at 20:00.
 - `cache-report` counts the calls as `:adjudicator`, with the steward's.
+
+Where phase 3's build (`manor.mechanics.items.steward`, called from
+`manor.engine.work/run-steward!`) differs in detail, or fills a gap:
+
+- Without the scenario's `:inner` the sleepers are as before (only those with aspects), and
+  the request, tool and instructions are unchanged.
+- The world doesn't record when someone fell asleep (`:busy` has only `:until`), so
+  `went_to_sleep` is the round of the person's last `:agent/occupied` asleep in the run's
+  events (`item-steward/asleep-since`), left out when there's none; no world-shape change.
+  `wakes` is their `:busy :until`. Both are short times ("Sat 22:30", "07:30").
+- The tool's `inner` list comes from the work judge's answer schema (`item-judge/answer-schema`,
+  now public, without `made`), and is checked with `item-judge/with-inner` (now public), so
+  `inner/checked-changes` runs with the place's sleepers as the judged people.
+- The instructions name `went_to_sleep` and `wakes`, ask it to judge how each will wake and
+  to set, change or clear inner state only where the night would, and say nothing about
+  fading or rest.
+- The inner changes follow each place's `:items/stewarded`, so they're emitted place by place.
+- In a 48-round mock Claudeworth day the steward made 5 calls (it made none before: no
+  sleeper had aspects and nothing was idle), one per occupied bedroom. Claudeworth starts
+  with 8 characters, so it's at most 8 a night until someone is hired, not about 10; Mrs
+  Finch and Daisy never sleep in the mock day.
 
 ## 1. The want
 
@@ -249,8 +270,9 @@ Defaults proposed where nothing was decided, to confirm when the build starts:
 ### 5.4 The nightly steward
 
 - The sleepers become every active agent asleep at the steward's time, not only those with
-  aspects. A place with sleepers gets a call, as now: in Claudeworth about one per occupied
-  bedroom, about 10 a night, so about $0.002–0.003 a night.
+  aspects. A place with sleepers gets a call, as now: in Claudeworth one per occupied
+  bedroom, at most 8 a night with its starting characters (5 in a mock day), so about
+  $0.001–0.002 a night.
 - Each sleeper also shows their inner state (with when each entry was set), temperament, and
   when they went to sleep and will wake.
 - The steward may now set, change or clear a sleeper's inner state, judging how they'll

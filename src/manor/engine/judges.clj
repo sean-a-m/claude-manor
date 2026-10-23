@@ -95,9 +95,12 @@
 
 (defn ask-steward
   "Ask the nightly steward what to do with the `candidates` (idle
-  leftovers) and `sleepers` at `place`: {:verdict v}, or {:failure reason}."
+  leftovers) and `sleepers` at `place`: {:verdict v}, with the sleepers'
+  inner-state changes under :inner when the scenario has inner state, or
+  {:failure reason}."
   [run world place candidates sleepers]
-  (let [request (assoc (item-steward/steward-request world place candidates sleepers)
+  (let [config (get-in run [:scenario :inner])
+        request (assoc (item-steward/steward-request world place candidates sleepers config)
                        :label "steward" :ctx {:role :steward :world world :place place
                                               :candidates candidates :sleepers sleepers})]
-    (ask-structured! run "steward" request #(item-steward/stewardship % world place candidates sleepers))))
+    (ask-structured! run "steward" request #(item-steward/stewardship % world place candidates sleepers config))))

@@ -1,7 +1,8 @@
 (ns manor.inner-state-test
   "Inner state (manor.mechanics.inner) in the dressing fixture world: checks,
-  starting values, privacy of the views, the work judge's and the
-  conversation judge's changes and their checks, the export and replay.
+  starting values, privacy of the views, the work judge's, the conversation
+  judge's and the nightly steward's changes and their checks, the export
+  and replay.
   Nothing here depends on Claudeworth's content."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
@@ -178,7 +179,7 @@
           (is (str/includes? system "- body: how their body is, as only they know it"))
           (is (contains? (get-in request [:tools 0 :function :parameters :properties]) :inner))
           (is (not (contains? (get-in (item-steward/steward-request world "bedroom" []) [:tools 0 :function :parameters :properties]) :inner))
-              "the steward has no inner field"))
+              "nor the steward, asked without the scenario's inner state"))
         (testing "a scenario without inner state is asked as before"
           (let [plain (item-judge/judge-request (dissoc (:scenario run) :inner) world job {:minutes 30 :luck 50})]
             (is (not (str/includes? (get-in plain [:messages 0 :content]) "Inner state")))
@@ -292,11 +293,13 @@
   "A mock: `script` maps agent id -> round -> the calls of that turn, in
   order; other turns pass (the GM is done). Speaking turns go to `speak`,
   or conversation/mock-default when it returns nil; the conversation judge
-  to `react`, or the fixture's mock. Work goes to the fixture's mock judge."
+  to `react`, or the fixture's mock. Work goes to the fixture's mock judge,
+  the night to its mock steward."
   [script & {:keys [speak react]}]
   (llm/mock (fn [{:keys [world agent-id role step] :as ctx}]
               (case role
                 :judge (dressing/mock-judge ctx)
+                :steward (dressing/mock-steward ctx)
                 :conversation-judge ((or react dressing/mock-conversation-judge) ctx)
                 :gm {:tool :done}
                 (if (:conversation ctx)
@@ -478,4 +481,123 @@
       (is (= :ended (ending run)))
       (is (empty? (judge-calls run)))
       (is (empty? (of-type run :conversation/judged)))
+      (finally (e/stop-run run)))))
+
+;; ---------------------------------------------------------------------------
+;; The nightly steward
+
+(def ^:private bedtime
+  "Lady Ashby sleeps in her bedroom and Mrs Pell in the maid's room in the
+  first round; Dawson stays up."
+  {"lady-ashby" {1 [{:tool :sleep :args {:until "07:00"}}]}
+   "mrs-pell" {1 [{:tool :sleep :args {:until "07:00"}}]}})
+
+(defn- night-run
+  "A run starting at 01:30 with Mrs Pell in the maid's room, and the
+  `bedtime` script; the steward runs at 02:00, in round 2."
+  [& [opts]]
+  (let [run (start (merge {:start "1904-10-16T01:30" :llm-impl (scripted bedtime)} opts))]
+    (e/emit! run [{:type :agent/placed :data {:id "mrs-pell" :to "maids-room"}}])
+    run))
+
+(defn- steward-says [args]
+  {:tool-calls [{:id "s1" :name "steward" :arguments (json/write-value-as-string (assoc args :summary "Night."))}]})
+
+(deftest the-steward-sees-every-sleeper
+  (let [run (rounds! (night-run) 1)]
+    (try
+      (let [world (e/world run)
+            sleepers (item-steward/steward-sleepers world config (e/events run))
+            ids #(update-vals % (fn [ss] (mapv :id ss)))]
+        (testing "with inner state, everyone asleep, with or without aspects; Dawson is awake"
+          (is (= {"bedroom" ["lady-ashby"] "maids-room" ["mrs-pell"]} (ids sleepers)))
+          (is (nil? (:aspects (w/agent world "lady-ashby"))) "Lady Ashby has no aspects"))
+        (testing "without it, only sleepers with aspects, as before"
+          (is (= {"maids-room" ["mrs-pell"]} (ids (item-steward/steward-sleepers world)))))
+        (testing "each sleeper shows their inner state, temperament and when they went to sleep and will wake"
+          (let [tempered (assoc-in world [:agents "lady-ashby" :temperament] {:neuroticism :high})
+                request (item-steward/steward-request tempered "bedroom" [] (get sleepers "bedroom") config)
+                [lady] (:sleepers (scene-json request))
+                system (get-in request [:messages 0 :content])]
+            (is (= {:mood {:value "impatient for dinner" :set_at "01:30"} :body {:value ""}} (:inner lady)))
+            (is (= "01:30" (:went_to_sleep lady)))
+            (is (= "07:00" (:wakes lady)))
+            (is (= {:neuroticism "high"} (:temperament lady)))
+            (is (str/includes? system "## Inner state"))
+            (is (str/includes? system "- body: how their body is, as only they know it"))
+            (is (str/includes? system "Never set or change a sleeper's aspect: only remove."))
+            (is (contains? (get-in request [:tools 0 :function :parameters :properties]) :inner))))
+        (testing "a scenario without inner state asks as before"
+          (let [request (item-steward/steward-request world "maids-room" [] (get (item-steward/steward-sleepers world) "maids-room"))]
+            (is (= [{:id "mrs-pell" :name "Mrs Pell" :appearance "A stout woman, usually in a print frock and a white apron."
+                     :aspects {:apron "spattered with grease"}}]
+                   (:sleepers (scene-json request))))
+            (is (= item-steward/steward-instructions (get-in request [:messages 0 :content])))
+            (is (not (contains? (get-in request [:tools 0 :function :parameters :properties]) :inner))))))
+      (rounds! run 1)
+      (let [world (e/world run)
+            stewarded (of-type run :items/stewarded)
+            changed (filter #(= {:steward "1904-10-16"} (get-in % [:data :source])) (of-type run :person/inner-changed))]
+        (testing "a call for each place with sleepers, none for the kitchen"
+          (is (= ["bedroom" "maids-room"] (map #(get-in % [:data :place]) stewarded))))
+        (testing "inner state is set, changed and cleared, by GM-only events after each place's result"
+          (is (= [{:person "lady-ashby" :source {:steward "1904-10-16"}
+                   :changes [{:key :body :from nil :to "stiff from the night"} {:key :mood :from "impatient for dinner" :to nil}]}
+                  {:person "mrs-pell" :source {:steward "1904-10-16"}
+                   :changes [{:key :body :from "aching feet after a long day" :to "stiff from the night"}]}]
+                 (map :data changed)))
+          (is (every? #(= :gm (:visible-to %)) changed))
+          (is (= (map :id stewarded) (map #(dec (:id %)) changed)) "each follows its place's :items/stewarded")
+          (is (= {:body "stiff from the night"} (inner-of run "lady-ashby")))
+          (is (= {:body "stiff from the night" :worry "whether the fish will keep"} (inner-of run "mrs-pell")))
+          (is (= "Lady Ashby, inside (steward 1904-10-16): body \"stiff from the night\"; mood cleared."
+                 (n/describe (first changed) (n/names world)))))
+        (testing "Dawson, awake, is untouched"
+          (is (nil? (inner-of run "dawson"))))
+        (testing ":items/stewarded holds no inner state"
+          (is (not-any? #(contains? (:data %) :inner) stewarded))
+          (is (not-any? #(str/includes? (pr-str %) "stiff") stewarded)))
+        (testing "the sleepers are told nothing"
+          (is (not-any? #(= :person/inner-changed (:type %)) (prompt/visible-events (e/events run) "lady-ashby" 1000))))
+        (is (= world (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))
+
+(deftest the-stewards-answer-is-checked
+  (let [run (rounds! (night-run) 1)]
+    (try
+      (let [world (e/world run)
+            sleepers (get (item-steward/steward-sleepers world config (e/events run)) "maids-room")
+            check #(item-steward/stewardship (steward-says %) world "maids-room" [] sleepers config)]
+        (testing "a sleeper's inner state may be set or cleared"
+          (is (= [{:person "mrs-pell" :key :mood :from nil :to "anxious about the fish"}
+                  {:person "mrs-pell" :key :worry :from "whether the fish will keep" :to nil}]
+                 (:inner (:verdict (check {:inner [{:person "mrs-pell" :key "mood" :value "anxious about the fish"}
+                                                   {:person "mrs-pell" :key "worry" :value ""}]}))))))
+        (testing "nobody awake, nor a sleeper elsewhere, can be changed"
+          (is (= "you may change the inner state only of these people: mrs-pell; not dawson"
+                 (:error (check {:inner [{:person "dawson" :key "mood" :value "sleepy"}]}))))
+          (is (= "you may change the inner state only of these people: mrs-pell; not lady-ashby"
+                 (:error (check {:inner [{:person "lady-ashby" :key "mood" :value "calm"}]})))))
+        (testing "too many open keys are refused"
+          (is (str/starts-with? (:error (check {:inner [{:person "mrs-pell" :key "dream" :value "of the sea"}
+                                                        {:person "mrs-pell" :key "dread" :value "of the morning"}]}))
+                                "Mrs Pell (mrs-pell) would have 3 keys besides mood, body")))
+        (testing "outward aspects stay remove-only"
+          (is (= "a sleeper's aspects can only be removed, with the value \"\"; not mrs-pell apron \"clean\""
+                 (:error (check {:changes [{:thing "mrs-pell" :aspect "apron" :value "clean"}]}))))
+          (is (= [{:person "mrs-pell" :aspect :apron :from "spattered with grease" :to nil}]
+                 (:changes (:verdict (check {:changes [{:thing "mrs-pell" :aspect "apron" :value ""}]})))))))
+      (finally (e/stop-run run)))))
+
+(deftest the-steward-without-inner-state
+  (let [plain (-> dressing/scenario
+                  (dissoc :inner)
+                  (assoc :init (fn [opts] (update ((:init dressing/scenario) opts) :agents #(mapv (fn [a] (dissoc a :inner)) %)))))
+        run (with-redefs [e/load-scenario (constantly plain)] (night-run))]
+    (try
+      (rounds! run 2)
+      (testing "only the sleeper with aspects is seen, and no inner state changes"
+        (is (= ["maids-room"] (map #(get-in % [:data :place]) (of-type run :items/stewarded))))
+        (is (empty? (of-type run :person/inner-changed)))
+        (is (not (str/includes? (str/join (map pr-str (filter #(= "steward" (:agent %)) (store/read-llm (:dir run))))) "\"inner\""))))
       (finally (e/stop-run run)))))

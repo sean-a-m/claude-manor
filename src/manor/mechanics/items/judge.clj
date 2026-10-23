@@ -32,10 +32,10 @@
                              [:in {:optional true} :string]]]]
    [:summary [:string {:min 1 :max items/max-summary}]]])
 
-(defn- answer-schema
+(defn answer-schema
   "The judge's answer: `judge-schema`, and with inner state (the scenario's
   :inner, see manor.mechanics.inner) an `inner` list beside `changes`. The
-  steward's schema comes from `judge-schema`, so it never has one."
+  steward's schema comes from it, without `made`."
   [inner-config]
   (if inner-config
     (let [[m changes & more] judge-schema] (into [m changes inner/answer-entry] more))
@@ -291,9 +291,10 @@
         (seq absorbed) (assoc :absorbed (vec absorbed))
         (seq made) (assoc :made made)))))
 
-(defn- with-inner
-  "`v` (a checked verdict) with the checked changes to the judged people's
-  inner state under :inner, or the reason they won't do."
+(defn with-inner
+  "`v` (a checked verdict) with the checked changes to the inner state of
+  the people among `things` (marked :person?) under :inner, or the reason
+  they won't do."
   [v inner-config world things answers]
   (let [{:keys [changes error]} (inner/checked-changes inner-config world (map :id (filter :person? things)) answers)]
     (cond error {:error error}

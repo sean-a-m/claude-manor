@@ -57,6 +57,7 @@ try {
     const shot = await cdp('Page.captureScreenshot', {format: 'png'});
     await writeFile(process.env.SCENE_SCREENSHOT, Buffer.from(shot.data, 'base64'));
   }
+  if (await evaluate('!!document.querySelector("#scene-map .room")')) {
   await evaluate('document.querySelector("[data-kind=agent]").dispatchEvent(new MouseEvent("click", {bubbles:true}))');
   const selection = await evaluate('ManorScene.selection');
   assert.equal(selection.kind, 'agent');
@@ -175,8 +176,31 @@ try {
   await evaluate(`ManorScene.select(null); window.fetch=originalFetch; ManorScene.refresh();`);
   await sleep(300);
   assert.equal(await evaluate('ManorScene.selection'), null);
-  assert.deepEqual(errors, [], 'no browser runtime exceptions');
   console.log('PASS actual scene client: selection/escaping, wheel/pan/fit, tap/drag suppression, SSE/control refresh, bounded feed, viewport/selection preservation, stale refresh/inspector guards, missing selection.');
+  } else {
+    assert.ok(await evaluate('document.getElementById("scene-map").textContent.includes("no locations")'));
+    await evaluate('document.querySelector("#scene-away [data-kind=agent]").click()');
+    await waitFor('!!document.querySelector("#inspector article")');
+    const selection = await evaluate('ManorScene.selection');
+    await evaluate('document.querySelector("[data-view=in]").click()');
+    const viewport = await evaluate('document.getElementById("scene-map").getAttribute("viewBox")');
+    const before = await evaluate('document.getElementById("scene-toolbar").textContent');
+    await evaluate('fetch("/cmd/step", {method:"POST"})');
+    await waitFor(`document.getElementById('scene-toolbar').textContent !== ${JSON.stringify(before)}`);
+    await sleep(500);
+    assert.deepEqual(await evaluate('ManorScene.selection'), selection);
+    assert.equal(await evaluate('document.getElementById("scene-map").getAttribute("viewBox")'), viewport);
+    await evaluate('document.querySelector("[data-view=fit]").click()');
+    console.log('PASS no-space client: away-strip inspector, zoom/fit, SSE, viewport/selection preservation.');
+  }
+  // Both page routes work in the actual browser, not just handler projections.
+  await cdp('Page.navigate', {url: base + '/panel?as=gm'});
+  await waitFor('!!document.querySelector("#status") && !!document.querySelector("#feed")');
+  assert.ok(await evaluate('document.body.textContent.includes("Events visible to gm")'));
+  await cdp('Page.navigate', {url: base + '/'});
+  await waitFor('!!document.getElementById("scene-page") && !!window.ManorScene');
+  assert.deepEqual(errors, [], 'no browser runtime exceptions');
+  console.log('PASS scene/panel browser navigation.');
 } finally {
   if (ws) ws.close();
   if (browser.exitCode === null) {
@@ -184,5 +208,6 @@ try {
     browser.kill('SIGTERM');
     await exited;
   }
-  await rm(profile, {recursive: true, force: true});
+  // Chromium helpers can finish writing their profile after the parent exits.
+  await rm(profile, {recursive: true, force: true, maxRetries: 5, retryDelay: 100});
 }

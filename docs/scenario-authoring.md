@@ -1496,11 +1496,15 @@ in `:init`:
   reads existing `llm.edn` and event evidence on live or loaded runs, distinguishing requested tools
   from eventual outcomes. These surfaces are not safe agent-view endpoints. No authoring fields
   are needed; [scene-web-api.md](scene-web-api.md) documents APIs, limits and client checks.
-  Scenario-specific temporal hooks are not implemented yet.
+  Optional pure `:scene` callbacks supply scenario-specific overlays and historical construction
+  reservations; see the [`:scene` contract](#scene-operator-presentation-only). Do not add simulation
+  fields, events or prompt content for the operator UI. Base-comparison and read-only regression
+  checks are documented in [scene-web-api.md](scene-web-api.md#integration-and-simulation-boundary-checks-phase-5).
 - For an offline automatic room-plan preview, use `(scene-preview! "resources/worlds/my-world.edn"
   "/tmp/my-world.svg")` in the dev REPL. It writes an SVG without a run, server or model call.
   This is presentation-only: it needs no new simulation fields or events. The pure layout contract
-  and its limits are in [scene-layout-api.md](scene-layout-api.md); scene hooks are not built yet.
+  and its limits are in [scene-layout-api.md](scene-layout-api.md). This file-only preview does not
+  run scenario hooks or reconstruct construction history; the live scene uses existing run records.
 - The file is a **template**: no run writes to it (only the REPL's `roll-cast!` does, see below).
   The engine saves a copy as
   `<run-dir>/world-start.edn`. Whenever the map changes, it writes the live map back in the same

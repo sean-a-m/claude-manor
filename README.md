@@ -157,6 +157,31 @@ Whenever a run stops running rounds (it pauses, `auto!`'s rounds are done, a man
 `pause!` or `stop-run`), the engine writes `<run-dir>/transcript.md`: each round's events with who
 saw them, then every model call with its tool calls and the engine's replies.
 
+## Operator scene and panel
+
+The main page (`/`) draws an automatic room/region plan with people and travellers. Click a
+person, room or linked item for its inspector; wheel to zoom, drag to pan, or use Fit and the
+region buttons. Step, Auto and Pause are the existing run controls. The scene preserves selection
+and viewport across updates. Claudeworth also shows construction ghosts, funds, plans and purses.
+Room positions stay fixed within their floor panel; growing panels can shift the outer picture.
+
+The original control panel remains at `/panel`, including `?as=<agent-id>` feed filtering and the
+human act form. **The scene and inspectors are omniscient operator views**, including private
+inner state, closed-container contents and recorded reasoning. They are not what agents see.
+`/agent/<id>` remains the unchanged agent view. Rendering makes no model calls and changes no
+simulation state; a scenario without locations still has controls, inspectors and the feed.
+
+For a free offline preview without starting a run or server, in `clj -M:dev`:
+
+```clojure
+(scene-preview! "resources/worlds/claudeworth.edn" "/tmp/manor-scene.svg")
+```
+
+See [scene web/inspector contracts and checks](docs/scene-web-api.md),
+[layout limits](docs/scene-layout-api.md) and [optional presentation hooks](docs/scenario-authoring.md#scene-operator-presentation-only).
+Manual visual/touch/cross-browser acceptance and independent review remain; dense connectors may
+cross and large worlds need region zoom for readable labels. No simulation commands were added.
+
 ## Cache and cost report
 
 `manor.tools.cache-report` reads a run's `llm.edn` (it never calls a model) and shows how well its

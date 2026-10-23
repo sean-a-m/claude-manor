@@ -2,7 +2,7 @@
 
 A plan for a more graphical main page in the control panel: the world drawn as a plan of boxes,
 people you can click for their full status, and rooms and items you can inspect. The pure layout, offline SVG preview, scene web page, detailed inspectors and temporal adapters are built (phases 1–4);
-integration and independent acceptance review remain. The implementation contract in section 9 records the approved constraints and phased
+cross-seam integration and base-behaviour comparison are complete (phase 5); independent acceptance review remains. The implementation contract in section 9 records the approved constraints and phased
 handoffs; where it narrows an earlier sketch, section 9 takes precedence.
 
 The user's decisions (2026-10-20):
@@ -340,7 +340,19 @@ Closed-hours shading and evidence-based busy arcs are generic presentation featu
    past ghosts; missing/custom size evidence uses generic sizing. Indefinite hibernation has only a
    status mark. Local room geometry stays frozen across route changes; outer packing may shift.
    No simulation events or state are changed. Focused temporal and mock construction tests cover
-   these invariants. Final integration, independent review and manual visual checks remain.
+   these invariants. Independent review and manual visual checks remain.
+5. **Integration — checked, independent review pending.** Cross-seam tests render both pages,
+   inspectors (including construction ghosts), coherent refreshes and previews at every compared
+   mock round boundary without changing world/events, persisted files or making model calls.
+   The isolated archived-base harness compares all seven bundled scenarios plus the fixed
+   household's construction through completion against `0f7eae9`, with hooks present/removed.
+   All world/event prefixes, agent-visible events/views, durable calls and complete model requests
+   match. Only call-envelope wall-clock `:at` is excluded; existing concurrent work-judge dispatch
+   order is normalized within an identical pre-batch world, retaining all payloads and job-local
+   ordering. Actual Chromium checks cover spatial and no-space scenarios and both pages.
+   See [integration evidence and exact commands](scene-web-api.md#integration-and-simulation-boundary-checks-phase-5).
+   No simulation source changes or component redesign were necessary. Manual visual/touch/
+   cross-browser acceptance and phase 6's independent review are not claimed complete.
 
 ## 8. Room for commands later
 

@@ -109,10 +109,11 @@ bash test/manor/scene_browser_check.sh 8097
 # Optional screenshot (no screenshot is added to the repository):
 SCENE_SCREENSHOT=/tmp/manor-scene.png bash test/manor/scene_browser_check.sh 8097
 SCENE_SCENARIO=claudeworth bash test/manor/scene_browser_check.sh 8097
+SCENE_SCENARIO=quiz bash test/manor/scene_browser_check.sh 8097 # no locations
 ```
 
 The wrapper verifies the specified 8090–8099 port is free, starts **its own** village (or
-`SCENE_SCENARIO`, use a spatial scenario for these interaction assertions) mock/offline
+`SCENE_SCENARIO`) mock/offline
 `:test? true` panel, runs `scene_client_test.mjs` over Chromium's local CDP, and stops that panel
 and browser in a trap/finally. Only disposable mock evidence is left under `test-runs/`; it never
 cleans runs. Browser assertions cover actual wheel/pointer handlers, drag-vs-tap, fit/zoom/region
@@ -264,3 +265,75 @@ closed hours, job and occupation arcs, indefinite status marks, escaped/optional
 confirm unchanged world/events/replay and agent views; simulation location events contain no size.
 Existing generic bundled-scenario web/inspector tests also pass. No real models or ports needed.
 Manual visual/touch/cross-browser legibility and final independent acceptance remain pending.
+
+## Integration and simulation boundary checks (phase 5)
+
+`scene_integration_test.clj` exercises the component seams together, without a server. Its
+base-compatible helper, `scene_boundary_probe.clj`, captures the initial state and every completed
+mock round. The head render pass exercises `/`, `/panel`, `/partial/status`, `/world`, SVG/assets,
+all agent/place/item inspectors (including missing selections and construction ghosts), filtered
+panel feeds, agent pages, coherent scene-state fragments and pure preview SVG. Standalone and
+bundled inspectors agree. A separate test writes an offline SVG to a temporary output while
+forbidding run creation. Each render pass must leave world/events, existing persisted files and
+model-call count unchanged. Hook removal occurs before initialization, not only when rendering.
+
+Run these checks **serially**, not alongside the full suite: existing suite fixtures clean
+`test-runs/`. No probe cleans unrelated run directories; it removes only the mock directory it
+successfully created and never touches `runs/` or `old-test-runs/`.
+
+```sh
+clojure -M:test -n manor.scene-integration-test -n manor.scene-temporal-test -n manor.scene-web-test
+bash test/manor/scene_boundary_check.sh 0f7eae9
+bash test/manor/scene_browser_check.sh 8097
+SCENE_SCENARIO=claudeworth bash test/manor/scene_browser_check.sh 8097
+SCENE_SCENARIO=quiz bash test/manor/scene_browser_check.sh 8097
+node --check resources/manor/scene.js
+node --check test/manor/scene_client_test.mjs
+bash -n test/manor/scene_boundary_check.sh test/manor/scene_browser_check.sh
+git diff --check
+clojure -M:test
+```
+
+The boundary script archives `0f7eae9` into an isolated `/tmp` directory (not another worktree),
+loads the **same probe** there, then compares with this checkout both with rendering/hooks and
+with hooks removed. It uses identical options: mock LLM, offline, test directory, seed 1,
+`:build-rounds 6`, `:max-cost 0.20`, fixed per-scenario run ids, one round per auto command.
+All seven bundled scenarios run four rounds; the fixed household runs thirteen to cross
+commissioning and completion. No real models, bridges, ports or dependencies are needed.
+Raw EDN evidence, base source, logs and `comparison.txt` remain at the printed `/tmp` path.
+It also fails on protected runtime/dependency/world-file source changes and verifies the only
+scenario source additions are the pure presentation require and optional `:scene` key.
+
+Successful comparison (component handoff `e7915a7` plus integration checks):
+
+| Scenario | Compared prefixes | Final events | Complete model requests |
+|---|---:|---:|---:|
+| village | 5 | 99 | 20 |
+| treasure | 5 | 37 | 6 |
+| quiz (no space) | 5 | 47 | 12 |
+| claudeworth | 5 | 327 | 48 |
+| claudeworth-medium | 5 | 378 | 48 |
+| lodge | 5 | 132 | 36 |
+| dressing | 5 | 50 | 10 |
+| household (construction) | 14 | 290 | 83 |
+
+**Nondeterminism is narrow and explicit.** No world/event fields, visible-event audiences,
+agent-view data, request messages, tool schemas, model settings, usage, replies or ids are
+excluded. Only the durable call envelope's top-level `:at` (wall-clock send instant) is removed.
+Requests include even mock-only `:ctx`; tool-schema Java regexes are encoded with their full
+source and flags, not discarded. Existing `engine.work/finish-jobs!` runs independent judges in
+futures on one pre-batch world, then records/applies results in job order. The round-12 household
+judges can dispatch in opposite orders. Only contiguous work-judge requests on an **identical
+world** compare grouped by job id; each job's request/retry order and all other call ordering are
+retained. Raw dispatch order remains in evidence. Regression assertions prove changes to payload,
+multiplicity, world boundary or ordinary call ordering are not hidden by this normalization.
+
+Integration found no substantive component defects or necessary production wiring changes.
+Existing temporal tests cover all construction boundary prefixes, fresh-load/missed-refresh/cache
+eviction equivalence, frozen geometry and route changes. The full suite passed: 333 tests,
+6157 assertions, no failures/errors (the existing non-failing steward transcript warning remains).
+Actual Chromium checks passed for village, Claudeworth and no-space quiz, including browser
+navigation to `/panel?as=gm` and back; quiz checks away-strip selection, its inspector, zoom/fit,
+SSE and retained viewport/selection. Browser cleanup tolerates Chromium helper profile writes
+after parent exit. These are interaction checks, not new visual/touch/cross-browser acceptance.
+Independent review (phase 6) and the manual checks above remain required.

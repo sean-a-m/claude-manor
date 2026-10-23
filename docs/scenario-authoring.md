@@ -1440,6 +1440,10 @@ in `:init`:
   `:leave-out` does). A location's `:aspects` are checked the same way
   ("location \"hall\": {:aspects {:hearth [\"should be at least 1 character\"]}}").
 - `:domain` groups locations into areas on the control panel's map (house, village, ...).
+- For an offline automatic room-plan preview, use `(scene-preview! "resources/worlds/my-world.edn"
+  "/tmp/my-world.svg")` in the dev REPL. It writes an SVG without a run, server or model call.
+  This is presentation-only: it needs no new simulation fields or events. The pure layout contract
+  and its limits are in [scene-layout-api.md](scene-layout-api.md); scene hooks are not built yet.
 - The file is a **template**: no run writes to it (only the REPL's `roll-cast!` does, see below).
   The engine saves a copy as
   `<run-dir>/world-start.edn`. Whenever the map changes, it writes the live map back in the same

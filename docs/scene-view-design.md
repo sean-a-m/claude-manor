@@ -1,8 +1,10 @@
 # The scene view: a graphical main page for the panel
 
 A plan for a more graphical main page in the control panel: the world drawn as a plan of boxes,
-people you can click for their full status, and rooms and items you can inspect. Nothing here is
-built yet.
+people you can click for their full status, and rooms and items you can inspect. Phase 1's pure
+layout and offline SVG preview are built; the web page, inspectors and scenario history adapters
+are not. The implementation contract in section 9 records the approved constraints and phased
+handoffs; where it narrows an earlier sketch, section 9 takes precedence.
 
 The user's decisions (2026-10-20):
 
@@ -122,9 +124,11 @@ Then repeatedly take the unplaced room with the most already-placed neighbours (
 first"), with ties broken by number of connections and then by order added. Rooms with no placed
 neighbours start a new cluster.
 
-**Candidates.** Every position where the room's rectangle overlaps nothing and touches at least
-one placed neighbour along a wall. A room with no placed neighbour gets positions along the edge
-of what's been placed so far.
+**Candidates.** Prefer positions where the room's rectangle overlaps nothing and touches at least
+one placed neighbour along a wall. If those candidates are exhausted, use a deterministic free
+position near its neighbours, with connector lines instead of doors. A room with no placed
+neighbour gets positions along the edge of what's been placed so far. Candidate enumeration must
+be finite and bounded; every room must still get a position.
 
 **Score** (higher is better):
 
@@ -167,15 +171,21 @@ modes.
   best free spot nearby and its connections become connector lines. Panels and regions grow to
   fit.
 
-The input is the ordered sequence of `:space/location-added` events from the run's log, so the
-layout is a fold over those events. A loaded run looks exactly as it did live. When the fold
-reaches a built room, it looks the room's neighbours up in the **current** world's routes, since
-the `:space/route-opened` events come just after the room is added.
+The input is the ordered event history, projected into display-only topology and reservation
+records. Initial layout uses the starting graph; later placement uses only information available
+at its specified historical placement boundary, never the current graph to reinterpret the past.
+Later routes update connection rendering without moving frozen room geometry. Construction
+reservations carry their geometry forward to completion, including on a fresh load. Generic later
+rooms without initial connection metadata can use free placement and acquire connector lines.
 
-The web layer caches the layout per run, keyed by the id of the last location-adding event.
+The web layer must distinguish cached placement from current route styling and connections.
+Invalidation includes relevant topology, reservation and completion changes, not only the last
+location-added id. Layout must be a deterministic function of the event prefix, independent of
+whether a browser was open, and of cache hits or eviction.
 
-One small engine change helps: `building/construction` should put the plan's `:size` on the
-location it adds. Older logs without it fall back to 1×1, and hub sizing still applies.
+No engine change is permitted for this addition. Built-room sizes are derived in the presentation
+layer from existing plan and completion records; locations with no size evidence use the generic
+kind/default sizing. The simulation's location events remain unchanged.
 
 ### 3.6 Placing regions
 
@@ -198,8 +208,9 @@ Tests (all free and offline):
   with no floor or domain, a room connected to three floors, one-way and closed routes, a few
   hundred random rooms): every location is drawn, no rectangles overlap, every connection appears
   as a door, a line, a stair mark or a road, and the same input gives the same output.
-- For trees whose rooms all fit their doors after sizing (Claudeworth's house is one), every
-  connection is a door.
+- Door coverage is a measured quality target, not a universal guarantee of the beam search.
+  Representative household fixtures should get good door coverage; every missed door must still
+  have a visible connector.
 - Stability: adding rooms one at a time never moves a room that was already placed. A mock
   Claudeworth run that builds a room checks that the room appears in its ghost's cell (3.8).
 - A speed bound: the few-hundred-room fixture lays out in under a couple of seconds.
@@ -290,17 +301,21 @@ documents the key when it's built.
 
 ## 7. Phases
 
-1. **Layout.** `manor.scene-layout`: sizing, the scored beam search, connector lines, stair marks,
-   regions, the incremental mode, the quality report and `scene-preview!`, with the tests in 3.7.
-   No web changes yet. This phase stands alone and is where most of the effort and tuning goes.
+1. **Layout — implemented.** `manor.scene-layout`: sizing, bounded scored beam search, separate
+   directed connection projection, regions/panels, frozen incremental geometry, generic reservation
+   boundaries and quality metrics. `manor.tools.scene-preview/scene-preview!` (also in the dev REPL)
+   writes an offline SVG. Awkward graphs, bundled scenarios and 320 rooms are tested. No web or
+   simulation changes. See [scene-layout-api.md](scene-layout-api.md) for the normalized contract,
+   examples, search caps, floor rules and limits. Claudeworth history extraction remains phase 4.
 2. **The scene page.** Move today's index to `/panel` and put the scene at `/`: the toolbar with
    run controls, regions, panels, rooms, doors, lines, roads, people tokens and travellers, native
    tooltips, pan and zoom, and refresh on SSE. `web_test` renders both pages for every bundled
    scenario.
 3. **The inspector.** Selection, and the person, place and item fragments, including "Recently".
    Rendering tests against the household fixture.
-4. **Change over time.** The `:scene` hook, ghosts for works in progress, `:size` on built rooms,
-   closed-shop shading and job progress arcs.
+4. **Change over time.** The presentation-only `:scene` hook, replayable ghosts for works in
+   progress, built-room sizes derived from existing plans, closed-shop shading and job progress
+   arcs. No simulation events or state are changed.
 
 ## 8. Room for commands later
 
@@ -314,3 +329,69 @@ them:
   only has to fill a form field.
 - Any later command would POST to the existing `/cmd/<name>` route, so it goes through the run's
   executor and lands between rounds (invariant 5). The web layer never changes the world itself.
+
+## 9. Approved implementation contract and ownership
+
+The operator approved implementation on the condition that **nothing changes what happens in the
+simulation or what agents see**. This is a presentation-only feature. Do not change engine,
+mechanics, reducers, event payloads, world initialization, action definitions, model requests,
+agent views or prompts, bridge behaviour, scheduling or persistence formats. Reading existing
+records and adding pure presentation projections is allowed. A scenario may gain only optional
+`:scene` callbacks consumed by the web layer; its existing runtime definitions stay unchanged.
+No model calls are needed for rendering or validation.
+
+Implementation is multi-seam, delivered serially on `feature/scene-view` in
+`~/development/git-worktrees/claude-manor/scene-view/`. Each writer finishes and commits its
+handoff before the next writer starts. The main checkout and port 8080 are not used.
+
+| Phase / owner | Exclusive delivery seam | Next gate / durable handoff |
+|---|---|---|
+| 1 / layout writer | Pure layout/history projection, awkward-graph tests, preview helper; design amendments | Deterministic, complete, non-overlapping layouts; history/cache-independent placement; committed API and examples |
+| 2 / scene writer | Web routing, scene SVG/page and browser interactions; existing panel retained | Both pages render across bundled scenarios; controls, SSE, viewport and selection checks; committed web seam |
+| 3 / inspector writer | Read-only person/place/item projections and fragments; existing call-log reading | Loaded/live inspectors, missing entities, multi-call turns and privacy boundaries; committed inspector seam |
+| 4 / change-over-time writer | Display-only scenario hooks/adapters, reservation history, ghosts, size evidence and progress | Ghost-to-room geometry survives load and cache eviction; route changes do not relocate rooms; committed temporal seam |
+| 5 / integration owner | Compatibility verification, cross-seam tests and final user documentation only | Full offline suite and exact-head evidence that simulation and agent-facing behaviour are unchanged |
+| 6 / independent reviewer | Read-only review of the complete branch, especially the presentation-only boundary | Evidence-backed findings and merge recommendation for parent acceptance; no merge/push |
+
+### Decisions to make explicit in code and tests
+
+- Visual grouping uses undirected zero-travel topology regardless of open/closed state, not
+  `space/area`'s directed open-route reachability. Explicit domains are authoritative; domainless
+  components do not absorb explicitly domained rooms. Known floors use the listed order; unknown
+  floors and ties use stable event/id ordering. Missing-floor inference is deterministic and
+  does not drift when routes subsequently close or open.
+- Preserve room geometry within its panel. Region/panel packing may shift outer boxes when they
+  grow to prevent overlap; document this distinction from local placement stability. Browser
+  viewport and selection survive refresh, with selected-region anchoring where practical.
+- Specify a normalized pure layout input/output contract in phase 1. Include display-only
+  reservations with stable ids, domain, floor, size and connections. Phase 4 supplies historical
+  Claudeworth reservations by reading existing commissioning, plan and completion records. A
+  loaded run must reconstruct reservations that have already completed, not just current works.
+- Placement must not depend on a browser observing intermediate events. Read a coherent event
+  prefix and derive matching world data without modifying the engine. Keep current connection
+  rendering separate from historical placement; preserve direction and asymmetric route values.
+- `:last-calls` is not a persistent turn summary and is empty after load. Derive Recent sections
+  from existing `llm.edn` and event records, grouping actual calls/replies without claiming that
+  a requested simultaneous action necessarily succeeded. Do not add logging or change turns.
+  Display only reasoning actually returned by the model. Missing logs are an ordinary empty
+  display case, not a reason to make model calls.
+- Busy progress needs a start and end: use existing job `:started`/`:due` or occupation events;
+  indefinite hibernation gets a status mark, not a fabricated percentage. Show current private
+  inner state in the operator inspector as well as appearance/aspects. The scene and inspectors
+  are explicitly omniscient operator surfaces; `/panel?as=` retains its existing feed semantics
+  and `/agent/<id>` retains the unchanged agent-view projection.
+- Refresh toolbar, SVG, selected inspector and compact feed coherently. Preserve viewBox and
+  selection, suppress click-after-drag, discard out-of-order selection/refresh responses, encode
+  ids safely, and handle deleted/retired/missing selections without errors. Keep rendering escaped.
+- Tests include no-space scenarios, closed/one-way/asymmetric routes, route additions after room
+  creation, missing-floor ties, crowded rooms, incomplete records, loaded runs, and ghost
+  completion. Browser-interaction checks should exercise actual client code, using available
+  local tooling without installing a new frontend stack. Record any unautomated visual checks.
+- Compare a deterministic mock run's events/world/agent-facing projections with the base branch
+  under the same options, excluding run identity and genuinely nondeterministic accounting data
+  only where necessary and documented. Never hide simulation differences behind broad exclusions.
+
+Run focused free/offline checks during each phase and `clojure -M:test` before each commit.
+No real-model runs, no pushes, no merges and no new dependencies without parent approval.
+Update this design and the scenario-authoring contract to match what is actually delivered;
+record any deferred visual polish honestly rather than silently reducing the scope.

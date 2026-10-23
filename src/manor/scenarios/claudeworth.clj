@@ -36,6 +36,7 @@
             [manor.scenarios.claudeworth.building :as building]
             [manor.scenarios.claudeworth.deliveries :as deliveries]
             [manor.scenarios.claudeworth.shop :as shop]
+            [manor.tools.scene-claudeworth :as scene]
             [manor.world :as w])
   (:import (java.time LocalTime)))
 
@@ -697,6 +698,7 @@
    (hiring/install
     {:name :claudeworth
      :doc "Claudeworth Manor, 1904: a family and their servants, a village architect, shops, a public house and cottage trades, living from day to day."
+     :scene scene/hooks
      :init init
      :roles roles
      :agent-brief agent-brief

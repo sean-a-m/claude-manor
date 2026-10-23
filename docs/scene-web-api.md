@@ -1,4 +1,4 @@
-# Scene web and inspector seam (phases 2–3)
+# Scene web, inspector and temporal seam (phases 2–4)
 
 Presentation only. No engine, mechanics, prompts, actions, events, persistence or scenario runtime
 code changes. `/` is the omniscient operator scene; `/panel` retains the old control panel and
@@ -34,7 +34,8 @@ not an agent-view mode. `/agent/<id>` still uses the existing agent-view project
   space events. Initial room order is first location-event order (including unknown-floor ties);
   current metadata/routes sort by stable id. All pre-round-1 topology is initial; each later location freezes at its own event,
   with the routes known **then**, not routes appearing later in the prefix. A room added before
-  its routes can get a connector rather than a shared-wall door. No construction adapters yet.
+  its routes can get a connector rather than a shared-wall door. Optional event-indexed annotations
+  supply historical reservations and size evidence (phase 4 below).
 - `presentation snapshot [cache]` calls `place-history` only when historical placement input
   changes, then always calls `present` with current routes. Optional cache is a disposable,
   single-entry atom; cold/load results equal warm results. Web owns one bounded entry, resets it
@@ -42,18 +43,18 @@ not an agent-view mode. `/agent/<id>` still uses the existing agent-view project
 - `svg snapshot result`, `toolbar snapshot`, `navigation result`, `away-strip snapshot result`
   return hiccup. `web/scene-fragments` composes these with the existing event renderer.
 
-Phase 4 can enrich `placement-history` with then-known reservations/size evidence without changing
+The temporal adapter enriches `placement-history` with then-known reservations/size evidence without changing
 this read/render contract. It must not pass the current graph into old placement boundaries.
 Room geometry is frozen **within panels**; outer region/panel packing may shift. Native SVG titles
 include full labels/descriptions/aspects and route direction/time/state. Opposite directions have
-separate narrow lanes; shared-wall door arrows are extended to remain visible. Busy tokens have a
-status ring, not a fabricated progress percentage. Sleep, human and acting marks are supported.
+separate narrow lanes; shared-wall door arrows are extended to remain visible. Busy tokens have
+evidence-based elapsed-time arcs, or a status mark when timing is missing/indefinite (phase 4 below). Sleep, human and acting marks are supported.
 Rooms show six tokens; crowded rooms reserve the sixth slot for a selectable `+N` overflow with
 all remaining names in its native tooltip.
 Traveller fractions use the latest existing departure event and the current travel's arrival;
 missing timing means the start of the route, not an invented departure time. An incomplete
-traveller with no drawable source/route appears in the strip as location unavailable. Construction sizes,
-ghosts, shop closure shading and job progress arcs remain phase 4. No `:scene` callbacks yet.
+traveller with no drawable source/route appears in the strip as location unavailable. Construction
+sizes, ghosts, shop closure shading and job progress arcs are supplied by phase 4 below. The generic scene still works without any `:scene` callbacks.
 
 ## Client and inspector handoff
 
@@ -157,7 +158,7 @@ panel. Dense graphs can still cross connectors; styling and tooltip polish are n
   Snapshot is the existing scene snapshot, optionally augmented with `:opts` for the default model.
   These use item, position and space accessors. `:items-gone`, bedrooms, routines and purses have no
   equivalent accessors and are read from their existing recorded representation. Purse amounts are
-  explicitly labelled old pence; currency polish and scenario-specific extras remain phase 4.
+  explicitly labelled old pence in the generic inspector; Claudeworth adds a sterling overlay.
 - `recently snapshot calls id` returns `:round`, `:groups` of call summaries, `:outcomes` and
   `:dialogue`. Groups preserve requests/arguments, per-tool-id replies, other engine context,
   conversation id/pass, model, timestamp, finish reason, returned text and actual `:thoughts` only.
@@ -205,3 +206,61 @@ remote stores/jobs/removals, missing/retired/non-LLM selections, escaping/encode
 world/events/agent projections/feed privacy. Actual Chromium checks passed for village and
 Claudeworth. No new manual visual review beyond phase 2's documented screenshot checks; sidebar
 legibility, native tooltips, narrow screens, touch and cross-browser polish remain manual checks.
+
+
+## Temporal seam (phase 4)
+
+Only `src/manor/scenarios/claudeworth.clj` gains optional `:scene` wiring and a pure presentation
+namespace require; derived households inherit it. Existing runtime definitions are untouched.
+No engine/mechanics/I/O/world/prompt/action changes, new event metadata or persisted UI state.
+
+- `manor.tools.scene-claudeworth/hooks` implements `:history`, `:toolbar`, `:badges`, `:inspect`.
+  Funds and purses use the existing old-pence sterling formatter. People show held plans with
+  price/status; rooms beside active works have an adjoining-works badge. Ghost selections show
+  construction information. All output remains escaped, omniscient operator content only.
+- `scene-claudeworth/history events` returns a map of zero-based event index to display annotation:
+  `{:reservation normalized-record}` at commissioning, `{:location {:size :large}}` at location
+  creation. Plans are captured from **prior plans-drawn evidence at commissioning**, never from
+  the current world. Reservation id is the commissioned `:room`, which may differ from plan id.
+  Domain is construction's existing `:house` contract, floor/description/size come from the plan,
+  and connections/due/name from commissioning. Named standard sizes are converted to layout
+  keywords. Custom or missing sizes use generic defaults. Completed works with no commissioning
+  record may use the then-known plan to size the later location; no past reservation is invented.
+- `manor.tools.scene-history/project events annotations` returns
+  `{:history {:initial topology :steps [...]} :reservations [...] :overlays {room-id fields}}`.
+  It folds existing space events and display annotations in prefix order. All pre-round-1 topology
+  forms the initial layout; each later reservation/location creates a boundary with then-known
+  routes and active planned connections. Route-only events update current connectors/styles,
+  never local geometry. Completion is the matching location event, so the reservation remains
+  through the short interval after `works-completed` but before location creation. This also
+  prevents a completed reservation from reappearing at a subsequent placement boundary.
+- `scene/placement-history events [annotations]` retains its generic one-argument API.
+  `scene/presentation snapshot [cache]` invokes the optional history hook, caches only historical
+  placement, and always presents current directed routes and live reservations/size overlays.
+  Its cache remains single-entry and disposable. No current graph or future plan data enters
+  old boundaries. A browser that misses commissioning **and** completion, a freshly loaded run,
+  warm/cold rendering and cache eviction reconstruct identical results. Only **panel-local**
+  geometry is invariant; growing panels/regions or changed journeys can shift outer packing.
+- `manor.tools.scene-time/closed? world location` marks a location with recorded hours only when
+  the clock proves it is closed, matching the existing same-day `[open,close)` convention.
+  `busy-progress snapshot agent` returns a clamped fraction from current job `:started`/`:due`,
+  otherwise a matching current `agent/occupied` event's round and `:until`. Freed/replaced
+  occupations do not lend their starts to new work; interruptions/resumes do not reset starts.
+  Indefinite hibernation and missing/invalid timing return nil and render a dashed status mark.
+  Arcs/tooltips describe scheduled time elapsed, not success or effects. These functions do not
+  participate in scheduling or action checks.
+
+The `:history` hook intentionally replaces the original world-only `:ghosts` sketch: world-only
+current works cannot reconstruct completed reservations after reload. The callback contract is
+also documented under `:scene` in `scenario-authoring.md`. There are no cancellation/deletion
+simulation events to adapt; do not infer either from missing current works. Missing historical
+size evidence cannot retroactively resize frozen generic rooms.
+
+Checks: `clojure -M:test -n manor.scene-temporal-test` covers immutable plan evidence, distinct
+room/plan ids, every construction boundary prefix, missed refreshes, completion-before-location,
+cache eviction, completion-only/missing/custom-size records, route addition/closure/direction,
+closed hours, job and occupation arcs, indefinite status marks, escaped/optional hooks, and a
+13-round mock/offline test household construction with live/load equivalence. Render checks
+confirm unchanged world/events/replay and agent views; simulation location events contain no size.
+Existing generic bundled-scenario web/inspector tests also pass. No real models or ports needed.
+Manual visual/touch/cross-browser legibility and final independent acceptance remain pending.

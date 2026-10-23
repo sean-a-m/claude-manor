@@ -304,11 +304,14 @@
   "Escapable Hiccup for a selection. Missing entities retain a useful sidebar.
   Pass calls sampled from read-calls; pure once snapshot and calls are supplied."
   [{:keys [world] :as snap} calls kind id]
-  [:div.inspector-content
-   [:p.vis "Omniscient operator inspector · not the character's view"]
-   (or (case kind
-         "agent" (some->> (person snap calls id) (person-view world))
-         "place" (some->> (place snap id) (place-view world))
-         "item" (some->> (item snap id) (item-view world id))
-         nil)
-       [:p "Selection no longer available: " (str kind) " · " (str id)])])
+  (let [extra (when-let [f (get-in snap [:scenario :scene :inspect])] (f world kind id))
+        generic (case kind
+                  "agent" (some->> (person snap calls id) (person-view world))
+                  "place" (some->> (place snap id) (place-view world))
+                  "item" (some->> (item snap id) (item-view world id))
+                  nil)]
+    [:div.inspector-content
+     [:p.vis "Omniscient operator inspector · not the character's view"]
+     generic extra
+     (when-not (or generic extra)
+       [:p "Selection no longer available: " (str kind) " · " (str id)])]))

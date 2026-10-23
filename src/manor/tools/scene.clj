@@ -7,6 +7,8 @@
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.scene-layout :as layout]
+            [manor.tools.scene-history :as history]
+            [manor.tools.scene-time :as time]
             [manor.world :as w]))
 
 (defn snapshot
@@ -20,49 +22,30 @@
 (defn topology
   "Ordered generic display topology from an existing world."
   [world]
-  {:locations (vec (sort-by (comp pr-str :id) (vals (get-in world [:space :locations]))))
-   :routes (vec (for [[from tos] (sort-by (comp pr-str key) (get-in world [:space :routes]))
-                      [to route] (sort-by (comp pr-str key) tos)]
-                  (assoc route :from from :to to)))})
+  (history/topology world))
 
 (defn placement-history
-  "Generic event-prefix adapter. Pre-round-1 topology gets the full search.
-  Later locations freeze at their own event, before any later route events.
-  Route-only changes affect present, never reinterpret historical placement.
-  Phase 4 may enrich these boundaries with then-known reservation/size evidence."
-  [events]
-  (let [[initial later] (split-with #(< (:round % 0) 1) events)
-        initial-world (reduce w/apply-stamped (w/new-world)
-                              (filter #(= "space" (namespace (:type %))) initial))
-        initial-ids (distinct (keep #(when (= :space/location-added (:type %))
-                                      (get-in % [:data :location :id])) initial))
-        initial-topology (assoc (topology initial-world) :locations
-                                (mapv #(get-in initial-world [:space :locations %]) initial-ids))]
-    (:history
-     (reduce (fn [{:keys [world] :as acc} event]
-               (if (= "space" (namespace (:type event)))
-                 (let [world (w/apply-stamped world event)]
-                   (cond-> (assoc acc :world world)
-                     (= :space/location-added (:type event))
-                     (update-in [:history :steps] conj
-                                {:locations [(get-in event [:data :location])]
-                                 :routes (:routes (topology world))})))
-                 acc))
-             {:world initial-world :history {:initial initial-topology :steps []}}
-             later))))
+  "Historical placement with optional event-indexed presentation annotations.
+  Routes known later cannot reinterpret earlier local geometry."
+  ([events] (placement-history events nil))
+  ([events annotations] (:history (history/project events annotations))))
 
 (defn presentation
   "Project current connections separately from immutable historical placement.
   Optional single-entry cache is UI-owned, bounded, and safe to discard."
   ([snap] (presentation snap nil))
-  ([{:keys [world events]} cache]
-   (let [history (placement-history events)
+  ([{:keys [world events scenario]} cache]
+   (let [annotations (when-let [f (get-in scenario [:scene :history])] (f events))
+         {:keys [history reservations overlays]} (history/project events annotations)
          cached (when cache @cache)
          placement (if (= history (:history cached)) (:placement cached)
-                       (layout/place-history history))]
+                       (layout/place-history history))
+         current (-> (topology world)
+                     (update :locations #(mapv (fn [loc] (merge loc (get overlays (:id loc)))) %))
+                     (assoc :reservations reservations))]
      (when (and cache (not= history (:history cached)))
        (reset! cache {:history history :placement placement}))
-     (layout/present placement (topology world)))))
+     (layout/present placement current))))
 
 (defn label [x] (if (keyword? x) (name x) (str x)))
 (defn- region-label [id region]
@@ -94,15 +77,21 @@
         color (nth ["#96c9ee" "#e6b6e8" "#9bd5b2" "#f4cf86" "#c5bcf6"]
                    (mod (hash (or standing (:role ag))) 5))
         asleep? (get-in ag [:busy :asleep?])
-        acting? (contains? (set (get-in snap [:status :acting])) (:id ag))]
+        acting? (contains? (set (get-in snap [:status :acting])) (:id ag))
+        progress (time/busy-progress snap ag)]
     [:g (merge (selection "agent" (:id ag))
                {:class (str "person" (when asleep? " asleep") (when acting? " acting"))
                 :transform (str "translate(" x " " y ")")})
-     [:title (agent-tooltip world ag)]
+     [:title (str (agent-tooltip world ag)
+                  (when (some? progress) (format " · scheduled time %.0f%% elapsed" (* 100.0 progress))))]
      (if (= :human (:controller ag))
        [:rect {:x -0.13 :y -0.13 :width 0.26 :height 0.26 :rx 0.025 :fill color}]
        [:circle {:r 0.14 :fill color}])
-     (when (:busy ag) [:circle {:class "busy-mark" :r 0.17 :fill "none" :stroke "#eebc69" :stroke-width 0.035}])
+     (when (:busy ag)
+       [:circle (cond-> {:class (if (some? progress) "busy-progress" "busy-mark")
+                        :r 0.17 :fill "none" :stroke "#eebc69" :stroke-width 0.035}
+                  (some? progress) (assoc :pathLength 1 :stroke-dasharray (str (double progress) " 1")
+                                          :transform "rotate(-90)" :data-progress (double progress)))])
      [:text {:text-anchor "middle" :y 0.045 :font-size 0.12 :fill "#18202a"} (initials (:name ag))]
      (when asleep? [:text {:x 0.12 :y -0.1 :font-size 0.12} "z"])]))
 
@@ -121,11 +110,13 @@
                     [(+ x (* ux 0.16)) (+ y (* uy 0.16))]] path)
           points (map (fn [[px py]] [(- px (* uy 0.045)) (+ py (* ux 0.045))]) points)
           mx (/ (+ x ex) 2) my (/ (+ y ey) 2)]
-      [:g {:class (str "connection " (name kind) (when-not (:open? route) " closed"))
+      [:g {:class (str "connection " (name kind) (when-not (:open? route) " closed")
+                      (when (:reservation? route) " planned"))
            :data-from (str (:from route)) :data-to (str (:to route))}
        [:title (str (label (or (get-in rooms [(:from route) :name]) (:from route))) " → "
                     (label (or (get-in rooms [(:to route) :name]) (:to route))) " · " (name kind)
-                    " · " (travel-label world (:travel route)) (when-not (:open? route) " · closed"))]
+                    " · " (travel-label world (:travel route)) (when-not (:open? route) " · closed")
+                    (when (:reservation? route) " · planned connection"))]
        [:polyline {:data-route (str id) :points (str/join " " (map #(str/join "," %) points))
                    :fill "none" :marker-end "url(#scene-route-arrow)"}]
        (when (= :door kind)
@@ -144,19 +135,37 @@
                        (w/agents-in-order world))
         visible-count (if (> (count people) 6) 5 6)
         count-items (count (items/items-at world id))
-        jobs (seq (filter #(= id (:place %)) (items/jobs world)))]
+        jobs (seq (filter #(= id (:place %)) (items/jobs world)))
+        closed? (time/closed? world r)
+        badges (when-let [f (get-in snap [:scenario :scene :badges])] (f world id))
+        badge-text (str (when (pos? count-items) (str count-items " items "))
+                        (when (seq (:aspects r)) "◆ ") (when jobs "⚒ ")
+                        (when closed? "closed ")
+                        (when (:reservation? r)
+                          (str "⚒ done " (if-let [due (:due r)]
+                                           (if-let [c (:clock world)] (clock/short-label c due (:round world))
+                                                   (str "r" due)) "time unknown") " "))
+                        (str/join " · " badges))]
     [:g
-     [:g (merge (selection "place" id) {:class (str "room" (when (:outside? r) " outside"))})
+     [:g (merge (selection "place" id) {:class (str "room" (when (:outside? r) " outside")
+                                               (when (:reservation? r) " ghost") (when closed? " closed-shop"))})
       [:title (str (or (:name r) id) "\n" (:desc r)
-                   (when (seq (:aspects r)) (str "\n" (pr-str (:aspects r)))))]
+                   (when (seq (:aspects r)) (str "\n" (pr-str (:aspects r))))
+                   (when closed? "\nClosed")
+                   (when (seq badges) (str "\n" (str/join " · " badges)))
+                   (when (:reservation? r)
+                     (str "\nUnder construction" (when-let [due (:due r)]
+                                                  (str " · done " (if-let [c (:clock world)]
+                                                                   (clock/label c due) (str "r" due)))))))]
       [:rect (rect g)]
       [:text {:x (+ (:x g) 0.06) :y (+ (:y g) 0.26) :font-size 0.16
               :textLength (min (- (:w g) 0.12) (* 0.088 (count (str (or (:name r) id)))))
               :lengthAdjust "spacingAndGlyphs"}
        (clip (or (:name r) id) 42)]
-      [:text {:x (+ (:x g) 0.06) :y (+ (:y g) 0.44) :font-size 0.12 :class "badges"}
-       (str (when (pos? count-items) (str count-items " items "))
-            (when (seq (:aspects r)) "◆ ") (when jobs "⚒"))]]
+      [:text {:x (+ (:x g) 0.06) :y (+ (:y g) 0.44) :font-size 0.12 :class "badges"
+              :textLength (min (- (:w g) 0.12) (* 0.066 (count badge-text)))
+              :lengthAdjust "spacingAndGlyphs"}
+       badge-text]]
      (map-indexed (fn [i ag]
                     (token snap ag (+ (:x g) 0.21 (* 0.3 (mod i 3)))
                            (+ (:y g) 0.6 (* 0.24 (quot i 3))))) (take visible-count people))
@@ -239,13 +248,14 @@
                    :data-box (str/join " " [(:x r) (:y r) (:w r) (:h r)])}
       (region-label id r)])])
 
-(defn toolbar [{:keys [id world status input]}]
+(defn toolbar [{:keys [id world status input scenario]}]
   (let [{:keys [state mode remaining acting pause-reasons error last-human-feedback]} status]
     [:section.scene-toolbar
      [:div [:b id] " · round " [:b (:round world)]
       (when-let [c (:clock world)] (str " · " (clock/label c (:round world))))
       " · " (label state) " / " (label mode) (when remaining (str " (" remaining " left)"))
       (format " · cost $%.4f" (double (w/total-cost world)))]
+     (when-let [f (get-in scenario [:scene :toolbar])] (f world))
      [:div.controls
       [:form.inline {:method "post" :action "/cmd/step" :data-command true} [:button "Step"]] " "
       [:form.inline {:method "post" :action "/cmd/auto" :data-command true}

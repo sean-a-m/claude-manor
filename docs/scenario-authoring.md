@@ -69,6 +69,7 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :reference     (fn [world agent-id] {...})   ; optional: facts that rarely change, in the system prompt
    :observe       (fn [world agent-id] {...})   ; strongly recommended
    :gm-view       (fn [world] {...})       ; optional, what the GM sees
+   :scene         {...}                    ; optional, operator presentation only (below)
    :schedule      :round-robin             ; or :simultaneous, or (fn [world] [[ids] ...])
    :gm-triggers   [(fn [world] reason-or-nil) ...]
    :pause-when    (fn [world] reason-or-nil)
@@ -84,7 +85,53 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :offline-stubs {:bridge/name (fn [args ctx] result)}})
 ```
 
-The engine reads no other keys.
+The engine reads no other keys. The web scene, not the simulation, consumes `:scene`.
+
+### `:scene` (operator presentation only)
+
+The scene at `/` is an **omniscient operator surface**, not an agent view. All callbacks are
+optional and pure: no events, world mutation, model/bridge calls, I/O or persistence changes.
+Removing `:scene` must not change simulation behaviour or what agents see. Return ordinary
+Hiccup/text (escaped by rendering), never raw HTML. Generic scenarios need no hooks.
+
+```clojure
+:scene {:toolbar (fn [world] [:div "Household funds: ..."])
+        :badges  (fn [world location-id] ["extra room badge"])
+        :inspect (fn [world kind id] [:section ...]) ; kind is "agent", "place" or "item"
+        :history (fn [events] {commission-index {:reservation room-record}
+                              location-index {:location {:size :large}}})}
+```
+
+`:history` receives the matching ordered, stamped event prefix. Return a map keyed by **zero-based
+index in that vector**, not event id or round. A `:reservation` is a display-only normalized record
+with stable `:id` (the future room id), `:name`, `:domain`, `:floor`, `:size` and `:connects-to`.
+Size may be `:small`, `:medium`, `:large`, `:grand` or `[positive-width positive-height]`; missing
+size uses kind/default sizing. Optional `:due` labels completion time. Reservation connections
+are explicitly planned display links, never real routes. A later location event completes the
+reservation with that id; `:location` annotations enrich that event's display record only. Do not
+change ids or annotate unrelated events. Keep annotations' historical metadata immutable: use
+only evidence known **at that boundary**, never current state or future plan values.
+
+The generic projection uses full pre-round-1 topology for initial placement, then freezes local
+room geometry at each location/reservation boundary with only then-known routes. Every boundary
+is processed even when no browser observed it. Later route changes update styles/connectors only.
+Outer region/panel packing may shift as the picture grows. The UI cache is disposable, not a
+source of geometry. There are no cancellation/deletion events in this adapter contract.
+
+Claudeworth's `manor.tools.scene-claudeworth/hooks` captures existing `plans-drawn` evidence when
+`commissioned` arrives, using the commissioned **room id**, not the plan id. On location creation
+it carries that size forward. Existing `works-completed` plus prior plan evidence can size a room
+when commissioning evidence is absent; it cannot fabricate a historical ghost. Unknown custom
+size names use generic sizing. No size is added to simulation locations/events/state. Current
+funds, held plans, purse amounts and adjoining-works badges are world-only overlays. The original
+world-only `:ghosts` sketch is deliberately replaced by `:history`, because current works cannot
+recover completed reservations on reload.
+
+Generic closed-hours shading uses the existing same-day inclusive-open/exclusive-close hours and
+clock; unknown timing makes no closure claim. Busy arcs use existing job `:started`/`:due`, or the
+current occupation's recorded start event and `:until`. They show scheduled elapsed time, not a
+claim that work effects have succeeded. Missing timing and indefinite hibernation get status
+marks, never invented percentages. None of these displays gates actions or changes scheduling.
 
 ### `:init`
 

@@ -1,8 +1,8 @@
 # The scene view: a graphical main page for the panel
 
 A plan for a more graphical main page in the control panel: the world drawn as a plan of boxes,
-people you can click for their full status, and rooms and items you can inspect. The pure layout, offline SVG preview, scene web page and detailed inspectors are built (phases 1–3);
-scenario history adapters are not. The implementation contract in section 9 records the approved constraints and phased
+people you can click for their full status, and rooms and items you can inspect. The pure layout, offline SVG preview, scene web page, detailed inspectors and temporal adapters are built (phases 1–4);
+integration and independent acceptance review remain. The implementation contract in section 9 records the approved constraints and phased
 handoffs; where it narrows an earlier sketch, section 9 takes precedence.
 
 The user's decisions (2026-10-20):
@@ -216,11 +216,14 @@ Tests (all free and offline):
 
 ### 3.8 Things under construction
 
-Each entry of `[:state :works]` becomes a **ghost box**: dashed, labelled "Morning room — done Tue
-16:00", and placed by the incremental rule as if it existed. The finished room takes the same
-cell, because the ghost's placement is reused when its `:space/location-added` arrives (keyed by
-the work's `:room` id). Construction is Claudeworth's, so ghosts come through the scenario hook in
-section 6.
+Commissioning becomes a **ghost box**: dashed, labelled "Morning room — done Tue 16:00", and
+placed by the incremental rule as if it existed. The presentation adapter captures the plan's
+floor, size and connections from existing evidence at commissioning, keyed by the work's `:room`
+id (not the plan id). The finished room takes the same cell at its `:space/location-added` event.
+The adapter folds the entire event prefix, including completed works, so a fresh load or missed
+refresh reconstructs the same geometry. It never relies only on current `[:state :works]`.
+Between the completion and location events the reservation remains visible; later route events
+change connectors without relocating it. Construction is Claudeworth's, via the history hook below.
 
 ## 4. People
 
@@ -290,15 +293,23 @@ The scene must work for village, treasure and the test scenarios as well as Clau
 Scenario-specific extras come through one optional scenario key:
 
 ```clojure
-:scene {:ghosts  (fn [world] [{:id "morning-room" :label "..." :floor :ground :connects-to [...]}])
-        :badges  (fn [world loc-id] [...])          ; extra badges for a room
-        :toolbar (fn [world] hiccup)                ; e.g. household funds
-        :inspect (fn [world kind id] hiccup)}        ; extra inspector sections: plans held, purse
+:scene {:history (fn [events] {event-index {:reservation normalized-room}
+                              location-event-index {:location {:size :large}}})
+        :badges  (fn [world loc-id] ["extra badge"])
+        :toolbar (fn [world] hiccup)
+        :inspect (fn [world kind id] hiccup)}
 ```
 
-Claudeworth supplies the works in progress, household funds, plans and purses. Every key is
-optional, and a scenario without `:scene` gets the generic view. `docs/scenario-authoring.md`
-documents the key when it's built.
+Every key is optional. These callbacks are pure operator presentation only; a scenario without
+`:scene` gets the generic view. `:history` replaces the original world-only `:ghosts` sketch:
+current works alone cannot reconstruct a completed reservation after load. Its event-indexed
+annotations are display data, not simulation events. Full contracts and limitations are in
+[scenario-authoring.md](scenario-authoring.md#scene-operator-presentation-only) and
+[scene-web-api.md](scene-web-api.md#temporal-seam-phase-4).
+
+Claudeworth supplies replayable works, household funds, held plans, sterling purses and adjoining
+works badges via `manor.tools.scene-claudeworth/hooks`; its derived scenarios inherit the hook.
+Closed-hours shading and evidence-based busy arcs are generic presentation features.
 
 ## 7. Phases
 
@@ -307,14 +318,14 @@ documents the key when it's built.
    boundaries and quality metrics. `manor.tools.scene-preview/scene-preview!` (also in the dev REPL)
    writes an offline SVG. Awkward graphs, bundled scenarios and 320 rooms are tested. No web or
    simulation changes. See [scene-layout-api.md](scene-layout-api.md) for the normalized contract,
-   examples, search caps, floor rules and limits. Claudeworth history extraction remains phase 4.
+   examples, search caps, floor rules and limits. Phase 4 supplies Claudeworth history extraction.
 2. **The scene page — implemented.** Today's panel remains at `/panel`, with its feed filtering;
    `/` has coherent toolbar/map/feed refresh, directed connections, tokens and travellers, native
    tooltips, navigation, pan/zoom, and pending selection. `scene_web_test` covers both pages for
    every bundled scenario, live snapshots and loaded runs. Actual Chromium client checks cover
    controls/SSE, pointer taps/drags, viewport/selection preservation and stale-response guards.
    See [scene-web-api.md](scene-web-api.md) for the seam, runnable checks and manual visual checks.
-   Construction adapters and progress arcs remain phase 4; the busy ring is only a status mark.
+   Phase 4 subsequently adds construction adapters and evidence-based progress arcs.
 3. **The inspector — implemented.** Escaped person/place/item fragments, linked selection, current
    private inner state, carrying/containers/stores/jobs and recorded item history. Recently reads
    durable calls on live and loaded runs, preserves rejected attempts and conversation contexts,
@@ -322,9 +333,14 @@ documents the key when it's built.
    snapshot, with stale-response guards. Household, generic, loaded-run, privacy and actual Chromium
    interaction checks pass. The projection/helper API and evidence limits are in
    [scene-web-api.md](scene-web-api.md).
-4. **Change over time.** The presentation-only `:scene` hook, replayable ghosts for works in
+4. **Change over time — implemented.** The presentation-only `:scene` hook, replayable ghosts for works in
    progress, built-room sizes derived from existing plans, closed-shop shading and job progress
-   arcs. No simulation events or state are changed.
+   arcs. Event-indexed reservations capture immutable commissioning-time plans and survive missed
+   refreshes, load and cache eviction. Completion-only evidence sizes later rooms without inventing
+   past ghosts; missing/custom size evidence uses generic sizing. Indefinite hibernation has only a
+   status mark. Local room geometry stays frozen across route changes; outer packing may shift.
+   No simulation events or state are changed. Focused temporal and mock construction tests cover
+   these invariants. Final integration, independent review and manual visual checks remain.
 
 ## 8. Room for commands later
 

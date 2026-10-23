@@ -2,8 +2,8 @@
 
 `manor.scene-layout` is pure presentation code. It does not read or change a world, run, event,
 agent view or cache. `manor.tools.scene-preview` provides only an offline SVG writer. The scene
-page now consumes this API (see [scene-web-api.md](scene-web-api.md)); detailed inspectors,
-scenario hooks and Claudeworth history extraction are later phases.
+page now consumes this API (see [scene-web-api.md](scene-web-api.md)); inspectors and
+Claudeworth history extraction are implemented in the presentation layer.
 
 ## Input and history
 
@@ -35,7 +35,7 @@ Every topology uses ordered vectors. Location/reservation ids must be non-nil an
 one boundary; completed locations replace reservations at a **later** boundary with the same id.
 Stable ids are typically strings, but keywords are supported. Size is optional: one of
 `:small`, `:medium`, `:large`, `:grand`, or `[positive-integer-width positive-integer-height]`.
-Do not copy a future completed room's size back into an earlier generic placement. Phase 4 must
+Do not copy a future completed room's size back into an earlier generic placement. The temporal adapter must
 supply size evidence at the historical reservation boundary where it was actually known.
 
 Routes are **directed records**, never unordered endpoint pairs. `:travel` defaults to 0 and
@@ -49,14 +49,14 @@ is a historical placement boundary: records introduced or completed there and th
 routes **known then**, including any still-relevant reservation connections. Do not project old
 steps with the current graph. A generic room introduced before its routes can use a free spot;
 subsequent routes are connector updates, never relocation hints. Process all boundaries even if
-no browser was open. Phase 4 owns extracting these boundaries from existing records; no new
+no browser was open. `manor.tools.scene-history` and the optional scenario history adapter extract these boundaries from existing records; no new
 simulation events, location fields or persistence formats are needed or allowed.
 
 `:current` is optional and affects only metadata and connection rendering. Its records override
 historical display metadata (not rectangles or effective floors). With no `:current`, rendering
 uses the last boundary's routes. Route-only boundaries do not move rooms. Completion updates
-stored metadata, so later route-only boundaries do not resurrect a ghost. Deletion/cancellation
-semantics and scenario-specific ghost visibility remain phase 4's responsibility.
+stored metadata, so later route-only boundaries do not resurrect a ghost. The current adapter has no cancellation/deletion event contract; reservations complete at the
+matching location event. See the temporal seam in `scene-web-api.md`.
 
 ## Geometry and projection
 

@@ -23,3 +23,9 @@
 #inspector .inspect-link.selected{outline:1px solid #ffeb79}#inspector .model-call{border-left:2px solid #536071;padding-left:7px;margin:10px 0}
 #inspector .routine-current{background:#303e50;font-weight:600}#inspector pre{max-height:35vh}
 @media(max-width:850px){#scene-page{grid-template-columns:1fr}#scene-container{height:55vh}#scene-sidebar{grid-column:1}}
+#scene-map .room.ghost>rect{fill:#293648;fill-opacity:.65;stroke:#eebc69;stroke-dasharray:.12 .08}
+#scene-map .connection.planned{stroke:#eebc69;stroke-dasharray:.08 .07}
+#scene-map .room.closed-shop>rect{fill:#242a33;stroke:#8792a2;fill-opacity:.8}
+#scene-map .person>.busy-mark{stroke-dasharray:.04 .025}
+#scene-map .person>.busy-progress{stroke:#eebc69;stroke-width:.035;stroke-linecap:butt}
+.scene-household{color:#eebc69;margin-top:5px}

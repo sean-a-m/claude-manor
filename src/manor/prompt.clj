@@ -223,7 +223,11 @@ Take your turn now.")
 - Your line goes in `reply`'s text. A line written as plain text, outside a tool call, isn't heard.
 - `note` is free, if you want to remember something.
 - A line can agree to something but doesn't do it: nothing is handed over, made, mended or moved by talking. What was agreed happens only when someone acts on their turn"
-       (if items? "; what you hold is under `carrying` in your view." ".")
+       (if items?
+         (str "; what you hold is under `carrying` in your view, and being told you've been given or lent something "
+              "doesn't put it there. A thing changes hands only when someone `give`s it on their own turn, "
+              "finding it with `find` first if they don't carry it.")
+         ".")
        "
 - Keep each line to a few sentences, at most " conversation/line-limit " characters, spoken as your character would to the people in the conversation.
 - Say something new, or don't speak: when the matter is settled, "

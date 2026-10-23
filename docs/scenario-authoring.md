@@ -293,8 +293,8 @@ position has `:shop-clerk`, and each location uses `:services #{:general-store}`
 office also has `:post-office`) with its own `:store-profile` and `:hours`. Despite the service
 name, the profile determines the trade. It covers physical purchases only: cloth, refreshments,
 stamps and stationery, not repairs, haircuts, postal orders, telegrams or room hire. Cottage
-trades and the forge use their own service markers, so Claudeworth's `find-allowed?` also
-protects their supplies. Their repairs, sweeping, hairdressing and washing use ordinary
+trades and the forge use their own service markers, so with `:find-everywhere? false`
+Claudeworth's `find-allowed?` refuses `find` there too. Their repairs, sweeping, hairdressing and washing use ordinary
 `spend-time` on actual items, places or people; no paid-service or mail-transport contract is
 implied. Each resident has a bedroom and routine just like the existing shopkeepers.
 
@@ -947,8 +947,10 @@ not while travelling; it does not end the turn, but is a `:query`, counts agains
 `:max-queries`, and has `:per-turn 1` (including deterministic replies).
 A scenario may configure `:items {:find-allowed? (fn [world actor place] ...)}` (place is the
 location id). Return nil to allow, or a reason to refuse **before** any local hit or oracle call.
-Without the hook, finding is allowed. Claudeworth refuses at places with `:services`: goods for
-sale or someone else's supplies must be asked for, not taken through `find`.
+Without the hook, finding is allowed. Claudeworth allows it everywhere by default, so a
+publican can find the house's lantern to lend; its rules tell customers to ask and `buy` goods
+for sale, never `find` them. With the option `:find-everywhere? false` it refuses at places with
+`:services` (shops, the public house, the trades, the architect's office), keepers included.
 
 1. Code first matches `what` as a case-insensitive substring of item names lying here,
    including inside closed/nested containers, or carried by people here. It replies with the
@@ -1680,13 +1682,17 @@ on with it. It uses nobody else's turn either.
   a call fails (the run is asked to pause). It never carries over into another round.
 - **Events,** each with `:conversation` (the id, `"conv-<n>"`) in its data and visible to everyone
   present: `:conversation/started {:members :at}`, each line an ordinary `:agent/said`, then
-  `:conversation/silent`, `:conversation/left` and `:conversation/ended {:reason}`. Bystanders hear
+  `:conversation/silent`, `:conversation/left` and `:conversation/ended {:reason :handed}`.
+  In a world with items, `:handed` counts the things that came into someone's hands during it
+  (`:item/given`, `:item/taken`, `:item/found`); when it's 0 the ending's narration adds that
+  nothing changed hands and that anything offered, lent or promised is still where it was. Bystanders hear
   every line. The started event records the round in the initiator's `:conversed-round`, which
   limits them to one conversation a round. Nothing else is world state.
 - The initiator's tool reply says how it ended and narrates every event visible to them between
   its start and end: lines, silences, departures, and extra-tool effects such as offers (with quote
   ids) and refusals. Start/end markers, usage and system events are omitted; private events stay
-  private. Extra-tool events need no `:conversation` tag. Speaking turns are
+  private. When nothing changed hands, it ends by saying so and that a thing changes hands only
+  through `give`, after `find` if nobody carries it. Extra-tool events need no `:conversation` tag. Speaking turns are
   logged in `llm.edn` with `:conversation {:id :pass}` (`:pass :last-word` for the last word),
   which the transcript shows next to the agent.
 - It isn't offered in a simultaneous group, where the others are in their own turns, or to a human

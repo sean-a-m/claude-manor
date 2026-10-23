@@ -83,14 +83,23 @@
       (let [names (n/names world)]
         (is (= "Lord Claudeworth draws Lady Claudeworth and Hale into conversation."
                (n/describe (first (of-type run :conversation/started)) names)))
-        (is (= "The conversation Lord Claudeworth started is over."
-               (n/describe (first (of-type run :conversation/ended)) names)))))
+        (is (= (str "The conversation Lord Claudeworth started is over. " conversation/nothing-handed)
+               (n/describe (first (of-type run :conversation/ended)) names)))
+        (testing "unless something changed hands, or the world has no items"
+          (let [ended (first (of-type run :conversation/ended))]
+            (is (= 0 (get-in ended [:data :handed])))
+            (is (= "The conversation Lord Claudeworth started is over."
+                   (n/describe (assoc-in ended [:data :handed] 1) names)
+                   (n/describe (update ended :data dissoc :handed) names)))
+            (is (nil? (conversation/handed (dissoc world :items) [])))
+            (is (= 1 (conversation/handed world [{:type :item/given} {:type :agent/said}])))))))
     (testing "the initiator gets the conversation back and carries on with the turn; nobody loses a turn"
       (let [calls (store/read-llm (:dir run))
             converse-call (first (filter #(and (= "lord-claudeworth" (:agent %)) (nil? (:conversation %))) calls))
             reply (:content (first (:replies converse-call)))]
         (is (str/starts-with? reply "The conversation is over: everyone had their say.\nLord Claudeworth (Dining room) says: \"Shall we build?\""))
-        (is (str/ends-with? reply "\nCarry on with your turn."))
+        (is (str/ends-with? reply (str "\n" conversation/nothing-handed " It changes hands only when someone `give`s it, "
+                                      "finding it with `find` first if they don't carry it.\nCarry on with your turn.")))
         (is (= ["lord-claudeworth" "lady-claudeworth" "hale"]
                (filter #{"lord-claudeworth" "lady-claudeworth" "hale"} (map :actor (of-type run :agent/passed)))))
         (is (< (:id (first (of-type run :conversation/ended)))

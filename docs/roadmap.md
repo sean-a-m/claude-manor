@@ -541,3 +541,15 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
     worn and everyday things in the rules rather than leaning on `carrying`; give the judge the
     worker's carried things only when the activity names one; or drop the judge rule and keep
     only the agent-side texts.
+
+    *Follow-up (the lantern, `runs/claudeworth-20261020-200100`):* at the Crown, Turner and Polly
+    offered the Earl "the good lantern" in a conversation. No lantern existed, and both sides
+    believed it had been lent for a whole night. Turner couldn't have made it real: Claudeworth
+    refused `find` at every place with `:services`, the keepers' own premises included. *Done:*
+    `find` now works everywhere unless the option `:find-everywhere? false` (the old refusal);
+    the rules say goods for sale are bought, never found, and that to hand over or lend something
+    you don't carry you `find` it, then `give` it; the speaking-turn rules say being told you were
+    given something doesn't put it under `carrying`. A conversation's end now says, to everyone
+    present, when nothing changed hands in it, and the initiator's summary adds how to hand
+    something over. Not yet checked in a real run: watch for promised things being found and
+    given after the talk, and for `find` used for stock at a shop or the bar.

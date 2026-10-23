@@ -110,11 +110,28 @@
 (defn left [world actor {:keys [id]}]
   {:type :conversation/left :actor actor :visible-to (space/here world actor) :data {:conversation id}})
 
+(def hand-over-types
+  "Events that put a thing into someone's hands."
+  #{:item/given :item/taken :item/found})
+
+(defn handed
+  "How many things came into someone's hands among `events` (a
+  conversation's), or nil in a world without items."
+  [world events]
+  (when (contains? world :items)
+    (count (filter #(hand-over-types (:type %)) events))))
+
 (defn ended
-  "Event: the conversation is over, for `reason` (a keyword, see `endings`)."
-  [world {:keys [id initiator]} reason]
+  "Event: the conversation is over, for `reason` (a keyword, see `endings`).
+  `handed` (see `handed`) is kept when it's a number, so the ending can say
+  that nothing changed hands."
+  [world {:keys [id initiator]} reason handed]
   {:type :conversation/ended :actor initiator :visible-to (space/here world initiator)
-   :data {:conversation id :reason reason}})
+   :data (cond-> {:conversation id :reason reason} handed (assoc :handed handed))})
+
+(def nothing-handed
+  "How everyone present is told that talk handed nothing over."
+  "Nothing changed hands in it: anything offered, lent or promised is still where it was.")
 
 (def endings
   "How a conversation can end, as the initiator is told."
@@ -148,8 +165,9 @@
 (defmethod narrate/describe :conversation/left [{:keys [actor]} names]
   (str (narrate/who names actor) " leaves the conversation."))
 
-(defmethod narrate/describe :conversation/ended [{:keys [actor]} names]
-  (str "The conversation " (narrate/who names actor) " started is over."))
+(defmethod narrate/describe :conversation/ended [{:keys [actor data]} names]
+  (str "The conversation " (narrate/who names actor) " started is over."
+       (when (= 0 (:handed data)) (str " " nothing-handed))))
 
 ;; ---------------------------------------------------------------------------
 ;; Actions

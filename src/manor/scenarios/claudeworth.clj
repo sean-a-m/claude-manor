@@ -12,7 +12,9 @@
   anywhere in the current area; `travel` (a turn) goes to another area.
   `sleep` and `spend-time` occupy an agent for several rounds without turns;
   activities are judged when they end. `rouse` asks someone busy whether to stop. :architect? false leaves Mr Pugh out,
-  and :housemaid? false leaves the housemaid, Nellie, out.
+  and :housemaid? false leaves the housemaid, Nellie, out. `find` works
+  everywhere unless :find-everywhere? is false, which refuses it at shops,
+  the public house and other places of trade (`find-allowed?`).
   An agent with a :routine in the world file (Mr Pugh) hibernates whenever
   nobody else is near: the routine says where they are and what they're doing,
   and they make no model calls until someone comes into their area.
@@ -346,6 +348,19 @@
 ;; and :roles, kept in :state at :init); the rules are written here, with
 ;; their numbers taken from the world and the actions.
 
+(defn- find-everywhere?
+  "Is `find` allowed at places of trade too? Yes unless :find-everywhere? was false."
+  [world]
+  (not (false? (get-in world [:state :find-everywhere?]))))
+
+(defn find-allowed?
+  "Why `find` is refused at `place`, or nil: only at places with services
+  (shops, the public house, the trades), and only when :find-everywhere? is
+  false, so that goods for sale are bought rather than found."
+  [world _actor place]
+  (when (and (not (find-everywhere? world)) (seq (:services (space/location world place))))
+    "this isn't your house to search; ask for it here instead"))
+
 (defn rules
   "How actions work, for every role."
   [world]
@@ -367,12 +382,15 @@
          "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows them in detail, with their descriptions, owners and aspects (how clean they are, what needs mending, and so on), along with the room and what the people here carry, so use it to examine something closely, not routinely on arrival. The room's own aspects (its floor, hearth and air) and the stores in scope are under `here` in your view. What's notable about how someone looks now (their dress, hair or hands) is in their `aspects`, beside their usual `appearance`, and yours are under `you`. Supplies are kept in stores (shelves, cupboards), listed under `here.stores`: a store has everything it keeps unless its `stock` or `lacking` says otherwise; `look` shows what it keeps. "
          "The house has the ordinary things a house like it keeps: everyday things (cloths, paper, pans, salt, matches and the like) can be assumed to be to hand unless you've been told otherwise. The things listed in your view are the notable ones, not everything there is. "
          "Use `find` only for something you must pick up or hand over, or whose presence is in doubt; everyday things you merely use need no finding. "
+         (if (find-everywhere? world)
+           "Never use `find` for goods that are for sale: in a shop or the public house, ask whoever serves there for what you want and `buy` what they quote. Those who serve sell their stock with `quote-goods` too; `find` is for the house's own things. "
+           "`find` doesn't work in shops, the public house or other places of trade: ask whoever is there instead, and `buy` goods for sale. ")
          "Some things hold others: what's in an open one is listed under its `contents`, and one marked `closed` shows what's inside only when you `open` it. "
          "You can `take` things out of either, and `put-in` puts something into one. "
          "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn. "
-         "Talking never changes anything. Things change hands only with `give`, `take`, `put-in` or `put-down`; they are made, mended, cleaned, used up or otherwise changed only by `spend-time`, as its result says; and goods come only from `buy` or `find`. Agreeing to do something, or saying it's done, does none of it until someone takes the action. "
+         "Talking never changes anything. Things change hands only with `give`, `take`, `put-in` or `put-down`; they are made, mended, cleaned, used up or otherwise changed only by `spend-time`, as its result says; and goods for sale come only from `buy`. Agreeing to do something, or saying it's done, does none of it until someone takes the action. "
          "Your view is how things are now: the notable things you hold are under `carrying` (your clothes and everyday things aren't listed), and particular things (a parcel, a letter, a dish) are only where your view shows them, whatever anyone says or remembers. "
-         "So if someone says they've handed you something and it isn't under `carrying`, you haven't got it; and never say you're handing over or setting out something you don't have. "
+         "So if someone says they've handed or lent you something and it isn't under `carrying`, you haven't got it: ask them to give it to you. Never say you're handing over, lending or setting out something you don't carry: to hand it over, `find` it first, then `give` it. "
          "Your character knows nothing of this machinery: they speak only of what they see and hold, never of views, tools or ids. "
          "If you are waiting on someone or nothing needs doing, `pass` is the way to wait a turn; you act again next turn. "
          "Opening hours are shown in your view where a place has them. "
@@ -484,7 +502,8 @@
   "The world file, its agents (without Mr Pugh if :architect? is false,
   without the housemaid if :housemaid? is false, and without anything they
   hold), its items, and in :state the positions (without forms of address if
-  :addressed-as? is false), the setting and the query limit the rules quote.
+  :addressed-as? is false), the setting, the query limit the rules quote and
+  :find-everywhere? (default true).
   Everyone's post, bedroom and routine are set as they arrive (`on-spawn`)."
   [{:keys [world-file] :as opts}]
   (let [source (or world-file "worlds/claudeworth.edn")
@@ -502,7 +521,8 @@
                             :posts {} :bedrooms {} :routines {}
                             :setting (get-in wf [:meta :setting])
                             :quotes {}
-                            :max-queries (:max-queries opts 2)})))))
+                            :max-queries (:max-queries opts 2)
+                            :find-everywhere? (not (false? (:find-everywhere? opts)))})))))
 
 ;; ---------------------------------------------------------------------------
 ;; Mock policy: a scripted day, so the scenario runs with no model calls.
@@ -706,9 +726,7 @@
      :mcp-servers (merge building/mcp-servers people/mcp-servers)
      :systems [building/construction]
      :items {:steward {:at "02:00" :idle-hours 4 :max-per-call 8}
-             :find-allowed? (fn [world _ place]
-                              (when (seq (:services (space/location world place)))
-                                "this isn't your house to search; ask for it here instead"))
+             :find-allowed? find-allowed?
              :judge-brief judge-brief
              :aspect-keys {:cleanliness "how clean or dirty it is" :repair "damage, wear or needed repairs"
                            :state "its present condition, where no other key fits"

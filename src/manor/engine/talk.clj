@@ -108,20 +108,31 @@
             :everyone-left
             (recur pass (subvec queue 1) in' (or answered? (and (not= speaker initiator) (= :spoke outcome))))))))))
 
+(defn- during
+  "The events of conversation `id` after it started, up to its end."
+  [run id]
+  (->> @(:events run)
+       (drop-while #(not (and (= :conversation/started (:type %))
+                              (= id (get-in % [:data :conversation])))))
+       rest
+       (take-while #(not (and (= :conversation/ended (:type %))
+                              (= id (get-in % [:data :conversation])))))))
+
+(def ^:private how-to-hand-over
+  "After `conversation/nothing-handed`, in the initiator's summary."
+  "It changes hands only when someone `give`s it, finding it with `find` first if they don't carry it.")
+
 (defn- conversation-summary
-  "The initiator's tool reply: visible events during the conversation and its ending."
-  [run {:keys [id initiator]} ending]
+  "The initiator's tool reply: visible events during the conversation, its
+  ending, and (`handed` 0) that nothing changed hands."
+  [run {:keys [id initiator]} ending handed]
   (let [names (narrate/names @(:world run))
-        lines (->> @(:events run)
-                   (drop-while #(not (and (= :conversation/started (:type %))
-                                          (= id (get-in % [:data :conversation])))))
-                   rest
-                   (take-while #(not (and (= :conversation/ended (:type %))
-                                          (= id (get-in % [:data :conversation])))))
+        lines (->> (during run id)
                    (filter #(w/visible-to? % initiator))
                    (remove #(or (= :llm/usage (:type %)) (= :system (:visible-to %)))))]
     (str "The conversation is over: " (conversation/endings ending) ".\n"
          (str/join "\n" (map #(narrate/describe % names) lines))
+         (when (= 0 handed) (str "\n" conversation/nothing-handed " " how-to-hand-over))
          "\nCarry on with your turn.")))
 
 (defn run-conversation!
@@ -138,6 +149,7 @@
         (locking (:world run)
           (run/emit! run [(conversation/started @(:world run) actor conv)])
           (run/emit! run [(conversation/said @(:world run) actor conv text)]))
-        (let [ending (converse! run conv)]
-          (run/emit! run [(conversation/ended @(:world run) conv ending)])
-          {:summary (conversation-summary run conv ending)})))))
+        (let [ending (converse! run conv)
+              handed (conversation/handed @(:world run) (during run (:id conv)))]
+          (run/emit! run [(conversation/ended @(:world run) conv ending handed)])
+          {:summary (conversation-summary run conv ending handed)})))))

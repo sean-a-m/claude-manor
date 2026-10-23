@@ -784,9 +784,18 @@
         (is (= {:from "secretarys-room" :to "abbey-gatehouse" :arrives 4} (:travel (w/agent world' "hale"))))))
     (e/stop-run run)))
 
-(deftest find-is-refused-at-service-places
+(deftest find-works-everywhere-by-default
   (let [run (start)]
     (try
+      (doseq [place ["general-store" "architects-office" "public-house"]]
+        (is (nil? (a/check (action run :find) (at (e/world run) "hale" place) "hale" {:what "a lantern"}))))
+      (is (str/includes? (cw/rules (e/world run)) "Never use `find` for goods that are for sale"))
+      (finally (e/stop-run run)))))
+
+(deftest find-is-refused-at-service-places-unless-everywhere
+  (let [run (start {:find-everywhere? false})]
+    (try
+      (is (str/includes? (cw/rules (e/world run)) "`find` doesn't work in shops"))
       (doseq [place ["general-store" "architects-office"]]
         (e/emit! run [{:type :agent/placed :data {:id "hale" :to place}}])
         (let [before (e/events run)

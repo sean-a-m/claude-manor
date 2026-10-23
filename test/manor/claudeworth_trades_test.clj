@@ -66,8 +66,9 @@
                 (do
                   (is (empty? (cw/speaking-actions awake id {})))
                   (is (seq (:services (space/location awake place)))
-                      "service workrooms cannot be searched for free supplies")
-                  (is (string? ((get-in run [:scenario :items :find-allowed?]) awake (:id customer) place)))))))))
+                      "service workrooms are places of trade")
+                  (is (nil? (cw/find-allowed? awake (:id customer) place)) "find works everywhere by default")
+                  (is (string? (cw/find-allowed? (assoc-in awake [:state :find-everywhere?] false) (:id customer) place)))))))))
       (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
       (finally (e/stop-run run)))))
 

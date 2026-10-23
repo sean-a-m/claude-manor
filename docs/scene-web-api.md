@@ -13,7 +13,9 @@ not an agent-view mode. `/agent/<id>` still uses the existing agent-view project
   malformed encoding or unsupported kinds return 404. Removed items show recorded fates/history;
   retired people remain inspectable.
 - `GET /panel`, `/partial/status`, `/stream`, `/agent/<id>`, `/world`, `POST /cmd/*`: existing
-  behaviour. Panel SSE feed is now bounded to the same 300 entries as its initial render.
+  behaviour. The panel initially renders 300 events and retains newly received live events,
+  unchanged from the original panel. Agent path components are safely decoded once, so encoded
+  inspector links resolve without changing the agent-view projection; malformed encodings get 404.
 - `GET /partial/scene`: escaped SVG only (`image/svg+xml`).
 - `GET /partial/scene-state`: JSON of escaped HTML strings with keys `scene`, `toolbar`,
   `navigation`, `away`, `feed`. All five come from **one snapshot**, not five independent fetches.
@@ -336,4 +338,11 @@ Actual Chromium checks passed for village, Claudeworth and no-space quiz, includ
 navigation to `/panel?as=gm` and back; quiz checks away-strip selection, its inspector, zoom/fit,
 SSE and retained viewport/selection. Browser cleanup tolerates Chromium helper profile writes
 after parent exit. These are interaction checks, not new visual/touch/cross-browser acceptance.
-Independent review (phase 6) and the manual checks above remain required.
+Independent review (phase 6) identified four presentation defects, corrected with no-run
+regressions in `manor.scene-review-regressions-test`: later cross-links hidden under room fills,
+corridor doors outside their actual shared wall, encoded agent links returning 404, and unintended
+pruning of the retained panel feed. Routing now tries bounded edge doglegs; all connections are
+painted above fills and below people, with shared-wall door marks. Preview SVG follows the same
+visibility rule. Agent links decode once without altering agent-view content, and panel live-feed
+retention is restored. The corrective full suite passes 337 tests / 6,232 assertions, and village
+and Claudeworth actual Chromium interaction checks pass. The manual checks above still remain.

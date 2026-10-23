@@ -100,8 +100,11 @@ Search uses at most 8 beams × 100 candidates per room; panels over 80 rooms use
 200 use 1 × 16. Wall positions are considered in stable neighbour order. There is always a free
 fallback one cell beyond the existing bounding box, not touching any old rectangle. Disconnected
 clusters have separated positions too. Large graphs intentionally trade door quality for bounded
-work. Connectors try two obstacle-free orthogonal bends, then use a straight line; complex line
-crossings and overlap between lines are not eliminated.
+work. Doors use the midpoint of the actual shared-wall overlap. Connectors try two obstacle-free
+orthogonal bends, then bounded doglegs along nearby room edges (at most 16 edge coordinates per
+axis plus the outer boundary), then a straight line. Both SVG renderers paint connections above
+room fills; the web renderer paints people above connections. Even unavoidable fallbacks and
+self-loops remain visible. Complex crossings and overlap between lines are not eliminated.
 
 ## Preview and checks
 

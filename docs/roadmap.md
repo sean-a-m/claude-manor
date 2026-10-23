@@ -356,7 +356,9 @@ size evidence; generic hours shading and evidence-based busy arcs are implemente
 regressions and a same-options mock/offline comparison against `0f7eae9` verify unchanged worlds,
 events, agent views and complete model requests, with rendering and optional hooks enabled/removed.
 Actual Chromium checks cover village, Claudeworth, no-space quiz and both pages. Manual visual,
-touch/cross-browser checks and the independent acceptance review remain.
+touch/cross-browser checks remain. Independent review confirmed the simulation boundary and
+identified four presentation defects, corrected with regression tests: connection visibility,
+shared-wall doors, encoded agent links and retained-panel live-feed behaviour.
 
 - Charts of chosen state values over rounds. A scenario could declare `:metrics (fn [world] {..})`,
   sampled at round end.

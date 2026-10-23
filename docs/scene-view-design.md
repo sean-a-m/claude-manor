@@ -2,7 +2,8 @@
 
 A plan for a more graphical main page in the control panel: the world drawn as a plan of boxes,
 people you can click for their full status, and rooms and items you can inspect. The pure layout, offline SVG preview, scene web page, detailed inspectors and temporal adapters are built (phases 1–4);
-cross-seam integration and base-behaviour comparison are complete (phase 5); independent acceptance review remains. The implementation contract in section 9 records the approved constraints and phased
+cross-seam integration and base-behaviour comparison are complete (phase 5). Independent review
+identified presentation defects, now corrected with focused regressions (phase 6). The implementation contract in section 9 records the approved constraints and phased
 handoffs; where it narrows an earlier sketch, section 9 takes precedence.
 
 The user's decisions (2026-10-20):
@@ -149,9 +150,10 @@ first, then room order). The same world always gives the same picture.
 **Floors in order.** Panels are laid out ground floor first, then going up and down from it, so
 the stair bonus lines up each floor's stairwell under the one above.
 
-**Connections that didn't become doors** become connector lines: drawn behind the boxes, from door
-marks on each room's wall, routed round boxes where that's simple (an L-shaped path along the grid
-gaps), and straight otherwise. Connections to another floor are a stair mark on the room ("↕
+**Connections that didn't become doors** become connector lines: drawn above room fills but below
+people so no connection disappears under a box. They run from wall marks, using an unobstructed
+L-shaped path or bounded doglegs along room edges where possible, and a visible straight fallback
+otherwise. Doors use the midpoint of the actual shared-wall overlap, not centre-directed rays. Connections to another floor are a stair mark on the room ("↕
 First-floor gallery"), and hovering one highlights its partner. Connections to another region are
 the start of a road.
 
@@ -340,8 +342,8 @@ Closed-hours shading and evidence-based busy arcs are generic presentation featu
    past ghosts; missing/custom size evidence uses generic sizing. Indefinite hibernation has only a
    status mark. Local room geometry stays frozen across route changes; outer packing may shift.
    No simulation events or state are changed. Focused temporal and mock construction tests cover
-   these invariants. Independent review and manual visual checks remain.
-5. **Integration — checked, independent review pending.** Cross-seam tests render both pages,
+   these invariants. Independent review corrections are recorded below; manual visual checks remain.
+5. **Integration — checked.** Cross-seam tests render both pages,
    inspectors (including construction ghosts), coherent refreshes and previews at every compared
    mock round boundary without changing world/events, persisted files or making model calls.
    The isolated archived-base harness compares all seven bundled scenarios plus the fixed
@@ -352,7 +354,13 @@ Closed-hours shading and evidence-based busy arcs are generic presentation featu
    ordering. Actual Chromium checks cover spatial and no-space scenarios and both pages.
    See [integration evidence and exact commands](scene-web-api.md#integration-and-simulation-boundary-checks-phase-5).
    No simulation source changes or component redesign were necessary. Manual visual/touch/
-   cross-browser acceptance and phase 6's independent review are not claimed complete.
+   cross-browser acceptance remains unverified.
+6. **Independent review — corrections implemented.** Review confirmed the simulation/agent-facing
+   boundary and found hidden fallback connections, misplaced shared-wall doors, encoded agent-link
+   failures and unintended panel live-feed pruning. All four were reproduced and corrected in
+   presentation code only. `manor.scene-review-regressions-test` covers geometry, SVG paint order,
+   encoded-link resolution and panel behaviour without starting runs or servers. The corrective
+   full suite passes 337 tests / 6,232 assertions; actual Chromium village/Claudeworth checks pass.
 
 ## 8. Room for commands later
 

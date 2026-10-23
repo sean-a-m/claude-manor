@@ -179,8 +179,9 @@ For a free offline preview without starting a run or server, in `clj -M:dev`:
 
 See [scene web/inspector contracts and checks](docs/scene-web-api.md),
 [layout limits](docs/scene-layout-api.md) and [optional presentation hooks](docs/scenario-authoring.md#scene-operator-presentation-only).
-Manual visual/touch/cross-browser acceptance and independent review remain; dense connectors may
-cross and large worlds need region zoom for readable labels. No simulation commands were added.
+Independent review corrections have regression coverage. Manual visual/touch/cross-browser
+acceptance remains; dense connectors may cross and large worlds need region zoom for readable
+labels. No simulation commands were added.
 
 ## Cache and cost report
 

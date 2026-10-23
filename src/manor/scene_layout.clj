@@ -301,6 +301,15 @@
                (if (zero? dy) Double/POSITIVE_INFINITY (/ (/ (:h r) 2.0) (abs dy))))]
     (if (Double/isInfinite t) [cx cy] [(+ cx (* t dx)) (+ cy (* t dy))])))
 
+(defn- shared-wall-point
+  "Midpoint of the actual shared wall, not the centre-to-centre ray."
+  [a b]
+  (if (or (= (+ (:x a) (:w a)) (:x b)) (= (+ (:x b) (:w b)) (:x a)))
+    [(max (:x a) (:x b))
+     (/ (+ (max (:y a) (:y b)) (min (+ (:y a) (:h a)) (+ (:y b) (:h b)))) 2.0)]
+    [(/ (+ (max (:x a) (:x b)) (min (+ (:x a) (:w a)) (+ (:x b) (:w b)))) 2.0)
+     (max (:y a) (:y b))]))
+
 (defn- clear-segment? [[ax ay] [bx by] rooms]
   (not-any? (fn [r]
               (if (= ax bx)
@@ -312,9 +321,20 @@
 (defn- connector-path [a b rooms]
   (let [start (wall-point a (center b)), end (wall-point b (center a))
         [sx sy] start, [ex ey] end
-        bends [[ex sy] [sx ey]]]
-    (or (some (fn [bend] (when (and (clear-segment? start bend rooms)
-                                   (clear-segment? bend end rooms)) [start bend end])) bends)
+        clear? (fn [path] (every? (fn [[p q]] (clear-segment? p q rooms)) (partition 2 1 path)))
+        ;; Try nearby rectangle edges and the outer boundary, with a fixed cap.
+        ;; These doglegs can follow a shared wall instead of crossing its room.
+        edges (fn [axis extent s e]
+                (let [values (sort (distinct (mapcat #(vector (axis %) (+ (axis %) (extent %))) rooms)))]
+                  (distinct (concat (take 16 (sort-by #(vector (+ (abs (- % s)) (abs (- % e))) %) values))
+                                    [(first values) (last values)]))))
+        doglegs (fn []
+                  (concat (for [x (edges :x :w sx ex)] [start [x sy] [x ey] end])
+                          (for [y (edges :y :h sy ey)] [start [sx y] [ex y] end])))]
+    (or (some #(when (clear? %) %) [[start [ex sy] end] [start [sx ey] end]])
+        (some #(when (clear? %) %) (doglegs))
+        ;; Dense/non-planar cases may still cross rooms. Render paths above room
+        ;; fills (but below people), so the fallback can never disappear.
         [start end])))
 
 (defn connections
@@ -331,9 +351,10 @@
                            (touching? a b) :door
                            :else :connector)
                 path (when (and a b)
-                       (if (= kind :loop)
-                         (let [[x y] (center (:global a))]
-                           [[x y] [(+ x 0.4) (- y 0.4)] [(+ x 0.4) (+ y 0.4)] [x y]])
+                       (case kind
+                         :door (let [point (shared-wall-point (:global a) (:global b))] [point point])
+                         :loop (let [[x y] (center (:global a))]
+                                 [[x y] [(+ x 0.4) (- y 0.4)] [(+ x 0.4) (+ y 0.4)] [x y]])
                          (connector-path (:global a) (:global b) (map :global (vals rooms)))))
                 length (reduce + 0 (map (fn [[[x y] [xx yy]]]
                                          (Math/sqrt (+ (* (- xx x) (- xx x)) (* (- yy y) (- yy y)))))

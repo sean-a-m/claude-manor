@@ -101,7 +101,14 @@
           center (fn [id] (let [{:keys [x y w h]} (get-in rooms [id :global])]
                             [(+ x (/ w 2)) (+ y (/ h 2))]))
           [ax ay] (center (:from route)) [bx by] (center (:to route))
-          dx (- bx ax) dy (- by ay) length (Math/hypot dx dy)
+          door? (= :door kind)
+          a (get-in rooms [(:from route) :global])
+          b (get-in rooms [(:to route) :global])
+          vertical-wall? (and door? (or (= (+ (:x a) (:w a)) (:x b))
+                                           (= (+ (:x b) (:w b)) (:x a))))
+          dx (if door? (if vertical-wall? (compare bx ax) 0) (- bx ax))
+          dy (if door? (if vertical-wall? 0 (compare by ay)) (- by ay))
+          length (Math/hypot dx dy)
           ux (if (zero? length) 1 (/ dx length)) uy (if (zero? length) 0 (/ dy length))
           ;; Opposite directions use opposite lanes. Shared-wall doors need an
           ;; extended arrow rather than a zero-length line.
@@ -131,9 +138,6 @@
 
 (defn- room [snap id r]
   (let [world (:world snap) g (:global r)
-        people (filter #(and (= :active (:status %)) (not (:travel %)) (= id (:location %)))
-                       (w/agents-in-order world))
-        visible-count (if (> (count people) 6) 5 6)
         count-items (count (items/items-at world id))
         jobs (seq (filter #(= id (:place %)) (items/jobs world)))
         closed? (time/closed? world r)
@@ -165,7 +169,14 @@
       [:text {:x (+ (:x g) 0.06) :y (+ (:y g) 0.44) :font-size 0.12 :class "badges"
               :textLength (min (- (:w g) 0.12) (* 0.066 (count badge-text)))
               :lengthAdjust "spacingAndGlyphs"}
-       badge-text]]
+       badge-text]]]))
+
+(defn- room-people [snap id r]
+  (let [g (:global r)
+        people (filter #(and (= :active (:status %)) (not (:travel %)) (= id (:location %)))
+                       (w/agents-in-order (:world snap)))
+        visible-count (if (> (count people) 6) 5 6)]
+    [:g.room-people
      (map-indexed (fn [i ag]
                     (token snap ag (+ (:x g) 0.21 (* 0.3 (mod i 3)))
                            (+ (:y g) 0.6 (* 0.24 (quot i 3))))) (take visible-count people))
@@ -220,11 +231,11 @@
      (for [[[_ floor] p] (sort-by (comp pr-str key) panels)]
        [:g.floor [:rect (merge (rect p) {:fill "none" :stroke "#536071" :stroke-width 0.015})]
         [:text {:x (:x p) :y (- (:y p) 0.1) :font-size 0.17} (label (or floor :places))]])
-     ;; Roads and connectors stay behind rooms. Wall marks and directed doors
-     ;; are rendered above the room fill, so neither direction gets hidden.
-     (for [c connections :when (not (#{:door :stair} (:kind c)))] (connection (:world snap) rooms c))
      (for [[id r] (sort-by (comp pr-str key) rooms)] (room snap id r))
-     (for [c connections :when (#{:door :stair} (:kind c))] (connection (:world snap) rooms c))
+     ;; Even the straight fallback and self-loops must remain visible. Lines
+     ;; follow room edges where possible and are painted over fills, under people.
+     (for [c connections] (connection (:world snap) rooms c))
+     (for [[id r] (sort-by (comp pr-str key) rooms)] (room-people snap id r))
      (travellers snap result)]))
 
 (defn away-strip [snap result]

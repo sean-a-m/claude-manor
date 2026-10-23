@@ -39,13 +39,6 @@
                (or (:label r) (title (second id)))]])
            (for [[[_ floor] p] (sort-by (comp pr-str key) panels)]
              [:text {:x (:x p) :y (- (:y p) 0.15) :font-size 0.18} (title (or floor :places))])
-           ;; Lines are behind rooms. Doors/stairs are marked again above them.
-           (for [{:keys [id path route kind]} connections :when (seq path)]
-             [:polyline {:data-route id :points (str/join " " (map #(str/join "," %) path))
-                         :fill "none" :stroke (if (:open? route) "#586878" "#b22")
-                         :stroke-width 0.045 :stroke-dasharray (when-not (:open? route) "0.12 0.08")
-                         :marker-end "url(#route-arrow)"}
-              [:title (str (name kind) " " (pr-str route))]])
            (for [[id r] (sort-by (comp pr-str key) rooms) :let [g (:global r)]]
              [:g {:data-kind "place" :data-id (str id)}
               [:rect (merge (rect g) {:fill (if (:outside? r) "#e4eedb" "#fff")
@@ -54,6 +47,13 @@
               [:title (str (or (:name r) id) " " (pr-str (select-keys r [:floor :domain :size])))]
               [:text {:x (+ (:x g) 0.07) :y (+ (:y g) 0.3) :font-size 0.16}
                (subs (str (or (:name r) id)) 0 (min 22 (count (str (or (:name r) id)))))]])
+           ;; Keep fallback connectors and self-loops visible over room fills.
+           (for [{:keys [id path route kind]} connections :when (seq path)]
+             [:polyline {:data-route id :points (str/join " " (map #(str/join "," %) path))
+                         :fill "none" :stroke (if (:open? route) "#586878" "#b22")
+                         :stroke-width 0.045 :stroke-dasharray (when-not (:open? route) "0.12 0.08")
+                         :marker-end "url(#route-arrow)"}
+              [:title (str (name kind) " " (pr-str route))]])
            (for [{:keys [path kind route]} connections :when (and (seq path) (#{:door :stair :road} kind))
                  :let [[a b] [(first path) (last path)]
                        mx (/ (+ (first a) (first b)) 2) my (/ (+ (second a) (second b)) 2)]]

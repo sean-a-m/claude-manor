@@ -300,7 +300,7 @@ let timer=null;
 function refresh(){clearTimeout(timer);timer=setTimeout(()=>fetch('/partial/status').then(r=>r.text()).then(t=>document.getElementById('status').innerHTML=t),150);}
 function send(f){fetch(f.action,{method:'POST',body:new URLSearchParams(new FormData(f))}).then(refresh);return false;}
 const es=new EventSource('/stream'+location.search);
-es.addEventListener('ev',m=>{const ul=document.getElementById('feed');ul.insertAdjacentHTML('afterbegin',m.data);while(ul.children.length>300)ul.lastElementChild.remove();refresh();});
+es.addEventListener('ev',m=>{const ul=document.getElementById('feed');ul.insertAdjacentHTML('afterbegin',m.data);refresh();});
 es.addEventListener('status',refresh);
 ")
 
@@ -448,11 +448,14 @@ es.addEventListener('status',refresh);
                                               :status (hk/send! ch (sse-message "status" "x") false)))))
                     :on-close (fn [_ _] (e/unlisten! run k))})))
 
+(defn- decode-path-id [encoded]
+  (when encoded
+    (try (URLDecoder/decode (str/replace encoded "+" "%2B") "UTF-8")
+         (catch IllegalArgumentException _ nil))))
+
 (defn- inspect-response [run uri]
   (let [[_ kind encoded] (re-matches #"/partial/inspect/(agent|place|item)/(.+)" uri)
-        id (when encoded
-             (try (URLDecoder/decode (str/replace encoded "+" "%2B") "UTF-8")
-                  (catch IllegalArgumentException _ nil)))]
+        id (decode-path-id encoded)]
     {:status (if id 200 404)
      :headers {"Content-Type" "text/html; charset=utf-8" "Cache-Control" "no-store"}
      :body (if id
@@ -482,7 +485,9 @@ es.addEventListener('status',refresh);
                                  :body (status-fragment run)}
       (= uri "/stream") (stream run req)
       (= uri "/world") (world-page run)
-      (str/starts-with? uri "/agent/") (agent-page run (subs uri 7))
+      (str/starts-with? uri "/agent/") (if-let [id (decode-path-id (subs uri 7))]
+                                         (agent-page run id)
+                                         {:status 404 :body "no such agent"})
       (and (= :post (:request-method req)) (str/starts-with? uri "/cmd/"))
       (command run (subs uri 5) (form-params req))
       :else {:status 404 :body "not found"})))

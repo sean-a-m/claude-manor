@@ -289,7 +289,8 @@ known, with no GM action. A visitor may need existing validated actions or later
 3. **Review path.** Pre-turn batching, acknowledgements, initialization catch-up and replay/load/
    branch behavior. Leave the existing after-turn GM path intact.
 4. **Fixtures and documentation.** Use small test-owned worlds and mock GM policies. Do not add
-   historical dates or an annual calendar to the bundled scenario without reviewing that content.
+   historical dates or an annual calendar to the bundled scenario without reviewing that content
+   (the later user-approved holiday seed is recorded below).
 
 Suggested homes: a small `manor.mechanics.calendar` module for entry rules, projections, commands
 and reducers; `engine/round.clj` for activation timing; `engine.clj` for initialization/operator
@@ -363,3 +364,26 @@ checks first and run the full suite before any commit, following the project's n
 
 No scope expansion: recurrence, generic scheduling, character/judge scheduling, credits and
 migration of existing timing remain deferred. Household income/account credits remain roadmap B7.
+
+### Bundled holiday seed
+
+The user subsequently approved a proof-of-concept holiday calendar for both Claudeworth worlds.
+`resources/calendars/england-1904-1905.edn` holds 58 public date-only entries: familiar English
+holidays, the four quarter days, church feasts and seasonal observances. The two scenarios share
+one initializer wrapper; Lodge and the fixed test household do not enable the calendar.
+World-file entries override catalogue entries by ID, without dropping authored duplicates or
+bypassing normal validation. Storage is independent of the 30-day character projection.
+
+The list is intentionally illustrative rather than an exhaustive historical almanac. Easter
+is 3 April 1904 / 23 April 1905; August Bank Holiday uses the period's **first** Monday, not the
+modern last Monday. New Year's Day and May Day are observances, not English bank holidays.
+Quarter days do not assert that rents arrived, nor do holidays grant leave or close shops.
+No annual generation, special holiday mechanics or existing-run migration was added.
+
+Useful references for the content: [the 1871 Act's holiday schedule](https://www.legislation.gov.uk/ukpga/Vict/34-35/17/pdfs/ukpga_18710017_en.pdf),
+[Western Easter dates](https://www.census.gov/data/software/x13as/genhol/easter-dates.html), and
+[English quarter days](https://www.legalchoices.org.uk/dictionary/quarter-days).
+Focused mock/offline tests cover both seeds, public prompt projection, the year boundary,
+once-only GM review without money/presence effects, overrides and replay. Validation:
+`clojure -M:test` passed (301 tests, 5,652 assertions, no failures/errors); no real-model run.
+The suite's existing non-failing asynchronous transcript-write warning was also present.

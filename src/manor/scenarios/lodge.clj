@@ -27,7 +27,8 @@
 
 (def scenario
   (deliveries/install
-   (hiring/install (assoc cw/scenario
+   (hiring/install (assoc (dissoc cw/scenario :calendar)
+         :init cw/init ; reuse the rules, not Claudeworth's holiday catalogue
          :name :lodge
          :doc "Ashby Lodge, 1904: a widow, her cook-general and the shopkeeper across the street. A maid is wanted."
          :defaults {:world-file "worlds/lodge.edn" :max-cost 0.10}

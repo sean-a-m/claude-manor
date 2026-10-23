@@ -1,0 +1,64 @@
+;; A small, illustrative English calendar, not an exhaustive historical almanac.
+;; Explicit dates only: extending beyond 1905 means adding entries here.
+;; Bank holidays follow the period's first-Monday-in-August rule. New Year's
+;; Day and May Day are observances, not English bank holidays in these years.
+;; An occasion does not promise time off, payments, ceremonies or other effects.
+[{:id "new-year-1904" :date "1904-01-01" :description "New Year's Day." :visible-to :all}
+ {:id "epiphany-1904" :date "1904-01-06" :description "Epiphany (Twelfth Day)." :visible-to :all}
+ {:id "candlemas-1904" :date "1904-02-02" :description "Candlemas, the feast of the Purification." :visible-to :all}
+ {:id "shrove-tuesday-1904" :date "1904-02-16" :description "Shrove Tuesday, traditionally a day for pancakes before Lent." :visible-to :all}
+ {:id "ash-wednesday-1904" :date "1904-02-17" :description "Ash Wednesday, the beginning of Lent." :visible-to :all}
+ {:id "lady-day-1904" :date "1904-03-25" :description "Lady Day (the Annunciation), one of the four English quarter days." :visible-to :all}
+ {:id "palm-sunday-1904" :date "1904-03-27" :description "Palm Sunday, the beginning of Holy Week." :visible-to :all}
+ {:id "maundy-thursday-1904" :date "1904-03-31" :description "Maundy Thursday." :visible-to :all}
+ {:id "good-friday-1904" :date "1904-04-01" :description "Good Friday." :visible-to :all}
+ {:id "easter-1904" :date "1904-04-03" :description "Easter Sunday." :visible-to :all}
+ {:id "easter-monday-1904" :date "1904-04-04" :description "Easter Monday, a bank holiday." :visible-to :all}
+ {:id "st-georges-day-1904" :date "1904-04-23" :description "St George's Day." :visible-to :all}
+ {:id "may-day-1904" :date "1904-05-01" :description "May Day, a traditional spring observance." :visible-to :all}
+ {:id "ascension-1904" :date "1904-05-12" :description "Ascension Day." :visible-to :all}
+ {:id "whitsunday-1904" :date "1904-05-22" :description "Whitsunday (Pentecost)." :visible-to :all}
+ {:id "whit-monday-1904" :date "1904-05-23" :description "Whit Monday, a bank holiday." :visible-to :all}
+ {:id "midsummer-1904" :date "1904-06-24" :description "Midsummer Day (the Nativity of St John the Baptist), an English quarter day." :visible-to :all}
+ {:id "lammas-1904" :date "1904-08-01" :description "Lammas, the traditional first-fruits feast of the grain harvest." :visible-to :all}
+ {:id "august-bank-holiday-1904" :date "1904-08-01" :description "August Bank Holiday." :visible-to :all}
+ {:id "michaelmas-1904" :date "1904-09-29" :description "Michaelmas (St Michael and All Angels), an English quarter day traditionally associated with rents and hiring." :visible-to :all}
+ {:id "all-hallows-eve-1904" :date "1904-10-31" :description "All Hallows' Eve." :visible-to :all}
+ {:id "all-saints-1904" :date "1904-11-01" :description "All Saints' Day." :visible-to :all}
+ {:id "all-souls-1904" :date "1904-11-02" :description "All Souls' Day, a day of remembrance of the dead in the Catholic calendar." :visible-to :all}
+ {:id "guy-fawkes-1904" :date "1904-11-05" :description "Guy Fawkes Night, traditionally marked with bonfires and fireworks." :visible-to :all}
+ {:id "martinmas-1904" :date "1904-11-11" :description "Martinmas (St Martin's Day), traditionally associated with hiring fairs and the end of the farming year in parts of England." :visible-to :all}
+ {:id "christmas-eve-1904" :date "1904-12-24" :description "Christmas Eve." :visible-to :all}
+ {:id "christmas-1904" :date "1904-12-25" :description "Christmas Day, also an English quarter day." :visible-to :all}
+ {:id "boxing-day-1904" :date "1904-12-26" :description "Boxing Day (St Stephen's Day), a bank holiday." :visible-to :all}
+ {:id "new-years-eve-1904" :date "1904-12-31" :description "New Year's Eve." :visible-to :all}
+
+ {:id "new-year-1905" :date "1905-01-01" :description "New Year's Day." :visible-to :all}
+ {:id "epiphany-1905" :date "1905-01-06" :description "Epiphany (Twelfth Day)." :visible-to :all}
+ {:id "candlemas-1905" :date "1905-02-02" :description "Candlemas, the feast of the Purification." :visible-to :all}
+ {:id "shrove-tuesday-1905" :date "1905-03-07" :description "Shrove Tuesday, traditionally a day for pancakes before Lent." :visible-to :all}
+ {:id "ash-wednesday-1905" :date "1905-03-08" :description "Ash Wednesday, the beginning of Lent." :visible-to :all}
+ {:id "lady-day-1905" :date "1905-03-25" :description "Lady Day (the Annunciation), one of the four English quarter days." :visible-to :all}
+ {:id "palm-sunday-1905" :date "1905-04-16" :description "Palm Sunday, the beginning of Holy Week." :visible-to :all}
+ {:id "maundy-thursday-1905" :date "1905-04-20" :description "Maundy Thursday." :visible-to :all}
+ {:id "good-friday-1905" :date "1905-04-21" :description "Good Friday." :visible-to :all}
+ {:id "easter-1905" :date "1905-04-23" :description "Easter Sunday." :visible-to :all}
+ {:id "easter-monday-1905" :date "1905-04-24" :description "Easter Monday, a bank holiday." :visible-to :all}
+ {:id "st-georges-day-1905" :date "1905-04-23" :description "St George's Day." :visible-to :all}
+ {:id "may-day-1905" :date "1905-05-01" :description "May Day, a traditional spring observance." :visible-to :all}
+ {:id "ascension-1905" :date "1905-06-01" :description "Ascension Day." :visible-to :all}
+ {:id "whitsunday-1905" :date "1905-06-11" :description "Whitsunday (Pentecost)." :visible-to :all}
+ {:id "whit-monday-1905" :date "1905-06-12" :description "Whit Monday, a bank holiday." :visible-to :all}
+ {:id "midsummer-1905" :date "1905-06-24" :description "Midsummer Day (the Nativity of St John the Baptist), an English quarter day." :visible-to :all}
+ {:id "lammas-1905" :date "1905-08-01" :description "Lammas, the traditional first-fruits feast of the grain harvest." :visible-to :all}
+ {:id "august-bank-holiday-1905" :date "1905-08-07" :description "August Bank Holiday." :visible-to :all}
+ {:id "michaelmas-1905" :date "1905-09-29" :description "Michaelmas (St Michael and All Angels), an English quarter day traditionally associated with rents and hiring." :visible-to :all}
+ {:id "all-hallows-eve-1905" :date "1905-10-31" :description "All Hallows' Eve." :visible-to :all}
+ {:id "all-saints-1905" :date "1905-11-01" :description "All Saints' Day." :visible-to :all}
+ {:id "all-souls-1905" :date "1905-11-02" :description "All Souls' Day, a day of remembrance of the dead in the Catholic calendar." :visible-to :all}
+ {:id "guy-fawkes-1905" :date "1905-11-05" :description "Guy Fawkes Night, traditionally marked with bonfires and fireworks." :visible-to :all}
+ {:id "martinmas-1905" :date "1905-11-11" :description "Martinmas (St Martin's Day), traditionally associated with hiring fairs and the end of the farming year in parts of England." :visible-to :all}
+ {:id "christmas-eve-1905" :date "1905-12-24" :description "Christmas Eve." :visible-to :all}
+ {:id "christmas-1905" :date "1905-12-25" :description "Christmas Day, also an English quarter day." :visible-to :all}
+ {:id "boxing-day-1905" :date "1905-12-26" :description "Boxing Day (St Stephen's Day), a bank holiday." :visible-to :all}
+ {:id "new-years-eve-1905" :date "1905-12-31" :description "New Year's Eve." :visible-to :all}]

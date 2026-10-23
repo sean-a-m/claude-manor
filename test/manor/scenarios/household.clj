@@ -26,7 +26,9 @@
     {:tool :reply :args {:text "Every room, my dear. I would not dream of choosing a wallpaper without you."}}))
 
 (def scenario
-  (assoc cw/scenario
+  (assoc (dissoc cw/scenario :calendar)
+         ;; Retain the installed mechanics' setup, but not the bundled calendar.
+         :init (comp #(dissoc % :calendar) (:init cw/scenario))
          :name :household
          :defaults {:world-file world-file :leave-out ["nellie"]}
          :mock-policy mock-policy

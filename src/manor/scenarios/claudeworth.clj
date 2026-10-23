@@ -35,6 +35,7 @@
             [manor.narrate :as narrate]
             [manor.scenarios.claudeworth.building :as building]
             [manor.scenarios.claudeworth.deliveries :as deliveries]
+            [manor.scenarios.claudeworth.holidays :as holidays]
             [manor.scenarios.claudeworth.shop :as shop]
             [manor.world :as w])
   (:import (java.time LocalTime)))
@@ -697,7 +698,8 @@
    (hiring/install
     {:name :claudeworth
      :doc "Claudeworth Manor, 1904: a family and their servants, a village architect, shops, a public house and cottage trades, living from day to day."
-     :init init
+     :init (comp holidays/add-to init)
+     :calendar {:lookahead-days 30}
      :roles roles
      :agent-brief agent-brief
      :on-spawn positions/starting-events

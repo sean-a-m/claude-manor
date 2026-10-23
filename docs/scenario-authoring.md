@@ -1797,6 +1797,15 @@ through `worldfile/load-world`'s `:calendar` from a world file:
   separate supported actions. No scheduling schemas are added to work/conversation judges or
   the steward. Scenarios without `:calendar` retain their existing prompts and tools.
 
+The bundled `claudeworth` and `claudeworth-medium` scenarios opt in and compose their base init
+with `manor.scenarios.claudeworth.holidays/add-to`. It adds the shared, explicitly dated
+`resources/calendars/england-1904-1905.edn` entries to the init result's `:calendar`. A world-file
+entry with a matching ID replaces the default completely (including audience and lifecycle);
+other entries are retained and normal engine validation still applies. The base `claudeworth/init`
+loads only the supplied world: worlds reusing the rules without the holiday seed, such as Lodge,
+use that base init and omit scenario `:calendar`. The catalogue is an illustrative period list,
+not an exhaustive almanac; it has no recurrence and must be extended by hand beyond 1905.
+
 ### Occupation: sleep and other long activities
 
 An agent can be busy until a round. Like a traveller, they skip their turns (no model calls)

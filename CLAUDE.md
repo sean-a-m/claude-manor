@@ -21,6 +21,7 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/stores-and-aspects-design.md` | phased plan: stores, keyed aspects, the scene judge, `find`, the steward |
 | `docs/people-and-hiring-design.md` | phased plan: the people server and traits, positions, a small test world, hiring |
 | `docs/scene-view-design.md` | plan: the graphical scene page (automatic layout, inspector); not started |
+| `docs/household-1904-proposal.md` | proposal: a second Claudeworth scenario, a modest household with new ironstone income that means to expand; not started |
 | `docs/user-todos.md` | the user's own wishlist for later; not agent tasks |
 | `docs/archived/` | finished build briefs and old handoff notes: history, not the present state |
 

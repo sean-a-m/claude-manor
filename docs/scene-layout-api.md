@@ -2,7 +2,8 @@
 
 `manor.scene-layout` is pure presentation code. It does not read or change a world, run, event,
 agent view or cache. `manor.tools.scene-preview` provides only an offline SVG writer. The scene
-page, inspectors, scenario hooks and Claudeworth history extraction are later phases.
+page now consumes this API (see [scene-web-api.md](scene-web-api.md)); detailed inspectors,
+scenario hooks and Claudeworth history extraction are later phases.
 
 ## Input and history
 

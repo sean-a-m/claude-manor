@@ -1439,7 +1439,13 @@ in `:init`:
   out one of the file's agents should leave out the items that agent holds (Claudeworth's
   `:leave-out` does). A location's `:aspects` are checked the same way
   ("location \"hall\": {:aspects {:hearth [\"should be at least 1 character\"]}}").
-- `:domain` groups locations into areas on the control panel's map (house, village, ...).
+- `:domain` groups locations into regions on the operator scene at `/` (house, village, ...).
+  The existing control panel and its `?as=` feed filter remain at `/panel`; `/agent/<id>` still
+  uses the unchanged agent-view projection. The scene is omniscient, presentation-only, and works
+  without space. It derives generic frozen placement from existing location/route history, and
+  shows current directed routes without relocating rooms. No scenario fields or events are needed.
+  [scene-web-api.md](scene-web-api.md) documents routes and client checks; detailed inspectors and
+  scenario-specific temporal hooks are not implemented yet.
 - For an offline automatic room-plan preview, use `(scene-preview! "resources/worlds/my-world.edn"
   "/tmp/my-world.svg")` in the dev REPL. It writes an SVG without a run, server or model call.
   This is presentation-only: it needs no new simulation fields or events. The pure layout contract

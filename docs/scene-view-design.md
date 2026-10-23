@@ -1,9 +1,8 @@
 # The scene view: a graphical main page for the panel
 
 A plan for a more graphical main page in the control panel: the world drawn as a plan of boxes,
-people you can click for their full status, and rooms and items you can inspect. Phase 1's pure
-layout and offline SVG preview are built; the web page, inspectors and scenario history adapters
-are not. The implementation contract in section 9 records the approved constraints and phased
+people you can click for their full status, and rooms and items you can inspect. The pure layout, offline SVG preview and scene web page are built (phases 1–2);
+detailed inspectors and scenario history adapters are not. The implementation contract in section 9 records the approved constraints and phased
 handoffs; where it narrows an earlier sketch, section 9 takes precedence.
 
 The user's decisions (2026-10-20):
@@ -307,10 +306,13 @@ documents the key when it's built.
    writes an offline SVG. Awkward graphs, bundled scenarios and 320 rooms are tested. No web or
    simulation changes. See [scene-layout-api.md](scene-layout-api.md) for the normalized contract,
    examples, search caps, floor rules and limits. Claudeworth history extraction remains phase 4.
-2. **The scene page.** Move today's index to `/panel` and put the scene at `/`: the toolbar with
-   run controls, regions, panels, rooms, doors, lines, roads, people tokens and travellers, native
-   tooltips, pan and zoom, and refresh on SSE. `web_test` renders both pages for every bundled
-   scenario.
+2. **The scene page — implemented.** Today's panel remains at `/panel`, with its feed filtering;
+   `/` has coherent toolbar/map/feed refresh, directed connections, tokens and travellers, native
+   tooltips, navigation, pan/zoom, and pending selection. `scene_web_test` covers both pages for
+   every bundled scenario, live snapshots and loaded runs. Actual Chromium client checks cover
+   controls/SSE, pointer taps/drags, viewport/selection preservation and stale-response guards.
+   See [scene-web-api.md](scene-web-api.md) for the seam, runnable checks and manual visual checks.
+   Construction adapters and progress arcs remain phase 4; the busy ring is only a status mark.
 3. **The inspector.** Selection, and the person, place and item fragments, including "Recently".
    Rendering tests against the household fixture.
 4. **Change over time.** The presentation-only `:scene` hook, replayable ghosts for works in

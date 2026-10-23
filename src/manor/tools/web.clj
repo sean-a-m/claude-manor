@@ -3,7 +3,8 @@
   input, and a live event feed (server-sent events). `?as=<agent-id>` shows
   the feed exactly as that agent sees it, which is useful for checking
   private information doesn't leak."
-  (:require [clojure.pprint :as pp]
+  (:require [clojure.java.io :as io]
+            [clojure.pprint :as pp]
             [clojure.string :as str]
             [hiccup2.core :as h]
             [jsonista.core :as json]
@@ -14,12 +15,15 @@
             [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
             [manor.prompt :as prompt]
+            [manor.tools.scene :as scene]
             [manor.world :as w]
             [org.httpkit.server :as hk])
   (:import (java.net URLDecoder)))
 
 (defonce ^:private server (atom nil))
 (defonce ^:private current-run (atom nil))
+;; One disposable placement entry, never persisted or visible to the simulation.
+(defonce ^:private scene-placement (atom nil))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers
@@ -295,16 +299,17 @@ let timer=null;
 function refresh(){clearTimeout(timer);timer=setTimeout(()=>fetch('/partial/status').then(r=>r.text()).then(t=>document.getElementById('status').innerHTML=t),150);}
 function send(f){fetch(f.action,{method:'POST',body:new URLSearchParams(new FormData(f))}).then(refresh);return false;}
 const es=new EventSource('/stream'+location.search);
-es.addEventListener('ev',m=>{const ul=document.getElementById('feed');ul.insertAdjacentHTML('afterbegin',m.data);refresh();});
+es.addEventListener('ev',m=>{const ul=document.getElementById('feed');ul.insertAdjacentHTML('afterbegin',m.data);while(ul.children.length>300)ul.lastElementChild.remove();refresh();});
 es.addEventListener('status',refresh);
 ")
 
-(defn- index-page [run req]
+(defn- panel-page [run req]
   (let [world (e/world run)
         v (viewer req)
         names (narrate/names world)]
     (page (str "manor - " (:id run))
           [:header [:b "manor"] [:span (name (:name (:scenario run)))]
+           [:a {:href "/"} "scene"]
            [:a {:href "/world"} "world state"]
            [:form.inline {:method "get"}
             "feed as: "
@@ -319,6 +324,44 @@ es.addEventListener('status',refresh);
             [:ul#feed (for [ev (feed-events run (if (= v "gm") :gm v) 300)] (event-li ev names))]]]
           [:script (h/raw client-js)])))
 
+(defn- scene-fragments [run]
+  (let [snap (scene/snapshot run)
+        result (scene/presentation snap scene-placement)
+        names (narrate/names (:world snap))]
+    {:scene (html (scene/svg snap result))
+     :toolbar (html (scene/toolbar snap))
+     :navigation (html (scene/navigation result))
+     :away (html (scene/away-strip snap result))
+     :feed (html (for [event (reverse (take-last 70 (:events snap)))] (event-li event names)))}))
+
+(defn- scene-page [run]
+  (let [fragments (scene-fragments run)]
+    (page (str "manor scene - " (:id run))
+          [:link {:rel "stylesheet" :href "/static/scene.css"}]
+          [:header [:b "manor"] [:span (name (:name (:scenario run)))]
+           [:a {:href "/panel"} "panel"] [:a {:href "/world"} "world state"]]
+          [:main#scene-page
+           [:div#scene-toolbar (h/raw (:toolbar fragments))]
+           [:div#scene-client-error {:role "status"}]
+           [:section#scene-stage
+            [:div#scene-navigation (h/raw (:navigation fragments))]
+            [:div#scene-container (h/raw (:scene fragments))]
+            [:div#scene-away (h/raw (:away fragments))]]
+           [:section#scene-sidebar [:h2 "Selection"]
+            [:div#inspector {:aria-live "polite"} "Select a person or place."]]
+           [:section#scene-feed [:h2 "Recent events · operator"]
+            [:ul#feed (h/raw (:feed fragments))]]]
+          [:script {:src "/static/scene.js" :defer true}])))
+
+(def ^:private scene-assets
+  {"/static/scene.js" ["manor/scene.js" "text/javascript; charset=utf-8"]
+   "/static/scene.css" ["manor/scene.css" "text/css; charset=utf-8"]})
+
+(defn- asset-response [uri]
+  (let [[path content-type] (get scene-assets uri)]
+    {:status 200 :headers {"Content-Type" content-type}
+     :body (slurp (io/resource path))}))
+
 (defn- agent-page [run id]
   (let [world (e/world run)
         ag (w/agent world id)
@@ -326,7 +369,7 @@ es.addEventListener('status',refresh);
     (if-not ag
       {:status 404 :body "no such agent"}
       (page (str "manor - " id)
-            [:header [:a {:href "/"} "back"] [:b (:name ag)] [:span (name (:role ag))]]
+            [:header [:a {:href "/panel"} "back"] [:b (:name ag)] [:span (name (:role ag))]]
             [:main {:style "grid-template-columns:1fr 1fr"}
              [:div
               [:section [:h2 "Their view of the world"]
@@ -353,7 +396,7 @@ es.addEventListener('status',refresh);
 
 (defn- world-page [run]
   (page "manor - world"
-        [:header [:a {:href "/"} "back"] [:b "world state"]]
+        [:header [:a {:href "/panel"} "back"] [:b "world state"]]
         [:main {:style "grid-template-columns:1fr"}
          [:pre (with-out-str (pp/pprint (dissoc (e/world run) :usage)))]]))
 
@@ -402,7 +445,14 @@ es.addEventListener('status',refresh);
         uri (:uri req)]
     (cond
       (nil? run) {:status 503 :body "no run loaded"}
-      (= uri "/") (index-page run req)
+      (= uri "/") (scene-page run)
+      (= uri "/panel") (panel-page run req)
+      (= uri "/partial/scene") (let [snap (scene/snapshot run)]
+                                  {:status 200 :headers {"Content-Type" "image/svg+xml; charset=utf-8" "Cache-Control" "no-store"}
+                                   :body (html (scene/svg snap (scene/presentation snap scene-placement)))})
+      (= uri "/partial/scene-state") {:status 200 :headers {"Content-Type" "application/json; charset=utf-8" "Cache-Control" "no-store"}
+                                        :body (json/write-value-as-string (scene-fragments run))}
+      (contains? scene-assets uri) (asset-response uri)
       (= uri "/partial/status") {:status 200 :headers {"Content-Type" "text/html; charset=utf-8"}
                                  :body (status-fragment run)}
       (= uri "/stream") (stream run req)
@@ -415,6 +465,7 @@ es.addEventListener('status',refresh);
 (defn show!
   "Point the panel at `run`."
   [run]
+  (reset! scene-placement nil)
   (reset! current-run run))
 
 (defn start!

@@ -344,10 +344,12 @@ options are a "nothing has changed" reply to a repeat `look` and a `walk` reply 
 ### B8. Control panel improvements
 
 A graphical scene page as the new main page (an automatic plan of rooms and regions, clickable
-people, rooms and items) is planned in [scene-view-design.md](scene-view-design.md). Phase 1 is
-implemented: pure deterministic layout, frozen historical placement/reservation interfaces, directed
-connections, quality metrics and a server-free SVG preview. See [scene-layout-api.md](scene-layout-api.md).
-The scene page, inspectors and scenario-specific change-over-time integration remain to be built.
+people, rooms and items) is tracked in [scene-view-design.md](scene-view-design.md). Phases 1–2
+are implemented: pure historical layout and offline preview, plus the scene at `/` and the retained
+panel at `/panel`. The scene has directed routes, people/travellers, run controls, bounded feed,
+SSE refresh, navigation and pending selection. See [scene-layout-api.md](scene-layout-api.md) and
+[scene-web-api.md](scene-web-api.md) for APIs and checks. Detailed inspectors and scenario-specific
+change-over-time integration remain to be built.
 
 - Charts of chosen state values over rounds. A scenario could declare `:metrics (fn [world] {..})`,
   sampled at round end.

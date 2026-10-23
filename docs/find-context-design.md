@@ -1,6 +1,7 @@
 # `find` context and the find judge: design
 
-**Status:** proposal, not started. Extends `docs/stores-and-aspects-design.md` phases 4 and 7.
+**Status:** Phase 1 implemented and checked with mocks and two real-model historical probes;
+Phase 2 deferred. Extends `docs/stores-and-aspects-design.md` phases 4 and 7.
 
 Read `AGENTS.md` first (invariants, run directories, cost rules), then "Finding" in
 `docs/scenario-authoring.md` and `src/manor/mechanics/items/find.clj`. The work judge
@@ -86,7 +87,7 @@ the same kind of context, and keep its anti-duplication safety net.
 
 ## The request, before and after
 
-Today (`find.clj:100-117`):
+Before Phase 1:
 
 ```json
 { "place":   {"id","name","desc","aspects"},
@@ -95,14 +96,14 @@ Today (`find.clj:100-117`):
   "candidates": [{"id","name"}, ...] }
 ```
 
-Proposed:
+Target (Phase 1 supplies `finder` and `here`; `recent` waits for Phase 2):
 
 ```json
 { "finder":  {"name": "Hale",
               "nature": "the earl's private secretary: exact, closemouthed...",
               "carrying": [{"id","name"}],
-              "notes":  ["[r20] Day-book entry ruled and drying on the desk; his lordship asked me to bring the book to him to initial.",
-                         "..."]},
+              "notes":  [{"round": 20,
+                          "text": "Day-book entry ruled and drying on the desk; his lordship asked me to bring the book to him to initial."}]},
   "recent":  ["[r21] Lord Claudeworth says: \"Hale, the day-book then - bring it here...\"",
               "[r21] Hale finishes keeping the study quiet... the day-book laid flat...", "..."],
   "place":   {"id","name","desc","aspects"},
@@ -112,9 +113,11 @@ Proposed:
   "candidates": [{"id","name"}, ...] }
 ```
 
-Notes come last-15 like the agent prompt (`prompt.clj:186-202`); `recent` is roughly ten narrated
-lines; `here` is the `look`-visible items at this place (not other rooms, and not closed-container
-surprises, which deterministic searching already handles).
+Notes come last-15 like the agent prompt, as structured round/text data rather than stamped
+strings; `recent` would be roughly ten narrated lines. `here` is the `look`-visible items at
+this place, including open-container contents and what other people here carry (not other
+rooms or closed-container surprises, which deterministic searching already handles). The
+asker's own held items are under `finder.carrying`. Item entries in both are id/name only.
 
 ## Instruction changes
 
@@ -155,11 +158,34 @@ Phase 1 below is world-only and needs none of item 3.
 
 ## Phasing
 
-**Phase 1 - world-only context (no contract change).** Add `:finder` (name, persona, carrying,
-notes) and `:here`, plus the instruction changes. Hale's own note ("Day-book entry ruled and
-drying on the desk; his lordship asked me to bring the book to him to initial") is world data,
-so this alone should very likely fix the day-book case. Mock-tested; then one short real run to
-check both directions: the day-book is found, and an elsewhere item is still not duplicated.
+**Phase 1 - world-only context (done; no adjudicator contract change).** Added `:finder`
+(name, persona as `nature`, carrying, last 15 round/text notes) and `:here`, plus the instruction
+changes. No schema, checker, mock, roll, event/reducer, query-budget or audience changes.
+The full offline suite passes, including both 48-round Claudeworth mock days and replay.
+Request tests cover both actors' private context, bounded/empty notes, carrying, open/nested
+and closed-container visibility, and identity-only item entries. Existing-item tests explicitly
+forbid rolling and check the complete remote-miss event data.
+
+One bounded real-model check used the original run's exact event prefix through 2094, before
+the old finder call. No rounds, character calls or bridges were run. New spending was capped
+at $0.20, separately from the inherited historical usage. Results:
+
+- Hale's `day-book` was correctly distinguished from `butchers-day-book`: the oracle proposed
+  an estate day-book and rated it `likely`. It first incorrectly supplied `from: study` (there
+  are no stores in scope), then corrected that after the existing structural check. The extra
+  usage event shifted the seeded roll from the expected 26 at event 2096 to 99 at event 2097;
+  the actual outcome was therefore a rolled miss, **not a successful find**. Identification
+  improved, but this check does not establish end-to-end success or success rates.
+- Asking separately for `the butcher's day book` gave `existing: butchers-day-book`, an ordinary
+  miss without a roll, item/aspect change or duplication. Replay equals live state.
+- Three model calls (including the correction) cost **$0.001726248**. Evidence, prompts,
+  transcript, results and the reproduction script are retained in this worktree's
+  `old-test-runs/find-context-phase1-historical-probes/`. The original run is untouched.
+
+No repeat real run was made. Phase 2 is not indicated by this check: the observed remaining
+failure was an invalid store source followed by an unlucky roll, not thin identification
+context. A later user-approved check should still watch the store-source correction and
+confirm a successful find.
 
 **Phase 2 - the asker's recent lines.** Add items 2 and 3 above and `:recent`. Do this only if
 Phase 1's real run shows identification still failing when notes are thin.

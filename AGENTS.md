@@ -85,9 +85,10 @@ src/manor/
   main.clj       CLI: clojure -M:run [scenario] [--mock] [--offline] [--port N] [--load id]
   engine.clj     the engine's interface: start/load/branch runs, run control, operator commands
   engine/        its parts, lowest first: run (the run's state, emit!), models (making and recording
-                 model calls), judges (checked narrow calls: work judge, steward, adjudicators),
-                 resolve (applying actions and queries), turn (a turn's tool-call loop), talk
-                 (conversations), seat (one seat's turn), work (jobs ending, the steward), round
+                 model calls), judges (checked narrow calls: work and conversation judges, steward,
+                 adjudicators), resolve (applying actions and queries), turn (a turn's tool-call
+                 loop), talk (conversations and their judge), seat (one seat's turn), work (jobs
+                 ending, the steward), round
   world.clj      world value, apply-event multimethod (reducers), visibility rules
   actions.clj    action specs -> tools; arg decoding (kebab normalisation, unknown keys dropped)
   narrate.clj    describe multimethod: event -> text agents read
@@ -97,16 +98,18 @@ src/manor/
   mechanics/     rules that scenarios combine: actions, events and checks, narration
     builtins.clj   pass/carry-on/note/say/whisper/pray + GM spawn/retire/announce/ask-human/done
     conversation.clj converse: conversations within a turn (rules, speaking-turn tools, events)
+    conversation/  judge.clj: the conversation judge (its request, tool, checked verdict and events)
     space.clj      locations graph, positions, travel, move + GM route tools, pathfinding
     items.clj      items: accessors, checks, every item event's reducer and narration
     items/         its parts: views (look, open, agents' views), actions (carrying, work-on), work (jobs
                    that end, the judged scene), judge (its request, tool and checked verdict), steward,
                    find
-    adjudication.clj shared checked-tool-response parser (work judge and scenario adjudication queries)
+    adjudication.clj shared checked-tool-response parser (the judges and scenario adjudication queries)
     people.clj     people and traits: the polish (checked persona call), the prompt's "Your nature", roll-cast!
     positions.clj  positions (a shared catalogue plus the world's :roles), posts, capabilities, forms of
                    address, bedroom and routine events
     hiring.clj     candidate records, private recommendations and event-owned hiring
+    inner.clj      inner state: private keyed phrases judges change (checks, judge view, :person/inner-changed)
   io/            everything that leaves the process
     llm.clj        LLM protocol; OpenRouter (JDK HTTP) and Mock (scenario policy) implementations
     bridge.clj     bridge executor: timeout, truncation, stubs, MCP tools; never throws

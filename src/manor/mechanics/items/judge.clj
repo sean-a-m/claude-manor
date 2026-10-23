@@ -8,6 +8,7 @@
             [manor.actions :as a]
             [manor.clock :as clock]
             [manor.mechanics.adjudication :as adjudication]
+            [manor.mechanics.inner :as inner]
             [manor.mechanics.items :as items]
             [manor.mechanics.items.work :as item-work]
             [manor.mechanics.space :as space]
@@ -31,15 +32,26 @@
                              [:in {:optional true} :string]]]]
    [:summary [:string {:min 1 :max items/max-summary}]]])
 
-(def ^:private judge-tool
+(defn answer-schema
+  "The judge's answer: `judge-schema`, and with inner state (the scenario's
+  :inner, see manor.mechanics.inner) an `inner` list beside `changes`. The
+  steward's schema comes from it, without `made`."
+  [inner-config]
+  (if inner-config
+    (let [[m changes & more] judge-schema] (into [m changes inner/answer-entry] more))
+    judge-schema))
+
+(defn- judge-tool [inner-config]
   {:type "function"
    :function {:name "judge"
               :description (str "Give your judgement: each aspect the work changed (the thing's or person's id, the aspect's key, "
                                 "and its new value: a phrase of at most " items/advised-aspect " characters, or \"\" to remove it), "
+                                (when inner-config
+                                  "each part of a judged person's inner state it changed (`inner`: their id, the key, and the new value, or \"\" to clear it), ")
                                 "the ids of consumable items it used up and their fates, things absorbed into stores, "
                                 "at most " items/max-made " things made or drawn from stores, "
                                 "and a summary of at most " items/max-summary " characters.")
-              :parameters (mjs/transform judge-schema)}})
+              :parameters (mjs/transform (answer-schema inner-config))}})
 
 (def judge-instructions
   (str "You judge the results of an activity in a simulation. Someone has spent time on work or a pastime. "
@@ -85,10 +97,15 @@
 
 (defn- people-json
   "The scene's people as the judge sees them: judged ones with their id,
-  appearance and aspects, marked :person; others by name only."
-  [people]
-  (mapv #(cond-> (select-keys % [:id :name :appearance :aspects :doing])
-           (:person? %) (assoc :person true))
+  appearance and aspects, marked :person; others by name only. With inner
+  state (`inner-config`), everyone's is shown, and the judged people's
+  temperament, persona and situation too."
+  [world inner-config people]
+  (mapv (fn [{:keys [id person?] :as p}]
+          (cond-> (select-keys p (if person? [:id :name :appearance :aspects :doing] [:name :doing]))
+            (and inner-config person?) (merge (select-keys (w/agent world id) [:temperament :persona :situation]))
+            inner-config (assoc :inner (inner/judge-view inner-config world id))
+            person? (assoc :person true)))
         people))
 
 (defn judge-request
@@ -98,20 +115,22 @@
   (let [worker (w/agent world (:actor job))
         brief (when-let [f (get-in scenario [:items :judge-brief])] (f world))
         suggested (get-in scenario [:items :aspect-keys])
+        inner-config (:inner scenario)
         {:keys [place focus also-here stores people]} (item-work/scene world job)
         scene-json {:place (dissoc place :room?)
                     :focus (judged-json focus)
                     :also_here (judged-json also-here)
                     :stores (mapv #(assoc (items/store-view (:place job) %) :keeps (get-in % [:store :keeps])) stores)
-                    :people (people-json people) :recent (vec (take-last 10 recent))}
+                    :people (people-json world inner-config people) :recent (vec (take-last 10 recent))}
         scene-json (cond-> scene-json (:reference job) (assoc :reference (:reference job)))]
-    {:tools [judge-tool]
+    {:tools [(judge-tool inner-config)]
      :messages
      [{:role "system"
        :content (str judge-instructions
                      (when (seq suggested)
                        (str "\n\n## Suggested aspect keys\n"
                             (str/join "\n" (for [[k gloss] (sort-by key suggested)] (str "- " (name k) ": " gloss)))))
+                     (when inner-config (str "\n\n" (inner/instructions inner-config)))
                      (when-not (str/blank? brief) (str "\n\n## The setting\n" brief)))}
       {:role "user"
        :content (str "# The activity\n\n"
@@ -272,19 +291,34 @@
         (seq absorbed) (assoc :absorbed (vec absorbed))
         (seq made) (assoc :made made)))))
 
-(defn- verdict [world arguments things]
-  (let [{:keys [args error]} (a/decode-args {:args judge-schema} arguments)
-        place (:id (first (filter :room? things)))]
-    (if error {:error error}
-        (checked-verdict world args things (items/stores-for world place) false))))
+(defn with-inner
+  "`v` (a checked verdict) with the checked changes to the inner state of
+  the people among `things` (marked :person?) under :inner, or the reason
+  they won't do."
+  [v inner-config world things answers]
+  (let [{:keys [changes error]} (inner/checked-changes inner-config world (map :id (filter :person? things)) answers)]
+    (cond error {:error error}
+          (seq changes) (assoc v :inner changes)
+          :else v)))
+
+(defn- verdict [world arguments things inner-config]
+  (let [{:keys [args error]} (a/decode-args {:args (answer-schema inner-config)} arguments)
+        place (:id (first (filter :room? things)))
+        v (when-not error (checked-verdict world args things (items/stores-for world place) false))]
+    (cond error {:error error}
+          (or (:error v) (nil? inner-config)) v
+          :else (with-inner v inner-config world things (:inner args)))))
 
 (defn judgement
   "Read a judge response: {:verdict v :replies [...]} or {:error reason
   :replies [...]}, where :replies are the messages to send back (a reply to
   each tool call, or a reminder if it made none). Only the first `judge`
-  call counts. `things` are the judged things (see `judged-things`)."
-  [response world things]
-  (adjudication/answer "judge" response #(verdict world % things)))
+  call counts. `things` are the judged things (see `judged-things`). With
+  the scenario's :inner as `inner-config`, the verdict's :inner holds the
+  checked changes to the judged people's inner state."
+  ([response world things] (judgement response world things nil))
+  ([response world things inner-config]
+   (adjudication/answer "judge" response #(verdict world % things inner-config))))
 
 (defn- mock-put-away
   "Absorb deposited consumables whose contents can go too; clear matching

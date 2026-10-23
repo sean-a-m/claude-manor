@@ -123,11 +123,11 @@
 (defn kind
   "What sort of call an llm.edn entry is: :turn-first (an agent turn's first
   call, just the system and user messages), :turn-follow-up, :conversation (a
-  speaking turn), :judge, :adjudicator (scenario adjudication and the
-  steward) or :gm."
+  speaking turn), :judge, :adjudicator (scenario adjudication, the steward
+  and the conversation judge) or :gm."
   [{:keys [agent conversation messages]}]
   (cond (= agent "judge") :judge
-        (or (str/starts-with? (str agent) "adjudicator/") (= agent "steward")) :adjudicator
+        (or (str/starts-with? (str agent) "adjudicator/") (#{"steward" "conversation-judge"} agent)) :adjudicator
         (= agent "gm") :gm
         conversation :conversation
         (= ["system" "user"] (mapv :role messages)) :turn-first

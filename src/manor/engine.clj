@@ -39,6 +39,8 @@
             [manor.io.worldfile :as worldfile]
             [manor.mechanics.builtins :as b]
             [manor.mechanics.conversation :as conversation]
+            [manor.mechanics.conversation.judge :as conversation-judge]
+            [manor.mechanics.inner :as inner]
             [manor.mechanics.items :as items]
             [manor.mechanics.items.actions :as item-actions]
             [manor.mechanics.items.find :as item-find]
@@ -109,10 +111,12 @@
 
 (defn- mock-llm
   "The scenario policy handles characters. Work uses :mock-judge (or the
-  default); internal adjudication queries use their registered :mock, never
-  a live provider; speaking turns in a conversation use :mock-conversation,
-  falling back to manor.mechanics.conversation/mock-default. Character policies need
-  not know about these calls."
+  default), and the conversation judge :mock-conversation-judge (or
+  manor.mechanics.conversation.judge/mock-judge); internal adjudication
+  queries use their registered :mock, never a live provider; speaking turns
+  in a conversation use :mock-conversation, falling back to
+  manor.mechanics.conversation/mock-default. Character policies need not
+  know about these calls."
   [scenario]
   (let [policy (conversation-mock scenario (or (:mock-policy scenario) (constantly nil)))
         judge (or (:mock-judge scenario) item-judge/mock-judge)]
@@ -120,6 +124,7 @@
                 (case (:role ctx)
                   :judge (judge ctx)
                   :steward ((or (:mock-steward scenario) item-steward/mock-steward) ctx)
+                  :conversation-judge ((or (:mock-conversation-judge scenario) conversation-judge/mock-judge) ctx)
                   :adjudicator (if-let [mock (get-in scenario [:adjudicators (:task ctx) :mock])]
                                  (mock ctx)
                                  (throw (ex-info "adjudicator needs a mock responder" {:task (:task ctx)})))
@@ -345,11 +350,12 @@
     (throw (ex-info (str "bad :items from :init: " (str/join "; " ps)) {:problems (vec ps)}))))
 
 (defn- check-agents!
-  "Throw if a starting agent's :aspects aren't well formed (see items/Aspects)."
-  [agents]
-  (when-let [ps (seq (for [{:keys [name aspects] :as a} agents
-                           :when (contains? a :aspects)
-                           :let [p (items/aspects-problem aspects)]
+  "Throw if a starting agent's :aspects aren't well formed (see items/Aspects),
+  or its :inner doesn't fit the scenario's (see inner/problem)."
+  [scenario agents]
+  (when-let [ps (seq (for [{:keys [name aspects inner] :as a} agents
+                           p [(when (contains? a :aspects) (items/aspects-problem aspects))
+                              (when (contains? a :inner) (inner/problem (:inner scenario) inner))]
                            :when p]
                        (str "agent " (pr-str name) ": " p)))]
     (throw (ex-info (str "bad :agents from :init: " (str/join "; " ps)) {:problems (vec ps)}))))
@@ -371,7 +377,7 @@
                      :data (cond-> {:scenario (:name scenario) :seed (:seed opts) :state state}
                              clock (assoc :clock clock))}])
     (run/emit! run (space/init-events (:space init)))
-    (check-agents! agents)
+    (check-agents! scenario agents)
     (doseq [spec (cons {:name "GM" :role :gm :model (:gm-model opts) :controller (:gm opts)} agents)]
       (run/emit! run (b/spawn-events scenario @(:world run) (into {} (remove (comp nil? val)) spec))))
     (when (:items scenario)

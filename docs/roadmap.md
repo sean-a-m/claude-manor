@@ -413,8 +413,11 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   physical things that don't show): a few fixed keys (`mood`, `body`, `mind` for Claudeworth)
   plus up to 2 open ones, as short judged phrases with no meters, levels or automatic fading.
   The work judge, a new conversation judge (one call per conversation) and the nightly steward
-  change it; the person only reads it. About 5% more per run. Three phases. **Proposed, not
-  started;** the defaults in its section 4 need confirming.
+  change it; the person only reads it. About 5% more per run. Three phases. **All three
+  built** (data, views, the work judge, Claudeworth's `:inner` and rules; the conversation
+  judge; the nightly steward, which now sees every sleeper and judges how they'll wake),
+  **mock-tested only**. The next check is a short real Claudeworth run, with the user's
+  go-ahead. The defaults in its section 4 were taken as written.
 - Follow-ups, from the same decisions:
   - **Do characters act to improve their state?** The hoped-for result is that they do,
     through ordinary actions (resting when tired, seeking company when low, keeping away from

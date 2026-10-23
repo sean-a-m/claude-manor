@@ -4,6 +4,7 @@
   (:require [clojure.set :as set]
             [manor.engine.judges :as judges]
             [manor.engine.run :as run]
+            [manor.mechanics.inner :as inner]
             [manor.mechanics.items.steward :as item-steward]
             [manor.mechanics.items.work :as item-work]))
 
@@ -19,13 +20,15 @@
 (defn- finish-job!
   "Record and apply a prepared ending in job order. Build new item ids on
   the live world, so independent jobs making identically named things agree
-  with sequential judging too."
+  with sequential judging too. Changes to inner state follow the public
+  :item/work-done as their own GM-only events."
   [run {:keys [job] :as work} {:keys [ended verdict failure records]}]
   (doseq [record! records] (record!))
   (let [world @(:world run)]
     (run/emit! run (if ended
                      [(item-work/work-ended world job ended)]
                      (cond-> [(item-work/work-done world job work verdict)]
+                       (seq (:inner verdict)) (into (inner/changed-events {:job (:id job)} (:inner verdict)))
                        failure (conj (item-work/judge-failed job failure)))))))
 
 (defn- independent-prefix
@@ -53,7 +56,9 @@
 (defn run-steward!
   "After jobs finish, tidy only idle leftovers and take off what sleepers
   wouldn't keep on overnight, before bridges/systems or characters can
-  create new work: one call per place with candidates or sleepers. The
+  create new work: one call per place with candidates or sleepers. With
+  inner state, every sleeper is seen, and changes to their inner state
+  follow the place's :items/stewarded as their own GM-only events. The
   marker is emitted even with none."
   [run]
   (let [world @(:world run)
@@ -61,11 +66,12 @@
     (when-let [day (item-steward/steward-day world config)]
       (run/emit! run [{:type :items/steward-ran :visible-to :gm :data {:day day}}])
       (let [all-candidates (item-steward/steward-candidates world config)
-            all-sleepers (item-steward/steward-sleepers world)]
+            all-sleepers (item-steward/steward-sleepers world (get-in run [:scenario :inner]) (run/events run))]
         (doseq [place (sort (distinct (concat (keys all-candidates) (keys all-sleepers))))]
           (let [candidates (get all-candidates place [])
                 sleepers (get all-sleepers place [])
                 {:keys [verdict failure]} (judges/ask-steward run world place candidates sleepers)]
             (run/emit! run (cond-> [(item-steward/stewarded @(:world run) place verdict)]
+                             (seq (:inner verdict)) (into (inner/changed-events {:steward day} (:inner verdict)))
                              failure (conj {:type :items/steward-failed :visible-to :system
                                             :data {:place place :reason failure}})))))))))

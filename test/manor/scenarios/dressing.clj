@@ -1,15 +1,20 @@
 (ns manor.scenarios.dressing
-  "Test scenario for person aspects (manor.mechanics.items): a lady, her maid and a
-  cook in a small house loaded from test/fixtures/dressing.edn, starting at
-  18:00, with the hamlet's sleep, rouse and check-time. Its mock judge
-  changes people: work on others dresses their hair, and work on nothing
-  else changes the worker's dress; its mock steward lets sleepers' hair
-  down overnight. With the mock policy Dawson does her
-  ladyship's hair, Mrs Pell cooks, and Lady Ashby changes for dinner and
+  "Test scenario for person aspects (manor.mechanics.items) and inner state
+  (manor.mechanics.inner): a lady, her maid and a cook in a small house
+  loaded from test/fixtures/dressing.edn, starting at 18:00, with the
+  hamlet's sleep, rouse and check-time. Its mock judge changes people: work
+  on others dresses their hair and pleases them, work on nothing else
+  changes the worker's dress, and the worker is tired from it; its mock
+  steward lets sleepers' hair down overnight, and they wake stiff with
+  their mood cleared; its mock conversation judge leaves each member
+  turning over what the others said in their hearing.
+  With the mock policy Dawson does her ladyship's hair, Mrs Pell cooks, and
+  Lady Ashby changes for dinner, has a word with Dawson (who answers) and
   goes to bed.
 
     clojure -M:dev:run dressing --mock --test --port 8091"
   (:require [manor.io.worldfile :as worldfile]
+            [manor.mechanics.conversation.judge :as conversation-judge]
             [manor.mechanics.items.judge :as item-judge]
             [manor.mechanics.items.steward :as item-steward]
             [manor.mechanics.items.work :as item-work]
@@ -26,37 +31,69 @@
   {"dawson" {1 (spend ["lady-ashby"] "dressing her ladyship's hair" 1.0)}
    "mrs-pell" {1 (spend ["range"] "cooking dinner at the range" 2.0)}
    "lady-ashby" {3 (spend [] "changing for dinner" 0.5)
+                 5 {:tool :converse :args {:with ["dawson"] :text "Is my blue silk pressed, Dawson?"}}
                  6 {:tool :sleep :args {:until "07:00"}}}})
 
-(defn mock-policy [{:keys [world agent-id role]}]
+(defn mock-policy [{:keys [world agent-id role used]}]
   (cond
     (= role :gm) {:tool :done}
     (:interrupted-by (w/busy world agent-id)) {:tool :carry-on}
+    (some #{"converse"} used) {:tool :pass}
     :else (get-in mock-day [agent-id (:round world)] {:tool :pass})))
+
+(defn mock-conversation
+  "Speaking turns: the others answer in the first pass; otherwise
+  conversation/mock-default (the initiator ends it, the others stay silent)."
+  [{:keys [agent-id conversation]}]
+  (when (and (not= agent-id (:initiator conversation)) (= 1 (:pass conversation)))
+    {:tool :reply :args {:text "Yes, my lady, and laid out."}}))
 
 (defn- cap [s] (subs s 0 (min 80 (count s))))
 
 (defn mock-judge
   "items/mock-judge for things; for people, each other person named and
-  still here gets their hair done by the worker, and when nobody else was
-  named the worker's own dress changes."
+  still here gets their hair done by the worker and is pleased with it, and
+  when nobody else was named the worker's own dress changes. The worker's
+  body is tired from the work."
   [{:keys [world job] :as ctx}]
   (let [{:keys [actor doing]} job
+        worker-name (:name (w/agent world actor))
         named (remove #{actor} (:people job))
         here (filter (set named) (item-work/judged-people world job))
         people (if (seq named)
-                 (for [id here] {:thing id :aspect "hair" :value (str "dressed by " (:name (w/agent world actor)))})
-                 [{:thing actor :aspect "dress" :value (cap (str "changed: " doing))}])]
-    (update-in (item-judge/mock-judge ctx) [:args :changes]
-               #(into (vec (remove (fn [c] (w/agent world (:thing c))) %)) people))))
+                 (for [id here] {:thing id :aspect "hair" :value (str "dressed by " worker-name)})
+                 [{:thing actor :aspect "dress" :value (cap (str "changed: " doing))}])
+        inner (cons {:person actor :key "body" :value (cap (str "tired from " doing))}
+                    (for [id here] {:person id :key "mood" :value (str "pleased with " worker-name "'s work")}))]
+    (-> (item-judge/mock-judge ctx)
+        (update-in [:args :changes] #(into (vec (remove (fn [c] (w/agent world (:thing c))) %)) people))
+        (assoc-in [:args :inner] (vec inner)))))
 
 (defn mock-steward
   "items/mock-steward for things; each sleeper's hair is let down, and
-  their other aspects stay."
+  their other aspects stay. Each sleeper wakes stiff (their body) and with
+  their mood cleared."
   [{:keys [sleepers] :as ctx}]
-  (update-in (item-steward/mock-steward ctx) [:args :changes] (fnil into [])
-             (for [{:keys [id aspects]} sleepers :when (:hair aspects)]
-               {:thing id :aspect "hair" :value ""})))
+  (-> (item-steward/mock-steward ctx)
+      (update-in [:args :changes] (fnil into [])
+                 (for [{:keys [id aspects]} sleepers :when (:hair aspects)]
+                   {:thing id :aspect "hair" :value ""}))
+      (assoc-in [:args :inner] (vec (for [{:keys [id]} sleepers
+                                          [k v] [["body" "stiff from the night"] ["mood" ""]]]
+                                      {:person id :key k :value v})))))
+
+(defn mock-conversation-judge
+  "Each member who heard someone else's line is left turning over what the
+  last such speaker said (their open key `mind`)."
+  [{:keys [world conversation lines]}]
+  (let [members (:members conversation)]
+    {:tool :react
+     :args {:summary "Each was left turning over what was said."
+            :inner (vec (for [{:keys [actor] :as line} lines
+                              :when (= :agent/said (:type line))
+                              id (conversation-judge/heard-by members line)
+                              :when (not= id actor)]
+                          {:person id :key "mind" :value (str "turning over what " (:name (w/agent world actor)) " said")}))}}))
 
 (def scenario
   {:name :dressing
@@ -67,6 +104,9 @@
            :gm {:brief "Test GM."}}
    :actions hamlet/actions
    :items {:steward {:at "02:00" :idle-hours 4 :max-per-call 8}}
+   :inner {:keys {:mood "their spirits now" :body "how their body is, as only they know it"} :open 2}
    :mock-policy mock-policy
    :mock-judge mock-judge
-   :mock-steward mock-steward})
+   :mock-steward mock-steward
+   :mock-conversation mock-conversation
+   :mock-conversation-judge mock-conversation-judge})

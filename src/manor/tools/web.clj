@@ -244,7 +244,7 @@ form.inline{display:inline}")]]
      [:section
       [:h2 "Roster"]
       [:table
-       [:tr [:th "id"] [:th "role"] [:th "status"] [:th "where"] [:th "aspects"] [:th "controller / model"] [:th "cost"]]
+       [:tr [:th "id"] [:th "role"] [:th "status"] [:th "where"] [:th "aspects"] [:th "inner"] [:th "controller / model"] [:th "cost"]]
        (for [ag (w/agents-in-order world)
              :let [u (get-in world [:usage (:id ag)])]]
          [:tr
@@ -256,6 +256,7 @@ form.inline{display:inline}")]]
                      :else "")
            (when-let [b (:busy ag)] [:span.vis " (" (:activity b) ")"])]
           [:td.vis (str/join "; " (for [[k v] (:aspects ag)] (str (name k) ": " v)))]
+          [:td.vis (str/join "; " (for [[k v] (:inner ag)] (str (name k) ": " v)))]
           [:td (name (:controller ag)) " " [:span.vis (or (:model ag) "")]]
           [:td (if u (format "$%.4f" (double (:cost u))) "")]])]]
 

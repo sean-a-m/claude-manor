@@ -1,5 +1,6 @@
-;; Fixed world for person aspects (manor.scenarios.dressing): a lady's bedroom
-;; with a dressing table, a kitchen with a range, a lady, her maid and a cook.
+;; Fixed world for person aspects and inner state (manor.scenarios.dressing): a
+;; lady's bedroom with a dressing table, a kitchen with a range, a lady, her maid
+;; and a cook. Dawson starts with no inner state; Mrs Pell has an open key.
 ;; Test-owned: don't sync it with any bundled scenario.
 {:meta {:name "Ashby House" :start "1904-10-15T18:00" :minutes-per-round 30}
 
@@ -16,14 +17,16 @@
  :agents
  [{:name "Lady Ashby" :role :lady :location "bedroom"
    :persona "A particular woman who likes to look well at dinner."
-   :appearance "A tall woman of fifty, usually in a grey day dress, her hair in a plain knot."}
+   :appearance "A tall woman of fifty, usually in a grey day dress, her hair in a plain knot."
+   :inner {:mood "impatient for dinner"}}
   {:name "Dawson" :role :maid :location "bedroom"
    :persona "Lady Ashby's maid, quick with a comb."
    :appearance "A neat woman of thirty in a black dress and a white cap."}
   {:name "Mrs Pell" :role :cook :location "kitchen"
    :persona "The cook, who has been at the range since noon."
    :appearance "A stout woman, usually in a print frock and a white apron."
-   :aspects {:apron "spattered with grease"}}]
+   :aspects {:apron "spattered with grease"}
+   :inner {:body "aching feet after a long day" :worry "whether the fish will keep"}}]
 
  :items
  [{:id "dressing-table" :name "Dressing table" :place "bedroom" :fixed? true :desc "A walnut dressing table with a swing glass."}

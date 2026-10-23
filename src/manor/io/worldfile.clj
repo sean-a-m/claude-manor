@@ -11,7 +11,8 @@
                  ...]
      :routes [[\"carriage-sweep\" \"village-green\" 1]       ; journeys, as in :space
               [\"cliff\" \"beach\" 1 :one-way]]
-     :agents [{:name \"Hale\" :role :secretary :location \"study\"}]
+     :agents [{:name \"Hale\" :role :secretary :location \"study\"
+               :inner {:mind \"the unanswered letter\"}}]      ; optional, see manor.mechanics.inner
      :items [{:id \"pocket-watch\" :name \"Pocket watch\" :holder \"Hale\"   ; optional, see manor.mechanics.items
               :owner \"Hale\" :aspects {:state \"keeping good time\"} :desc \"...\"}]
      ...}                                                   ; anything else is the scenario's
@@ -32,6 +33,7 @@
             [malli.error :as me]
             [manor.clock :as clock]
             [manor.mechanics.builtins :as b]
+            [manor.mechanics.inner :as inner]
             [manor.mechanics.items :as items]
             [manor.world :as w]))
 
@@ -48,7 +50,8 @@
   `roll-cast!` writes them. A :situation is shown only in their own prompt,
   and nothing rewrites it. An optional :appearance is public at a glance,
   and optional :aspects (see manor.mechanics.items) say how they differ from it at
-  the start."
+  the start. An optional :inner (see manor.mechanics.inner) is how they are
+  inside at the start, private like :situation."
   [:map
    [:name :string]
    [:role :keyword]
@@ -58,6 +61,7 @@
    [:manner {:optional true} :string]
    [:appearance {:optional true} [:string {:min 1 :max 600}]]
    [:aspects {:optional true} :any]          ; checked by `problems`, for a readable message
+   [:inner {:optional true} :any]            ; checked by `problems`, and its open keys when a run starts
    [:sex {:optional true} [:enum :male :female]]
    [:temperament {:optional true}
     [:map-of [:enum :openness :conscientiousness :extraversion :agreeableness :neuroticism]
@@ -129,6 +133,11 @@
             (for [{:keys [name] :as a} (:agents wf)
                   :when (contains? a :aspects)
                   :let [p (items/aspects-problem (:aspects a))]
+                  :when p]
+              (str "agent " (pr-str name) ": " p))
+            (for [{:keys [name] :as a} (:agents wf)
+                  :when (contains? a :inner)
+                  :let [p (inner/shape-problem (:inner a))]
                   :when p]
               (str "agent " (pr-str name) ": " p))
             (when-let [c (->clock wf)] (map #(str ":meta clock: " %) (clock/problems c)))
@@ -207,19 +216,20 @@
              (agent-name (:owner it)) (update :owner agent-name))))))
 
 (defn- export-agents
-  "`start`'s agents, each with the live :aspects of the agent of that name,
-  or none if they have none now. People who came during the run aren't added."
+  "`start`'s agents, each with the live :aspects and :inner of the agent of
+  that name, or none if they have none now. People who came during the run
+  aren't added."
   [world start]
   (mapv (fn [{agent-name :name :as a}]
-          (if-let [aspects (:aspects (w/agent world (b/slug agent-name)))]
-            (assoc a :aspects aspects)
-            (dissoc a :aspects)))
+          (let [live (w/agent world (b/slug agent-name))]
+            (reduce (fn [a k] (if-let [v (get live k)] (assoc a k v) (dissoc a k)))
+                    a [:aspects :inner])))
         (:agents start)))
 
 (defn export
   "The world file `start` with its :locations and :routes replaced by the
   live world's map, its :items by the live items if the world has items,
-  and its agents' :aspects by theirs now. Locations, routes and items keep
+  and its agents' :aspects and :inner by theirs now. Locations, routes and items keep
   the order they had in `start`; new ones follow. Closed routes are left out."
   [world start]
   (let [locs (get-in world [:space :locations])

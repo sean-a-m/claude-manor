@@ -79,6 +79,7 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :mock-steward  (fn [ctx] {:tool :steward :args {..}})  ; optional, the nightly steward in mock runs
    :speaking-actions (fn [world speaker conv] actions)    ; optional free/query tools in conversations
    :mock-conversation (fn [ctx] {:tool :reply :args {..}})  ; optional, speaking turns in mock runs (see Conversations)
+   :mock-conversation-judge (fn [ctx] {:tool :react :args {..}})  ; optional, the conversation judge in mock runs (see Inner state)
    :offline-stubs {:bridge/name (fn [args ctx] result)}})
 ```
 
@@ -244,7 +245,8 @@ The engine uses `:judge-model` (falling back to `:model`), with the run's reason
 tool-choice options. It asks once more after an invalid answer, using the checker's replies.
 `manor.mechanics.adjudication/answer` implements first-tool-call selection and replies; domain code
 supplies the tool name and raw-argument checker. The work judge uses the same runner/parser,
-but keeps its own prompts, domain checks and round-start scheduling.
+but keeps its own prompts, domain checks and round-start scheduling, and so does the
+conversation judge (see Inner state).
 
 Only a checked `:verdict` (or the request's direct result) reaches the action's `:on-result`
 and the caller's JSON tool reply.
@@ -1301,9 +1303,10 @@ reads it. Opt in with a scenario `:inner` entry:
   and the GM (the default GM view's agents), the operator (the panel's roster) and the judges.
   Never `people-here`, `look`, or any other agent's request. Privacy comes from where it's put,
   not from checking text.
-- **What changes it:** for now the work judge, which sees everyone present's inner state and
-  may change the judged people's (the worker, and the people named in `on` who are still
-  there), never a bystander's. Its answer's `inner: [{person, key, value}]` list is checked in
+- **What changes it:** the work judge and the conversation judge (below); the nightly steward
+  doesn't yet. The work judge sees everyone present's inner state and may change the judged
+  people's (the worker, and the people named in `on` who are still there), never a
+  bystander's. Its answer's `inner: [{person, key, value}]` list is checked in
   `item-judge/judgement` (given the scenario's `:inner`): the person is judged ("you may change
   the inner state only of these people: dawson, lady-ashby; not mrs-pell"), the key is
   well formed (normalised like argument names), the value fits, and nobody ends up with more
@@ -1314,14 +1317,41 @@ reads it. Opt in with a scenario `:inner` entry:
   where the activity would and leave the rest; temperament informs the judgement but doesn't
   decide it; the summary is read by everyone present, so it says only what they could see or
   hear, never anyone's inner state. The steward's tool has no `inner` field.
+- **The conversation judge** (`manor.mechanics.conversation.judge`): when a conversation ends
+  in a scenario with `:inner`, one narrow call (`judges/ask-conversation-judge`, recorded in
+  `llm.edn` as agent `"conversation-judge"`, model `:judge-model` or else `:model`) judges how
+  it left its members, before the initiator's summary is returned, so their next step and
+  everyone's later turns see the result. It's skipped when the conversation was cut short (at
+  the cost limit or by an error) or the run's cost limit is reached; one where nobody answered
+  is still judged. Its request has the place and time; each member, including those who left
+  part-way, with id, name, persona, situation, temperament, appearance, aspects and inner state
+  (every fixed key, with when each entry was set); and the conversation's lines in order
+  (`:agent/said`, `:conversation/silent`, `:conversation/left`), each as `{person, says}` or
+  `{person, does}`, with `heard_by` (the members who heard it, from the event's `:visible-to`)
+  when not every member did. Nothing about anyone else: no other rooms, no bystander. Its tool
+  is `react {inner: [{person, key, value}], summary}`, the summary at most 300 characters; the
+  `inner` list is checked as the work judge's, with the members as the judged people (a
+  bystander who overheard can't be changed), and a bad answer is sent back once. It's told, in
+  this sense: an empty answer is normal; judge each member from what they said and heard, given
+  their temperament and how they were before; change only what the conversation would, and
+  only the members'; the summary is for the record, read by nobody in the simulation. Its
+  verdict is a GM-only `:conversation/judged {:about id :summary}` (narrated `The conversation
+  judge on conv-12: ...`), then the members' changes; a failure leaves everything as it was,
+  with an operator-only `:conversation/judge-failed {:about id :reason}`. These hold the id
+  as `:about`, not `:conversation`, so they aren't among the conversation's own events. No
+  member is told.
 - **The event:** the changes go in GM-only `:person/inner-changed` events, one per changed
-  person, emitted right after the job's `:item/work-done`, which holds no inner state:
-  `{:person id :source {:job id} :changes [{:key k :from v :to v'}]}` (`:to` nil when
-  cleared). Its reducer sets `:inner` and `:inner-at` (the event's round). The person gets no
+  person, emitted right after the job's `:item/work-done` (which holds no inner state) or the
+  `:conversation/judged`: `{:person id :source {:job id} :changes [{:key k :from v :to v'}]}`,
+  or `:source {:conversation id}` (`:to` nil when cleared). Its reducer sets `:inner` and `:inner-at` (the event's round). The person gets no
   line in their event window; the transcript reads `Lady Ashby, inside (job job-12): mood
   "pleased with Dawson's work"; body cleared.`
 - **Mock runs:** `item-judge/mock-judge` leaves inner state alone. A scenario's `:mock-judge`
-  may return `:inner` in its args (the dressing fixture's does).
+  may return `:inner` in its args (the dressing fixture's does). The conversation judge
+  (`role :conversation-judge`, with `:conversation {:id :initiator :members}` and `:lines`, the
+  line events, in its context) goes to the scenario's `:mock-conversation-judge`, or else
+  `conversation-judge/mock-judge`, which changes nothing; `conversation-judge/heard-by` gives
+  the members who heard a line.
 - **What to tell agents,** in the brief or rules, in this sense (Claudeworth's `rules` has
   it): *Under `you`, `inner` says how you are inside now: your spirits, how your body is, what's
   on your mind. Nobody else can see it unless you show or say so. It changes with what you do,
@@ -1763,6 +1793,9 @@ on with it. It uses nobody else's turn either.
   through `give`, after `find` if nobody carries it. Extra-tool events need no `:conversation` tag. Speaking turns are
   logged in `llm.edn` with `:conversation {:id :pass}` (`:pass :last-word` for the last word),
   which the transcript shows next to the agent.
+- **Judged afterwards** in a scenario with inner state: once it has ended (and wasn't cut
+  short), the conversation judge may change its members' inner state, before the initiator's
+  summary is returned. Nobody is told. See Inner state.
 - It isn't offered in a simultaneous group, where the others are in their own turns, or to a human
   seat. Leave it out with `:exclude-actions #{:converse}`.
 
@@ -1812,7 +1845,8 @@ Lets the scenario run for free with `{:llm :mock}`. It's essential for testing.
 - Nor do speaking turns in a conversation (the context has `:conversation {:id :initiator
   :members :pass :final?}`): they go to the scenario's `:mock-conversation`, and when that is
   missing or returns nil, to `manor.mechanics.conversation/mock-default` (the initiator ends it, the others
-  stay silent).
+  stay silent). The conversation judge (`role :conversation-judge`) goes to
+  `:mock-conversation-judge` (see Inner state).
 - Only choose valid actions. The scenario smoke test fails on forfeited turns.
 
 ## Stable test conditions

@@ -1,15 +1,18 @@
 (ns manor.inner-state-test
   "Inner state (manor.mechanics.inner) in the dressing fixture world: checks,
-  starting values, privacy of the views, the work judge's changes and their
-  checks, the export and replay. Nothing here depends on Claudeworth's
-  content."
+  starting values, privacy of the views, the work judge's and the
+  conversation judge's changes and their checks, the export and replay.
+  Nothing here depends on Claudeworth's content."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [jsonista.core :as json]
             [manor.engine :as e]
+            [manor.io.llm :as llm]
             [manor.io.store :as store]
             [manor.io.worldfile :as wf]
+            [manor.mechanics.conversation :as conversation]
+            [manor.mechanics.conversation.judge :as conversation-judge]
             [manor.mechanics.items :as items]
             [manor.mechanics.items.judge :as item-judge]
             [manor.mechanics.items.steward :as item-steward]
@@ -19,6 +22,8 @@
             [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.scenarios.dressing :as dressing]
+            [manor.tools.cache-report :as cache-report]
+            [manor.tools.transcript :as transcript]
             [manor.world :as w]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
@@ -107,11 +112,13 @@
 (deftest no-other-agent-request-holds-it
   (let [run (rounds! (start) 8)
         held (values-held run)
-        calls (remove #(#{"gm" "judge" "steward"} (:agent %)) (store/read-llm (:dir run)))
+        all-calls (store/read-llm (:dir run))
+        calls (remove #(#{"gm" "judge" "steward" "conversation-judge"} (:agent %)) all-calls)
         text (fn [call] (str/join "\n" (map :content (:messages call))))]
     (try
       (is (= #{"lady-ashby" "dawson" "mrs-pell"} (set (map :agent calls))))
       (is (some #(str/includes? % "pleased with Dawson's work") (get held "lady-ashby")) "changed during the day")
+      (is (some #(str/includes? % "turning over what Dawson said") (get held "lady-ashby")) "changed by a conversation")
       (testing "a person's own requests hold their inner state"
         (is (some #(str/includes? (text %) "pleased with Dawson's work") (filter #(= "lady-ashby" (:agent %)) calls))))
       (testing "nobody else's requests hold any value they ever had"
@@ -120,6 +127,11 @@
                 :when (not= id (:agent call))
                 v values]
           (is (not (str/includes? (text call) v)) (str (:agent call) " saw " id "'s " (pr-str v)))))
+      (testing "the conversation judge sees no non-member's"
+        (let [judged (filter #(= "conversation-judge" (:agent %)) all-calls)]
+          (is (= 1 (count judged)))
+          (doseq [call judged, v (get held "mrs-pell")]
+            (is (not (str/includes? (text call) v)) (str "the conversation judge saw Mrs Pell's " (pr-str v))))))
       (testing "the changes are the GM's only"
         (is (seq (of-type run :person/inner-changed)))
         (is (every? #(= :gm (:visible-to %)) (of-type run :person/inner-changed))))
@@ -271,4 +283,199 @@
                      (inner-of run "mrs-pell")))
               (is (= #{:body :dread :hope :mood} (set (keys (:inner-at (w/agent (e/world run) "mrs-pell"))))))))))
       (is (= (e/world run) (w/replay (e/events run))))
+      (finally (e/stop-run run)))))
+
+;; ---------------------------------------------------------------------------
+;; The conversation judge
+
+(defn- scripted
+  "A mock: `script` maps agent id -> round -> the calls of that turn, in
+  order; other turns pass (the GM is done). Speaking turns go to `speak`,
+  or conversation/mock-default when it returns nil; the conversation judge
+  to `react`, or the fixture's mock. Work goes to the fixture's mock judge."
+  [script & {:keys [speak react]}]
+  (llm/mock (fn [{:keys [world agent-id role step] :as ctx}]
+              (case role
+                :judge (dressing/mock-judge ctx)
+                :conversation-judge ((or react dressing/mock-conversation-judge) ctx)
+                :gm {:tool :done}
+                (if (:conversation ctx)
+                  (or (when speak (speak ctx)) (conversation/mock-default ctx))
+                  (get-in script [agent-id (:round world) step] {:tool :pass}))))))
+
+(defn- talks
+  "Lady Ashby's first turn: a word with `with`, then she passes."
+  [with]
+  {"lady-ashby" {1 [{:tool :converse :args {:with with :text "Is my blue silk pressed?"}} {:tool :pass}]}})
+
+(defn- answers [text] (fn [{:keys [agent-id conversation]}]
+                        (when (and (not= agent-id (:initiator conversation)) (= 1 (:pass conversation)))
+                          {:tool :reply :args {:text text}})))
+
+(defn- judge-calls [run] (filter #(= "conversation-judge" (:agent %)) (store/read-llm (:dir run))))
+
+(defn- ending [run] (get-in (first (of-type run :conversation/ended)) [:data :reason]))
+
+(deftest members-change-after-a-conversation
+  (let [run (rounds! (start) 5)
+        world (e/world run)
+        [ended] (of-type run :conversation/ended)
+        id (get-in ended [:data :conversation])
+        [judged] (of-type run :conversation/judged)
+        changed (filter #(= {:conversation id} (get-in % [:data :source])) (of-type run :person/inner-changed))]
+    (try
+      (is (= :ended (ending run)))
+      (testing "after the end, before anything else: the summary, then one change a member"
+        (is (= [:llm/usage :conversation/judged :person/inner-changed :person/inner-changed]
+               (map :type (take 4 (drop-while #(<= (:id %) (:id ended)) (e/events run)))))
+            "only the judge's usage comes between")
+        (is (= {:about id :summary "Each was left turning over what was said."} (:data judged)))
+        (is (= ["dawson" "lady-ashby"] (map #(get-in % [:data :person]) changed)))
+        (is (= [{:key :mind :from nil :to "turning over what Dawson said"}] (get-in (second changed) [:data :changes]))))
+      (testing "GM-only, and no member is told"
+        (is (every? #(= :gm (:visible-to %)) (cons judged changed)))
+        (is (not-any? #(w/visible-to? % "lady-ashby") (cons judged changed))))
+      (is (= "turning over what Dawson said" (:mind (inner-of run "lady-ashby"))))
+      (is (= "turning over what Lady Ashby said" (:mind (inner-of run "dawson"))))
+      (is (= 5 (get-in (w/agent world "dawson") [:inner-at :mind])))
+      (testing "the initiator's summary doesn't hold it"
+        (let [summary (some #(when (str/starts-with? (:content %) "The conversation is over") (:content %))
+                            (mapcat :replies (filter #(= "lady-ashby" (:agent %)) (store/read-llm (:dir run)))))]
+          (is (some? summary))
+          (is (not (str/includes? summary "turning over")))))
+      (testing "the call: one, recorded as the conversation judge, counted with the narrow calls"
+        (let [[call] (judge-calls run)]
+          (is (= 1 (count (judge-calls run))))
+          (is (= ["react"] (:tools call)))
+          (is (= :adjudicator (cache-report/kind call)))))
+      (testing "the transcript shows the call and the verdict"
+        (let [md (transcript/render (:dir run))]
+          (is (str/includes? md "**conversation-judge** react"))
+          (is (str/includes? md (str "The conversation judge on " id ": Each was left turning over what was said.  _[gm]_")))
+          (is (str/includes? md (str "Dawson, inside (conversation " id "): mind \"turning over what Lady Ashby said\".")))))
+      (is (= world (w/replay (store/read-events (:dir run)))))
+      (finally (e/stop-run run)))))
+
+(deftest the-conversation-judge-sees-the-members-and-the-lines
+  (let [run (start)]
+    (try
+      (e/emit! run [{:type :agent/placed :data {:id "mrs-pell" :to "bedroom"}}])
+      (let [world (e/world run)
+            all #{"lady-ashby" "dawson" "mrs-pell"}
+            said (fn [actor text heard] {:type :agent/said :actor actor :visible-to heard :data {:text text :conversation "conv-1"}})
+            events [{:type :conversation/started :actor "lady-ashby" :visible-to all :data {:conversation "conv-1"}}
+                    (said "lady-ashby" "Is my blue silk pressed?" all)
+                    {:type :agent/said :actor "mrs-pell" :visible-to all :data {:text "Elsewhere." :conversation "conv-2"}}
+                    (said "dawson" "Not yet, my lady." #{"dawson" "lady-ashby"})
+                    {:type :conversation/silent :actor "mrs-pell" :visible-to all :data {:conversation "conv-1"}}
+                    {:type :conversation/left :actor "dawson" :visible-to all :data {:conversation "conv-1"}}]
+            conv {:id "conv-1" :initiator "lady-ashby" :members ["lady-ashby" "dawson" "mrs-pell"]}
+            request (conversation-judge/judge-request config world conv (conversation-judge/lines events "conv-1"))
+            {:keys [members lines]} (scene-json request)]
+        (testing "the lines in order, and who heard one when not every member did"
+          (is (= [{:person "lady-ashby" :says "Is my blue silk pressed?"}
+                  {:person "dawson" :says "Not yet, my lady." :heard_by ["lady-ashby" "dawson"]}
+                  {:person "mrs-pell" :does "says nothing"}
+                  {:person "dawson" :does "leaves the conversation, staying within hearing"}]
+                 lines)))
+        (testing "each member, with every fixed key and when it was set"
+          (is (= ["lady-ashby" "dawson" "mrs-pell"] (map :id members)))
+          (is (= {:id "lady-ashby" :name "Lady Ashby"
+                  :persona "A particular woman who likes to look well at dinner."
+                  :appearance "A tall woman of fifty, usually in a grey day dress, her hair in a plain knot."
+                  :inner {:mood {:value "impatient for dinner" :set_at "18:00"} :body {:value ""}}}
+                 (first members))))
+        (testing "the place, the time, the instructions and the tool"
+          (is (str/includes? (get-in request [:messages 1 :content]) "- Time: Saturday 15 October 1904, 18:00\n- Place: Lady's bedroom\n"))
+          (is (str/includes? (get-in request [:messages 0 :content]) "\n- body: how their body is, as only they know it"))
+          (is (= #{:inner :summary} (set (keys (get-in request [:tools 0 :function :parameters :properties]))))))
+        (testing "nothing about anyone else"
+          (let [only-two (conversation-judge/judge-request config world (assoc conv :members ["lady-ashby" "dawson"])
+                                                           (take 2 (conversation-judge/lines events "conv-1")))]
+            (is (not (str/includes? (pr-str (:messages only-two)) "aching feet")))
+            (is (not (str/includes? (pr-str (:messages only-two)) "Mrs Pell"))))))
+      (finally (e/stop-run run)))))
+
+(deftest a-non-member-present-cant-be-changed
+  (let [react (fn [{:keys [step]}]
+                {:tool :react :args {:summary "Mrs Pell overheard."
+                                     :inner (if (zero? step)
+                                              [{:person "mrs-pell" :key "mood" :value "put out at being ignored"}]
+                                              [{:person "dawson" :key "mood" :value "anxious about the silk"}])}})
+        run (start {:llm-impl (scripted (talks ["dawson"]) :speak (answers "Not yet, my lady.") :react react)})]
+    (try
+      (e/emit! run [{:type :agent/placed :data {:id "mrs-pell" :to "bedroom"}}])
+      (rounds! run 1)
+      (let [[first-call second-call] (judge-calls run)]
+        (is (some #(contains? (:visible-to %) "mrs-pell") (of-type run :agent/said)) "she heard it")
+        (is (= [{:role "tool" :tool_call_id "mock-0-react"
+                 :content (str "error: you may change the inner state only of these people: lady-ashby, dawson; not mrs-pell. "
+                               "Call react again with a corrected answer.")}]
+               (:replies first-call)))
+        (is (= "ok" (:content (first (:replies second-call))))))
+      (is (= {:body "aching feet after a long day" :worry "whether the fish will keep"} (inner-of run "mrs-pell")))
+      (is (= {:mood "anxious about the silk"} (inner-of run "dawson")))
+      (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+      (finally (e/stop-run run)))))
+
+(deftest a-failed-judgement-changes-nothing
+  (let [react (constantly {:tool :react :args {:summary "x" :inner [{:person "mrs-pell" :key "mood" :value "cross"}]}})
+        run (rounds! (start {:llm-impl (scripted (talks ["dawson"]) :speak (answers "Yes, my lady.") :react react)}) 1)
+        [failed] (of-type run :conversation/judge-failed)]
+    (try
+      (is (= 2 (count (judge-calls run))))
+      (is (= :system (:visible-to failed)))
+      (is (str/starts-with? (get-in failed [:data :reason]) "a second bad answer: you may change the inner state only of"))
+      (is (empty? (of-type run :conversation/judged)))
+      (is (empty? (of-type run :person/inner-changed)))
+      (is (= {:mood "impatient for dinner"} (inner-of run "lady-ashby")))
+      (finally (e/stop-run run)))))
+
+(deftest judged-on-silence
+  (let [run (rounds! (start {:llm-impl (scripted (talks ["dawson"]))}) 1)]
+    (try
+      (is (= :silence (ending run)))
+      (is (= 1 (count (judge-calls run))))
+      (is (= 1 (count (of-type run :conversation/judged))))
+      (testing "only the initiator's line was said, so only Dawson heard someone else"
+        (is (= "turning over what Lady Ashby said" (:mind (inner-of run "dawson"))))
+        (is (nil? (:mind (inner-of run "lady-ashby")))))
+      (finally (e/stop-run run)))))
+
+(deftest skipped-when-cut-short
+  (testing "on an error"
+    (let [run (start {:llm-impl (scripted (talks ["dawson"]) :speak (fn [_] (throw (ex-info "model down" {}))))})]
+      (try
+        (e/auto! run 1)
+        (e/wait-idle run 60000)
+        (is (= :error (ending run)))
+        (is (empty? (judge-calls run)))
+        (is (empty? (of-type run :conversation/judged)))
+        (finally (e/stop-run run)))))
+  (testing "at the cost limit"
+    (let [mock (scripted (talks ["dawson"]) :speak (answers "Yes, my lady."))
+          costly (reify llm/LLM
+                   (complete [_ {:keys [ctx] :as request}]
+                     (cond-> (llm/complete mock request)
+                       (and (= "lady-ashby" (:agent-id ctx)) (not (:conversation ctx))) (assoc-in [:usage :cost] 1.0))))
+          run (start {:llm-impl costly :max-cost 0.5})]
+      (try
+        (e/auto! run 1)
+        (e/wait-idle run 60000)
+        (is (= :cost-limit (ending run)))
+        (is (empty? (judge-calls run)))
+        (is (empty? (of-type run :conversation/judged)))
+        (finally (e/stop-run run))))))
+
+(deftest no-call-without-inner-state
+  (let [plain (-> dressing/scenario
+                  (dissoc :inner)
+                  (assoc :init (fn [opts] (update ((:init dressing/scenario) opts) :agents #(mapv (fn [a] (dissoc a :inner)) %)))))
+        run (with-redefs [e/load-scenario (constantly plain)]
+              (start {:llm-impl (scripted (talks ["dawson"]) :speak (answers "Yes, my lady."))}))]
+    (try
+      (rounds! run 1)
+      (is (= :ended (ending run)))
+      (is (empty? (judge-calls run)))
+      (is (empty? (of-type run :conversation/judged)))
       (finally (e/stop-run run)))))

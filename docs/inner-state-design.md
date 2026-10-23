@@ -1,7 +1,7 @@
 # Inner state: how characters are inside
 
-Status: **phase 1 built** (data and the work judge; mock-tested, no real run yet). Phases 2
-(the conversation judge) and 3 (the steward) are not started. The user's decisions of
+Status: **phases 1 and 2 built** (data and the work judge, then the conversation judge;
+mock-tested, no real run yet). Phase 3 (the steward) is not started. The user's decisions of
 2026-10-22 are in section 4; the defaults at its end were taken as written. Follow-ups go to
 the roadmap (B13).
 
@@ -24,7 +24,28 @@ Where phase 1's build differs in detail, or fills a gap:
   work"; body cleared.` `map.edn` is now also rewritten after `person/*` events, so the later
   phases' changes export too.
 - Claudeworth's rules already have the whole 5.5 paragraph, including "what's said to you and
-  how you sleep", though until phases 2 and 3 only work changes it.
+  how you sleep", though until phase 3 only work and conversations change it.
+
+Where phase 2's build (`manor.mechanics.conversation.judge`, called from
+`manor.engine.talk/run-conversation!`) differs in detail, or fills a gap:
+
+- Besides an ending at the cost limit or on an error, the call is also skipped when the run's
+  cost limit has been reached by the time the conversation ends, so it never goes over the cap.
+- `:conversation/judged {:about id :summary}` and, when the answer fails (two bad answers or a
+  failed call), an operator-only `:conversation/judge-failed {:about id :reason}` hold the
+  conversation's id as `:about`, not `:conversation`: only the conversation's own events, which
+  everyone present saw, carry `:conversation` (`conversation/of`). Neither has a reducer.
+- Each line is `{person, says}` or `{person, does}` ("says nothing", "leaves the conversation,
+  staying within hearing"), with `heard_by` (member ids) only when not every member heard it.
+  The request has no setting brief: the work judge's `:judge-brief` is about work.
+- The instructions also say to change only what the conversation would and leave the rest
+  (as the work judge's do), and that the summary is for the record, read by nobody in the
+  simulation. They reuse `inner/key-instructions` for the keys and the open-key cap.
+- The mock hook is the scenario's `:mock-conversation-judge` (context `:conversation` and
+  `:lines`); the default, `conversation-judge/mock-judge`, changes nothing. The dressing
+  fixture's leaves each member who heard someone else's line turning over what they said (the
+  open key `mind`), and its mock day has Lady Ashby ask Dawson about her silk at 20:00.
+- `cache-report` counts the calls as `:adjudicator`, with the steward's.
 
 ## 1. The want
 

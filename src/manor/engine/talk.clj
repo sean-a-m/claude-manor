@@ -1,13 +1,16 @@
 (ns manor.engine.talk
   "Running a conversation (manor.mechanics.conversation has its rules): the speaking
-  turns, each a short model call by the speaker, and the summary the
-  initiator gets back as the reply to `converse`."
+  turns, each a short model call by the speaker, the conversation judge
+  (with inner state), and the summary the initiator gets back as the reply
+  to `converse`."
   (:require [clojure.string :as str]
             [manor.actions :as a]
+            [manor.engine.judges :as judges]
             [manor.engine.resolve :as resolve]
             [manor.engine.run :as run]
             [manor.engine.turn :as turn]
             [manor.mechanics.conversation :as conversation]
+            [manor.mechanics.conversation.judge :as conversation-judge]
             [manor.narrate :as narrate]
             [manor.prompt :as prompt]
             [manor.world :as w]))
@@ -118,6 +121,21 @@
        (take-while #(not (and (= :conversation/ended (:type %))
                               (= id (get-in % [:data :conversation])))))))
 
+(defn- judge!
+  "With inner state in the scenario, ask the conversation judge how `conv`
+  left its members and record its verdict; a failure changes nothing. Not
+  when it was cut short (`ending` :cost-limit or :error) or the run's cost
+  limit is reached. It runs before the initiator's summary, so their next
+  step and everyone's later turns see the result."
+  [run conv ending]
+  (when (and (get-in run [:scenario :inner])
+             (not (#{:cost-limit :error} ending))
+             (not (run/cost-reached? run)))
+    (let [{:keys [verdict failure]} (judges/ask-conversation-judge run @(:world run) conv (during run (:id conv)))]
+      (run/emit! run (if verdict
+                       (conversation-judge/judged-events (:id conv) verdict)
+                       [(conversation-judge/judge-failed (:id conv) failure)])))))
+
 (def ^:private how-to-hand-over
   "After `conversation/nothing-handed`, in the initiator's summary."
   "It changes hands only when someone `give`s it, finding it with `find` first if they don't carry it.")
@@ -152,4 +170,5 @@
         (let [ending (converse! run conv)
               handed (conversation/handed @(:world run) (during run (:id conv)))]
           (run/emit! run [(conversation/ended @(:world run) conv ending handed)])
+          (judge! run conv ending)
           {:summary (conversation-summary run conv ending handed)})))))

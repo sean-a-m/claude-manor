@@ -1,10 +1,12 @@
 (ns manor.engine.judges
   "The narrow model calls that answer one checked question: the work judge,
-  the nightly steward and scenario adjudicators. Each gets a checked
-  answer, one correction attempt and a safe failure; the domain code
-  (manor.mechanics.items, the scenario) owns the prompts and the checks."
+  the conversation judge, the nightly steward and scenario adjudicators.
+  Each gets a checked answer, one correction attempt and a safe failure;
+  the domain code (manor.mechanics.items, manor.mechanics.conversation.judge,
+  the scenario) owns the prompts and the checks."
   (:require [manor.engine.models :as models]
             [manor.engine.run :as run]
+            [manor.mechanics.conversation.judge :as conversation-judge]
             [manor.mechanics.items.judge :as item-judge]
             [manor.mechanics.items.steward :as item-steward]
             [manor.mechanics.items.work :as item-work]
@@ -59,6 +61,21 @@
                                    :focus (item-work/focus-things world job)))
         {:keys [verdict] :as result} (ask-structured! run "judge" request #(item-judge/judgement % world things (get-in run [:scenario :inner])))]
     (assoc result :verdict verdict)))
+
+(defn ask-conversation-judge
+  "Ask the conversation judge how conversation `conv` ({:id :initiator
+  :members}) left its members, from `events` (the conversation's, at least):
+  {:verdict {:summary :inner}}, or {:failure reason}. A bad answer is sent
+  back once. Each call is recorded in llm.edn as agent
+  \"conversation-judge\", and its usage counts towards the run's cost."
+  [run world conv events]
+  (let [config (get-in run [:scenario :inner])
+        lines (conversation-judge/lines events (:id conv))
+        request (assoc (conversation-judge/judge-request config world conv lines)
+                       :label "conversation judge"
+                       :ctx {:role :conversation-judge :world world :conversation conv :lines lines})]
+    (ask-structured! run "conversation-judge" request
+                     #(conversation-judge/judgement % world config (:members conv)))))
 
 (defn adjudicate
   "Ask the scenario's adjudicator for `task` about `args`, on `world`:

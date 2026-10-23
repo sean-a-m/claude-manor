@@ -97,6 +97,13 @@
    [:vector [:map [:person :string] [:key :string]
              [:value [:string {:max max-value :json-schema/maxLength advised-value}]]]]])
 
+(defn key-instructions
+  "The lines naming the keys every person has, with their glosses, and how
+  many others a judge may add, for a scenario's `config`."
+  [config]
+  (str "Every person has the keys below. You may add others (lower-case letters and hyphens, at most 24 characters), at most " (open-cap config) " a person besides these.\n"
+       (str/join "\n" (for [[k gloss] (:keys config)] (str "- " (name k) ": " gloss)))))
+
 (defn instructions
   "The judge's lines about inner state, for a scenario's `config`."
   [config]
@@ -105,8 +112,7 @@
        "- Their temperament says how they're inclined to take things; it informs your judgement but doesn't decide it.\n"
        "- The summary is read by everyone present: say only what they could see or hear, never anyone's inner state.\n"
        "- Change the inner state only of the people marked `person`, in `inner: [{person, key, value}]`, apart from `changes`: the person's id, the key, and a phrase of at most " advised-value " characters saying how they are now, or \"\" to clear it. "
-       "Every person has the keys below. You may add others (lower-case letters and hyphens, at most 24 characters), at most " (open-cap config) " a person besides these.\n"
-       (str/join "\n" (for [[k gloss] (:keys config)] (str "- " (name k) ": " gloss)))))
+       (key-instructions config)))
 
 (defn- decoded
   "The judge's inner changes as [{:person :key :to}]: keys normalised like
@@ -156,7 +162,7 @@
 (defn changed-events
   "One GM-only :person/inner-changed per person, in the order they first
   come in `changes` ({:person :key :from :to}). `source` says what changed
-  it: {:job id}."
+  it: {:job id} or {:conversation id}."
   [source changes]
   (for [id (distinct (map :person changes))]
     {:type :person/inner-changed :visible-to :gm

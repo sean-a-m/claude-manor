@@ -39,6 +39,7 @@
             [manor.io.worldfile :as worldfile]
             [manor.mechanics.builtins :as b]
             [manor.mechanics.conversation :as conversation]
+            [manor.mechanics.conversation.judge :as conversation-judge]
             [manor.mechanics.inner :as inner]
             [manor.mechanics.items :as items]
             [manor.mechanics.items.actions :as item-actions]
@@ -110,10 +111,12 @@
 
 (defn- mock-llm
   "The scenario policy handles characters. Work uses :mock-judge (or the
-  default); internal adjudication queries use their registered :mock, never
-  a live provider; speaking turns in a conversation use :mock-conversation,
-  falling back to manor.mechanics.conversation/mock-default. Character policies need
-  not know about these calls."
+  default), and the conversation judge :mock-conversation-judge (or
+  manor.mechanics.conversation.judge/mock-judge); internal adjudication
+  queries use their registered :mock, never a live provider; speaking turns
+  in a conversation use :mock-conversation, falling back to
+  manor.mechanics.conversation/mock-default. Character policies need not
+  know about these calls."
   [scenario]
   (let [policy (conversation-mock scenario (or (:mock-policy scenario) (constantly nil)))
         judge (or (:mock-judge scenario) item-judge/mock-judge)]
@@ -121,6 +124,7 @@
                 (case (:role ctx)
                   :judge (judge ctx)
                   :steward ((or (:mock-steward scenario) item-steward/mock-steward) ctx)
+                  :conversation-judge ((or (:mock-conversation-judge scenario) conversation-judge/mock-judge) ctx)
                   :adjudicator (if-let [mock (get-in scenario [:adjudicators (:task ctx) :mock])]
                                  (mock ctx)
                                  (throw (ex-info "adjudicator needs a mock responder" {:task (:task ctx)})))

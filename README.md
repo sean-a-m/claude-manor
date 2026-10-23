@@ -128,7 +128,8 @@ From the REPL (`clj -M:dev`):
 
 `roll-cast!` gives every character in a world file new traits from the people server
 (`mcp-servers/people/`) and persona, manner and appearance written from them, with **no old
-character descriptions as input**. It keeps names, sex, jobs and situations. Each call uses a
+character descriptions as input** — only the authored `:situation`, sent as the polish's notes,
+so the person written fits the scenario. It keeps names, sex, jobs and situations. Each call uses a
 fresh seed, printed and recorded for reproduction; pass `{:seed 1}` for repeatable traits.
 It writes the result into the file for review with `git diff`; see "People and traits" in
 [docs/scenario-authoring.md](docs/scenario-authoring.md).

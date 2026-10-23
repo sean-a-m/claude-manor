@@ -32,7 +32,15 @@
     (testing "the scenario's own sections are passed through"
       (is (= 1 (count (:notices world-file))))))
   (testing "classpath resources work too (test/ is on the classpath)"
-    (is (some? (:space (wf/load-world "fixtures/hamlet.edn"))))))
+    (is (some? (:space (wf/load-world "fixtures/hamlet.edn")))))
+  (testing "the file must hold exactly one form: trailing data is refused, not ignored"
+    (let [dir (store/run-dir (str (gensym "trailing-")) true)
+          _ (store/write-text! dir "extra.edn" (str (slurp hamlet) "\n{:agents []}\n"))
+          _ (store/write-text! dir "stray.edn" (str (slurp hamlet) "\n]\n"))]
+      (is (thrown-with-msg? Exception #"more than one form"
+                            (wf/load-world (str (io/file dir "extra.edn")))))
+      (is (thrown-with-msg? Exception #"not valid EDN"
+                            (wf/load-world (str (io/file dir "stray.edn"))))))))
 
 (deftest problems-are-readable
   (let [good (wf/read-file hamlet)
@@ -58,8 +66,10 @@
       (doseq [bad [42 "" (apply str (repeat 601 "x"))]]
         (is (str/includes? (problems-of (assoc-in good [:agents 0 :appearance] bad)) ":appearance"))))
     (testing "load-world throws with the whole list"
-      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"has problems:\n- "
-                            (wf/load-world "test/manor/worldfile_test.clj"))))))
+      (let [dir (store/run-dir (str (gensym "problems-")) true)
+            _ (store/write-text! dir "bad.edn" (pr-str (assoc good :routes [["nowhere" "elsewhere" 1]])))]
+        (is (thrown-with-msg? clojure.lang.ExceptionInfo #"has problems:\n- "
+                              (wf/load-world (str (io/file dir "bad.edn")))))))))
 
 (deftest export-round-trip
   (let [run (hamlet-run)

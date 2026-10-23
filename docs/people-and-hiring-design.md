@@ -269,6 +269,13 @@ appearance, traits, or situation. Generated age and origin are retained; generat
 omitted, since homes are already part of the world setup. Name, sex, position, situation,
 bedroom, routine and other authored setup stay unchanged.
 
+*Added 2026-10-23:* the agent's `:situation` now reaches the polish as its `:notes`, which
+`polish-request` and the instructions always supported ("when notes are supplied, preserve their
+authored identity, situation and directions"). Without it a rolled cast contradicted its scenario:
+rolling `claudeworth-medium`'s household made the seventeen-year-old daughter twelve with the
+housekeeping on her hands, and gave the baroness grown-up children. Only the situation is passed;
+the old persona, manner, appearance, traits and circumstances still never are.
+
 Each invocation uses a fresh seed unless an explicit `:seed` is supplied; the seed is returned,
 printed by the REPL helper and recorded in `roll-cast.edn` for reproduction. Persona, manner,
 appearance, temperament, faculties and circumstances are overwritten on success. A successful

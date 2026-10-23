@@ -1,9 +1,11 @@
 # A modest household with new money: proposal for a second Claudeworth scenario
 
-Status, 2026-10-23: **proposal, not started.** The household design (sections 1–7) is the
-user's brief, agreed in conversation. Section 8 says how to build it with the engine as it is,
-and section 9 lists the decisions still open. Nothing here changes the existing `:claudeworth`
-scenario, which stays as the test bed for features.
+Status, 2026-10-23: **the starting world is built** as the `:claudeworth-medium` scenario —
+`resources/worlds/claudeworth-medium.edn`, `src/manor/scenarios/claudeworth_medium.clj`,
+`resources/architect/prices-1904-medium.edn` and `test/manor/claudeworth_medium_test.clj`.
+What was built, and the user's decisions, are in section 9. Income itself is not built (another
+piece of work), so sections 4 and 6 are still the design target rather than the state. The
+existing `:claudeworth` scenario is untouched and stays as the small test house.
 
 ## 0. What this is
 
@@ -352,13 +354,52 @@ bring them in, so the operator spawn is the better fit for a single long run.
    `:max-cost` 0.20, on a port from 8090–8099 if the panel is used (never 8080). Read the
    transcript, report the cost, and move the run to `old-test-runs/`.
 
-## 9. Open decisions for the user
+## 9. What was built, and the user's decisions (2026-10-23)
 
-1. The scenario's name and key.
-2. Earl with the backstory above, or a baronet.
-3. Ironstone royalties (recommended) or the countess's legacy, or both later.
-4. The starting bank balance.
-5. Whether to write a price list for this scenario or keep the current one.
-6. The son and the Dowager: operator spawns when due, or in the world file and left out.
-7. Names: the heir's courtesy title, and the staff's names (`roll-cast!` keeps the names it's
-   given, so they're written by hand).
+The user's decisions, in brackets, and what they became:
+
+1. **Name and key** [`claudeworth-medium`, "bigger than the existing one, but bigger ones will
+   come later"]: the world file is `worlds/claudeworth-medium.edn`, the scenario
+   `:claudeworth-medium`.
+2. **Rank** [baron, "if it's smaller"]: `:baron` and `:baroness` are positions in the world
+   file's `:roles` ("my lord", "my lady"); a baron's children are The Honourable, so
+   `:son-of-the-house` is addressed "Mr {surname}" and `:daughter-of-the-house` "Miss {surname}".
+3. **Income** [both]: ironstone royalties are the premise, written into the family's situations,
+   and the countess's legacy is designed as a later event (4.7). Neither is implemented:
+   income is a separate piece of work. The cast does not state the legacy yet, and the countess's
+   origin has since been rolled as the Cotswolds, so whoever implements it places the father and
+   the trustees.
+4. **Starting balance** [a little below £3,000, because of `docs/claudeworth-spending-investigation.md`]:
+   `:starting-funds 2900`, and the new price list's largest work is £4,000, so one commission
+   cannot empty the account. `claudeworth_medium_test` asserts both.
+5. **Price list** [draft one now if doable]: `resources/architect/prices-1904-medium.edn` —
+   "small room" £300, "medium room" £650, "large room" £1,600, "grand wing" £4,000, build days
+   1 for the first three and 2 for the grand wing.
+6. **The son and the Dowager** [TBD; an event system is being built separately]: the son is in
+   the world file (name, persona, room, situation) and the scenario's `:defaults :leave-out`
+   keeps him out of runs until there is a way to bring him home. The Dowager is not in the file:
+   she needs a suite that does not exist yet, and she comes with the arrival work.
+7. **Names** [`roll-cast!` cannot randomise them, so fitting ones]: the family is
+   Lord/Lady Claudeworth, Miss Claudeworth and Master Claudeworth; the staff are Mr Merrick
+   (butler-valet), Mrs Thorne (cook), Miss Nash (lady's maid), Emily and Rose (housemaids),
+   Bessie (kitchen maid), Mr Ridley (coachman), Mr Durrant (head gardener) and Alf (garden lad).
+   The village and abbey keep the `:claudeworth` cast, names and personas.
+
+### 9.1 How the cast was written
+
+Roles, layout, bedrooms, situations and names were written by hand; personas, appearances and
+traits came from `roll-cast!` (two rolls, $0.006 each). Three things were needed to make the
+roll fit the premise, all now recorded in the code and docs:
+
+- **The polish sees the agent's `:situation`** (as its `:notes`, which `polish-request` and the
+  instructions always supported; `roll-one` was not passing it). Before that, the roll made the
+  seventeen-year-old daughter twelve with the housekeeping on her hands.
+- **Positions carry the ages the design wants** (`:ages` in the world's `:roles`: the baron
+  [52 52], the baroness [44 44], the daughter [17 17], the son [14 14], and narrower ranges for
+  the servants, which also narrow who may be hired into each post later).
+- **Hand-edits after the roll** for the few things it still got wrong: a Black Country iron
+  family for the baron, a Chancery suit for the son, parlourmaids, an under-butler, a pub called
+  the Plough, a fourteen-year-old Alf, and a girl walking twenty miles home on a half-day.
+
+`roll-cast!`'s log and calls for both rolls were lost: they are written under `test-runs/`,
+which any test run deletes wholesale. That is now roadmap C15.

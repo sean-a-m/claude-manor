@@ -111,15 +111,18 @@ src/manor/
   cache_report.clj  prompt-cache and cost report from llm.edn: report, simulate (offline cache model), compare
   scenarios/     village.clj (full example), treasure.clj (small example), quiz.clj (MCP/pi),
                  lodge.clj (Ashby Lodge, on Claudeworth mechanics), claudeworth.clj (Claudeworth Manor: daily life,
-                 Nellie the housemaid, whose work-on jobs exercise the judge)
+                 the small test house, with Nellie the housemaid's work-on jobs), claudeworth_medium.clj
+                 (the larger household of docs/household-1904-proposal.md)
     claudeworth/ Claudeworth's parts: building.clj (money, plans, architect and construction),
                  shop.clj (Mr Briggs, store-profile-grounded adjudication, portable purchases via
                  firm quotes), deliveries.clj (orders sent up), money.clj (sterling: integer old
                  pence, pounds/shillings/pence formatting)
-resources/worlds/ world files on the classpath; claudeworth.edn is Claudeworth's fresh world
+resources/worlds/ world files on the classpath; claudeworth.edn is the small test world,
+                 claudeworth-medium.edn the larger household (see docs/household-1904-proposal.md)
 resources/positions/ shared catalogues of positions; england-1904.edn is a country house and village
 resources/pricing.edn model prices, peak hours and cache block size for manor.tools.cache-report
 mcp-servers/pi/server.mjs  pi as an MCP server: send_message {session, message}; Node, no deps
+resources/architect/    architect price lists (whole pounds), one per world, named in :meta :architect-prices
 mcp-servers/architect/  the architect MCP server: babashka, stateless, reference and draft tools
 mcp-servers/people/     the people MCP server: babashka, stateless, generate_people and reputation from data files
 config/        mcp.example.edn; mcp.edn is local and gitignored (the user's sets pi-sandbox)

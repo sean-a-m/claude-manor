@@ -1424,7 +1424,10 @@ in `:init`:
 
 - `load-world` takes a file path or a classpath resource name. It checks the file and throws a
   list of readable problems (unknown locations, duplicate ids, bad routes, bad clock, bad items,
-  bad agent aspects or inner state).
+  bad agent aspects or inner state). The file must hold exactly one form, the world map: a
+  second form after it is refused rather than ignored, because `edn/read-string` would otherwise
+  silently drop whole sections (a missing `]` once left `:items` and `:agents` out of a file
+  that appeared to load).
   It returns `{:space :clock :agents :items :world-file}`. Read your own sections from
   `:world-file`.
 - `:items` (optional) lists items as in Items, one per line, with `:holder` and an agent `:owner`
@@ -1557,8 +1560,12 @@ data, so there's one source and no call.
   situations, bedrooms, routines and other setup stay. Persona, manner, appearance,
   temperament, faculties and circumstances are replaced together on success; failed/unselected
   characters stay unchanged. Age/origin are newly generated; generated home is omitted because
-  housing is authored. Old descriptions, traits, circumstances and situation never feed back;
-  successful rolls remove legacy sketches. A fresh seed is returned and saved in
+  housing is authored. Old persona, manner, appearance, traits and circumstances never feed
+  back; the agent's `:situation` does, as the polish's notes, so the person written fits what
+  the scenario says about them (the polish's instructions say to keep the authored identity
+  and directions and take character from the new traits). Successful rolls remove legacy
+  sketches. Since the age comes from the position's `:ages`, set that range where the
+  character's age matters; narrowing it also narrows who may be hired into the position. A fresh seed is returned and saved in
   `roll-cast.edn`; an explicit `:seed` reproduces basic readings, not necessarily model prose.
   The default model/settings are the runs' (`deepseek/deepseek-v4.1-flash`, manor key).
   `{:only ["Hobbs"]}` selects characters. The REPL helper defaults to `:max-cost 0.20`,

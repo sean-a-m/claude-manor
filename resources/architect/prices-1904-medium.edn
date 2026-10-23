@@ -1,0 +1,7 @@
+;; An architect's price list for enlarging a country house in 1904, in whole pounds.
+;; A world file names it in :meta :architect-prices; :claudeworth-medium names this one.
+;; Sizes: a modest room, a comfortable room, a large room, and one ambitious work.
+{:sizes [{:size "small room"  :price 300  :build-days 1}
+         {:size "medium room" :price 650  :build-days 1}
+         {:size "large room"  :price 1600 :build-days 1}
+         {:size "grand wing"  :price 4000 :build-days 2}]}

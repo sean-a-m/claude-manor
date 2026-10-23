@@ -287,7 +287,7 @@
 (defn- roll-one
   "Roll and polish one agent of the world file `wf`, whose positions are
   `table`. Returns what happened, with the :edits to write if it worked."
-  [conn llm opts wf table {agent-name :name :keys [role sex]} seed]
+  [conn llm opts wf table {agent-name :name :keys [role sex situation]} seed]
   (let [entry (get table role)
         position (or (some-> (:title entry) str/lower-case) (str/replace (name role) "-" " "))
         args (generate-args role entry {:sex sex :seed (str seed "/" agent-name)
@@ -296,9 +296,13 @@
         ;; Keep identity and the world's existing home, not old descriptions.
         ;; Age, origin and all traits come from the freshly generated record.
         authored (-> record (assoc :name agent-name) (dissoc :lives))
+        ;; The authored :situation is the one thing the author wrote about this
+        ;; person, so the polish is told it as notes (see `instructions`): the
+        ;; persona and circumstances must fit it. Old descriptions still don't.
         result (try (polish! llm opts {:setting (get-in wf [:meta :setting])
                                        :position position
-                                       :record authored})
+                                       :record authored
+                                       :notes situation})
                     (catch Exception e {:failure (str "the polish call failed: " (ex-message e))}))
         record (cond-> record (:polish result) (assoc :circumstances (get-in result [:polish :circumstances])))
         t (traits record)]
@@ -320,7 +324,9 @@
   Basic traits are rolled and circumstances written; nothing is pinned. Names, sex (or the position's
   default), positions, situations and other setup stay. Age and origin come
   from the new record; the world's homes stay, so generated :lives is omitted.
-  No previous persona, sketch, manner, appearance or traits reach the polish.
+  No previous persona, sketch, manner, appearance or traits reach the polish;
+  the agent's :situation does, as the polish's notes, so the person written
+  fits what the scenario says about them.
   A successful roll removes any legacy :sketch rather than preserving it.
 
   opts: :llm (a manor.io.llm/LLM), :model, :max-tokens, :reasoning,

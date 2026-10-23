@@ -381,7 +381,8 @@
                                   {:value {:people [(assoc record :origin "A newly rolled origin" :lives "A generated cottage")]}})]
       (let [result (roll {:seed 7})
             after (edn/read-string (slurp file))
-            expected {:setting "England, 1904." :position "groom"
+            ;; The authored :situation is sent as notes; no old description is.
+            expected {:setting "England, 1904." :position "groom" :notes "You serve at the stable."
                       :record (assoc record :name "Ada" :origin "A newly rolled origin")}]
         (is (= expected (input (first @requests))))
         (is (= (:record expected) (get-in (first @requests) [:ctx :record])))

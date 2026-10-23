@@ -87,9 +87,19 @@
         r (when-not (.exists f) (io/resource (str source)))]
     (when-not (or (.exists f) r)
       (throw (ex-info (str "no world file " source " (looked for a file and a classpath resource)") {:source source})))
-    (try (edn/read-string (slurp (or r f)))
-         (catch Exception e
-           (throw (ex-info (str "world file " source " is not valid EDN: " (ex-message e)) {:source source} e))))))
+    (try
+      (with-open [reader (java.io.PushbackReader. (io/reader (or r f)))]
+        (let [form (edn/read {:eof ::eof} reader)]
+          ;; A second form means the file has more than the one world map. Without
+          ;; this check `edn/read-string` reads the first form and silently ignores
+          ;; the rest, so a stray or missing bracket drops whole sections (:items,
+          ;; :agents) and the file still looks as though it loaded.
+          (when-not (= ::eof (edn/read {:eof ::eof} reader))
+            (throw (ex-info "there is more than one form in the file; it must hold one world map"
+                            {:source source})))
+          form))
+      (catch Exception e
+        (throw (ex-info (str "world file " source " is not valid EDN: " (ex-message e)) {:source source} e))))))
 
 (defn ->clock
   "The clock from :meta, if the file sets a :start time."

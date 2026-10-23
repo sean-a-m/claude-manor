@@ -615,3 +615,19 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
     present, when nothing changed hands in it, and the initiator's summary adds how to hand
     something over. Not yet checked in a real run: watch for promised things being found and
     given after the talk, and for `find` used for stock at a shop or the bar.
+
+15. **`roll-cast!` records live where a test run wipes them.** The REPL helper writes its log and
+    every call under `test-runs/roll-cast-<time>/`, and any test run's fixture deletes
+    `test-runs/` wholesale (`store/delete-test-runs!`). A paid roll is therefore lost if the
+    suite runs before the operator moves it, which happened while building
+    `claudeworth-medium`: two rolls ($0.012) left only the personas in the world file, not the
+    seeds, prompts and costs. *Fix:* either write rolls outside `test-runs/` (a `rolls/`
+    directory beside `runs/`), or have the helper move the finished record to
+    `old-test-runs/` itself (it is the one thing that knows the roll is finished and paid).
+    Until then, move a roll record the moment it finishes, before running anything else.
+
+16. **A world file with more than one form is now refused.** Done with the `claudeworth-medium`
+    work: `read-file` reads a second form and throws, instead of letting `edn/read-string`
+    silently ignore everything after the first. Before, a missing or stray bracket dropped
+    `:items` and `:agents` from a file that still looked as though it loaded. `worldfile_test`
+    covers both a trailing map and a stray bracket.

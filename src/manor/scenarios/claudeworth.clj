@@ -11,8 +11,8 @@
   a world file could make false. Areas are the locations' :domains. `walk` (free) goes
   anywhere in the current area; `travel` (a turn) goes to another area.
   `sleep` and `spend-time` occupy an agent for several rounds without turns;
-  activities are judged when they end. `rouse` asks someone busy whether to stop. :architect? false leaves Mr Pugh out,
-  and :housemaid? false leaves the housemaid, Nellie, out. `find` works
+  activities are judged when they end. `rouse` asks someone busy whether to stop. :leave-out leaves
+  any of the world file's characters out of a run, by id (such as pugh). `find` works
   everywhere unless :find-everywhere? is false, which refuses it at shops,
   the public house and other places of trade (`find-allowed?`).
   An agent with a :routine in the world file (Mr Pugh) hibernates whenever
@@ -398,7 +398,8 @@
          " are paid from the household account (`household` in your view). There is no engine-enforced spending restriction by role: whether you should spend depends on your station, instructions and relationships. At an open shop, ask the shopkeeper with `converse` for portable goods and quantities; there is no fixed catalogue. The shopkeeper checks availability and quotes firm prices, a whole shopping list in one `quote-goods`. Accept offers made for you with `buy {quote-ids}`, from `offers` in your view: one `buy` can take the whole list. Payment is separate from asking; no bargaining or bulk counters. A shop that sends goods out can quote a line for delivery, for goods too large or too many to carry away: it's paid for when you buy, and the shop's errand boy or carrier leaves it at the delivery place when due (`orders` in your view), with nothing more for the shopkeeper or you to do. Everything bought is paid in full from the household account there and then: there are no tradesmen's bills, reckonings or accounts to settle later. Prices are old sterling: £1 = 20 shillings = 240 pence (12d = 1s). "
          (when architect?
            (str "Building is arranged at the architect's office while it is open, not at the house: talk at home is for deciding what you want. "
-                "At the office you can search reference books (`consult-references`), ask for the `price-list` and have plans drawn (`draw-plans`); any character can `commission` a plan they hold, but should judge whether they have the social authority to do so. `show-plans` shares plans with everyone present, anywhere. "
+                "At the office you can search reference books (`consult-references`), ask for the `price-list` and have plans drawn (`draw-plans`), in one of these sizes: "
+                (str/join ", " (map :size (get-in world [:state :architect-prices :sizes]))) "; any character can `commission` a plan they hold, but should judge whether they have the social authority to do so. `show-plans` shares plans with everyone present, anywhere. "
                 "Plans are a special case: they are not things, so they are never carried, given, fetched, copied, lost or searched for. Once plans are drawn, the architect and the client both hold them, and anyone they are shown to holds them too; `plans` in your view lists the plans you hold, and those are all you need. "))
          (if architect? "A reference lookup, the price list, each draft, each `quote-goods`" "Each `quote-goods`")
          " (however many goods it lists), `recommend` and `find` all count towards your " max-queries " queries a turn, even if asked for at once; once you reach " max-queries ", take your action and query again next turn. "
@@ -487,30 +488,18 @@
            :when (not (by-id place))]
        (str "position " id ": :workplace names unknown location " (pr-str place))))))
 
-(defn- optional-agent-kept?
-  "Whether an agent marked :optional? is in this run. The marker names the run
-  option that decides it: Mr Pugh (:architect?) and the housemaid (:housemaid?)
-  are in unless their option is false. Agents without a marker are
-  always in."
-  [opts agent]
-  (case (:optional? agent)
-    :architect? (not (false? (:architect? opts)))
-    :housemaid? (not (false? (:housemaid? opts)))
-    true))
-
 (defn init
-  "The world file, its agents (without Mr Pugh if :architect? is false,
-  without the housemaid if :housemaid? is false, and without anything they
-  hold), its items, and in :state the positions (without forms of address if
-  :addressed-as? is false), the setting, the query limit the rules quote and
-  :find-everywhere? (default true).
+  "The world file, its agents (without any whose id is in :leave-out, and
+  without anything they hold), its items, and in :state the positions
+  (without forms of address if :addressed-as? is false), the setting, the
+  query limit the rules quote and :find-everywhere? (default true).
   Everyone's post, bedroom and routine are set as they arrive (`on-spawn`)."
-  [{:keys [world-file] :as opts}]
+  [{:keys [world-file leave-out] :as opts}]
   (let [source (or world-file "worlds/claudeworth.edn")
         {wf :world-file :as loaded} (worldfile/load-world source)]
     (when-let [ps (seq (problems wf))]
       (throw (ex-info (str "world file " source " has problems:\n- " (str/join "\n- " ps)) {:problems (vec ps)})))
-    (let [agents (filter #(optional-agent-kept? opts %) (:agents loaded))
+    (let [agents (remove #(contains? (set leave-out) (b/slug (:name %))) (:agents loaded))
           ids (set (map (comp b/slug :name) agents))
           table (positions/table wf opts)]
       (assoc loaded
@@ -534,7 +523,7 @@
   the countess moving the candlesticks, visiting the abbey and buying a
   duster to give the housemaid, Mr Hale's errands (silver polish, and a sack
   of flour sent up, which Nellie puts away) and secretarial work,
-  Nellie the housemaid's round of the house (unless :housemaid? is false),
+  Nellie the housemaid's round of the house,
   Mr Pugh's drawing board, bed, and Mr Hale rousing the earl at 06:30."
   {"lord-claudeworth"
    {"08:00" [[:walk {:to "dining-room"}]
@@ -642,9 +631,8 @@
       [(if (contains? (space/area world here) bed) :walk :travel) {:to bed}])))
 
 (defn- remove-absent-cast
-  "Scripted calls that need someone left out of the run are dropped: the
-  countess's gift to the housemaid, and her call for her, when there is no
-  housemaid (see :housemaid?)."
+  "Scripted calls to someone not in the run (see :leave-out) are dropped,
+  such as the countess's gift to the housemaid, and her call for her."
   [world script]
   (remove (fn [[tool {:keys [to]}]] (and (#{:give :call} tool) to (not (w/agent world to)))) script))
 

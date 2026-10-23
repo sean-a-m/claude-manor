@@ -1,3 +1,5 @@
+;; An architect's price list for new rooms, in whole pounds. A world file names it in
+;; :meta :architect-prices; the engine reads it and passes it to the architect server.
 {:sizes [{:size "small" :price 200 :build-days 1}
          {:size "medium" :price 500 :build-days 1}
          {:size "large" :price 1200 :build-days 1}

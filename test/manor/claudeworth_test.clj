@@ -138,7 +138,8 @@
       (is (str/includes? (check clerk "lord-claudeworth" :draw-plans (assoc draft :for "hale")) "only for you"))
       (is (= "floor must be one of: first, ground" (check clerk "lord-claudeworth" :draw-plans (assoc draft :floor "attic"))))
       (is (str/includes? (check clerk "lord-claudeworth" :draw-plans (assoc draft :connects-to ["abbey-church"])) "not a room of the house"))
-      (is (:error (a/decode-args (action run :draw-plans) (assoc draft :size "huge")))))
+      (is (= "size must be one of: small, medium, large, grand"
+             (check clerk "lord-claudeworth" :draw-plans (assoc draft :size "huge")))))
     (testing "holders, roles, fees and repeat commissions"
       (let [world (drafted office "pugh" (assoc draft :for "lord-claudeworth"))
             [commissioned [event]] (perform run world "lord-claudeworth" :commission {:plan-id "library"})
@@ -182,16 +183,46 @@
 (defn bb-available? []
   (try (zero? (:exit (shell/sh "bb" "-e" ""))) (catch Exception _ false)))
 
+(deftest the-price-list-comes-from-the-world-file
+  (let [prices {:sizes [{:size "cottage" :price 50 :build-days 1}]}
+        prices-name (str (gensym "prices-") ".edn")
+        world-name (str (gensym "priced-world-") ".edn")
+        _ (store/write-text! store/test-runs-root prices-name (pr-str prices))
+        _ (store/write-text! store/test-runs-root world-name
+                             (wf/->edn-string (assoc-in (wf/read-file fixture/world-file) [:meta :architect-prices]
+                                                        (str (io/file store/test-runs-root prices-name)))))
+        run (start {:world-file (str (io/file store/test-runs-root world-name))})
+        world (-> (e/world run) (assoc :round 3) (at "lord-claudeworth" "architects-office"))
+        clerk (update world :agents dissoc "pugh")
+        check (fn [args] (a/check (action run :draw-plans) clerk "lord-claudeworth" args))]
+    (is (= prices (get-in world [:state :architect-prices])))
+    (is (= prices ((:query-fn (action run :price-list)) world "lord-claudeworth" {} nil)))
+    (is (= "size must be one of: cottage" (check draft)))
+    (is (nil? (check (assoc draft :size "cottage"))))
+    (is (= (money/pounds->pence 50)
+           (get-in (drafted clerk "lord-claudeworth" (assoc draft :size "cottage")) [:state :plans "library" :price])))
+    (is (str/includes? (cw/rules world) "in one of these sizes: cottage;"))
+    (e/stop-run run)))
+
+(deftest any-character-can-be-left-out
+  (let [run (start {:leave-out ["briggs" "lady-claudeworth"]})
+        world (e/world run)]
+    (is (nil? (w/agent world "briggs")))
+    (is (nil? (w/agent world "lady-claudeworth")))
+    (is (some? (w/agent world "lord-claudeworth")))
+    (rounds! run 4)
+    (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+    (e/stop-run run)))
+
 (deftest architect-server-contract
   (if-not (bb-available?) (println "Skipping architect MCP contracts: bb unavailable")
           (let [run (start)
                 conn (mcp/connect :architect (:architect building/mcp-servers) {:run-id (:id run) :run-dir (str (:dir run))})
                 call (fn [tool args] (:value (mcp/call-tool conn tool args 20000)))
-                args {:house [{:id "study" :floor "ground"}] :taken ["library"] :request draft}]
+                args {:house [{:id "study" :floor "ground"}] :taken ["library"] :request draft
+                      :prices (:sizes (building/read-price-list "architect/prices-1904.edn"))}]
             (try
-              (is (= #{"consult_references" "price_list" "draft_plans"} (set (map :name (mcp/list-tools conn)))))
-              (is (= (edn/read-string (slurp "mcp-servers/architect/prices.edn"))
-                     (call "price_list" {}) ((:architect/prices building/offline-stubs) {} {})))
+              (is (= #{"consult_references" "draft_plans"} (set (map :name (mcp/list-tools conn)))))
               (is (= (building/draft-stub args {}) (call "draft_plans" args)))
               (is (= "library-2" (get-in (call "draft_plans" args) [:plan :id])))
               (doseq [request [(assoc draft :name " ") (assoc draft :size "huge") (assoc draft :connects-to ["nowhere"])]]
@@ -208,7 +239,7 @@
 (declare moves-to)
 
 (deftest full-building-slice
-  (doseq [opts (cond-> [{:offline? true} {:offline? true :architect? false}]
+  (doseq [opts (cond-> [{:offline? true} {:offline? true :leave-out ["pugh"]}]
                  (bb-available?) (conj {:offline? false}))]
     (let [run (start (merge {:build-rounds 6} opts))]
       (rounds! run 7)
@@ -218,7 +249,7 @@
         (is (= (money/pounds->pence 1200) (get-in event [:data :price])))
         (is (= 13 due))
         (is (= (money/pounds->pence 1800) (get-in (e/world run) [:state :household :funds])))
-        (is (= (if (false? (:architect? opts)) {} {"pugh" (money/pounds->pence 120)}) (get-in (e/world run) [:state :purses])))
+        (is (= (if (:leave-out opts) {} {"pugh" (money/pounds->pence 120)}) (get-in (e/world run) [:state :purses])))
         (is (nil? (space/location (e/world run) "library")))
         (rounds! run 5)
         (is (nil? (space/location (e/world run) "library")))
@@ -250,7 +281,7 @@
       (e/stop-run run))))
 
 (deftest odd-room-and-untrusted-drafts
-  (let [run (start {:architect? false :build-rounds 1})
+  (let [run (start {:leave-out ["pugh"] :build-rounds 1})
         world (-> (e/world run) (assoc :round 3) (at "lord-claudeworth" "architects-office"))
         args (assoc draft :name "Bathroom" :connects-to ["dining-room" "gallery"])
         result (building/draft-stub (building/draft-args world "lord-claudeworth" args) {})]
@@ -281,7 +312,7 @@
     (is (= 5 (:round (first (of-type run :claudeworth/consulted)))))
     (is (= 6 (:round (first (of-type run :claudeworth/plans-drawn)))))
     (e/stop-run run))
-  (let [run (rounds! (start {:architect? false :bridge-stubs {:architect/draft (fn [_ _] "bad draft")}}) 6)]
+  (let [run (rounds! (start {:leave-out ["pugh"] :bridge-stubs {:architect/draft (fn [_ _] "bad draft")}}) 6)]
     (is (empty? (get-in (e/world run) [:state :plans])))
     (is (= #{"lord-claudeworth"} (:visible-to (first (of-type run :claudeworth/draft-refused)))))
     (e/stop-run run)))
@@ -295,7 +326,9 @@
               [[(update world-file :locations update-entry :id "general-store" #(dissoc % :store-profile)) ":store-profile"]
                [(assoc-in world-file [:meta :starting-funds] -1) "starting-funds"]
                [(update world-file :locations update-entry :id "architects-office" #(dissoc % :hours)) "architect"]
-               [(update world-file :locations update-entry :id "architects-office" #(assoc % :services ["architect"])) ":services"]]]
+               [(update world-file :locations update-entry :id "architects-office" #(assoc % :services ["architect"])) ":services"]
+               [(update world-file :meta dissoc :architect-prices) ":meta :architect-prices must name a price list"]
+               [(assoc-in world-file [:meta :architect-prices] "architect/nowhere.edn") "no architect's price list"]]]
         (is (str/includes? (str/join "\n" (cw/problems bad)) diagnostic)))
       (doseq [[field value] [[:from "9am"] [:at "nowhere"] [:doing " "]]]
         (let [change #(assoc-in % [:routine 0 field] value)
@@ -605,7 +638,7 @@
     (e/stop-run run)))
 
 (deftest without-the-architect
-  (let [run (rounds! (start {:architect? false}) 47)
+  (let [run (rounds! (start {:leave-out ["pugh"]}) 47)
         world (e/world run)]
     (is (nil? (w/agent world "pugh")))
     (is (not (contains? (get-in world [:state :bedrooms]) "pugh")))
@@ -667,7 +700,7 @@
           _ (store/write-text! store/test-runs-root file-name (wf/->edn-string with-pugh))
           source (str (io/file store/test-runs-root file-name))
           r1 (start {:world-file source})
-          r2 (start {:world-file source :architect? false})]
+          r2 (start {:world-file source :leave-out ["pugh"]})]
       (is (= "pugh" (:holder (items/item (e/world r1) "set-square"))))
       (is (nil? (items/item (e/world r2) "set-square")))
       (is (some? (items/item (e/world r2) "pocket-watch")))
@@ -675,7 +708,7 @@
       (e/stop-run r2))))
 
 (deftest the-housemaid
-  (let [run (rounds! (start {:housemaid? true}) 47)
+  (let [run (rounds! (start {:leave-out []}) 47)
         world (e/world run)
         evs (e/events run)
         calls (store/read-llm (:dir run))]

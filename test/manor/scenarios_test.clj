@@ -29,13 +29,13 @@
 
 (deftest household-cast-options
   ;; Character options and permissions use fixed test content, not the live cast.
-  (doseq [opts [{} {:housemaid? false} {:housemaid? true}]]
+  (doseq [opts [{} {:leave-out ["nellie"]}]]
     (let [run (e/start-run :household
-                           (merge {:llm :mock :offline? true :test? true :housemaid? true
+                           (merge {:llm :mock :offline? true :test? true :leave-out []
                                    :run-id (str (gensym "household-defaults-"))} opts))]
       (try
         (let [world (e/world run)]
-          (is (= (not (false? (:housemaid? opts))) (some? (w/agent world "nellie"))))
+          (is (= (empty? (:leave-out opts)) (some? (w/agent world "nellie"))))
           (doseq [agent (w/active-agents world) :when (not= :gm (:role agent))]
             (is (= :bedroom (:kind (space/location world (get-in world [:state :bedrooms (:id agent)]))))
                 (:id agent))

@@ -1,6 +1,7 @@
 (ns manor.scenarios.claudeworth.building
   "Claudeworth's household money, plans and construction. All changes are events."
   (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [clojure.string :as str]
             [manor.clock :as clock]
             [manor.mechanics.builtins :as b]
@@ -13,8 +14,22 @@
 
 (def fee-percent 10)
 (def query-record-limit 600)
-(def prices (edn/read-string (slurp "mcp-servers/architect/prices.edn")))
-(def sizes (mapv :size (:sizes prices)))
+
+(defn read-price-list
+  "An architect's price list, {:sizes [{:size :price :build-days}]} with
+  prices in whole pounds: a file path, or a classpath resource such as
+  \"architect/prices-1904.edn\". A world file names it in :meta :architect-prices."
+  [source]
+  (let [f (io/file (str source))
+        r (when-not (.exists f) (io/resource (str source)))]
+    (when-not (or (.exists f) r)
+      (throw (ex-info (str "no architect's price list " source " (looked for a file and a classpath resource)")
+                      {:source source})))
+    (edn/read-string (slurp (or r f)))))
+
+(defn- price-list [world] (get-in world [:state :architect-prices]))
+(defn- sizes [world] (mapv :size (:sizes (price-list world))))
+(defn- price-for [price-sizes size] (first (filter #(= size (:size %)) price-sizes)))
 
 (defn open-now? [world [open close]]
   (let [t (.toLocalTime (clock/time-of (:clock world) (:round world)))]
@@ -98,14 +113,14 @@
 
 ;; The offline bridge duplicates the small, deterministic server contract, not its I/O.
 (defn- tidy [s] (str/trim (str/replace (str s) #"\s+" " ")))
-(defn draft-stub [{:keys [house taken request]} _]
+(defn draft-stub [{:keys [house taken request prices]} _]
   (let [{:keys [name floor desc connects-to size]} request
         name (tidy name)
-        quote (first (filter #(= size (:size %)) (:sizes prices)))
+        quote (price-for prices size)
         rooms (set (map :id house))
         base (-> name str/lower-case (str/replace #"[^a-z0-9]+" "-") (str/replace #"^-|-$" ""))]
     (when (str/blank? name) (throw (ex-info "give the room a non-empty name" {})))
-    (when-not quote (throw (ex-info (str "size must be one of: " (str/join ", " sizes)) {})))
+    (when-not quote (throw (ex-info (str "size must be one of: " (str/join ", " (map :size prices))) {})))
     (when-let [bad (first (remove rooms connects-to))]
       (throw (ex-info (str bad " is not in the house; use: " (str/join ", " (sort rooms))) {})))
     {:plan {:id (fresh-id (if (str/blank? base) "room" base) taken) :name name
@@ -116,15 +131,12 @@
 (def bridges
   {:architect/references {:doc "Search the architect's reference books"
                           :mcp {:server :architect :tool "consult_references"} :timeout-ms 20000 :max-chars 4000}
-   :architect/prices {:doc "The firm's price list for new rooms"
-                      :mcp {:server :architect :tool "price_list"} :timeout-ms 20000 :max-chars 2000}
    :architect/draft {:doc "Draft a room and price it"
                      :mcp {:server :architect :tool "draft_plans"} :timeout-ms 20000 :max-chars 6000}})
 (def mcp-servers {:architect {:command ["bb" "-m" "architect.server"] :cwd "mcp-servers/architect"}})
 (def offline-stubs
   {:architect/references (fn [_ _] {:matches [{:source "offline" :title "Library"
                                               :text "A panelled library beside the study, with shelves and a quiet reading table."}]})
-   :architect/prices (fn [_ _] prices)
    :architect/draft draft-stub})
 
 (defn draw-reason [world actor args]
@@ -136,6 +148,8 @@
             (str "the client " client " must be present in this office"))
           architect (str (:name architect) " draws the plans here; ask him")
           (not= client actor) "the clerk can draw only for you; omit for or use your own id"))
+      (when-not (price-for (:sizes (price-list world)) (:size args))
+        (str "size must be one of: " (str/join ", " (sizes world))))
       (when-not (contains? (floors world) (floor-key (:floor args)))
         (str "floor must be one of: " (str/join ", " (sort (map name (floors world))))))
       (when-let [bad (first (remove (set (map :id (house world))) (:connects-to args)))]
@@ -146,6 +160,7 @@
                          :connects-to (mapv :to (filter #(zero? (:travel %)) (space/exits world (:id l))))})
                 (sort-by :id (house world)))
    :taken (vec (sort (taken world)))
+   :prices (:sizes (price-list world))
    :request (-> (select-keys args [:name :floor :desc :connects-to :size]) (update :floor floor-key))})
 
 (defn- short-text? [x max-length]
@@ -155,7 +170,7 @@
   "Validate the entire untrusted result, including money and delay, before storing anything."
   [world args result]
   (let [p (:plan (when (map? result) result))
-        quote (first (filter #(= (:size args) (:size %)) (:sizes prices)))]
+        quote (price-for (:sizes (price-list world)) (:size args))]
     (cond
       (not (map? p)) "expected a structured plan; ask for a fresh draft"
       (not (and (string? (:id p)) (re-matches #"[a-z0-9]+(?:-[a-z0-9]+)*" (:id p))
@@ -192,16 +207,16 @@
     :on-result (fn [_ actor args result]
                  [{:type :claudeworth/consulted :visible-to #{actor} :data (assoc result :query (:query args))}])}
    {:name :price-list :kind :query :roles :all
-    :doc "Ask for the price list at an open architect's office. All prices in this bridge result are whole pounds (£), not pence. The result is private and remembered next turn."
+    :doc "Ask for the price list at an open architect's office. All prices in this result are whole pounds (£), not pence. The result is private and remembered next turn."
     :args [:map] :valid? (fn [world actor _] (office-reason world actor))
-    :bridge :architect/prices :bridge-args (fn [_ _ _] {})
+    :query-fn (fn [world _ _ _] (price-list world))
     :on-result (fn [_ actor result-args result]
                  [{:type :claudeworth/prices-quoted :visible-to #{actor} :data result}])}
    {:name :draw-plans :kind :query :roles :all
-    :doc "Draft and price a room at an open architect's office. If an architect is here, only that agent can draw, naming a client with for; ask him with say. With no architect here, the clerk draws for you. Use house room ids from places for connects-to. Bridge prices are whole pounds (£); stored plans show formatted sterling. Plans are stored, not commissioned."
+    :doc "Draft and price a room at an open architect's office. If an architect is here, only that agent can draw, naming a client with for; ask him with say. With no architect here, the clerk draws for you. Use house room ids from places for connects-to, and a size from the price list. Bridge prices are whole pounds (£); stored plans show formatted sterling. Plans are stored, not commissioned."
     :args [:map [:for {:optional true} :string] [:name [:string {:min 1 :max 60}]] [:floor :string]
            [:desc [:string {:min 1 :max 600}]] [:connects-to [:vector {:min 1 :max 4} :string]]
-           [:size (into [:enum] sizes)]]
+           [:size [:string {:min 1 :max 40}]]]
     :valid? draw-reason :bridge :architect/draft :bridge-args draft-args :on-result store-draft}
    {:name :show-plans :kind :free :roles :all
     :doc "Spread out a plan you hold for everyone here to see, anywhere. Use a plan id from plans."
@@ -268,17 +283,35 @@
                                                     (:built? p) "built" :else "drawn"))))))))
 
 (defn initial-state
-  "Money, plans and works at the start. `positions` say who is an architect,
-  with a purse for their fees."
+  "Money, plans, works and the architect's price list at the start.
+  `positions` say who is an architect, with a purse for their fees."
   [wf agents positions opts]
   {:money-unit :old-pence
    :household {:funds (money/pounds->pence (get-in wf [:meta :starting-funds]))}
+   :architect-prices (some-> (get-in wf [:meta :architect-prices]) read-price-list)
    :purses (into {} (for [a agents :when (contains? (get-in positions [(:role a) :capabilities]) :architect)]
                       [(b/slug (:name a)) 0]))
    :plans {} :works [] :build-rounds (:build-rounds opts)})
 
+(defn- price-list-problems
+  "What's wrong with the price list a world file names, or nil."
+  [source]
+  (let [{:keys [sizes] :as pl} (try (read-price-list source) (catch Exception e (ex-message e)))]
+    (cond
+      (string? pl) [pl]
+      (not (and (vector? sizes) (seq sizes)
+                (every? #(and (string? (:size %)) (not (str/blank? (:size %)))
+                              (pos-int? (:price %)) (pos-int? (:build-days %))) sizes)
+                (apply distinct? (map :size sizes))))
+      [(str "price list " source " must be {:sizes [{:size \"small\" :price 200 :build-days 1} ...]}"
+            " with distinct sizes and positive whole pounds and days")])))
+
 (defn problems [{:keys [locations meta]}]
   (concat
+   (when (some #(and (set? (:services %)) (contains? (:services %) :architect)) locations)
+     (if-let [source (:architect-prices meta)]
+       (price-list-problems source)
+       [":meta :architect-prices must name a price list, such as \"architect/prices-1904.edn\", when there is an architect's office"]))
    (when-not (and (integer? (:starting-funds meta)) (<= 0 (:starting-funds meta)))
      [":meta :starting-funds must be non-negative integer pounds"])
    (for [loc locations :when (and (contains? loc :services)

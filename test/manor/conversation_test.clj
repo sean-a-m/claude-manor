@@ -245,7 +245,7 @@
       (e/stop-run run))))
 
 (deftest who-can-be-drawn-in
-  (let [run (household (constantly {:tool :pass}) {:opts {:housemaid? true}})
+  (let [run (household (constantly {:tool :pass}) {:opts {:leave-out []}})
         _ @(e/spawn! run {:role :secretary :name "Clerk" :location "dining-room"})
         world (e/world run)
         check #(conversation/check %1 "lord-claudeworth" {:with %2})]

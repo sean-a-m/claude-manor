@@ -505,6 +505,11 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
     architect is required, so the "clerk path" (the earl drawing plans himself when there's no
     architect) goes too.
 
+    *Partly done (2026-10-23):* `:housemaid?`, `:architect?` and the `:optional?` marker are gone.
+    Instead the run option `:leave-out` drops any world-file characters by id, with what they
+    hold; `remove-absent-cast` stays, so the mock day skips calls to anyone left out. The clerk
+    path is still there, waiting on the user's decision.
+
     The bigger concern is that adding or removing a character like the housemaid in the world
     file risks breaking things. Find what depends on the exact cast and make it safe. Known
     places:

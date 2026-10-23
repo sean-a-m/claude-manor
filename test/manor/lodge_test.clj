@@ -16,11 +16,14 @@
 
 (deftest worlds-with-and-without-an-office
   (let [wf (:world-file (worldfile/load-world "worlds/lodge.edn"))
-        office {:id "office" :services #{:architect}}]
+        office {:id "office" :services #{:architect}}
+        priced (assoc-in wf [:meta :architect-prices] "architect/prices-1904.edn")]
     (is (empty? (cw/problems wf)))
     (is (= ["at least one architect service needs :hours"]
-           (building/problems (update wf :locations conj office))))
-    (is (empty? (building/problems (update wf :locations conj (assoc office :hours ["09:00" "18:00"]))))))
+           (building/problems (update priced :locations conj office))))
+    (is (= [":meta :architect-prices must name a price list, such as \"architect/prices-1904.edn\", when there is an architect's office"]
+           (building/problems (update wf :locations conj (assoc office :hours ["09:00" "18:00"])))))
+    (is (empty? (building/problems (update priced :locations conj (assoc office :hours ["09:00" "18:00"]))))))
   (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true
                                       :run-id (str (gensym "lodge-office-regression-"))})]
     (try

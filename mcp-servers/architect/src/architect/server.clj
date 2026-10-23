@@ -7,19 +7,17 @@
 (def tools
   [{:name "consult_references" :description "Search architectural reference books."
     :inputSchema {:type "object" :properties {:query {:type "string"}} :required ["query"]}}
-   {:name "price_list" :description "Quote room sizes, prices and build days."
-    :inputSchema {:type "object" :properties {}}}
-   {:name "draft_plans" :description "Draft a room, avoiding taken ids, and quote its price."
+   {:name "draft_plans" :description "Draft a room, avoiding taken ids, and quote its price from the given price list."
     :inputSchema {:type "object" :properties {:house {:type "array" :items {:type "object"}}
                                              :taken {:type "array" :items {:type "string"}}
+                                             :prices {:type "array" :items {:type "object"}}
                                              :request {:type "object"}}
-                  :required ["house" "taken" "request"]}}])
+                  :required ["house" "taken" "prices" "request"]}}])
 
 (defn tool-result [library {:keys [name arguments]}]
   (try
     (let [result (case name
                    "consult_references" (references/search library (:query arguments))
-                   "price_list" drafting/prices
                    "draft_plans" (drafting/draft arguments)
                    (throw (ex-info "unknown tool; use tools/list" {})))]
       {:structuredContent result :content [{:type "text" :text (json/generate-string result)}]})

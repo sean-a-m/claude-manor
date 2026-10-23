@@ -5,6 +5,7 @@
         :start "1904-10-15T08:00"
         :minutes-per-round 30
         :starting-funds 2900 ; whole pounds here; runtime money is old pence
+        :architect-prices "architect/prices-1904.edn" ; the architect's sizes and prices
         :positions "positions/england-1904.edn"
         :setting "Claudeworth Manor is a modest Edwardian country house, the seat of the Earls of Claudeworth, whose fortune has lately been restored. Claudeworth village lies nearby, a sloping green with shops, a public house, a post office, a forge and tradespeople working from their cottages, as well as the offices of Pugh & Sons, Architects. Hollin Abbey is nearby too, where the monks keep to themselves."}
 
@@ -261,7 +262,7 @@
    :temperament {:openness :average :conscientiousness :high :extraversion :average :agreeableness :low :neuroticism :average}
    :faculties {"Amativeness" :large "Self-Esteem" :large "Wit" :moderate "Feeling" :moderate "Weight" :small "Order" :large "Causality" :small}
    :circumstances ["Before taking this appointment you copied business correspondence in a Black Country office, where a careless docket could cost a week of work." "Your widowed mother in Dudley expects a letter every fortnight, and you have never yet let one fall due."]}
-  {:name "Nellie" :sex :female :role :housemaid :location "maids-room" :bedroom "maids-room" :optional? :housemaid?
+  {:name "Nellie" :sex :female :role :housemaid :location "maids-room" :bedroom "maids-room"
    :situation "You are the housemaid at Claudeworth Manor."
    :persona "You are restless and quick, up before the bell, and you work at a task briskly rather than patiently, so that quickness serves you better than finish. Everything new interests you — a locked door, a newspaper left on a chair, the way the cook speaks — and you ask about it freely. You have a sharp tongue when another girl's slovenliness makes more work for you, and your temper and your worries arrive together, so a scolding keeps you awake. You eat heartily and remember who said what, though you are poor at working out why."
    :appearance "Eighteen, small and wiry, with round cheeks and dark hair pinned tightly under a plain cap. She wears a print frock and white apron, and stands with her weight forward, hands never quite still."
@@ -411,7 +412,7 @@
              {:from "18:00" :at "abbey-guest-house" :doing "receiving late callers at the guest house"}
              {:from "20:00" :at "abbey-church" :doing "at Compline"}
              {:from "20:30" :at "guestmasters-cell" :doing "asleep"}]}
-  {:name "Pugh" :sex :male :role :architect :location "architects-office" :bedroom "architects-lodgings" :optional? :architect?
+  {:name "Pugh" :sex :male :role :architect :location "architects-office" :bedroom "architects-lodgings"
    :situation "You are the architect of Pugh & Sons, Architects, in Claudeworth village: you keep its office and live in the lodgings above it. You want the manor's custom."
    :persona "You sketch handsome façades while overlooking their measurements, and you can talk a client cheerfully past a missing drain. New notions — a concrete folly, a Gothic chapel — delight you, and you begin each with the same ardour, leaving the ledgers to anyone who will take them. You turn compliments with easy, well-practised words, keep your own mistakes folded quietly away, and are seldom low for long. Detail bores you; the look of a thing against the sky is what you came for."
    :appearance "A thickset, high-coloured man of forty-seven, grey at the temples, with a small moustache and watchful dark eyes. He dresses well but carelessly — a good coat, a chalk mark on one sleeve — and stands with his weight back, hands in his pockets."

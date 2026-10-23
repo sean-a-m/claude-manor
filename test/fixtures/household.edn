@@ -5,6 +5,7 @@
         :start "1904-10-15T08:00"
         :minutes-per-round 30
         :starting-funds 3000 ; whole pounds here; runtime money is old pence
+        :architect-prices "architect/prices-1904.edn" ; the architect's sizes and prices
         :setting "Claudeworth Manor is a modest Edwardian country house, the seat of the Earls of Claudeworth, whose fortune has lately been restored. Claudeworth village lies nearby, a sloping green with a general store and the offices of Pugh & Sons, Architects. Hollin Abbey is nearby too, where the monks keep to themselves."}
 
  :locations
@@ -101,12 +102,12 @@
    :persona "The Countess of Claudeworth: sharp, practical and possessed of firm views on taste. She regards the house as hers to run and does not care to be surprised by her husband's schemes."}
   {:name "Hale" :role :secretary :location "secretarys-room" :bedroom "secretarys-room"
    :persona "Mr Hale, the earl's private secretary: young, meticulous and discreet, and a little anxious to please."}
-  {:name "Nellie" :role :housemaid :location "maids-room" :bedroom "maids-room" :optional? :housemaid?
+  {:name "Nellie" :role :housemaid :location "maids-room" :bedroom "maids-room"
    :persona "Nellie, the housemaid: young, quick, and up from the village. She knows every room of the house and takes a proper pride in the silver, though the family seldom notice."}
   {:name "Briggs" :role :shopkeeper :location "general-store" :bedroom "maids-room"
    :persona "Mr Briggs, the shopkeeper: a practical, friendly village tradesman, proud of his useful little store."
 }
-  {:name "Pugh" :role :architect :location "architects-office" :bedroom "architects-lodgings" :optional? :architect?
+  {:name "Pugh" :role :architect :location "architects-office" :bedroom "architects-lodgings"
    :persona "Mr Pugh of Pugh & Sons, Architects, in Claudeworth village. Proud of his craft, keen for a commission from the manor, and prone to holding forth on proportion."
    ;; his day when nobody else is in the village: he is out of play (no model calls) and here instead
    :routine [{:from "07:30" :at "architects-lodgings" :doing "breakfasting in his lodgings"}

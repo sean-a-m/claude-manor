@@ -110,7 +110,7 @@ src/manor/
   cache_report.clj  prompt-cache and cost report from llm.edn: report, simulate (offline cache model), compare
   scenarios/     village.clj (full example), treasure.clj (small example), quiz.clj (MCP/pi),
                  lodge.clj (Ashby Lodge, on Claudeworth mechanics), claudeworth.clj (Claudeworth Manor: daily life,
-                 Nellie the housemaid unless :housemaid? is false, whose work-on jobs exercise the judge)
+                 Nellie the housemaid, whose work-on jobs exercise the judge)
     claudeworth/ Claudeworth's parts: building.clj (money, plans, architect and construction),
                  shop.clj (Mr Briggs, store-profile-grounded adjudication, portable purchases via
                  firm quotes), deliveries.clj (orders sent up), money.clj (sterling: integer old
@@ -119,7 +119,7 @@ resources/worlds/ world files on the classpath; claudeworth.edn is Claudeworth's
 resources/positions/ shared catalogues of positions; england-1904.edn is a country house and village
 resources/pricing.edn model prices, peak hours and cache block size for manor.tools.cache-report
 mcp-servers/pi/server.mjs  pi as an MCP server: send_message {session, message}; Node, no deps
-mcp-servers/architect/  the architect MCP server: babashka, stateless, reference/price/draft tools
+mcp-servers/architect/  the architect MCP server: babashka, stateless, reference and draft tools
 mcp-servers/people/     the people MCP server: babashka, stateless, generate_people and reputation from data files
 config/        mcp.example.edn; mcp.edn is local and gitignored (the user's sets pi-sandbox)
 dev/user.clj     REPL helpers (start! step! auto! feed view last-prompt transcript! spawn! change-post! approve! act! roll-cast! ...)

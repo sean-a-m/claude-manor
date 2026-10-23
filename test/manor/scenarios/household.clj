@@ -28,6 +28,6 @@
 (def scenario
   (assoc cw/scenario
          :name :household
-         :defaults {:world-file world-file :architect? true :housemaid? false}
+         :defaults {:world-file world-file :leave-out ["nellie"]}
          :mock-policy mock-policy
          :mock-conversation mock-conversation))

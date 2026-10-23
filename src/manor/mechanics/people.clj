@@ -47,7 +47,7 @@
    :circumstances (mapv #(if (string? %) % (:label %)) (:circumstances record))})
 
 ;; What each term means, read from the people server's own data files (static
-;; data, as the architect's prices.edn is read), so there's one source.
+;; data), so there's one source.
 (def ^:private server-data #(edn/read-string (slurp (str "mcp-servers/people/" %))))
 
 (def axis-measures

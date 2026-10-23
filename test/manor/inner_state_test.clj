@@ -12,6 +12,7 @@
             [manor.io.llm :as llm]
             [manor.io.store :as store]
             [manor.io.worldfile :as wf]
+            [manor.mechanics.builtins :as b]
             [manor.mechanics.conversation :as conversation]
             [manor.mechanics.conversation.judge :as conversation-judge]
             [manor.mechanics.items :as items]
@@ -20,6 +21,7 @@
             [manor.mechanics.items.views :as item-views]
             [manor.mechanics.items.work :as item-work]
             [manor.mechanics.inner :as inner]
+            [manor.mechanics.space :as space]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.scenarios.dressing :as dressing]
@@ -560,6 +562,27 @@
         (testing "the sleepers are told nothing"
           (is (not-any? #(= :person/inner-changed (:type %)) (prompt/visible-events (e/events run) "lady-ashby" 1000))))
         (is (= world (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))
+
+(deftest the-steward-sees-people-hibernating
+  (let [run (rounds! (night-run) 1)]
+    (try
+      (let [world (e/world run)
+            _ (e/emit! run [(b/hibernate world "dawson" "asleep over her mending")])
+            world (e/world run)
+            sleepers (item-steward/steward-sleepers world config (e/events run))
+            here (space/location-of world "dawson")]
+        (testing "someone hibernating is seen with the sleepers where they are"
+          (is (some #{"dawson"} (map :id (get sleepers here)))))
+        (testing "they show what their routine has them doing, and since when"
+          (let [request (item-steward/steward-request world here [] (get sleepers here) config)
+                dawson (first (filter #(= "dawson" (:id %)) (:sleepers (scene-json request))))]
+            (is (= "asleep over her mending" (:doing dawson)))
+            (is (= "01:30" (:since dawson)))
+            (is (not (contains? dawson :went_to_sleep)))
+            (is (contains? dawson :inner))))
+        (testing "without inner state, only if they have aspects"
+          (is (not-any? #(= "dawson" (:id %)) (mapcat val (item-steward/steward-sleepers world))))))
       (finally (e/stop-run run)))))
 
 (deftest the-stewards-answer-is-checked

@@ -1237,9 +1237,11 @@ Code selects absorbable items not carried or inside closed containers, without a
 `idle-hours` of game time. Starting items age from the clock start. Candidates are grouped by
 place (place-id order), oldest `:touched` first, id breaking ties, at most `max-per-call` per
 place; excess waits for another night. The steward also sees **sleepers**
-(`item-steward/steward-sleepers`): active people whose `:busy` has `:asleep?`, each at their
-location. Without inner state only those who have aspects are sleepers; with the scenario's
-`:inner` (see Inner state) everyone asleep is, aspects or not. A place with candidates or
+(`item-steward/steward-sleepers`): active people whose `:busy` has `:asleep?` or
+`:hibernating?` (a routine keeping them out of play, such as Claudeworth's villagers), and who
+haven't been roused, each at their location. Without inner state only those who have aspects
+are sleepers; with the scenario's `:inner` (see Inner state) everyone asleep or hibernating is,
+aspects or not. A place with candidates or
 sleepers gets a call (in Claudeworth, one per occupied bedroom per night; 5 in a mock day);
 places with neither cost nothing. Nobody awake is ever seen: someone who stays up all night
 keeps their aspects, and someone who goes to sleep after the steward's time isn't seen that
@@ -1248,10 +1250,11 @@ night.
 One narrow `ask-structured!` call per place sees only its place, stores in scope, candidates
 and `sleepers [{id name appearance aspects}]`. With inner state each sleeper also has their
 `temperament`, their `inner` state (as the work judge sees it: every fixed key, with when each
-entry was set), `went_to_sleep` (the round of their last `:agent/occupied` asleep in the run's
-events, `item-steward/asleep-since`; left out when there's none, e.g. after a load that started
-them asleep) and `wakes` (their `:busy :until`), as short times ("Sat 22:30", "07:30"). No
-recent lines.
+entry was set), and how they spend the night: someone asleep has `went_to_sleep` (the round
+of their last `:agent/occupied` in the run's events, `item-steward/occupied-since`; left out
+when there's none, e.g. after a load that started them asleep) and `wakes` (their `:busy
+:until`); someone hibernating has `doing` (their routine's activity) and `since`, from the same
+event. Times are short ("Sat 22:30", "07:30"). No recent lines.
 The `steward` tool accepts `changes`, `used-up`, `fates`, `absorbed` and required `summary`,
 never `made`. It may absorb a candidate into a store in scope, use up a candidate with a fate,
 change its aspects or leave it. Even non-consumable drawn candidates may be used up (discarded).
@@ -1264,8 +1267,10 @@ contents as for work. Unknown fields are dropped; they cannot create anything.
 
 With inner state the tool also has `inner: [{person, key, value}]`, and the instructions add
 lines in this sense: sleepers have an inner state, which only they know, and each entry says
-when it was set; judge how each will wake, and set, change or clear it only where the night
-would; their temperament informs the judgement but doesn't decide it; then the keys and the
+when it was set; the night passes for them between then and the morning, so update their
+inner state to take that time into account, since some things change over a night and some
+don't, which is the steward's judgement; an empty entry is a normal state and leaving someone
+as they are is a normal answer; their temperament informs the judgement but doesn't decide it; then the keys and the
 open-key cap (`inner/key-instructions`). Nothing in them says that anything fades or that rest
 eases it: whether it does is the steward's call. The list is checked with
 `inner/checked-changes` with the place's sleepers as the judged people ("you may change the
@@ -1325,7 +1330,7 @@ reads it. Opt in with a scenario `:inner` entry:
   Never `people-here`, `look`, or any other agent's request. Privacy comes from where it's put,
   not from checking text.
 - **What changes it:** the work judge, the conversation judge and the nightly steward (below,
-  and The nightly steward, which judges how each sleeper will wake). The work judge sees
+  and The nightly steward, which updates sleepers' inner state for the night that passes). The work judge sees
   everyone present's inner state and may change the judged people's (the worker, and the
   people named in `on` who are still there), never a bystander's. Its answer's `inner: [{person, key, value}]` list is checked in
   `item-judge/judgement` (given the scenario's `:inner`): the person is judged ("you may change

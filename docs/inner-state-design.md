@@ -59,9 +59,16 @@ Where phase 3's build (`manor.mechanics.items.steward`, called from
 - The tool's `inner` list comes from the work judge's answer schema (`item-judge/answer-schema`,
   now public, without `made`), and is checked with `item-judge/with-inner` (now public), so
   `inner/checked-changes` runs with the place's sleepers as the judged people.
-- The instructions name `went_to_sleep` and `wakes`, ask it to judge how each will wake and
-  to set, change or clear inner state only where the night would, and say nothing about
-  fading or rest.
+- The instructions name `went_to_sleep` and `wakes`, ask it to update inner state to take the
+  night's passing into account (some things change over a night and some don't, as it
+  judges), say an empty entry and an unchanged person are normal, and say nothing about
+  fading or rest. (Revised after the first real run, `old-test-runs/claudeworth-inner-state-evening`:
+  asked to judge "how each will wake", the steward filled every empty key, mostly with waking
+  stiffness that would last all day.)
+- People hibernating (Claudeworth's villagers on their routines, who are marked asleep without
+  `:asleep?`) are seen too, with `doing` and `since` instead of `went_to_sleep` and `wakes`
+  (`item-steward/occupied-since` replaced `asleep-since`). Added after the same run, where the
+  steward missed every villager.
 - The inner changes follow each place's `:items/stewarded`, so they're emitted place by place.
 - In a 48-round mock Claudeworth day the steward made 5 calls (it made none before: no
   sleeper had aspects and nothing was idle), one per occupied bedroom. Claudeworth starts

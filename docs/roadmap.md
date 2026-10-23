@@ -415,9 +415,12 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   The work judge, a new conversation judge (one call per conversation) and the nightly steward
   change it; the person only reads it. About 5% more per run. Three phases. **All three
   built** (data, views, the work judge, Claudeworth's `:inner` and rules; the conversation
-  judge; the nightly steward, which now sees every sleeper and judges how they'll wake),
-  **mock-tested only**. The next check is a short real Claudeworth run, with the user's
-  go-ahead. The defaults in its section 4 were taken as written.
+  judge; the nightly steward, which now sees everyone asleep or hibernating and updates their inner
+  state for the night that passes),
+  first checked in a 13-round real evening run (`old-test-runs/claudeworth-inner-state-evening`:
+  no failures or leaks; the steward's instructions and hibernators were revised after it). Next:
+  a morning run, to see the conversation judge on a full day's talk and whether characters act
+  on their inner state. The defaults in its section 4 were taken as written.
 - Follow-ups, from the same decisions:
   - **Do characters act to improve their state?** The hoped-for result is that they do,
     through ordinary actions (resting when tired, seeking company when low, keeping away from

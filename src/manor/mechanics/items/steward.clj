@@ -1,9 +1,9 @@
 (ns manor.mechanics.items.steward
   "The nightly steward sees only old, loose, absorbable things at one place,
-  and the people asleep there with aspects, which it may only remove. With
-  inner state (the scenario's :inner, see manor.mechanics.inner) it sees
-  everyone asleep there, with their inner state, and may set, change or
-  clear it. Its events are reduced and narrated in manor.mechanics.items
+  and the people asleep or hibernating there with aspects, which it may
+  only remove. With inner state (the scenario's :inner, see
+  manor.mechanics.inner) it sees everyone asleep or hibernating there, with
+  their inner state, and may set, change or clear it. Its events are reduced and narrated in manor.mechanics.items
   and manor.mechanics.inner."
   (:require [jsonista.core :as json]
             [malli.json-schema :as mjs]
@@ -49,26 +49,32 @@
                   (when (seq candidates) [place candidates]))))
         (sort (keys (get-in world [:space :locations])))))
 
-(defn asleep-since
-  "The round `id` last fell asleep in, from `events` (their last
-  :agent/occupied asleep), or nil."
+(defn occupied-since
+  "The round `id` began what occupies them now, from `events` (their last
+  :agent/occupied: falling asleep, or a routine's activity), or nil."
   [events id]
-  (:round (last (filter #(and (= :agent/occupied (:type %)) (= id (:actor %)) (get-in % [:data :asleep?])) events))))
+  (:round (last (filter #(and (= :agent/occupied (:type %)) (= id (:actor %))) events))))
+
+(defn- overnight?
+  "Is agent `a` out of play for the night: asleep, or hibernating (kept to
+  their routine with no model calls), and not roused?"
+  [{:keys [busy]}]
+  (and (or (:asleep? busy) (:hibernating? busy)) (not (:interrupted-by busy))))
 
 (defn steward-sleepers
-  "The people asleep at each place, as person things, grouped by place in
-  place-id order, by id within a place. Nobody awake is among them. Without
-  inner state (the scenario's :inner as `inner-config`) only those with
-  aspects are; with it everyone asleep is, each with :asleep-since (see
-  `asleep-since`) when `events` have it."
+  "The people asleep or hibernating at each place, as person things,
+  grouped by place in place-id order, by id within a place. Nobody in play
+  is among them. Without inner state (the scenario's :inner as
+  `inner-config`) only those with aspects are; with it everyone is, each
+  with :since (see `occupied-since`) when `events` have it."
   ([world] (steward-sleepers world nil nil))
   ([world inner-config events]
    (into (sorted-map)
-         (update-vals (group-by :location (filter #(and (:asleep? (:busy %)) (:location %) (or inner-config (seq (:aspects %))))
+         (update-vals (group-by :location (filter #(and (overnight? %) (:location %) (or inner-config (seq (:aspects %))))
                                                   (sort-by :id (w/active-agents world))))
                       #(mapv (fn [{:keys [id]}]
-                               (let [since (when inner-config (asleep-since events id))]
-                                 (cond-> (item-work/person-thing world id) since (assoc :asleep-since since))))
+                               (let [since (when inner-config (occupied-since events id))]
+                                 (cond-> (item-work/person-thing world id) since (assoc :since since))))
                              %)))))
 
 (defn- answer-schema
@@ -83,16 +89,16 @@
 - For each candidate, you may absorb it into a listed store in scope (`absorbed: [{thing, into}]`), use it up (`used-up: [id]`, with a short fate in `fates: {id: phrase}`), change its aspects (`changes: [{thing, aspect, value}]`), or leave it.
 - Absorb a container only with all its contents absorbed too; use one up only with all its contents used up too. Otherwise leave it.
 - Change only candidates, never the place or stores. Aspect keys are lower-case letters and hyphens, at most 24 characters; values are 1–" items/advised-aspect " characters, or empty to remove. Keep at most four aspects per thing.
-- `sleepers` are people asleep here. Their `appearance` is how they usually look, and their `aspects` how they differ from it now. Remove (value \"\") each aspect that wouldn't last the night, such as hair let down or evening dress taken off, and leave the ones that would, such as a grease-stained apron. Never set or change a sleeper's aspect: only remove.
+- `sleepers` are people asleep here, or out of sight here for the night. Their `appearance` is how they usually look, and their `aspects` how they differ from it now. Remove (value \"\") each aspect that wouldn't last the night, such as hair let down or evening dress taken off, and leave the ones that would, such as a grease-stained apron. Never set or change a sleeper's aspect: only remove.
 - Never make anything. A store holds everything it keeps unless its aspects say otherwise. Do not invent events. Give a short third-person summary, at most 300 characters, for the GM only."))
 
 (defn- inner-instructions
   "The steward's lines about sleepers' inner state, for a scenario's `config`."
   [config]
   (str "## Inner state\n"
-       "- `sleepers` also have an `inner` state: how they are inside, which only they know: their spirits, how their body is, what's on their mind, and anything else about them that doesn't show. Each entry says when it was set (`set_at`); `went_to_sleep` and `wakes` say when they went to sleep and when they will wake.\n"
-       "- Judge how each sleeper will wake, and set, change or clear their inner state only where the night would; leave the rest. Their temperament says how they're inclined to take things; it informs your judgement but doesn't decide it.\n"
-       "- Change only sleepers' inner state, in `inner: [{person, key, value}]`, apart from `changes`: the person's id, the key, and a phrase of at most " inner/advised-value " characters saying how they will wake, or \"\" to clear it. "
+       "- `sleepers` also have an `inner` state: how they are inside, which only they know: their spirits, how their body is, what's on their mind, and anything else about them that doesn't show. Each entry says when it was set (`set_at`). `went_to_sleep` and `wakes` say when someone went to sleep and will wake; `doing` and `since` say what someone else is about tonight, and since when.\n"
+       "- The night passes for them between when their entries were set and the morning. Update their inner state to take that time into account: some things change over a night and some don't, and which is your judgement. An empty entry is a normal state, and leaving someone as they are is a normal answer. Their temperament says how they're inclined to take things; it informs your judgement but doesn't decide it.\n"
+       "- Change only sleepers' inner state, in `inner: [{person, key, value}]`, apart from `changes`: the person's id, the key, and a phrase of at most " inner/advised-value " characters saying how they are after the night, or \"\" to clear it. "
        (inner/key-instructions config)))
 
 (defn instructions
@@ -106,7 +112,7 @@
   {:type "function"
    :function {:name "steward"
               :description (str "Resolve only the listed idle candidates"
-                                (when inner-config ", and judge how the sleepers will wake (`inner`)")
+                                (when inner-config ", and update the sleepers' inner state for the night (`inner`)")
                                 ". Never make anything.")
               :parameters (mjs/transform (answer-schema inner-config))}})
 
@@ -116,22 +122,30 @@
   [world round]
   (if-let [c (:clock world)] (clock/short-label c round (:round world)) (str "round " round)))
 
+(defn- night-json
+  "How a sleeper spends the night, for the steward: when they went to sleep
+  and will wake, or for someone hibernating, what their routine has them
+  doing and since when."
+  [world {:keys [id since]}]
+  (let [{:keys [activity until hibernating?]} (w/busy world id)]
+    (if hibernating?
+      (cond-> {:doing activity} since (assoc :since (at-label world since)))
+      (cond-> {} since (assoc :went_to_sleep (at-label world since)) until (assoc :wakes (at-label world until))))))
+
 (defn- sleeper-json
   "A sleeper as the steward sees them: how they look, and with inner state
-  (`inner-config`) their temperament, their inner state, and when they went
-  to sleep and will wake."
-  [world inner-config {:keys [id asleep-since] :as sleeper}]
-  (let [until (:until (w/busy world id))]
-    (cond-> (select-keys sleeper [:id :name :appearance :aspects])
-      inner-config (merge (select-keys (w/agent world id) [:temperament])
-                          {:inner (inner/judge-view inner-config world id)})
-      (and inner-config asleep-since) (assoc :went_to_sleep (at-label world asleep-since))
-      (and inner-config until) (assoc :wakes (at-label world until)))))
+  (`inner-config`) their temperament, their inner state, and how they spend
+  the night (see `night-json`)."
+  [world inner-config {:keys [id] :as sleeper}]
+  (cond-> (select-keys sleeper [:id :name :appearance :aspects])
+    inner-config (merge (select-keys (w/agent world id) [:temperament])
+                        {:inner (inner/judge-view inner-config world id)}
+                        (night-json world sleeper))))
 
 (defn steward-request
   "One place's narrow nightly request: its candidates, and the people asleep
-  there (see `steward-sleepers`), with their inner state when the scenario
-  has it (`inner-config`); no one awake, no private lines or other rooms."
+  or hibernating there (see `steward-sleepers`), with their inner state when
+  the scenario has it (`inner-config`); no one in play, no private lines or other rooms."
   [world place candidates & [sleepers inner-config]]
   {:tools [(steward-tool inner-config)]
    :messages [{:role "system" :content (instructions inner-config)}

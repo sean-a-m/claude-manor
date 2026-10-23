@@ -107,6 +107,7 @@ src/manor/
     positions.clj  positions (a shared catalogue plus the world's :roles), posts, capabilities, forms of
                    address, bedroom and routine events
     hiring.clj     candidate records, private recommendations and event-owned hiring
+    inner.clj      inner state: private keyed phrases judges change (checks, judge view, :person/inner-changed)
   io/            everything that leaves the process
     llm.clj        LLM protocol; OpenRouter (JDK HTTP) and Mock (scenario policy) implementations
     bridge.clj     bridge executor: timeout, truncation, stubs, MCP tools; never throws

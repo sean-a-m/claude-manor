@@ -45,7 +45,8 @@
 
 (defn ask-judge
   "Ask the judge what `job` did to the judged `things` (see
-  items/judged-things): {:summary :changes}, or {:failure reason}. A bad
+  items/judged-things): {:summary :changes}, with :inner when the scenario
+  has inner state and it changed, or {:failure reason}. A bad
   answer is sent back with the reason and asked once more. Each call is
   recorded in llm.edn as agent \"judge\", and its usage counts towards the
   run's cost."
@@ -56,7 +57,7 @@
                        :ctx (assoc (select-keys work [:minutes :stopped-early? :luck])
                                    :role :judge :world world :job job :things things
                                    :focus (item-work/focus-things world job)))
-        {:keys [verdict] :as result} (ask-structured! run "judge" request #(item-judge/judgement % world things))]
+        {:keys [verdict] :as result} (ask-structured! run "judge" request #(item-judge/judgement % world things (get-in run [:scenario :inner])))]
     (assoc result :verdict verdict)))
 
 (defn adjudicate

@@ -22,8 +22,10 @@
   :on-spawn events, `(fn [world id spec])`, which see everything the agent
   was spawned with (a post, a bedroom; see manor.mechanics.positions). An agent's
   :situation is kept: only their own prompt shows it. The public
-  :appearance is kept too, and :aspects if there are any (manor.mechanics.items)."
-  [scenario world {:keys [role name persona model controller location situation appearance aspects] :as spec}]
+  :appearance is kept too, and :aspects if there are any (manor.mechanics.items).
+  A starting :inner (manor.mechanics.inner) is private like :situation, and
+  its entries count as set in this round."
+  [scenario world {:keys [role name persona model controller location situation appearance aspects inner] :as spec}]
   (let [id (unique-id world (slug name))
         location (or location (get-in scenario [:roles role :start-location]))
         agent (cond-> (merge {:id id :name name :role role :persona (or persona "")}
@@ -33,7 +35,8 @@
                 location (assoc :location location)
                 situation (assoc :situation situation)
                 appearance (assoc :appearance appearance)
-                (seq aspects) (assoc :aspects aspects))
+                (seq aspects) (assoc :aspects aspects)
+                (seq inner) (assoc :inner inner :inner-at (zipmap (keys inner) (repeat (:round world)))))
         spawned {:type :agent/spawned :data {:agent agent} :visible-to :all}
         world' (w/apply-event world spawned)
         on-spawn (get-in scenario [:roles role :on-spawn])

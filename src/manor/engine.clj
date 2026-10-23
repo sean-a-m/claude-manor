@@ -39,6 +39,7 @@
             [manor.io.worldfile :as worldfile]
             [manor.mechanics.builtins :as b]
             [manor.mechanics.conversation :as conversation]
+            [manor.mechanics.inner :as inner]
             [manor.mechanics.items :as items]
             [manor.mechanics.items.actions :as item-actions]
             [manor.mechanics.items.find :as item-find]
@@ -345,11 +346,12 @@
     (throw (ex-info (str "bad :items from :init: " (str/join "; " ps)) {:problems (vec ps)}))))
 
 (defn- check-agents!
-  "Throw if a starting agent's :aspects aren't well formed (see items/Aspects)."
-  [agents]
-  (when-let [ps (seq (for [{:keys [name aspects] :as a} agents
-                           :when (contains? a :aspects)
-                           :let [p (items/aspects-problem aspects)]
+  "Throw if a starting agent's :aspects aren't well formed (see items/Aspects),
+  or its :inner doesn't fit the scenario's (see inner/problem)."
+  [scenario agents]
+  (when-let [ps (seq (for [{:keys [name aspects inner] :as a} agents
+                           p [(when (contains? a :aspects) (items/aspects-problem aspects))
+                              (when (contains? a :inner) (inner/problem (:inner scenario) inner))]
                            :when p]
                        (str "agent " (pr-str name) ": " p)))]
     (throw (ex-info (str "bad :agents from :init: " (str/join "; " ps)) {:problems (vec ps)}))))
@@ -371,7 +373,7 @@
                      :data (cond-> {:scenario (:name scenario) :seed (:seed opts) :state state}
                              clock (assoc :clock clock))}])
     (run/emit! run (space/init-events (:space init)))
-    (check-agents! agents)
+    (check-agents! scenario agents)
     (doseq [spec (cons {:name "GM" :role :gm :model (:gm-model opts) :controller (:gm opts)} agents)]
       (run/emit! run (b/spawn-events scenario @(:world run) (into {} (remove (comp nil? val)) spec))))
     (when (:items scenario)

@@ -65,7 +65,8 @@
 (defn scene
   "The activity's local scene: place, named focus (including container contents),
   at most twelve other visible items, stores in scope, and people: those
-  present, with the judged people (see `judged-people`) as person things."
+  present, with the judged people (see `judged-people`) as person things,
+  and the others by id and name."
   [world {:keys [place] :as job}]
   (let [focus (focus-things world job)
         named (set (map :id focus))
@@ -75,7 +76,7 @@
      :also-here (vec (take 12 (remove #(or (named (:id %)) (items/store? %)) (items/visible-at world place))))
      :stores (vec (items/stores-for world place))
      :people (mapv (fn [id]
-                     (cond-> (if (judged id) (person-thing world id) {:name (:name (w/agent world id))})
+                     (cond-> (if (judged id) (person-thing world id) {:id id :name (:name (w/agent world id))})
                        (w/busy world id) (assoc :doing (:activity (w/busy world id)))))
                    (sort (into (space/present world place) judged)))}))
 

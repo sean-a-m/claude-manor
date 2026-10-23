@@ -4,6 +4,7 @@
   (:require [clojure.set :as set]
             [manor.engine.judges :as judges]
             [manor.engine.run :as run]
+            [manor.mechanics.inner :as inner]
             [manor.mechanics.items.steward :as item-steward]
             [manor.mechanics.items.work :as item-work]))
 
@@ -19,13 +20,15 @@
 (defn- finish-job!
   "Record and apply a prepared ending in job order. Build new item ids on
   the live world, so independent jobs making identically named things agree
-  with sequential judging too."
+  with sequential judging too. Changes to inner state follow the public
+  :item/work-done as their own GM-only events."
   [run {:keys [job] :as work} {:keys [ended verdict failure records]}]
   (doseq [record! records] (record!))
   (let [world @(:world run)]
     (run/emit! run (if ended
                      [(item-work/work-ended world job ended)]
                      (cond-> [(item-work/work-done world job work verdict)]
+                       (seq (:inner verdict)) (into (inner/changed-events {:job (:id job)} (:inner verdict)))
                        failure (conj (item-work/judge-failed job failure)))))))
 
 (defn- independent-prefix

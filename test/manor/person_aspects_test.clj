@@ -71,8 +71,8 @@
     (is (str/includes? (first (problems {:a "1" :b "2" :c "3" :d "4" :e "5"})) "agent \"Lady Ashby\""))
     (testing ":init agents are checked too"
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"bad :agents from :init: agent \"X\""
-                            (#'e/check-agents! [{:name "X" :aspects {:hair ""}}])))
-      (is (nil? (#'e/check-agents! [{:name "X" :aspects {:hair "up"}} {:name "Y"}]))))))
+                            (#'e/check-agents! dressing/scenario [{:name "X" :aspects {:hair ""}}])))
+      (is (nil? (#'e/check-agents! dressing/scenario [{:name "X" :aspects {:hair "up"}} {:name "Y"}]))))))
 
 (deftest everyone-present-sees-aspects
   (let [run (start)]

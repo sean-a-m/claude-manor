@@ -1,7 +1,30 @@
 # Inner state: how characters are inside
 
-Status: **proposed, not started.** The user's decisions of 2026-10-22 are in section 4; the
-defaults at its end are proposals still to confirm. Follow-ups go to the roadmap (B13).
+Status: **phase 1 built** (data and the work judge; mock-tested, no real run yet). Phases 2
+(the conversation judge) and 3 (the steward) are not started. The user's decisions of
+2026-10-22 are in section 4; the defaults at its end were taken as written. Follow-ups go to
+the roadmap (B13).
+
+Where phase 1's build differs in detail, or fills a gap:
+
+- The checks get the scenario's `:inner` at call time (`item-judge/judgement`'s fourth
+  argument, from the run's scenario), not from the world: the reducer needs no configuration,
+  so replay is unaffected. `:open` defaults to 2 when the entry leaves it out.
+- World files are checked for shape only (keys and values), since `worldfile/problems` has no
+  scenario; the engine checks the open keys against the scenario's `:inner` when the run
+  starts, and refuses a starting `:inner` in a scenario without one.
+- Starting entries count as set in the round the agent is spawned (0 at the start), so the
+  judge shows them as set at the clock's start.
+- The judge sees each person's `inner` as `{key: {value, set_at}}` (an empty fixed key as
+  `{value: ""}`); `set_at` is a short time ("18:30", or "Sun 07:00" on another day). The
+  extra `inner`, `temperament`, `persona` and `situation` entries, the instruction section and
+  the tool's `inner` field are all left out when the scenario has no `:inner`, so other
+  scenarios' judge requests are unchanged.
+- The narration is GM-only: `Lady Ashby, inside (job job-12): mood "pleased with Dawson's
+  work"; body cleared.` `map.edn` is now also rewritten after `person/*` events, so the later
+  phases' changes export too.
+- Claudeworth's rules already have the whole 5.5 paragraph, including "what's said to you and
+  how you sleep", though until phases 2 and 3 only work changes it.
 
 ## 1. The want
 

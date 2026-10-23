@@ -63,6 +63,7 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :mcp-servers   {...}                    ; optional, MCP servers that bridges call
    :systems       [...]                    ; optional, per-round world processes
    :items         {:judge-brief (fn [world] "...")}   ; optional, turns on items (see Items)
+   :inner         {:keys {:mood "gloss" ...} :open 2}  ; optional, turns on inner state (see Inner state)
    :hibernate     (fn [world agent-id] {:activity .. :location ..} or nil)  ; optional, see Hibernation
    :reference     (fn [world agent-id] {...})   ; optional: facts that rarely change, in the system prompt
    :observe       (fn [world agent-id] {...})   ; strongly recommended
@@ -843,8 +844,9 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
 People have aspects too, under `[:agents id :aspects]`, checked as an item's are (at most 4,
 well-formed keys, values of 1-200 characters). They say how a person differs now from their
 fixed `:appearance`, where it shows and lasts beyond the activity: dress, hair, hands and face,
-dirt and wet, a visible injury. Never inner states (hunger, tiredness, moods). `:appearance` never
-changes; word changeable things in it as habits ("usually in a print frock and apron").
+dirt and wet, a visible injury. Never inner states (hunger, tiredness, moods): those are the
+person's private inner state (see Inner state). `:appearance` never changes; word changeable
+things in it as habits ("usually in a print frock and apron").
 
 - **Where they come from:** a world-file agent or an `:init` agent spec may give `:aspects`
   (`worldfile/problems` and the engine check them), and the exported `map.edn` writes the live
@@ -1154,7 +1156,10 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
 
   `people` lists everyone present and the judged people: those the judge may change are marked
   `person: true` and have their id, `appearance` and `aspects`; the others are context, by
-  name and what they're doing.
+  name and what they're doing. When the scenario has `:inner` (see Inner state), everyone's
+  entry also has `inner` (every fixed key, an empty one as `{"value": ""}`, then the open
+  ones, each `{"value": "...", "set_at": "18:30"}`), and the judged people's also have their
+  `temperament`, `persona` and `situation`.
 
   Focus includes container contents as above, with `in` only when that container is also in
   focus; entries mark `consumable: true`, `container: true`, or `room: true` when appropriate,
@@ -1173,7 +1178,8 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   It has one required tool, `judge {changes: [{thing, aspect, value}],
   used-up: [id], fates: {id: phrase}, absorbed: [{thing, into}],
   made: [{name, desc, aspects?, consumable, from?, held?, in?}], summary}`: each change sets one aspect of one
-  thing, and `value: ""` removes it. The engine sends it through
+  thing, and `value: ""` removes it. With `:inner`, the tool also has `inner: [{person, key,
+  value}]` beside `changes`, and the instructions an "Inner state" section (see Inner state). The engine sends it through
   the run's LLM with the model `:judge-model` (a run option; nil means `:model`) and the run's
   `:reasoning` and `:max-tokens`, without holding the world lock. Each call is in `llm.edn` as
   agent `"judge"` and its usage is an `:llm/usage` event, so it counts towards `:max-cost`;
@@ -1194,6 +1200,8 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   aspects as above, required consumable flag, optional boolean `held`); any `from` must name
   a store in scope. Source-free products need no use-up; whether they are the activity's
   direct product is the judge's decision, not a code classifier. An `in` must be a container in reach that is neither used up nor absorbed.
+  With `:inner`, the `inner` list is checked too (see Inner state). Without it, an `inner` list
+  is dropped like any unknown key.
   A bad answer is sent back with the reason and asked once more. A second bad answer, or an
   exception, gives `:item/work-done` with no changes and a
   neutral summary ("Hale finishes dusting the china cabinet."), plus an `:item/judge-failed`
@@ -1201,7 +1209,7 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
 - **Mock runs:** a call with role `:judge` goes to the scenario's `:mock-judge` if it has one,
   else to `item-judge/mock-judge` (each focused thing gets cleanliness "just seen to", and each person
   named in `on` who is still here a state "just seen to"; it leaves the worker alone unless named,
-  so without `on` it changes nothing and makes nothing). For quick put-away jobs the default mock instead
+  so without `on` it changes nothing and makes nothing, and never changes inner state). For quick put-away jobs the default mock instead
   absorbs deposited consumables (only with absorbable consumable contents) and clears matching
   semicolon-separated shortages using whole-word matches against their names ("sugar" matches
   "Loaf sugar", but "tea" does not match "meat"). Other shortages survive. Thus
@@ -1261,6 +1269,65 @@ removes nothing from sleepers.
 Stores of provisions can be consumable items, a parcel each, whose `:amount` the judge rewrites as
 they are used (Claudeworth's purchases).
 
+### Inner state (`manor.mechanics.inner`)
+
+A person's inner state is how they are inside, which only they know: their spirits, how their
+body is, what's on their mind, and anything else about them that doesn't show (a headache, an
+old knee playing up). It's short keyed phrases under `[:agents id :inner]`, like aspects, with
+the round each entry was set under `[:agents id :inner-at]`. Judges change it; the person only
+reads it. Opt in with a scenario `:inner` entry:
+
+```clojure
+:inner {:keys {:mood "their spirits and emotions now"           ; fixed keys, each with a gloss
+               :body "how their body is, as only they know it"
+               :mind "what they're preoccupied with, anticipating or dreading"}
+        :open 2}                                                ; open keys besides them (default 2)
+```
+
+- **Keys and values:** keys are formed as aspects' (`items/aspect-key?`), values 1–200
+  characters (80 advised). The fixed keys only mean that judges are always shown every one,
+  an empty one as `""`, and that they don't count against `:open`. Nothing is filled in:
+  an empty entry is simply absent, and emptying any key removes it (with its `:inner-at`); an
+  agent with no entries has no `:inner`. There are no meters or levels and **no automatic
+  fading**: an entry stays until a judge changes it, and when it was set is only shown to the
+  judges. Code checks only structure, never the wording.
+- **Where it comes from:** a world-file agent or an `:init` agent spec may give `:inner` (a
+  character who starts the run unsettled). `worldfile/problems` checks keys and values; the
+  engine also checks the open keys against the scenario's `:inner`, and refuses `:inner` in a
+  scenario without one. Starting entries count as set in the round the agent was spawned.
+  Anything left out starts empty, and so do people made during a run. The exported `map.edn`
+  writes the live `:inner` back to the file's agents.
+- **Who sees it:** the person, under `:you :inner` in their view (only entries with a value),
+  and the GM (the default GM view's agents), the operator (the panel's roster) and the judges.
+  Never `people-here`, `look`, or any other agent's request. Privacy comes from where it's put,
+  not from checking text.
+- **What changes it:** for now the work judge, which sees everyone present's inner state and
+  may change the judged people's (the worker, and the people named in `on` who are still
+  there), never a bystander's. Its answer's `inner: [{person, key, value}]` list is checked in
+  `item-judge/judgement` (given the scenario's `:inner`): the person is judged ("you may change
+  the inner state only of these people: dawson, lady-ashby; not mrs-pell"), the key is
+  well formed (normalised like argument names), the value fits, and nobody ends up with more
+  open keys than `:open` ("Mrs Pell (mrs-pell) would have 3 keys besides mood, body (...); at
+  most 2: change one they have instead, or clear one with the value \"\""). `""` clears a key;
+  the last of a key counts; unchanged ones are left out. A bad answer is sent back once, as for
+  the rest of the judge's answer. The judge is told, in this sense: change inner state only
+  where the activity would and leave the rest; temperament informs the judgement but doesn't
+  decide it; the summary is read by everyone present, so it says only what they could see or
+  hear, never anyone's inner state. The steward's tool has no `inner` field.
+- **The event:** the changes go in GM-only `:person/inner-changed` events, one per changed
+  person, emitted right after the job's `:item/work-done`, which holds no inner state:
+  `{:person id :source {:job id} :changes [{:key k :from v :to v'}]}` (`:to` nil when
+  cleared). Its reducer sets `:inner` and `:inner-at` (the event's round). The person gets no
+  line in their event window; the transcript reads `Lady Ashby, inside (job job-12): mood
+  "pleased with Dawson's work"; body cleared.`
+- **Mock runs:** `item-judge/mock-judge` leaves inner state alone. A scenario's `:mock-judge`
+  may return `:inner` in its args (the dressing fixture's does).
+- **What to tell agents,** in the brief or rules, in this sense (Claudeworth's `rules` has
+  it): *Under `you`, `inner` says how you are inside now: your spirits, how your body is, what's
+  on your mind. Nobody else can see it unless you show or say so. It changes with what you do,
+  what's said to you and how you sleep. Let it colour what you do and say, as anyone's would.*
+  Don't invite them to manage or improve it.
+
 ### World files (`manor.io.worldfile`)
 
 A scenario can keep its starting world in an EDN file instead of code: locations, routes, the
@@ -1283,7 +1350,8 @@ in `:init`:
              ...]
  :routes [["porch" "green" 1]]                     ; journeys, as in :space
  :agents [{:name "Ada" :role :resident :location "hall"
-           :aspects {:hands "inky"}}]               ; optional (see People's aspects)
+           :aspects {:hands "inky"}                 ; optional (see People's aspects)
+           :inner {:mind "the unanswered letter"}}] ; optional (see Inner state)
  :items [{:id "pipe" :name "Pipe" :holder "Ben" :owner "Ben"   ; optional, see Items
           :aspects {:state "still warm"} :desc "A briar pipe."}]
  :shop {...}}                                       ; your own sections, from :world-file
@@ -1291,7 +1359,7 @@ in `:init`:
 
 - `load-world` takes a file path or a classpath resource name. It checks the file and throws a
   list of readable problems (unknown locations, duplicate ids, bad routes, bad clock, bad items,
-  bad agent aspects).
+  bad agent aspects or inner state).
   It returns `{:space :clock :agents :items :world-file}`. Read your own sections from
   `:world-file`.
 - `:items` (optional) lists items as in Items, one per line, with `:holder` and an agent `:owner`
@@ -1307,7 +1375,7 @@ in `:init`:
   `<run-dir>/world-start.edn`. Whenever the map changes, it writes the live map back in the same
   format to `<run-dir>/map.edn` (output only), and the live items with it (holders and owners as
   names again) whenever an item changes hands, and the file's agents with their live `:aspects`
-  (people who came during the run aren't added). A run can start from an exported map
+  and `:inner` (people who came during the run aren't added). A run can start from an exported map
   (`{:world-file "runs/<id>/map.edn"}`), and `(export-map! path)` at the REPL writes one anywhere.
 
 Claudeworth-derived worlds may omit architect services altogether (as Lodge does). If an

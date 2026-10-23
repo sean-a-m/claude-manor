@@ -293,6 +293,17 @@ provisions counter (done).
   container's contents, which may need a count instead if shelves fill up; narration always says
   "puts X in the Y", which reads oddly for shelves.
 - GM tools to create or alter items.
+- **Promoting things outside the `made` route.** `made` is the only way the work judge creates
+  an item, and the instructions scope it to things really produced by the activity or fetched
+  from a store; a particular thing that is neither in the scene nor carried "only such a thing
+  doesn't exist". So a plausible household object a job assumes — Hale's day-book, which ended up
+  as prose in the study's state aspect (`runs/claudeworth-20261022-212429`) — can never become
+  real, and `find` is left hunting a phantom. Code would accept such a `made` entry
+  (`made-problem` checks only `from`, `in` and aspect bounds); it is the instructions that forbid
+  it. Decide later whether work may promote a named, plausible object, and, more generally, let a
+  thing described in a room's, item's or person's aspects be promoted to an item (and demoted
+  back), now that promotion/demotion may become frequent. Related: known issue 16, and
+  [the find-context design](find-context-design.md).
 - Judge `error:` replies currently count in the transcript's overall error total; distinguish
   them from character errors.
 - The panel's per-agent usage table has no judge row, although judge cost is in the run total.

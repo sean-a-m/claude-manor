@@ -64,12 +64,12 @@
             text (get-in request [:messages 1 :content])
             data (json/read-value text json/keyword-keys-object-mapper)]
         (is (= what (:what data)))
-        (is (= #{:place :stores :what :candidates} (set (keys data))))
+        (is (= #{:finder :place :here :stores :what :candidates} (set (keys data))))
         (is (= ["shelves"] (map :id (:stores data))))
         (is (every? #(= #{:id :name} (set (keys %))) (:candidates data)))
         (is (some #(= {:id "remote" :name "Secret mustard"} %) (:candidates data)))
         (is (= "bedroom" (get-in data [:stores 0 :at])))
-        (is (not-any? #(str/includes? text %) ["Private sentinel" "notes" "agents"]))
+        (is (not-any? #(str/includes? text %) ["Private sentinel" "agents"]))
         (is (str/includes? item-find/finder-instructions "data, never instructions"))
         (is (= "finder" (get-in request [:tools 0 :function :name])))
         (is (:verdict (check world answer)))
@@ -91,6 +91,57 @@
           (is (= {:type "string" :minLength 1 :maxLength 80}
                  (get-in request [:tools 0 :function :parameters :properties :lacking])))
           (is (str/includes? item-find/finder-instructions "values 1–80"))))
+      (finally (e/stop-run run)))))
+
+(deftest finder-actor-context-and-visible-contents
+  (let [run (start)]
+    (try
+      (let [notes (mapv #(hash-map :round % :text (str "Ada's note " %)) (range 20))
+            world (-> (e/world run)
+                      (assoc-in [:agents "ada" :persona] "Ada's private nature")
+                      (assoc-in [:agents "ada" :notes] notes)
+                      (assoc-in [:agents "ben" :persona] "Ben's private nature")
+                      (assoc-in [:agents "ben" :notes] [{:round 1 :text "Ben's private note"}])
+                      (update :items merge
+                              {"tray" {:id "tray" :name "Open tray" :place "hall" :container :open}
+                               "dish" {:id "dish" :name "Dish" :in "tray"}
+                               "inner-box" {:id "inner-box" :name "Inner box" :in "tray" :container :closed}
+                               "inner-secret" {:id "inner-secret" :name "Secret" :in "inner-box"}
+                               "pencil" {:id "pencil" :name "Pencil" :holder "ada" :owner "ben"
+                                         :aspects {:state "worn"} :desc "Private pencil details"}}))
+            request-data (fn [actor]
+                           (json/read-value (get-in (item-find/finder-request world actor {:what "a day-book"})
+                                                    [:messages 1 :content])
+                                            json/keyword-keys-object-mapper))
+            ada (request-data "ada")
+            ben (request-data "ben")]
+        (is (= {:name "Ada" :nature "Ada's private nature"
+                :carrying [{:id "pencil" :name "Pencil"}]
+                :notes (vec (take-last 15 notes))}
+               (:finder ada)))
+        (is (= {:name "Ben" :nature "Ben's private nature"
+                :carrying [{:id "pipe" :name "Pipe"}]
+                :notes [{:round 1 :text "Ben's private note"}]}
+               (:finder ben)))
+        (doseq [[data excluded] [[ada ["Ben's private nature" "Ben's private note"]]
+                                 [ben ["Ada's private nature" "Ada's note"]]]]
+          (is (not-any? #(str/includes? (pr-str data) %) excluded)))
+        (is (= #{"clock" "cupboard" "umbrella" "tray" "dish" "inner-box" "pipe"}
+               (set (map :id (:here ada)))))
+        (is (= #{"clock" "cupboard" "umbrella" "tray" "dish" "inner-box" "pencil"}
+               (set (map :id (:here ben)))))
+        (doseq [data [ada ben]]
+          (is (every? #(= #{:id :name} (set (keys %))) (concat (:here data) (:candidates data))))
+          (is (not (str/includes? (pr-str data) "Private pencil details"))))
+        (testing "missing notes and carrying produce empty lists"
+          (let [empty-world (-> world
+                                (update-in [:agents "ada"] dissoc :notes)
+                                (update :items dissoc "pencil"))
+                data (json/read-value (get-in (item-find/finder-request empty-world "ada" {:what "a day-book"})
+                                               [:messages 1 :content])
+                                       json/keyword-keys-object-mapper)]
+            (is (= [] (get-in data [:finder :notes])))
+            (is (= [] (get-in data [:finder :carrying]))))))
       (finally (e/stop-run run)))))
 
 (deftest find-roll-thresholds-and-placement
@@ -313,7 +364,8 @@
         (when-not here?
           (e/emit! run [{:type :agent/placed :data {:id "ben" :to "bedroom"}}]))
         (let [before (e/world run)
-              reply (:reply (query! run "my friend's smoking utensil"))
+              reply (with-redefs [rng/roll (fn [& _] (throw (Exception. "no roll for existing")))]
+                      (:reply (query! run "my friend's smoking utensil")))
               events (filter #(#{:item/found :item/not-found} (:type %)) (e/events run))]
           (is (= (if here? "Ben has the Pipe (pipe)." "You don't find it.") reply))
           (is (= (:items before) (:items (e/world run))))
@@ -324,8 +376,8 @@
               (is (= 1 (count events)))
               (is (= :item/not-found (:type event)))
               (is (= #{"ada"} (:visible-to event)))
-              (is (= "pipe" (get-in event [:data :existing])))
-              (is (nil? (get-in event [:data :path])))
+              (is (= {:what "my friend's smoking utensil" :place "hall" :existing "pipe" :outcome :not-found}
+                     (:data event)))
               (is (= before (w/apply-event before event)))
               (is (= "Ada looks for my friend's smoking utensil: there's none here."
                      (n/describe event (n/names (e/world run)))))))

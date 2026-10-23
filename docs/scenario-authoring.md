@@ -1453,8 +1453,9 @@ architect server. A world without an office needs none.
 Claudeworth-derived worlds may omit architect services altogether (as Lodge does). If an
 architect service exists, the existing check still requires at least one with opening hours;
 all supplied hours are checked. With no architect service, the shared brief omits building-only
-instructions. Exclude the five architecture actions in that scenario as well; this does not
-change the clerk path at an existing office or the optional-character options. Each starting
+instructions. Exclude the five architecture actions in that scenario as well. Only an agent whose position
+has the `:architect` capability is offered `draw-plans`, and draws only for a client with them
+at the open office. Each starting
 character still needs a bedroom, including living-out shopkeepers; the empty maid's room must
 remain unassigned if it is to show as free in the household view.
 

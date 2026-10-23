@@ -398,8 +398,8 @@
          " are paid from the household account (`household` in your view). There is no engine-enforced spending restriction by role: whether you should spend depends on your station, instructions and relationships. At an open shop, ask the shopkeeper with `converse` for portable goods and quantities; there is no fixed catalogue. The shopkeeper checks availability and quotes firm prices, a whole shopping list in one `quote-goods`. Accept offers made for you with `buy {quote-ids}`, from `offers` in your view: one `buy` can take the whole list. Payment is separate from asking; no bargaining or bulk counters. A shop that sends goods out can quote a line for delivery, for goods too large or too many to carry away: it's paid for when you buy, and the shop's errand boy or carrier leaves it at the delivery place when due (`orders` in your view), with nothing more for the shopkeeper or you to do. Everything bought is paid in full from the household account there and then: there are no tradesmen's bills, reckonings or accounts to settle later. Prices are old sterling: £1 = 20 shillings = 240 pence (12d = 1s). "
          (when architect?
            (str "Building is arranged at the architect's office while it is open, not at the house: talk at home is for deciding what you want. "
-                "At the office you can search reference books (`consult-references`), ask for the `price-list` and have plans drawn (`draw-plans`), in one of these sizes: "
-                (str/join ", " (map :size (get-in world [:state :architect-prices :sizes]))) "; any character can `commission` a plan they hold, but should judge whether they have the social authority to do so. `show-plans` shares plans with everyone present, anywhere. "
+                "At the office you can search reference books (`consult-references`), ask for the `price-list` and ask the architect to draw plans, in one of these sizes: "
+                (str/join ", " (map :size (get-in world [:state :architect-prices :sizes]))) ". Only the architect draws plans (`draw-plans`), and only for a client who is with him at his office while it is open; if he is out, wait for him or come back. Any character can `commission` a plan they hold, but should judge whether they have the social authority to do so. `show-plans` shares plans with everyone present, anywhere. "
                 "Plans are a special case: they are not things, so they are never carried, given, fetched, copied, lost or searched for. Once plans are drawn, the architect and the client both hold them, and anyone they are shown to holds them too; `plans` in your view lists the plans you hold, and those are all you need. "))
          (if architect? "A reference lookup, the price list, each draft, each `quote-goods`" "Each `quote-goods`")
          " (however many goods it lists), `recommend` and `find` all count towards your " max-queries " queries a turn, even if asked for at once; once you reach " max-queries ", take your action and query again next turn. "
@@ -647,16 +647,8 @@
          (nil? (get-in day [agent-id (str (now world))]))) (shop/scripted-clerk day (str (now world)) world agent-id used)
     :else
     (let [time (str (now world))
-          architect (building/architect-here world agent-id)
           client-plan (first (sort-by :id (filter #(= "lord-claudeworth" (:for %)) (vals (get-in world [:state :plans])))))
-          clerk? (and (= agent-id "lord-claudeworth") (nil? architect))
           script (cond
-                   (and clerk? (= time "10:00"))
-                   [[:consult-references {:query "library study"}] [:price-list {}] [:pass {}]]
-                   (and clerk? (= time "10:30"))
-                   [[:draw-plans {:name "Library" :floor "ground" :size "large"
-                                  :desc "A panelled library with shelves and a reading table." :connects-to ["study"]}]
-                    [:pass {}]]
                    (and (= agent-id "lord-claudeworth") (= time "18:00")
                         (space/location world (:id client-plan)))
                    (into [[:walk {:to (:id client-plan)}]] (get-in day [agent-id time]))
@@ -668,6 +660,8 @@
                              (and (= :walk tool) (= to (bedroom-of world agent-id))
                                   (= to (space/location-of world agent-id)))) script)
                    script)
+          ;; With no architect in the run, no plan is drawn to commission or show.
+          script (if client-plan script (remove (fn [[tool]] (#{:commission :show-plans} tool)) script))
           script (mapv (fn [[tool args]]
                          [tool (if (and (#{:commission :show-plans} tool) client-plan)
                                  (assoc args :plan-id (:id client-plan)) args)]) script)

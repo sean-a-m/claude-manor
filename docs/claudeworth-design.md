@@ -50,8 +50,8 @@ scripted) and then with real models:
 1. The earl and countess talk in the house about a new room.
 2. The earl goes to the village himself, or sends the secretary (half an hour).
 3. At the architect's office the client describes what they want. The architect looks things up
-   in his reference books, may push back, and draws plans. If there is no architect agent, the
-   office clerk drafts exactly what the client asks for.
+   in his reference books, may push back, and draws plans. Only the architect draws: with
+   nobody holding the architect's position in the office, no plans are drawn.
 4. The client commissions the plans. The money leaves the household account and building begins.
 5. Everyone passes the time (activities, talk, a walk to the abbey) and sleeps at night.
 6. **One simulated day later** the new room appears on the map, joined to the rooms it was built
@@ -287,8 +287,11 @@ construction system (every round)
   rooms are fine. `size` is `small`, `medium`, `large` or `grand` and sets the price. The engine
   adds the current house map (`:domain :house` places: id, name, floor, connects-to) to the bridge
   args; the model never supplies it.
-- **Who draws:** the architect agent draws for a client (`for`). If no architect agent is in the
-  office, a client may draw for themselves ("the clerk takes down your instructions").
+- **Who draws:** only the architect, for a client (`for`, required) who is with him at the open
+  office. `draw-plans` needs the `:architect` capability, so nobody else is offered it. (Until
+  2026-10-23 a client could draw for themselves when no architect was in the office, "the clerk
+  takes down your instructions"; that clerk path was removed because clients drew plan after
+  plan with it, even while Pugh was simply out, as in `runs/claudeworth-20261018-111357`.)
 - **What code enforces** (everything else is up to the agents):
   - the connected rooms exist and belong to the house
   - the name and description are non-empty and short enough for prompts (name ≤ 60, desc ≤ 600)
@@ -471,7 +474,7 @@ plans, `show-plans`, commission, construction, `map.edn` export, and the optiona
   offline stub and the real server. It asserts the new room exists only after the build delay, is
   joined to the right rooms, can be walked into, that money and fee moved correctly, and that
   `map.edn` contains the room.
-- The same holds with `:architect? false` (the clerk path).
+- The same holds with `:architect? false` (the clerk path, since removed).
 - An "odd" room goes through: a bathroom joined to the dining room and the gallery.
 - The structural refusals have tests: an unknown room in `connects-to`, a bad size, too little
   money.

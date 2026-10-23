@@ -55,10 +55,6 @@
 (defn fresh-id [base taken]
   (first (remove (set taken) (cons base (map #(str base "-" %) (iterate inc 2))))))
 
-(defn architect-here [world actor]
-  (first (filter #(and (positions/capable? world (:id %) :architect) (space/together? world actor (:id %)))
-                 (w/active-agents world))))
-
 (defn- closed [world loc]
   (when-not (and (:hours loc) (open-now? world (:hours loc)))
     (str "the " (:name loc) " is closed; it is open " (str/join "-" (:hours loc)))))
@@ -139,15 +135,15 @@
                                               :text "A panelled library beside the study, with shelves and a quiet reading table."}]})
    :architect/draft draft-stub})
 
-(defn draw-reason [world actor args]
+(defn draw-reason
+  "Why the architect can't draw these plans now, or nil. Only an architect
+  draws (the action `:needs :architect`), at an open office, for a client
+  who is there with them."
+  [world actor {client :for :as args}]
   (or (office-reason world actor)
-      (let [architect (architect-here world actor) client (get args :for actor)]
-        (cond
-          (positions/capable? world actor :architect)
-          (when-not (and (w/active? world client) (space/together? world actor client))
-            (str "the client " client " must be present in this office"))
-          architect (str (:name architect) " draws the plans here; ask him")
-          (not= client actor) "the clerk can draw only for you; omit for or use your own id"))
+      (when-not (positions/capable? world actor :architect) "only the architect draws plans")
+      (when-not (and (not= client actor) (w/active? world client) (space/together? world actor client))
+        (str "the client " client " must be present in this office"))
       (when-not (price-for (:sizes (price-list world)) (:size args))
         (str "size must be one of: " (str/join ", " (sizes world))))
       (when-not (contains? (floors world) (floor-key (:floor args)))
@@ -188,7 +184,7 @@
 (defn store-draft [world actor args result]
   (if-let [reason (draft-reason world args result)]
     [{:type :claudeworth/draft-refused :visible-to #{actor} :data {:reason reason}}]
-    (let [client (get args :for actor)
+    (let [client (:for args)
           p (merge (select-keys (:plan result) [:id :name :floor :desc :connects-to])
                    {:price (money/pounds->pence (:price result)) :build-days (:build-days result)}
                    {:size (:size args) :drawn-by actor :for client :holders (set [actor client])})
@@ -212,9 +208,9 @@
     :query-fn (fn [world _ _ _] (price-list world))
     :on-result (fn [_ actor result-args result]
                  [{:type :claudeworth/prices-quoted :visible-to #{actor} :data result}])}
-   {:name :draw-plans :kind :query :roles :all
-    :doc "Draft and price a room at an open architect's office. If an architect is here, only that agent can draw, naming a client with for; ask him with say. With no architect here, the clerk draws for you. Use house room ids from places for connects-to, and a size from the price list. Bridge prices are whole pounds (£); stored plans show formatted sterling. Plans are stored, not commissioned."
-    :args [:map [:for {:optional true} :string] [:name [:string {:min 1 :max 60}]] [:floor :string]
+   {:name :draw-plans :kind :query :roles :all :needs :architect
+    :doc "Draft and price a room for a client who is with you at your open office; name them with for. Use house room ids from places for connects-to, and a size from the price list. Bridge prices are whole pounds (£); stored plans show formatted sterling. Plans are stored, not commissioned."
+    :args [:map [:for :string] [:name [:string {:min 1 :max 60}]] [:floor :string]
            [:desc [:string {:min 1 :max 600}]] [:connects-to [:vector {:min 1 :max 4} :string]]
            [:size [:string {:min 1 :max 40}]]]
     :valid? draw-reason :bridge :architect/draft :bridge-args draft-args :on-result store-draft}

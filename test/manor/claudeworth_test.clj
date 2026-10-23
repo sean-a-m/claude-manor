@@ -110,7 +110,7 @@
 (defn- at [world actor location]
   (w/apply-event world {:type :agent/placed :data {:id actor :to location}}))
 
-(def draft {:name "Library" :floor "ground" :size "large"
+(def draft {:for "lord-claudeworth" :name "Library" :floor "ground" :size "large"
             :desc "A quiet library." :connects-to ["study"]})
 
 (defn- drafted [world actor args]
@@ -121,25 +121,27 @@
 (deftest shop-and-building-validation
   (let [run (start) world (assoc (e/world run) :round 3)
         office (-> world (at "lord-claudeworth" "architects-office"))
-        clerk (update office :agents dissoc "pugh")
         shop (at world "hale" "general-store")
         check (fn [world actor tool args] (a/check (action run tool) world actor args))]
     (testing "office, hours, architect, client, floor and connections"
       (is (str/includes? (check world "lord-claudeworth" :draw-plans draft) "go to an architect's office"))
       (is (str/includes? (check (assoc office :round 1) "pugh" :draw-plans draft) "is closed"))
-      (is (= "Pugh draws the plans here; ask him" (check office "lord-claudeworth" :draw-plans draft)))
-      (is (= "Pugh draws the plans here; ask him"
-             (check (w/apply-event office (b/occupy office "pugh" "drawing" 10)) "lord-claudeworth" :draw-plans draft)))
+      (testing "only the architect draws, with or without him in the office"
+        (is (= "only the architect draws plans" (check office "lord-claudeworth" :draw-plans draft)))
+        (is (= "only the architect draws plans"
+               (check (update office :agents dissoc "pugh") "lord-claudeworth" :draw-plans draft)))
+        (is (not-any? #(= :draw-plans (:name %)) (a/for-role (:actions run) :earl)))
+        (is (some #(= :draw-plans (:name %)) (a/for-role (:actions run) :architect #{:architect}))))
       (is (str/includes? (check office "pugh" :draw-plans (assoc draft :for "hale")) "must be present"))
-      (is (nil? (check clerk "lord-claudeworth" :draw-plans draft)))
-      (is (nil? (check clerk "lord-claudeworth" :draw-plans (assoc draft :floor "Ground floor"))))
-      (is (= :first (:floor (get-in (drafted clerk "lord-claudeworth" (assoc draft :floor "First Floor"))
+      (is (str/includes? (check office "pugh" :draw-plans (assoc draft :for "pugh")) "must be present"))
+      (is (nil? (check office "pugh" :draw-plans draft)))
+      (is (nil? (check office "pugh" :draw-plans (assoc draft :floor "Ground floor"))))
+      (is (= :first (:floor (get-in (drafted office "pugh" (assoc draft :floor "First Floor"))
                                     [:state :plans "library"]))))
-      (is (str/includes? (check clerk "lord-claudeworth" :draw-plans (assoc draft :for "hale")) "only for you"))
-      (is (= "floor must be one of: first, ground" (check clerk "lord-claudeworth" :draw-plans (assoc draft :floor "attic"))))
-      (is (str/includes? (check clerk "lord-claudeworth" :draw-plans (assoc draft :connects-to ["abbey-church"])) "not a room of the house"))
+      (is (= "floor must be one of: first, ground" (check office "pugh" :draw-plans (assoc draft :floor "attic"))))
+      (is (str/includes? (check office "pugh" :draw-plans (assoc draft :connects-to ["abbey-church"])) "not a room of the house"))
       (is (= "size must be one of: small, medium, large, grand"
-             (check clerk "lord-claudeworth" :draw-plans (assoc draft :size "huge")))))
+             (check office "pugh" :draw-plans (assoc draft :size "huge")))))
     (testing "holders, roles, fees and repeat commissions"
       (let [world (drafted office "pugh" (assoc draft :for "lord-claudeworth"))
             [commissioned [event]] (perform run world "lord-claudeworth" :commission {:plan-id "library"})
@@ -173,11 +175,11 @@
         (is (str/includes? refusal "Only one room is built at a time"))
         (is (str/includes? refusal "commission the Saloon then"))))
     (testing "the office marker, not the location id, selects the service"
-      (let [moved (-> clerk (update-in [:space :locations "architects-office"] dissoc :services)
+      (let [moved (-> office (update-in [:space :locations "architects-office"] dissoc :services)
                       (assoc-in [:space :locations "study" :services] #{:architect})
                       (assoc-in [:space :locations "study" :hours] ["09:00" "18:00"])
-                      (at "lord-claudeworth" "study"))]
-        (is (nil? (check moved "lord-claudeworth" :draw-plans draft)))))
+                      (at "lord-claudeworth" "study") (at "pugh" "study"))]
+        (is (nil? (check moved "pugh" :draw-plans draft)))))
     (e/stop-run run)))
 
 (defn bb-available? []
@@ -193,15 +195,14 @@
                                                         (str (io/file store/test-runs-root prices-name)))))
         run (start {:world-file (str (io/file store/test-runs-root world-name))})
         world (-> (e/world run) (assoc :round 3) (at "lord-claudeworth" "architects-office"))
-        clerk (update world :agents dissoc "pugh")
-        check (fn [args] (a/check (action run :draw-plans) clerk "lord-claudeworth" args))]
+        check (fn [args] (a/check (action run :draw-plans) world "pugh" args))]
     (is (= prices (get-in world [:state :architect-prices])))
     (is (= prices ((:query-fn (action run :price-list)) world "lord-claudeworth" {} nil)))
     (is (= "size must be one of: cottage" (check draft)))
     (is (nil? (check (assoc draft :size "cottage"))))
     (is (= (money/pounds->pence 50)
-           (get-in (drafted clerk "lord-claudeworth" (assoc draft :size "cottage")) [:state :plans "library" :price])))
-    (is (str/includes? (cw/rules world) "in one of these sizes: cottage;"))
+           (get-in (drafted world "pugh" (assoc draft :size "cottage")) [:state :plans "library" :price])))
+    (is (str/includes? (cw/rules world) "in one of these sizes: cottage. Only the architect draws plans"))
     (e/stop-run run)))
 
 (deftest any-character-can-be-left-out
@@ -239,7 +240,7 @@
 (declare moves-to)
 
 (deftest full-building-slice
-  (doseq [opts (cond-> [{:offline? true} {:offline? true :leave-out ["pugh"]}]
+  (doseq [opts (cond-> [{:offline? true}]
                  (bb-available?) (conj {:offline? false}))]
     (let [run (start (merge {:build-rounds 6} opts))]
       (rounds! run 7)
@@ -249,7 +250,7 @@
         (is (= (money/pounds->pence 1200) (get-in event [:data :price])))
         (is (= 13 due))
         (is (= (money/pounds->pence 1800) (get-in (e/world run) [:state :household :funds])))
-        (is (= (if (:leave-out opts) {} {"pugh" (money/pounds->pence 120)}) (get-in (e/world run) [:state :purses])))
+        (is (= {"pugh" (money/pounds->pence 120)} (get-in (e/world run) [:state :purses])))
         (is (nil? (space/location (e/world run) "library")))
         (rounds! run 5)
         (is (nil? (space/location (e/world run) "library")))
@@ -281,22 +282,22 @@
       (e/stop-run run))))
 
 (deftest odd-room-and-untrusted-drafts
-  (let [run (start {:leave-out ["pugh"] :build-rounds 1})
+  (let [run (start {:build-rounds 1})
         world (-> (e/world run) (assoc :round 3) (at "lord-claudeworth" "architects-office"))
         args (assoc draft :name "Bathroom" :connects-to ["dining-room" "gallery"])
-        result (building/draft-stub (building/draft-args world "lord-claudeworth" args) {})]
-    (is (nil? (a/check (action run :draw-plans) world "lord-claudeworth" args)))
-    (let [drawn (drafted world "lord-claudeworth" args)
+        result (building/draft-stub (building/draft-args world "pugh" args) {})]
+    (is (nil? (a/check (action run :draw-plans) world "pugh" args)))
+    (let [drawn (drafted world "pugh" args)
           [commissioned [event]] (perform run drawn "lord-claudeworth" :commission {:plan-id "bathroom"})
           completed (reduce w/apply-event commissioned ((:tick building/construction) (assoc commissioned :round 4) {}))]
-      (is (zero? (get-in event [:data :fee])))
-      (is (nil? (get-in event [:data :payee])))
+      (is (= (money/pounds->pence 120) (get-in event [:data :fee])))
+      (is (= "pugh" (get-in event [:data :payee])))
       (is (= #{"dining-room" "gallery"} (set (map :to (space/exits completed "bathroom"))))))
     (doseq [bad ["truncated" nil (assoc-in result [:plan :id] "study") (assoc-in result [:plan :id] "Bad ID")
                  (assoc-in result [:plan :floor] "attic") (assoc-in result [:plan :desc] "")
                  (assoc-in result [:plan :connects-to] ["unknown"]) (assoc result :price -100)
                  (assoc result :build-days 0)]]
-      (let [events (building/store-draft world "lord-claudeworth" args bad)]
+      (let [events (building/store-draft world "pugh" args bad)]
         (is (= [:claudeworth/draft-refused] (mapv :type events)))
         (is (= world (reduce w/apply-event world events)))))
     (e/stop-run run)))
@@ -312,9 +313,9 @@
     (is (= 5 (:round (first (of-type run :claudeworth/consulted)))))
     (is (= 6 (:round (first (of-type run :claudeworth/plans-drawn)))))
     (e/stop-run run))
-  (let [run (rounds! (start {:leave-out ["pugh"] :bridge-stubs {:architect/draft (fn [_ _] "bad draft")}}) 6)]
+  (let [run (rounds! (start {:bridge-stubs {:architect/draft (fn [_ _] "bad draft")}}) 6)]
     (is (empty? (get-in (e/world run) [:state :plans])))
-    (is (= #{"lord-claudeworth"} (:visible-to (first (of-type run :claudeworth/draft-refused)))))
+    (is (= #{"pugh"} (:visible-to (first (of-type run :claudeworth/draft-refused)))))
     (e/stop-run run)))
 
 (deftest building-world-file-checks
@@ -777,7 +778,7 @@
         (is (str/includes? system (get-in world [:state :positions :architect :about])))
         (is (str/includes? system "Each turn is half an hour of game time"))
         (is (str/includes? system "at most 1000 characters"))
-        (is (str/includes? system "any character can `commission`"))))
+        (is (str/includes? system "Any character can `commission`"))))
     (testing "opening hours appear only in the view and the reference, from :hours, not in the brief"
       (doseq [id ["lord-claudeworth" "lady-claudeworth" "hale" "pugh"]
               :let [system (:content (first (prompt/agent-messages (:scenario run) world (e/events run) id {})))

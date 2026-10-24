@@ -182,6 +182,20 @@
     (seq (:impediments a)) (assoc :impediments (:impediments a))
     (= :dead (:status a)) (assoc :dead true)))
 
+(defn judge-view
+  "A person's hindered faculties for the work judge and steward: levels,
+  optional causes, and when each was set, as a short time (or round).
+  Agent-facing views keep `shown`'s phrases, without timestamps."
+  [world id]
+  (let [entries (:physical (w/agent world id))]
+    (when (seq entries)
+      (into (array-map)
+            (for [faculty (keys faculties) :let [e (get entries faculty)] :when e]
+              [faculty (cond-> (select-keys e [:level :cause])
+                         (:since e) (assoc :set_at (if-let [c (:clock world)]
+                                                    (clock/short-label c (:since e) (:round world))
+                                                    (str "round " (:since e)))))])))))
+
 (def cant-see
   "What someone who can't see is told in their view, in place of the people
   and things around them."

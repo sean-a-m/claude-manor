@@ -542,9 +542,12 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   talk, nobody can die, and an act on someone (`spend-time` with `on`) lands only when the job
   ends, so a fleeing burglar can't be stopped. Murders, burglaries and the like need it.
 - **Design:** [physical-status-design.md](physical-status-design.md), written with the user's
-  decisions of 2026-10-24. Being built: phase 1 is done (statuses, death, impediments,
-  movement and grasp, coming to, interrupts, the perception hook, muffled and disabled speech,
-  deafness, blindness); phase 2 (the judges and `act-on`) is next. It covers:
+  decisions of 2026-10-24. **Phases 1–2 built and mock/offline-tested:** statuses, death,
+  impediments, faculty enforcement and perception, the work judge, immediate `act-on` with
+  held-item transfers, and nightly recovery. The burglary mock night covers binding/gagging,
+  silver theft, a footman's seizure and recovery of jewels, coming to, an ankle easing without
+  ropes untying, replay equality and no muffled-word/blind-view leaks. The contract is in
+  `scenario-authoring.md`. It covers:
   - fixed faculties with levels that code enforces: movement, grasp, speech (impeded or
     disabled), sight, hearing and consciousness (disabled only), each with an optional cause;
   - death as `:status :dead`;
@@ -554,7 +557,9 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   - the work judge setting all of it, and the steward clearing or easing it overnight;
   - one perception hook in `emit!` for sight, hearing and the unconscious.
 
-  Three phases, the last a short real run with the user's go-ahead.
+  **Remaining: phase 3, a short real-model fixture check, only with the user's go-ahead.**
+  Not run: sensible judge use of statuses, model choice of immediate versus timed actions,
+  and behaviour/privacy in the transcript. No real-model calls were made in phases 1–2.
 - **Deferred (design section 13):**
   - dead bodies as items that can be carried, hidden and found;
   - GM tools for statuses;

@@ -1,10 +1,11 @@
 # Physical status: bound, gagged, knocked out, dead
 
-Status: **being built.** Written 2026-10-24 from the user's brief and their answers the
-same day (section 11, with section 12's questions settled the same day). Phase 1 is built
-(data, world files, `afflict!`, views, movement, grasp, `take` from the helpless, coming to,
-death, interrupts, the emit filter and its tags, hibernation, and speech, hearing and sight in
-actions, conversations and views; the burglary fixture and `physical_test.clj`). Phase 2 is next.
+Status: **phases 1–2 built and mock/offline-tested; phase 3 awaits the user's go-ahead.**
+Written 2026-10-24 from the user's brief and their answers the same day (sections 11–12).
+The core, senses, work judge, immediate `act-on` with transfers, and nightly recovery are built.
+The burglary mock night proves binding and gagging, silver theft, seizure and recovery of the
+jewels, coming to, an eased ankle with ropes left alone, stored-audience privacy and replay
+equality. No real-model check has been run for this feature.
 
 Where the build differs in detail: the event-making half (`change-events`, `interrupts`,
 `comings-to`) is in `manor.mechanics.physical.changes`, because `space` and `builtins` need the
@@ -16,9 +17,10 @@ sees it). `take` from the helpless also reaches into what they carry. Coming to 
 take a turn before a routine claims them, as a release does. A world file's dead agent takes
 `:status :dead` with an optional `:died {:cause}`; consciousness may take `:minutes`. The
 operator's `afflict!` interrupts on behalf of `:by`, by default the person themselves. The
-rules paragraph leaves out `act-on` until it exists and adds that the dead are marked `dead`
-and that their things can be taken, and a sentence on what not seeing and not hearing stop;
-`walk`'s limit of 3 is told only in the rules and in its rejection.
+shared rules paragraph leaves `act-on` to the scenario's rules (Claudeworth offers it) and
+adds that the dead are marked `dead` and that their things can be taken, and a sentence on
+what not seeing and not hearing stop; `walk`'s limit of 3 is told only in the rules and in its
+rejection.
 
 Speech, hearing and sight: the speaker isn't in their muffled noise's audience; their own words
 carry `:muffled` and are narrated "(only muffled noises come out)", so they know. A muffled call
@@ -37,6 +39,15 @@ events rather than the already-returned proposal reply. Judged physical changes 
 work or act event as the existing physical events, with their own stored audiences and
 interrupts; inner changes remain GM-only. Answer-list bounds allow all faculties of the
 worker and six named people, and transfers have no arbitrary item-count limit.
+`act-on` is opt-in through `:items {:act-on? true}`, enabled in Claudeworth and its fixtures.
+The steward's recovery events are GM-only and do not interrupt sleepers; only existing
+impediment keys may be rephrased or cleared, with whether a phrase is milder left to its
+judgement (no prose classifier). Judge/steward request projections include faculty `level`,
+optional `cause` and `set_at` from `:since` using the existing short clock labels; integration
+filled this missing duration context without changing agent-facing views or stored state.
+The original mid-crime fixture stays unchanged: the integration test clears the butler's
+initial bonds, hinders the footman's ankle and places the blind witness in the pantry through
+engine events before running the deterministic burglary mock hooks.
 
 ## 1. What this adds
 
@@ -383,7 +394,8 @@ stamping:
 
 ## 14. Phases and checks
 
-**Phase 1: statuses and code effects, no judge.** Data, reducers, world-file shape, the
+**Phase 1: built and offline-tested.** Statuses and code effects, no judge: data, reducers,
+world-file shape, the
 `afflict!` helper, views and rules text, each faculty's code effects (sections 4.1–4.8), death,
 coming to, `take` from the helpless, the emit filter and tags, hibernation skips, interrupts.
 
@@ -393,7 +405,8 @@ blindfolded maid and a dead footman. Tests cover each faculty's rejections, muff
 `say`, `call` and a conversation, trimmed audiences, `take` from the dead, a routine not moving
 a bound villager, coming to on time, and replay equality.
 
-**Phase 2: the judges and `act-on`.** Answer fields and checks, `act-on` with its immediate
+**Phase 2: built and mock/offline-tested.** The judges and `act-on`: answer fields and checks,
+`act-on` with its immediate
 judgement and transfers, the steward's easing, the judge's instructions (impediments replace
 "a visible injury"), mock hooks (`:mock-judge` returning physical changes), and
 `scenario-authoring.md`.
@@ -402,7 +415,17 @@ judgement and transfers, the steward's easing, the judge's instructions (impedim
 the footman seizes the burglar and takes the jewels back (`act-on` with transfers), and someone
 knocked out comes to. The steward eases a twisted ankle and leaves ropes alone.
 
-**Phase 3: a short real run, with the user's go-ahead.** About 8–10 rounds of the fixture at
+*Outcome:* `test/manor/burglary_test.clj` runs the full mock night, checking both immediate
+acts and the transfer, silver in the burglar's sack, the cook's timed return to consciousness,
+ankle recovery before the footman's action, unchanged ropes and gag, no forfeits or rejected
+replies, no muffled words in other prompts, no blind visual scene/act leaks, and equality of
+live and stored-event replay. `physical_test.clj`, `immediate_act_test.clj` and
+`physical_steward_test.clj` cover faculties, conversations, answer checks and failures,
+simultaneous scheduling, interrupted jobs, private recovery and faculty timestamps. Burglary
+is in the bundled scenario smoke tests. All checks are free, mock/offline only.
+Validation: `clojure -M:test` — 379 tests, 7452 assertions, 0 failures, 0 errors.
+
+**Phase 3: NOT RUN; requires the user's go-ahead. A short real run.** About 8–10 rounds of the fixture at
 night, `:max-cost` 0.20. Read the transcript: does the judge use the fields sensibly, do models
 pick `act-on` for acts and `spend-time` for longer care, do bound and gagged characters behave as
 bound and gagged, and are there any leaks from the muffled text or blind views. Keep the run in

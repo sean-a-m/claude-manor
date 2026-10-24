@@ -126,7 +126,7 @@
 - Absorb a container only with all its contents absorbed too; use one up only with all its contents used up too. Otherwise leave it.
 - Change only candidates, never the place or stores. Aspect keys are lower-case letters and hyphens, at most 24 characters; values are 1–" items/advised-aspect " characters, or empty to remove. Keep at most four aspects per thing.
 - `sleepers` are people asleep here, or out of sight here for the night. Their `appearance` is how they usually look, and their `aspects` how they differ from it now. Remove (value \"\") each aspect that wouldn't last the night, such as hair let down or evening dress taken off, and leave the ones that would, such as a grease-stained apron. Never set or change a sleeper's aspect: only remove.
-- `sleepers` and `hindered` (other people here, awake or unconscious) may show `physical`, the statuses of their faculties with a cause, and `impediments`, smaller physical hurts. You may clear what a night's passing would clear, or ease it: `physical: [{person, faculty, level, cause?}]` with level `normal` to clear a faculty, or `impeded` to ease a disabled one (movement, grasp or speech), with a new cause if it helps; `impediments: [{person, key, value}]` with \"\" to clear one, or a milder phrase for one they have. A twisted ankle may ease overnight and a cut finger mend a little, but ropes and gags don't untie themselves; someone unconscious may well have come to by morning. Never set or worsen anything, and leave as they are the things a night wouldn't change.
+- `sleepers` and `hindered` (other people here, awake or unconscious) may show `physical`, the statuses of their faculties with a level, optional cause and when it was set (`set_at`), and `impediments`, smaller physical hurts. You may clear what a night's passing would clear, or ease it: `physical: [{person, faculty, level, cause?}]` with level `normal` to clear a faculty, or `impeded` to ease a disabled one (movement, grasp or speech), with a new cause if it helps; `impediments: [{person, key, value}]` with \"\" to clear one, or a milder phrase for one they have. A twisted ankle may ease overnight and a cut finger mend a little, but ropes and gags don't untie themselves; someone unconscious may well have come to by morning. Never set or worsen anything, and leave as they are the things a night wouldn't change.
 - Never make anything. A store holds everything it keeps unless its aspects say otherwise. Do not invent events. Give a short third-person summary, at most 300 characters, for the GM only."))
 
 (defn- inner-instructions
@@ -175,6 +175,7 @@
   the night (see `night-json`)."
   [world inner-config {:keys [id] :as sleeper}]
   (cond-> (select-keys sleeper [:id :name :appearance :aspects :physical :impediments])
+    (:physical sleeper) (assoc :physical (physical/judge-view world id))
     inner-config (merge (select-keys (w/agent world id) [:temperament])
                         {:inner (inner/judge-view inner-config world id)}
                         (night-json world sleeper))))
@@ -195,7 +196,9 @@
                                                           (items/stores-for world place))
                                             :candidates (item-judge/judged-json candidates)
                                             :sleepers (mapv #(sleeper-json world inner-config %) sleepers)
-                                            :hindered (mapv #(select-keys % [:id :name :appearance :physical :impediments]) hindered)}
+                                            :hindered (mapv #(cond-> (select-keys % [:id :name :appearance :physical :impediments])
+                                                               (:physical %) (assoc :physical (physical/judge-view world (:id %))))
+                                                            hindered)}
                                            item-judge/pretty)
                                           "\n```\n\nCall `steward` now.")}]})
 

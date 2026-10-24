@@ -141,6 +141,20 @@
           (is (:dead (first (filter #(= "albert" (:id %)) (:people-here (cw/arrival world "slade"))))))))
       (finally (e/stop-run run)))))
 
+(deftest physical-judge-views-show-when-statuses-were-set
+  (let [run (start)]
+    (try
+      (let [world (e/world run)
+            entry {:level :disabled :cause "bound hand and foot to a chair"}]
+        (is (= (assoc entry :set_at "01:00")
+               (:movement (physical/judge-view world "crane"))))
+        (is (= (assoc entry :set_at "Sun 01:00")
+               (:movement (physical/judge-view (assoc world :round 55) "crane"))))
+        (is (= (assoc entry :set_at "round 0")
+               (:movement (physical/judge-view (dissoc world :clock) "crane"))))
+        (is (nil? (physical/judge-view world "will"))))
+      (finally (e/stop-run run)))))
+
 ;; ---------------------------------------------------------------------------
 ;; Movement
 

@@ -2,6 +2,7 @@
   "The work judge's physical answers and the immediate act-on final action."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
+            [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
             [manor.engine.resolve :as resolve]
@@ -37,6 +38,11 @@
 (defn- replays? [run] (= (e/world run) (w/replay (store/read-events (:dir run)))))
 (defn- place! [run id to]
   (e/emit! run [{:type :agent/placed :visible-to :gm :data {:id id :to to}}]))
+
+(defn- scene-json [request]
+  (let [content (get-in request [:messages 1 :content])
+        from (+ (str/index-of content "```json\n") 8)]
+    (json/read-value (subs content from (str/index-of content "\n```" from)) json/keyword-keys-object-mapper)))
 
 (defn- policy [script judge-fn]
   (llm/mock (fn [{:keys [world agent-id role step] :as ctx}]
@@ -174,6 +180,9 @@
         (is (not (str/includes? user "Time worked:")))
         (is (str/includes? user "blindfolded with a pillowcase"))
         (is (str/includes? user "a cut palm, from the pantry window"))
+        (let [ivy (first (filter #(= "ivy" (:id %)) (:people (scene-json request))))]
+          (is (= {:level "disabled" :cause "blindfolded with a pillowcase" :set_at "01:00"}
+                 (get-in ivy [:physical :sight]))))
         (is (= #{{:id "jewel-case" :name "Jewel case"} {:id "sack" :name "Sack"}}
                (set (:carrying (first (filter #(= "slade" (:id %)) (:people (work/scene (:world ctx) (:job ctx)))))))))
         (is (= #{"slade" "ivy" "will"} (:visible-to acted)))

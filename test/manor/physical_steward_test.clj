@@ -60,7 +60,9 @@
                   [person] (:hindered scene)
                   tool (get-in request [:tools 0 :function :parameters :properties])]
               (is (= id (:id person)))
-              (is (get-in person [:physical faculty]))
+              (is (= "disabled" (get-in person [:physical faculty :level])))
+              (is (= "01:00" (get-in person [:physical faculty :set_at])))
+              (is (= (:cause (physical/entry world id faculty)) (get-in person [:physical faculty :cause])))
               (is (not-any? #(contains? person %) [:inner :persona :temperament :situation]))
               (is (empty? (:sleepers scene)))
               (is (not (contains? tool :died)))
@@ -69,7 +71,8 @@
         (testing "sleepers and hibernators show their physical problems even without inner state"
           (let [scene (scene-json (steward/steward-request world "footmens-room" [] (get sleepers "footmens-room")))]
             (is (= "will" (get-in scene [:sleepers 0 :id])))
-            (is (get-in scene [:sleepers 0 :physical :movement])))))
+            (is (= {:level "disabled" :cause "a twisted ankle" :set_at "01:00"}
+                   (get-in scene [:sleepers 0 :physical :movement]))))))
       (finally (stop! run)))))
 
 (deftest stewardship-checks-only-structural-easing

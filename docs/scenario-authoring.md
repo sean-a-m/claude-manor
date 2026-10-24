@@ -298,7 +298,7 @@ The engine uses `:judge-model` (falling back to `:model`), with the run's reason
 tool-choice options. It asks once more after an invalid answer, using the checker's replies.
 `manor.mechanics.adjudication/answer` implements first-tool-call selection and replies; domain code
 supplies the tool name and raw-argument checker. The work judge uses the same runner/parser,
-but keeps its own prompts, domain checks and round-start scheduling, and so does the
+but keeps its own prompts and domain checks (round-start work and immediate `act-on`), as does the
 conversation judge (see Inner state).
 
 Only a checked `:verdict` (or the request's direct result) reaches the action's `:on-result`
@@ -544,12 +544,12 @@ Event shape (returned by effects, ticks and hooks; the engine stamps `:id` and `
   the default). Before stamping, `run/emit!` drops from a set audience everyone unconscious, and
   those who lack the sense (see Physical status); the actor is always kept, and
   `manor.world/done-to` names others never dropped for lack of sight (`:item/given`'s recipient,
-  and the `:from-person` of an `:item/taken`).
+  the `:from-person` of an `:item/taken`, and `:person/acted-on`'s `:on` people).
   `:all`, `:gm` and `:system` are never trimmed, and the stored audience is the trimmed one, so
   replay is unaffected. Tagged so far: speech (`:agent/said`, `:agent/whispered`, Claudeworth's
   `:claudeworth/called`) and muffled noises (`:person/muffled`) are heard; moves, departures, arrivals and placings, occupations (work
   starts, falling asleep), items taken, put down, put in, given, found or not found, and status
-  changes are seen. Untagged events reach everyone in the audience who is conscious.
+  changes and immediate acts are seen. Untagged events reach everyone in the audience who is conscious.
 - Multimethods are global. Namespace your event types (`:treasure/...`) so scenarios can't collide.
 
 ### Narration
@@ -767,8 +767,8 @@ Items are things with a description and a few aspects that lie in a place, are c
 someone, or are inside another item: a piano, a pocket watch, an umbrella someone bought, the
 silver in the sideboard. They need locations. A scenario
 turns them on with the key `:items`, a map, possibly empty; its optional configuration includes
-`:judge-brief`, `:aspect-keys`, `:find-allowed?` and `:steward` (see Finding, Work and the judge,
-and The nightly steward). Scenarios without it are unchanged.
+`:judge-brief`, `:aspect-keys`, `:find-allowed?`, `:act-on?` and `:steward` (see Finding, Work and the judge,
+Immediate acts, and The nightly steward). Scenarios without it are unchanged.
 
 An item:
 
@@ -1142,7 +1142,8 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   The **scene** (`item-work/scene`) always includes the place, focus, up to 12 other visible items
   (not inside closed containers), stores in scope, and people: those present, and the judged
   people (`item-work/judged-people`: the worker, wherever they are, then the people named in `on` who
-  are still at the job's place). **Judged things** (`item-work/judged-things`) are the place, focus,
+  are still at the job's place, alive or dead). Dead people lying at the place are included too.
+  **Judged things** (`item-work/judged-things`) are the place, focus,
   other visible items, stores and the judged people, once each (a person whose id is also a
   judged thing's isn't judged). With no time worked (except quick put-away jobs), the job ends
   with `:item/work-ended`, seen by the worker and people at the place, and no call. Every other
@@ -1229,7 +1230,9 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
 
   `people` lists everyone present and the judged people: those the judge may change are marked
   `person: true` and have their id, `appearance` and `aspects`; the others are context, by
-  name and what they're doing. When the scenario has `:inner` (see Inner state), everyone's
+  name and what they're doing. All may show `physical` (each faculty as `{level, cause?, set_at}`,
+  with `set_at` a short time or, without a clock, `"round N"`), `impediments`, and `dead: true`.
+  When the scenario has `:inner` (see Inner state), everyone's
   entry also has `inner` (every fixed key, an empty one as `{"value": ""}`, then the open
   ones, each `{"value": "...", "set_at": "18:30"}`), and the judged people's also have their
   `temperament`, `persona` and `situation`.
@@ -1238,8 +1241,8 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   focus; entries mark `consumable: true`, `container: true`, or `room: true` when appropriate,
   and `drawn_from` names a drawn thing’s store.
   `also_here` has the same item shape, at most 12; stores are excluded from it. No other rooms,
-  other people's holdings, or closed-container contents are added to the scene. A focused
-  container still includes its contents, open or closed, as before.
+  other people's holdings (except the judged people's `carrying` for an act), or closed-container
+  contents are added to the scene. A focused container still includes its contents, open or closed, as before.
   `recent` is at most 10 narrated lines the worker saw since this job began, excluding events
   only they saw (notes and private replies); it uses `prompt/visible-events` and the same
   narration as agent prompts, not a separate visibility rule. Shared whispers may be included.
@@ -1252,7 +1255,16 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   used-up: [id], fates: {id: phrase}, absorbed: [{thing, into}],
   made: [{name, desc, aspects?, consumable, from?, held?, in?}], summary}`: each change sets one aspect of one
   thing, and `value: ""` removes it. With `:inner`, the tool also has `inner: [{person, key,
-  value}]` beside `changes`, and the instructions an "Inner state" section (see Inner state). The engine sends it through
+  value}]` beside `changes`, and the instructions an "Inner state" section (see Inner state).
+  Both work and acts also accept `physical: [{person, faculty, level, cause?, minutes?}]`,
+  `impediments: [{person, key, value}]` and `died: [{person, cause?}]` (see Physical status).
+  These may change only judged people; faculty levels must fit the faculty, and `minutes`
+  applies only to disabled consciousness. Death cannot be reversed: the dead may have only
+  aspects and impediments changed (and held things transferred by an act). Impediments have
+  their own cap of 3; their phrases and causes are never interpreted by code. Most work
+  changes none of these; physical hurts belong in impediments, not outward aspects.
+  Checked physical changes follow the work/act result as separate physical events with their
+  own stored audiences and interrupts, never as arbitrary patches. The engine sends it through
   the run's LLM with the model `:judge-model` (a run option; nil means `:model`) and the run's
   `:reasoning` and `:max-tokens`, without holding the world lock. Each call is in `llm.edn` as
   agent `"judge"` and its usage is an `:llm/usage` event, so it counts towards `:max-cost`;
@@ -1264,7 +1276,7 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   it has less those removed ("the Grandfather clock (clock) would have 5 aspects (...); a thing
   has at most 4: change one it has instead, or remove one with the value \"\""); a summary of 1-300
   characters. When the same aspect of a thing comes twice, the last counts. Other keys (a `desc`,
-  a `name`) are dropped, so an existing thing's aspects are all that ever change, and unchanged
+  a `name`) are dropped, so existing things keep their identity and descriptions, and unchanged
   values (or removing an aspect a thing hasn't got) are left out, as are changes to removed
   items. `used-up` names only consumable, unfixed items in focus or `also_here`, and a container
   only with all its real descendants used up. The check reads the world, not just the scene:
@@ -1282,7 +1294,8 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
 - **Mock runs:** a call with role `:judge` goes to the scenario's `:mock-judge` if it has one,
   else to `item-judge/mock-judge` (each focused thing gets cleanliness "just seen to", and each person
   named in `on` who is still here a state "just seen to"; it leaves the worker alone unless named,
-  so without `on` it changes nothing and makes nothing, and never changes inner state). For quick put-away jobs the default mock instead
+  so without `on` it changes nothing and makes nothing, and never changes inner or physical state;
+  an immediate act changes nothing by default). For quick put-away jobs the default mock instead
   absorbs deposited consumables (only with absorbable consumable contents) and clears matching
   semicolon-separated shortages using whole-word matches against their names ("sugar" matches
   "Loaf sugar", but "tea" does not match "meat"). Other shortages survive. Thus
@@ -1291,6 +1304,43 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   `:minutes :stopped-early? :luck :step`, and it returns `{:tool :judge :args {..}}`.
   `item-judge/judgement` takes the response, world and judged things, so every check includes real
   container contents.
+
+#### Immediate acts: `act-on`
+
+Opt in with `:items {:act-on? true}` (Claudeworth does). `act-on {on, with?, doing}`
+is a final action, not a query or an occupation. `on` names 1–3 other people here, alive or
+dead; `with` names up to 2 items here or carried by the actor; `doing` has the same bounds
+as `spend-time`. The actor must be alive, conscious and at a place. Bound hands, a gag or
+blindness do not forbid an act: the judge sees the statuses and decides what is possible.
+Use it for immediate acts on people (seizing, binding, freeing, striking, searching, reviving);
+use `spend-time` for longer care. Work's effects still wait until it ends.
+
+The final action's `:judge-job` hook builds a deterministic `"act-<seq>"` job-like map with
+`:act? true`, people from `on`, focus from `with`, and the actor's place. The work judge is
+called inside the turn, before the next actor, with "An immediate act, a few minutes", no
+time-worked line, and the usual luck roll. The judged people's `carrying` lists item ids and
+names. The answer may change aspects, inner state when enabled, statuses, impediments and
+deaths, but cannot make, use up or absorb things. Only an act accepts
+`moved: [{item, to}]`: an item directly held by the actor or a named person, each item once,
+to a judged person's id or `"place"` (dropped here). Container contents stay inside it.
+Other people's or loose items cannot be transferred this way; known reachable items still
+use `take`. Duplicate transfers or destinations outside the judged people are rejected;
+no-op transfers are omitted.
+
+`:person/acted-on` records `{:act :place :on :with? :doing :luck :summary? :changes :moved?}`,
+with the actor as `:actor`. Its reducer applies aspects and transfers (`:moved` entries
+have `:item :from` and either `:holder` or `:place`); physical and private inner changes follow
+as their existing events. The act is seen by people here who can see, and always by the
+people acted on unless unconscious. It interrupts named busy people even if no status
+changed, except those made unconscious or dead. Its tool reply is the summary.
+A failed judgement still spends the final action and records an act with no changes, a
+neutral reply, and a system-only `:item/judge-failed`; there is no occupation.
+In a simultaneous group, proposals run concurrently and acts are rechecked and judged in
+schedule order after the group, like other final actions. Their results are in events, not
+the already-returned proposal replies. A later actor made unconscious by an earlier act is
+rejected before judging. `:mock-judge` handles acts as well as work; inspect `:job :act?`.
+The burglary fixture demonstrates both binding and a seizure with a transfer, without
+classifying `doing` prose.
 
 #### The nightly steward
 
@@ -1310,24 +1360,29 @@ place (place-id order), oldest `:touched` first, id breaking ties, at most `max-
 place; excess waits for another night. The steward also sees **sleepers**
 (`item-steward/steward-sleepers`): active people whose `:busy` has `:asleep?` or
 `:hibernating?` (a routine keeping them out of play, such as Claudeworth's villagers), and who
-haven't been roused, each at their location. Without inner state only those who have aspects
-are sleepers; with the scenario's `:inner` (see Inner state) everyone asleep or hibernating is,
-aspects or not. A place with candidates or
-sleepers gets a call (in Claudeworth, one per occupied bedroom per night; 5 in a mock day);
-places with neither cost nothing. Nobody awake is ever seen: someone who stays up all night
-keeps their aspects, and someone who goes to sleep after the steward's time isn't seen that
-night.
+haven't been roused, each at their location. Without inner state only those who have aspects,
+physical statuses or impediments are sleepers; with the scenario's `:inner` (see Inner state)
+everyone asleep or hibernating is, aspects or not. **Hindered** people
+(`item-steward/steward-hindered`) are other active people here with statuses or impediments,
+including the awake, roused and unconscious. The dead are never candidates. A place with
+candidates, sleepers or hindered people gets a call; empty places cost nothing. Someone who
+stays awake keeps their outward aspects: the steward may change only their physical problems,
+not their aspects or inner state.
 
 One narrow `ask-structured!` call per place sees only its place, stores in scope, candidates
-and `sleepers [{id name appearance aspects}]`. With inner state each sleeper also has their
+and `sleepers [{id name appearance aspects physical? impediments?}]`, plus
+`hindered [{id name appearance physical? impediments?}]`. Faculties have `level`, optional
+`cause`, and `set_at` (a short time, or a round without a clock). Hindered people have no
+private context or inner state in this request. With inner state each sleeper also has their
 `temperament`, their `inner` state (as the work judge sees it: every fixed key, with when each
 entry was set), and how they spend the night: someone asleep has `went_to_sleep` (the round
 of their last `:agent/occupied` in the run's events, `item-steward/occupied-since`; left out
 when there's none, e.g. after a load that started them asleep) and `wakes` (their `:busy
 :until`); someone hibernating has `doing` (their routine's activity) and `since`, from the same
 event. Times are short ("Sat 22:30", "07:30"). No recent lines.
-The `steward` tool accepts `changes`, `used-up`, `fates`, `absorbed` and required `summary`,
-never `made`. It may absorb a candidate into a store in scope, use up a candidate with a fate,
+The `steward` tool accepts `changes`, `used-up`, `fates`, `absorbed`, `physical`, `impediments`
+and required `summary`, never `made`, `moved` or `died`. It may absorb a candidate into a store
+in scope, use up a candidate with a fate,
 change its aspects or leave it. Even non-consumable drawn candidates may be used up (discarded).
 Only candidates can change; never room or store aspects. A sleeper's aspects may only be
 removed: the steward is told to remove those that wouldn't last the night (hair let down,
@@ -1348,6 +1403,14 @@ eases it: whether it does is the steward's call. The list is checked with
 inner state only of these people: mrs-pell; not dawson"), and a bad answer is sent back once.
 Outward aspects stay remove-only.
 
+For sleepers and hindered people, `physical: [{person, faculty, level, cause?}]` may clear an
+existing faculty (`normal`) or ease `disabled` to `impeded` where that faculty permits it.
+`impediments: [{person, key, value}]` may clear or rephrase an existing impediment, never add
+a new key. The judge decides whether the new phrase is milder; code does not rank prose.
+Instructions say a twisted ankle may ease and someone unconscious come to, but ropes and
+gags do not untie themselves. New problems, worsening levels and out-of-scope people are
+refused through the usual checked-answer retry.
+
 Calls are logged as agent `"steward"`, use `:judge-model` and count toward cost. The shared
 one-correction lifecycle applies; a final failure leaves things alone and records
 `:items/steward-failed` (`:system`). Every checked result is `:items/stewarded`, GM-only,
@@ -1358,12 +1421,16 @@ inner changes follow it as GM-only `:person/inner-changed` events with `:source 
 "1904-10-16"}` (see Inner state). Its short narration is "Steward at Kitchen:
 Idle things were put away.", with its changes after the summary as for work ("(Lady Ashby: no
 longer dressed high, with combs)": a person's removed aspect reads by its old value).
-Characters see no steward event: a sleeper finds the aspects gone from their view on waking.
+Physical recovery follows as GM-only `:person/physical-changed` or
+`:person/impediments-changed` events (`item-steward/eased-events`), without interrupting or
+waking sleepers. Characters see no steward event: they discover the changes in their views.
 A call with role `:steward` goes to the scenario's `:mock-steward` if it has one, else to the
-default mock (`item-steward/mock-steward`, context `:world :place :candidates :sleepers :step`), which
-absorbs everything it safely can into the first store in scope, otherwise leaves it, and
-removes nothing from sleepers and changes no inner state. A scenario's `:mock-steward` may
-return `:inner` in its args (the dressing fixture's sleepers wake stiff, their mood cleared).
+default mock (`item-steward/mock-steward`, context
+`:world :place :candidates :sleepers :hindered :step`), which absorbs everything it safely can
+into the first store in scope, otherwise leaves it, and removes nothing from sleepers and
+changes no inner or physical state. A scenario's `:mock-steward` may return `:inner`,
+`:physical` or `:impediments` in its args (the dressing fixture updates inner state; the
+burglary fixture eases an ankle but leaves the ropes).
 
 Stores of provisions can be consumable items, a parcel each, whose `:amount` the judge rewrites as
 they are used (Claudeworth's purchases).
@@ -1460,7 +1527,7 @@ reads it. Opt in with a scenario `:inner` entry:
 ### Physical status (`manor.mechanics.physical`)
 
 People's bodies can be hindered, and people can die (docs/physical-status-design.md). Every
-scenario has it; nothing is set unless a world file, the operator or (later) a judge sets it.
+scenario has it; nothing is set unless a world file, the operator or a judge sets it.
 
 ```clojure
 ;; on an agent
@@ -1539,8 +1606,14 @@ scenario has it; nothing is set unless a world file, the operator or (later) a j
   REPL): `{:faculty :movement :level :disabled :cause "..."}`, `{:faculty :consciousness :level
   :disabled :minutes 60}`, `{:impediment :hand :value "a cut finger"}` (`""` or no value removes),
   `{:died "a fall"}`, with an optional `:by` for whoever interrupts them (default: themselves).
-- **What to tell agents:** `physical/rules`, in Claudeworth's rules.
-- Not yet: the judges setting and clearing statuses, and the immediate `act-on`.
+- **Judges:** work and immediate `act-on` may set or clear faculties and impediments, or kill
+  judged people. The steward may clear or ease living people's existing problems overnight,
+  never set or worsen them. `physical/judge-view` gives each faculty's `level`, optional
+  `cause`, and `set_at` from `:since`, as a short time (or round without a clock); agent views
+  keep the phrases above. `:mock-judge` and `:mock-steward` may return the same physical fields
+  as their real counterparts. Neither default mock changes bodies.
+- **What to tell agents:** `physical/rules`, plus guidance on `act-on` in scenarios offering it
+  (as in Claudeworth's rules).
 
 ### World files (`manor.io.worldfile`)
 

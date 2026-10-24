@@ -232,7 +232,7 @@
   (assoc-in world [:state :visits (:visit data) :reminded?] true))
 (defmethod w/apply-event :visits/arrived [world {:keys [round data]}]
   (update-in world [:state :visits (:visit data)]
-             #(cond-> (assoc % :status :here :arrived round) (:at data) (assoc :from-away? true))))
+             #(cond-> (assoc % :status :here :arrived round) (or (:at data) (:from-away? data)) (assoc :from-away? true))))
 (doseq [[type status] {:visits/ended :ended :visits/lapsed :lapsed :visits/cancelled :cancelled}]
   (defmethod w/apply-event type [world {:keys [data]}]
     (assoc-in world [:state :visits (:visit data) :status] status)))
@@ -287,6 +287,15 @@
 ;; ---------------------------------------------------------------------------
 ;; The tick: before turns, a visit at a time in id order, each step on the
 ;; world the previous one left.
+
+(defn- staying
+  "A visit falling due while its guest is here from elsewhere already (come
+  for another visit, this round or before) is :here at once, with no arrival
+  and no letter, and its named bedroom is theirs."
+  [world v]
+  (when (and (= :scheduled (:status v)) (>= (:round world) (:arrive v)) (from-elsewhere? world (:guest v)))
+    (cond-> [{:type :visits/arrived :visible-to :gm :data {:visit (:id v) :from-away? true}}]
+      (:bedroom v) (conj (positions/bedroom-assigned (:guest v) (:bedroom v))))))
 
 (defn- telling
   "A guest invited by post or messenger learns of it at :deliver."
@@ -381,7 +390,7 @@
   (reduce (fn [[world events] step]
             (let [evs (step world (visit world id))]
               [(apply-all world evs) (into events evs)]))
-          [world []] [telling reminding arriving (partial coming scenario) ending lapsing]))
+          [world []] [staying telling reminding arriving (partial coming scenario) ending lapsing]))
 
 (defn tick
   "Every visit's events this round. `scenario` is for arrivals at the meeting place."

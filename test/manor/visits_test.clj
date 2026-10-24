@@ -605,6 +605,41 @@
       (is (= "carriage-sweep" (space/location-of after "carter")))
       (finally (e/stop-run run)))))
 
+(deftest two-visits-due-together-for-an-away-guest
+  (let [run (start {} {})
+        world (e/world run)
+        world (reduce w/apply-event world (visits/operator-events world {:who "captain-hart" :date "1904-10-15" :time "21:00" :stay "to dine"}))
+        world (reduce w/apply-event world (visits/operator-events world {:who "captain-hart" :date "1904-10-15" :time "21:00" :stay "a week"
+                                                                         :bedroom "blue-room"}))
+        world (assoc world :round (:arrive (visits/visit world "visit-1")))
+        events (visits/tick (:scenario run) world)
+        after (reduce w/apply-event world events)]
+    (try
+      (testing "the first brings him; the second is :here at once, as for a guest already at the house"
+        (is (= [:here :here] (map #(:status (visits/visit after %)) ["visit-1" "visit-2"])))
+        (is (every? #(:from-away? (visits/visit after %)) ["visit-1" "visit-2"]))
+        (is (= 1 (count (filter #(get-in % [:data :at]) (filter #(= :visits/arrived (:type %)) events)))) "one arrival")
+        (is (empty? (filter #(= :visits/delivered (:type %)) events)) "no letter for the second")
+        (is (= "blue-room" (get-in after [:state :bedrooms "captain-hart"]))))
+      (testing "take-leave ends both"
+        (let [left (reduce w/apply-event after (effect run after "captain-hart" :take-leave {}))]
+          (is (= [:ended :ended] (map #(:status (visits/visit left %)) ["visit-1" "visit-2"])))))
+      (finally (e/stop-run run)))))
+
+(deftest guest-is-not-a-post
+  (let [run (start {} {})
+        world (assoc-in (e/world run) [:agents "hale" :location] "post-office")
+        world (assoc-in world [:agents "lord-claudeworth" :location] "post-office")]
+    (try
+      (is (contains? (get-in world [:state :positions]) :guest) "the catalogue has it")
+      (is (= "guest is not a post; use the id of a position to fill"
+             (hiring/recommend-reason world "lord-claudeworth" {:position "guest" :for "hale"})))
+      (is (= "guest is not a post; use the id of a position to fill"
+             (hiring/engage-reason (assoc-in world [:state :pool "c"] {:agent-id "hale" :status :here})
+                                   "lord-claudeworth" {:who "hale" :position "guest"})))
+      (is (not-any? #{:guest :none :gm} (map :id (:positions (hiring/reference world)))))
+      (finally (e/stop-run run)))))
+
 ;; ---------------------------------------------------------------------------
 ;; Phase 2, part B: `person` and the invitation judge
 

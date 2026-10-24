@@ -88,14 +88,27 @@
 (defn- changed [id changes]
   {:type :people/candidate-updated :visible-to :system :data {:id id :changes changes}})
 
+(def ^:private not-posts
+  "Catalogue positions nobody is hired for: no post at all, the GM, and a
+  visitor (manor.mechanics.visits). Recommend and engage refuse them, and
+  `reference` doesn't list them."
+  #{:none :gm :guest})
+
+(defn- not-a-post-reason
+  "Why `position` can't be filled by hiring, or nil."
+  [world position]
+  (let [position (keyword position)]
+    (cond (not (get-in world [:state :positions position])) "use a position id from the catalogue"
+          (= :guest position) "guest is not a post; use the id of a position to fill"
+          (not-posts position) "name a character's position to fill")))
+
 (defn recommend-reason [world actor {:keys [position for]}]
-  (cond
-    (not (get-in world [:state :positions (keyword position)])) "use a position id from the catalogue"
-    (#{:none :gm} (keyword position)) "name a character's position to fill"
-    (= actor for) "ask someone else here to recommend to you, not yourself"
-    (not (and (w/active? world for) (not= :gm (:role (w/agent world for)))
-              (space/together? world actor for))) "the person asking must be here"
-    (not (or (reusable world actor (keyword position)) (room? world))) "the candidate pool is full of people still in play"))
+  (or (not-a-post-reason world position)
+      (cond
+        (= actor for) "ask someone else here to recommend to you, not yourself"
+        (not (and (w/active? world for) (not= :gm (:role (w/agent world for)))
+                  (space/together? world actor for))) "the person asking must be here"
+        (not (or (reusable world actor (keyword position)) (room? world))) "the candidate pool is full of people still in play")))
 
 (defn- check-record [record]
   (when-not (and (map? record) (string? (:name record)) (not (str/blank? (:name record)))
@@ -301,8 +314,8 @@
 (defn engage-reason [world actor {:keys [who position bedroom]}]
   (or (present-candidate-reason world actor who)
       (when (= actor who) "you cannot offer yourself a place")
-      (when-not (and (not (#{:none :gm} (keyword position))) (get-in world [:state :positions (keyword position)]))
-        "use a position id from the catalogue")
+      (when-let [r (not-a-post-reason world position)]
+        (if (= :guest (keyword position)) r "use a position id from the catalogue"))
       (when (and bedroom (not= :bedroom (:kind (space/location world bedroom)))) "name an existing bedroom")))
 (defn- offer-reason [world actor _]
   (let [offer (get-in world [:state :place-offers actor])]
@@ -384,7 +397,7 @@
   [world]
   {:meeting-place (get-in world [:state :meeting-place])
    :positions (mapv (fn [[id p]] {:id id :title (:title p) :sleeps (:sleeps p)})
-                    (sort-by key (dissoc (get-in world [:state :positions]) :gm :none)))})
+                    (sort-by key (apply dissoc (get-in world [:state :positions]) not-posts)))})
 
 (defn observe
   "Only known candidates and the viewer's reputations/agreements, never raw

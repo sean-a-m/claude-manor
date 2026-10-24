@@ -1684,7 +1684,9 @@ or promised. It does not select an existing villager.
   by active agents; sent-for/here/engaged records cannot be evicted. A fully protected pool
   refuses new recommendations. Known names, candidate ids, positions and `send-for`
   instructions go only to the two parties. The sampled reputation belongs only to the
-  recommender, who then chooses what to say.
+  recommender, who then chooses what to say. `:none`, `:gm` and `:guest` (a visitor, see Visits)
+  aren't posts: `recommend` and `engage` refuse them ("guest is not a post"), and
+  `hiring/reference` doesn't list them.
 - Runtime appearance uses `people/appearance-request`: **only** age, sex, position and small
   sense names reach it, including mock context. It never sees private readings, circumstances or prose.
   The private polish sees the approved appearance for consistency; its own appearance output
@@ -1698,7 +1700,7 @@ or promised. It does not select an existing villager.
   Private spawn data is operator-only; a separate arrival event goes to those at the entrance
   and the summoner. No GM-spawnable positions are added.
 - `engage {who position terms? bedroom?}` is final and replaces any previous offer. Anyone
-  may offer a present candidate any non-GM position; no authority, sex or vacancy restriction.
+  may offer a present candidate any position that is a post; no authority, sex or vacancy restriction.
   `who` is the arrived agent id, not the pool id. Walking to the candidate and interviewing
   with `converse` makes `engage` available on the next model step of the same turn.
   `accept-place {conditions?}` is final;
@@ -2030,7 +2032,9 @@ invitation judge, which matches someone in the world or writes someone new.
   no record) gets "You are Pat Ellis. You have been to Claudeworth Manor before."; anyone else
   keeps theirs. A courier staying as a guest isn't given deliveries' courier situation when a
   delivery comes. A guest in the world who goes away
-  before the time arrives this way too.
+  before the time arrives this way too. Another visit of theirs falling due while they're here
+  from elsewhere (two due in the same round, say) is `:here` at once, with no arrival and no
+  letter, and its named bedroom is theirs.
 - **Views** (`add-to-view`): while a guest's visit is `:here`, `you.visit` shows their newest
   one, to them alone: `{:host "Lord Claudeworth" :invited-for "a week" :reason … :arrived "Fri
   19:00" :bedroom "blue-room"}` (no `:host` for an arranged visit). A guest from elsewhere who is

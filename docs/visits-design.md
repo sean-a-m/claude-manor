@@ -828,3 +828,15 @@ the checked answer, the mock), `visits.clj` (`invitee!`, `described-invite-event
   delivery is still made (`courier-events`).
 - **`judge/visit-number`** is the one place a visit id's number is parsed; `visits.clj` orders by
   it, as `visits` requires the judge and not the reverse.
+
+### Phase 2 leftovers
+
+- **`:guest` is not a post.** Hiring refuses it as it refuses `:none` and `:gm`: `recommend` and
+  `engage` say "guest is not a post; use the id of a position to fill", and `hiring/reference`
+  (the positions everyone sees) leaves it out.
+- **A visit falling due while its guest is here from elsewhere** (two visits for the same away
+  guest due in the same round, or a second one during a stay) is `:here` at once, by a tick step
+  (`staying`) before the guest could be sent a letter: a GM-only `:visits/arrived` marked
+  `:from-away?`, so `take-leave` and the bedrooms treat it like the first, and its named bedroom
+  is assigned as an arrival's would be. Without it the second visit got a letter and calendar
+  entry on the guest's arrival, and wasn't counted as from elsewhere.

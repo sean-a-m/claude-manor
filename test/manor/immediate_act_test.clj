@@ -282,6 +282,73 @@
       (is (replays? run))
       (finally (stop! run)))))
 
+(deftest simultaneous-knockout-prevents-a-queued-spend-time
+  (let [seen (atom [])
+        activity {:tool :spend-time :args {:doing "resting quietly" :hours 2}}
+        run (start {:llm-impl
+                    (policy {"slade" {1 {0 {:tool :act-on :args {:on ["ivy"] :doing "striking her"}}}}
+                             "ivy" {1 {0 activity}}
+                             "will" {1 {0 activity}}}
+                            (fn [ctx]
+                              (swap! seen conj (:job ctx))
+                              {:tool :judge :args {:summary "Ivy loses consciousness."
+                                                  :physical [{:person "ivy" :faculty :consciousness :level :disabled}]}}))})
+        run (assoc run :scenario (assoc (:scenario run) :schedule (constantly [["slade" "ivy" "will"]])))]
+    (try
+      (place! run "will" "dining-room")
+      (rounds! run 1)
+      (let [world (e/world run)
+            [rejected] (events-of run :action/rejected)]
+        (is (physical/unconscious? world "ivy"))
+        (is (nil? (w/busy world "ivy")) "the queued activity cannot occupy an unconscious actor")
+        (is (= ["will"] (map :actor (items/jobs world))) "the unaffected actor still begins work")
+        (is (= ["will"] (map :actor (events-of run :agent/occupied))))
+        (is (= ["slade"] (map :actor @seen)) "rejected finals cause no judge calls")
+        (is (= 1 (count (events-of run :action/rejected))))
+        (is (= "ivy" (:actor rejected)))
+        (is (= #{"ivy"} (:visible-to rejected)))
+        (is (= "spend-time" (get-in rejected [:data :action]))))
+      (is (replays? run))
+      (finally (stop! run)))))
+
+(deftest simultaneous-death-prevents-queued-travel
+  (doseq [travel [1 2]]
+    (testing (if (= travel 1) "immediate movement" "multi-round journey")
+      (let [seen (atom [])
+            journey {:tool :travel :args {:to "village-green"}}
+            run (start {:llm-impl
+                        (policy {"slade" {1 {0 {:tool :act-on :args {:on ["ivy"] :doing "striking her"}}}}
+                                 "ivy" {1 {0 journey}}
+                                 "will" {1 {0 journey}}}
+                                (fn [ctx]
+                                  (swap! seen conj (:job ctx))
+                                  {:tool :judge :args {:summary "Ivy dies."
+                                                      :died [{:person "ivy" :cause "a blow"}]}}))})
+            run (assoc run :scenario (assoc (:scenario run) :schedule (constantly [["slade" "ivy" "will"]])))]
+        (try
+          (place! run "will" "dining-room")
+          (e/emit! run [{:type :space/route-opened :visible-to :gm
+                        :data {:from "carriage-sweep" :to "village-green" :travel travel}}])
+          (rounds! run 1)
+          (let [world (e/world run)
+                [rejected] (events-of run :action/rejected)]
+            (is (w/dead? world "ivy"))
+            (is (= "dining-room" (get-in world [:agents "ivy" :location])) "the corpse stays where she died")
+            (is (nil? (get-in world [:agents "ivy" :travel])))
+            (is (= ["will"] (map :actor (concat (events-of run :agent/moved)
+                                                (events-of run :agent/departed))))
+                "only the unaffected actor moves or departs")
+            (if (= travel 1)
+              (is (= "village-green" (get-in world [:agents "will" :location])))
+              (is (= "village-green" (get-in world [:agents "will" :travel :to]))))
+            (is (= ["slade"] (map :actor @seen)) "rejected finals cause no judge calls")
+            (is (= 1 (count (events-of run :action/rejected))))
+            (is (= "ivy" (:actor rejected)))
+            (is (= #{"ivy"} (:visible-to rejected)))
+            (is (= "travel" (get-in rejected [:data :action]))))
+          (is (replays? run))
+          (finally (stop! run)))))))
+
 (deftest an-act-knocking-out-or-killing-a-worker-ends-the-job-early
   (doseq [death? [false true]]
     (let [seen (atom [])

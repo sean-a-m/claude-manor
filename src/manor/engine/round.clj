@@ -41,7 +41,8 @@
 (defn- run-group!
   "Agents in a group act on the same snapshot. A group of one commits its
   action immediately; a larger group's actions are checked during the turn
-  and resolved afterwards in schedule order, so conflicts are rejected."
+  and resolved afterwards in schedule order, so conflicts are rejected.
+  Each queued final rechecks that its actor is still active and conscious."
   [run ids]
   (let [ids (filter #(turn-due? @(:world run) %) ids)
         snapshot @(:world run)
@@ -61,9 +62,14 @@
     (when simultaneous?
       (doseq [{:keys [agent-id finals]} results
               {:keys [action args]} finals]
-        (when-let [reason (:rejected (resolve/resolve! run agent-id action args))]
-          (run/emit! run [{:type :action/rejected :actor agent-id :visible-to #{agent-id}
-                           :data {:action (name (:name action)) :reason reason}}]))))
+        (let [world @(:world run)
+              reason (cond
+                       (not (w/active? world agent-id)) "you are no longer active"
+                       (physical/unconscious? world agent-id) "you are unconscious"
+                       :else (:rejected (resolve/resolve! run agent-id action args)))]
+          (when reason
+            (run/emit! run [{:type :action/rejected :actor agent-id :visible-to #{agent-id}
+                             :data {:action (name (:name action)) :reason reason}}])))))
     results))
 
 (defn- run-approved-bridges! [run]

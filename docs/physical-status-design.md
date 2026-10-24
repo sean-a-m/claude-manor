@@ -7,12 +7,21 @@ The burglary mock night proves binding and gagging, silver theft, seizure and re
 jewels, coming to, an eased ankle with ropes left alone, stored-audience privacy and replay
 equality. No real-model check has been run for this feature.
 
+Independent-review fixes: deferred final actions recheck the live actor's eligibility before
+applying or judging; bound hiring candidates and couriers stay put instead of departing;
+completed-work results are sight-filtered, retaining the actor and only people with public
+person-aspect or physical changes (not named context or private inner changes). Unconscious
+non-actors still perceive nothing. Focused regressions check stored work audiences, next-prompt
+privacy and exact replay. All three fixes passed the full mock/offline suite: 385 tests,
+7629 assertions, 0 failures, 0 errors.
+
 Where the build differs in detail: the event-making half (`change-events`, `interrupts`,
 `comings-to`) is in `manor.mechanics.physical.changes`, because `space` and `builtins` need the
 accessors and `physical` can't require them back; the impediments' shape is `items/Impediments`,
 beside `Aspects`. Impediments change by their own `:person/impediments-changed`. `w/done-to`
 (beside `perceived-by`) names who an event was done to, never dropped for lack of sight: so far
-`:item/given`'s recipient. The actor is never dropped, even unconscious (so someone coming to
+`:item/given`'s recipient; completed work also names its publicly changed people in `:on`.
+The actor is never dropped, even unconscious (so someone coming to
 sees it). `take` from the helpless also reaches into what they carry. Coming to lets the person
 take a turn before a routine claims them, as a release does. A world file's dead agent takes
 `:status :dead` with an optional `:died {:cause}`; consciousness may take `:minutes`. The

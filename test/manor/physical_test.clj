@@ -20,6 +20,7 @@
             [manor.mechanics.items.judge :as item-judge]
             [manor.mechanics.items.steward :as item-steward]
             [manor.mechanics.items.views :as item-views]
+            [manor.mechanics.items.work :as item-work]
             [manor.mechanics.physical :as physical]
             [manor.mechanics.physical.changes :as changes]
             [manor.mechanics.space :as space]
@@ -366,6 +367,32 @@
     (doseq [v [:all :gm :system]]
       (is (= v (trimmed (assoc moved :visible-to v)))))))
 
+(deftest completed-work-keeps-only-publicly-affected-blind-people
+  (let [run (start)
+        world (e/world run)
+        job {:id "work-privacy" :actor "slade" :place "dining-room" :people ["ivy"] :doing "helping Ivy"}
+        work {:minutes 30 :luck 50}]
+    (try
+      (doseq [[label args affected?]
+              [[:context-only {} false]
+               [:inner-only {:inner [{:person "ivy" :key "body" :value "a little rested"}]} false]
+               [:aspect {:changes [{:thing "ivy" :aspect "hair" :value "neatly brushed"}]} true]
+               [:faculty {:physical [{:person "ivy" :faculty :movement :level :impeded}]} true]
+               [:impediment {:impediments [{:person "ivy" :key "hand" :value "a bandaged finger"}]} true]
+               [:death {:died [{:person "ivy" :cause "a fall"}]} true]]]
+        (testing (name label)
+          (let [answer (item-judge/judgement
+                        {:tool-calls [{:id "judge" :name "judge" :arguments (assoc args :summary "The activity ended.")}]}
+                        world (item-work/judged-things world job) (:inner (:scenario run)) job)
+                done (item-work/work-done world job work (:verdict answer))]
+            (is (some? (:verdict answer)))
+            (is (= :sight (w/perceived-by done)))
+            (is (= (when affected? ["ivy"]) (w/done-to done)))
+            (is (= affected? (contains? (:data done) :on)))
+            (is (= (if affected? #{"slade" "ivy"} #{"slade"})
+                   (:visible-to (physical/perceivable world done)))))))
+      (finally (e/stop-run run)))))
+
 (deftest a-mock-night-replays
   (let [run (start)]
     (try
@@ -402,6 +429,58 @@
     (e/emit! run (a/effect-events (action run n) world id args))))
 
 (defn- describe [run event] (narrate/describe event (narrate/names (e/world run))))
+
+(deftest completed-work-stores-its-perceived-audience-and-keeps-next-prompts-private
+  (let [run (start {:llm-impl
+                    (llm/mock (fn [{:keys [role] :as ctx}]
+                                (case role
+                                  :judge {:tool :judge
+                                          :args {:summary "The care is finished and the room is tidied."
+                                                 :changes [{:thing "will" :aspect "hair" :value "neatly brushed"}
+                                                           {:thing "dining-room" :aspect "floor" :value "swept clean"}]
+                                                 :physical [{:person "crane" :faculty :speech :level :normal}
+                                                            {:person "will" :faculty :grasp :level :impeded}]
+                                                 :impediments [{:person "mrs-bell" :key "hand" :value "a bandaged finger"}]
+                                                 :inner [{:person "tom" :key "body" :value "a little rested"}]
+                                                 :made [{:name "Folded cloth" :desc "A neatly folded cloth."
+                                                         :consumable false :held false}]}}
+                                  :steward (item-steward/mock-steward ctx)
+                                  :gm {:tool :done}
+                                  {:tool :pass})))})]
+    (try
+      (doseq [id ["will" "crane" "mrs-bell" "tom"]]
+        (place! run id "dining-room"))
+      (doseq [id ["slade" "will" "crane" "tom"]]
+        @(e/afflict! run id {:faculty :sight :level :disabled}))
+      (act! run "slade" :spend-time {:on ["will" "crane" "mrs-bell" "ivy" "tom" "dining-room"]
+                                     :doing "tending the household and tidying the room" :hours 0.5})
+      (rounds! run 1)
+      (let [world (e/world run)
+            [done] (of-type run :item/work-done)
+            stored (store/read-events (:dir run))
+            without-done (remove #(= (:id done) (:id %)) stored)
+            messages (fn [events id] (prompt/agent-messages (:scenario run) world events id {}))]
+        (is (some? done))
+        (is (empty? (of-type run :item/judge-failed)))
+        (is (= ["will" "crane" "mrs-bell"] (get-in done [:data :on])) "public changes only, with duplicates removed")
+        (is (= #{"slade" "will" "crane"} (:visible-to done))
+            "the blind actor and affected blind people stay; the unconscious target does not")
+        (is (= [done] (filter #(= :item/work-done (:type %)) stored)))
+        (is (= "neatly brushed" (get-in world [:agents "will" :aspects :hair])))
+        (is (= "a little rested" (get-in world [:agents "tom" :inner :body])))
+        (is (= 1 (count (get-in done [:data :made]))))
+        (testing "blind context-only and inner-only people get the same next prompt with the result omitted"
+          (doseq [id ["ivy" "tom"]]
+            (is (= (messages stored id) (messages without-done id)))
+            (is (not-any? #(= (:id done) (:id %)) (prompt/visible-events stored id (count stored))))))
+        (testing "the actor and directly affected people do get the result in their next prompt"
+          (doseq [id ["slade" "will" "crane"]]
+            (is (not= (messages stored id) (messages without-done id)))
+            (is (some #(= (:id done) (:id %)) (prompt/visible-events stored id (count stored))))))
+        (is (= world (w/replay stored)))
+        (is (= (messages stored "ivy")
+               (prompt/agent-messages (:scenario run) (w/replay stored) stored "ivy" {}))))
+      (finally (e/stop-run run)))))
 
 (deftest impeded-speech-is-heard-as-muffled-noises
   (let [run (start)]

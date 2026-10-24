@@ -433,6 +433,9 @@
        (mapcat #(cons % (within world (:id %))))
        distinct))
 
+(defmethod w/perceived-by :item/work-done [_] :sight)
+(defmethod w/done-to :item/work-done [{:keys [data]}] (:on data))
+
 (defmethod w/apply-event :item/work-done [world {:keys [data]}]
   (as-> world world
     (reduce touch world (keep :id (in-reach world (job world (:job data)))))

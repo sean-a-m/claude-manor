@@ -170,11 +170,14 @@
 
 (defn work-done
   "A checked activity result. All removals retain names and fates; new items
-  are allocated on this world so ids remain deterministic across batches."
+  are allocated on this world so ids remain deterministic across batches.
+  :on names only people with public changes, who perceive the result even
+  without sight; named context and private inner changes grant no audience."
   [world job {:keys [minutes stopped-early? luck]} verdict]
   (let [gone (keep #(items/item world %) (:used-up verdict))
         made (made-items world job gone (:made verdict))
-        fetched (mapv :id (keep (fn [[entry it]] (when (:from entry) it)) (map vector (:made verdict) made)))]
+        fetched (mapv :id (keep (fn [[entry it]] (when (:from entry) it)) (map vector (:made verdict) made)))
+        on (vec (distinct (concat (keep :person (:changes verdict)) (map first (:physical verdict)))))]
     {:type :item/work-done :actor (:actor job) :visible-to (audience world job)
      :data (cond-> (merge {:job (:id job) :actor (:actor job) :place (:place job) :doing (:doing job)
                            :minutes minutes :stopped-early? stopped-early? :luck luck
@@ -182,7 +185,8 @@
                            :changes (vec (:changes verdict))}
                           (removal-data world (:doing job) verdict))
              (seq made) (assoc :made made)
-             (seq fetched) (assoc :fetched fetched))}))
+             (seq fetched) (assoc :fetched fetched)
+             (seq on) (assoc :on on))}))
 
 (defn act-job
   "An immediate act (manor.mechanics.items.actions `act-on`) as the judge

@@ -2,13 +2,16 @@
   "Visits (docs/visits-design.md): guests in the world, invited by post,
   messenger or in person, or arranged by the GM or operator (phase 1); and
   guests from elsewhere, away agents who arrive at the meeting place (phase
-  2, part A). Runs use the production Claudeworth mechanics on the
+  2, part A); and people described in `invite`'s `person`, settled by the
+  invitation judge (phase 2, part B). Runs use the production Claudeworth mechanics on the
   test-owned world test/fixtures/visits.edn (start 1904-10-15 20:00,
   half-hour rounds)."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
+            [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.engine.resolve :as resolve]
             [manor.io.store :as store]
             [manor.io.worldfile :as worldfile]
             [manor.mechanics.builtins :as b]
@@ -17,6 +20,7 @@
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.mechanics.visits :as visits]
+            [manor.mechanics.visits.judge :as judge]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as cw]
@@ -580,4 +584,228 @@
       (is (= :here (:status (visits/visit after "visit-1"))))
       (is (:from-away? (visits/visit after "visit-1")))
       (is (= "carriage-sweep" (space/location-of after "carter")))
+      (finally (e/stop-run run)))))
+
+;; ---------------------------------------------------------------------------
+;; Phase 2, part B: `person` and the invitation judge
+
+(defn- with-judge
+  "`scenario` with `mock` standing in for the invitation judge."
+  [scenario mock]
+  (assoc-in scenario [:adjudicators :visits/invitee :mock] mock))
+
+(defn- judge-calls [run] (filter #(= "adjudicator/visits/invitee" (:agent %)) (store/read-llm (:dir run))))
+(defn- judge-input [call] (json/read-value (:content (second (:messages call))) json/keyword-keys-object-mapper))
+(defn- replies-to [run agent tool]
+  (for [call (store/read-llm (:dir run)) :when (= agent (:agent call))
+        tc (get-in call [:response :tool_calls]) :when (= tool (get-in tc [:function :name]))
+        r (:replies call) :when (= (:id tc) (:tool_call_id r))]
+    (:content r)))
+
+(deftest invite-is-free-with-who-and-a-query-with-person
+  (let [run (start {} {})
+        invite (action run :invite)]
+    (try
+      (is (= :free (a/kind invite {:who "mrs-bell"})))
+      (is (= :query (a/kind invite {:person "Mrs Bell"})))
+      (is (str/includes? (get-in (a/->tool invite) [:function :description]) "my father, Sir Henry Vane"))
+      (is (str/includes? visits/rules "my father, Sir Henry Vane"))
+      (let [world (e/world run)]
+        (is (= "give who (their id) or person (who they are, in your words), not both"
+               (check run world "lord-claudeworth" :invite {:by "post" :who "mrs-bell" :person "Mrs Bell"
+                                                            :date "1904-10-16" :time "10:00" :stay "x"})))
+        (is (= "say whom you're inviting: who (their id) or person (who they are, in your words)"
+               (check run world "lord-claudeworth" :invite {:by "post" :date "1904-10-16" :time "10:00" :stay "x"})))
+        (is (nil? (check run world "lord-claudeworth" :invite {:by "in-person" :person "Mrs Bell"
+                                                               :date "1904-10-16" :time "10:00" :stay "x"}))
+            "in person waits for the judge to say who"))
+      (finally (e/stop-run run)))))
+
+(defn- father-judge
+  "A judge that writes the inviter's father from what it's told of the inviter."
+  [{:keys [inviter description] :as ctx}]
+  (if (str/includes? description "Visitsworth")
+    {:tool :invitee
+     :args {:new {:name "Baron von Visitsworth" :sex "male" :age 78 :from "Schloss Visitsworth"
+                  :known_as "an elderly baron from abroad"
+                  :situation (str "You are Baron von Visitsworth, father of " (:name inviter) "; you last saw your son at Easter.")}}}
+    (judge/mock-judge ctx)))
+
+(def father-day
+  {"lord-claudeworth" {"20:00" [[:invite {:by "post" :person "my father, Baron von Visitsworth" :date "1904-10-16"
+                                          :time "00:00" :stay "a week" :reason "to meet the family"}]
+                                [:pass {}]]}})
+
+(deftest a-described-father-is-made-away-and-arrives
+  (let [run (start-with (with-judge cw/scenario father-judge) father-day {:visits {:from-away-hours 1}})]
+    (try
+      (until! run 1)
+      (let [world (e/world run)
+            barons (filter #(= "Baron von Visitsworth" (:name %)) (vals (:agents world)))
+            a (first barons)
+            [call] (judge-calls run)
+            input (judge-input call)]
+        (testing "the judge read the inviter's own context and the description"
+          (is (= "Lord Claudeworth" (get-in input [:inviter :name])))
+          (is (= "Earl" (get-in input [:inviter :position])))
+          (is (= "my father, Baron von Visitsworth" (:description input)))
+          (is (= "to meet the family" (:reason input))))
+        (testing "one away agent, consistent with the inviter, all :system"
+          (is (= 1 (count barons)))
+          (is (= {:status :away :role :guest :lives "Schloss Visitsworth" :known-as "an elderly baron from abroad"
+                  :age 78 :sex :male}
+                 (select-keys a [:status :role :lives :known-as :age :sex])))
+          (is (str/includes? (:situation a) "father of Lord Claudeworth"))
+          (is (every? #(= :system (:visible-to %))
+                      (filter #(= (:id a) (or (get-in % [:data :agent :id]) (get-in % [:data :id])))
+                              (filter #(#{:agent/spawned :agent/updated :people/departed} (:type %)) (e/events run))))))
+        (testing "the visit is the inviter's, by post, and the reply says who is expected"
+          (is (= {:guest (:id a) :host "lord-claudeworth" :by :post :status :scheduled}
+                 (select-keys (visits/visit world "visit-1") [:guest :host :by :status])))
+          (is (= ["Baron von Visitsworth (baron-von-visitsworth) is expected at Claudeworth Manor on Sunday 16 October at 00:00."]
+                 (replies-to run "lord-claudeworth" "invite"))))
+        (testing "nothing called out: the people stub and mock writers"
+          (is (seq (of-type run :bridge/called)))
+          (is (every? #(nil? (get-in % [:data :error])) (of-type run :bridge/called)))
+          (is (empty? (of-type run :adjudication/failed)))))
+      (until! run 9)
+      (let [world (e/world run)
+            [arrived] (filter #(get-in % [:data :at]) (of-type run :visits/arrived))]
+        (testing "he arrives at the meeting place at the time, seen by the host"
+          (is (= "carriage-sweep" (space/location-of world "baron-von-visitsworth")))
+          (is (= :here (status world "visit-1")))
+          (is (contains? (:visible-to arrived) "lord-claudeworth"))
+          (is (= "A visitor arrives at the Carriage sweep: Baron von Visitsworth (baron-von-visitsworth), an elderly baron from abroad."
+                 (n/describe arrived (n/names world))))))
+      (is (empty? (of-type run :action/forfeited)))
+      (replay! run)
+      (finally (e/stop-run run)))))
+
+(def arden-judge
+  "Writes Mr Arden for the earl's description; otherwise the mock judge."
+  (fn [{:keys [description] :as ctx}]
+    (if (= "Mr Arden, a curate from Ely" description)
+      {:tool :invitee :args {:new arden}}
+      (judge/mock-judge ctx))))
+
+(def two-inviters-day
+  "The earl, at the post office, invites Mr Arden by post; Hale goes down and
+  invites \"the curate from Ely\" there half an hour later."
+  {"lord-claudeworth" {"20:00" [[:invite {:by "post" :person "Mr Arden, a curate from Ely" :date "1904-10-16"
+                                          :time "10:00" :stay "STAY-SENTINEL" :reason "REASON-SENTINEL"}]
+                                [:pass {}]]}
+   "hale" {"20:00" [[:travel {:to "post-office"}]]
+           "20:30" [[:invite {:by "post" :person "the curate from Ely" :date "1904-10-17" :time "10:00" :stay "to tea"}]
+                    [:pass {}]]}})
+
+(deftest a-second-inviter-gets-the-first-inviters-guest
+  (let [run (start-with (with-judge cw/scenario arden-judge) two-inviters-day {:visits {:from-away-hours 1}})]
+    (try
+      (until! run 2)
+      (let [world (e/world run)
+            [_ hales] (judge-calls run)
+            input (judge-input hales)
+            listed (first (filter #(= "mr-arden" (:id %)) (get-in input [:people :others])))]
+        (testing "both visits are of the same Mr Arden"
+          (is (= 1 (count (filter #(= "Mr Arden" (:name %)) (vals (:agents world))))))
+          (is (= [["mr-arden" "lord-claudeworth"] ["mr-arden" "hale"]]
+                 (map (juxt :guest :host) (map #(visits/visit world %) ["visit-1" "visit-2"]))))
+          (is (= ["Mr Arden (mr-arden) is expected at Claudeworth Manor on Monday 17 October at 10:00."]
+                 (replies-to run "hale" "invite"))))
+        (testing "Hale's judge read his own recent lines"
+          (is (some #(str/includes? % "Hale") (get-in input [:inviter :recent])) (pr-str (get-in input [:inviter :recent]))))
+        (testing "Hale's judge saw him only by name, home and public description"
+          (is (= {:id "mr-arden" :name "Mr Arden" :from "Ely" :known-as "a curate from Ely"} listed))
+          (doseq [secret ["SECRET-SITUATION" "STAY-SENTINEL" "REASON-SENTINEL" "1904-10-16" "visit-1"]]
+            (is (not (str/includes? (pr-str (:messages hales)) secret)) secret)))
+        (testing "while the earl's own guest is shown to him with who they are"
+          (let [world' (assoc world :round 3)
+                earls (judge/people world' "lord-claudeworth")]
+            (is (= ["mr-arden"] (map :id (:your-guests earls))))
+            (is (str/includes? (:situation (first (:your-guests earls))) "SECRET-SITUATION")))))
+      (replay! run)
+      (finally (e/stop-run run)))))
+
+(deftest pugh-the-architect-is-pugh
+  (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true :gm :off :run-id (str (gensym "visits-pugh-"))})]
+    (try
+      (let [agents (count (:agents (e/world run)))
+            {:keys [reply error]} (resolve/run-query! run "mrs-bell" (action run :invite)
+                                                      {:by "post" :person "Pugh the architect" :date "1904-10-16"
+                                                       :time "10:00" :stay "to talk about a new porch"})
+            world (e/world run)]
+        (is (nil? error))
+        (is (= "Pugh (pugh) is expected at Claudeworth Manor on Sunday 16 October at 10:00." reply))
+        (is (= {:guest "pugh" :host "mrs-bell" :by :post} (select-keys (visits/visit world "visit-1") [:guest :host :by])))
+        (is (= agents (count (:agents world))) "no second Pugh")
+        (replay! run))
+      (finally (e/stop-run run)))))
+
+(deftest impossible-schedules-nothing
+  (let [run (start {} {})
+        before (count (e/events run))
+        {:keys [reply error]} (resolve/run-query! run "lord-claudeworth" (action run :invite)
+                                                  {:by "post" :person "Lord Claudeworth himself" :date "1904-10-16"
+                                                   :time "10:00" :stay "to dine"})]
+    (try
+      (is (nil? error))
+      (is (= "That is you. Nothing is arranged." reply))
+      (is (empty? (visits/visits (e/world run))))
+      (is (empty? (filter #(not= :llm/usage (:type %)) (drop before (e/events run)))) "no events but usage")
+      (replay! run)
+      (finally (e/stop-run run)))))
+
+(deftest a-judge-that-never-answers-well-fails-neutrally
+  (let [run (start-with (with-judge cw/scenario (constantly {:tool :invitee :args {:existing "nobody"}})) {} {})
+        {:keys [error]} (resolve/run-query! run "lord-claudeworth" (action run :invite)
+                                            {:by "post" :person "Mrs Bell" :date "1904-10-16" :time "10:00" :stay "x"})]
+    (try
+      (is (= "The enquiry failed; try again later." error))
+      (is (= 2 (count (judge-calls run))) "one correction")
+      (is (empty? (visits/visits (e/world run))))
+      (is (= [:system] (map :visible-to (of-type run :adjudication/failed))))
+      (finally (e/stop-run run)))))
+
+(deftest the-judges-request-and-checked-answer
+  (let [run (start {} {})
+        world (-> (e/world run)
+                  (assoc-in [:agents "lord-claudeworth" :notes] [{:round 1 :text "NOTE-SENTINEL"}])
+                  (assoc-in [:agents "lord-claudeworth" :persona] "NATURE-SENTINEL")
+                  (assoc-in [:agents "lord-claudeworth" :situation] "SITUATION-SENTINEL"))
+        world (reduce w/apply-event world (visits/invite-events world "lord-claudeworth"
+                                                                {:by "post" :who "captain-hart" :date "1904-10-17"
+                                                                 :time "10:00" :stay "STAY-SENTINEL"}))
+        request (judge/invitation-request world "lord-claudeworth" {:person "DESCRIPTION-SENTINEL" :reason "REASON-SENTINEL"
+                                                                    :recent ["[20:00] RECENT-SENTINEL"]})
+        input (json/read-value (:content (second (:messages request))) json/keyword-keys-object-mapper)
+        answer (fn [args] ((:check request) {:tool-calls [{:id "c1" :name "invitee" :arguments args}]}))]
+    (try
+      (testing "the inviter's own context"
+        (is (= {:name "Lord Claudeworth" :position "Earl" :nature "NATURE-SENTINEL" :situation "SITUATION-SENTINEL"
+                :notes [{:round 1 :text "NOTE-SENTINEL"}] :recent ["[20:00] RECENT-SENTINEL"]}
+               (select-keys (:inviter input) [:name :position :nature :situation :notes :recent])))
+        (is (= ["DESCRIPTION-SENTINEL" "REASON-SENTINEL"] [(:description input) (:reason input)])))
+      (testing "the people they could mean, each once"
+        (let [{:keys [your-guests known others]} (:people input)]
+          (is (= ["captain-hart"] (map :id your-guests)))
+          (is (str/includes? (:situation (first your-guests)) "old friend"))
+          (is (= ["hale" "mrs-bell" "carter"] (map :id known)))
+          (is (= {:id "carter" :name "Carter" :position "Blacksmith" :lives "Blacksmith's room"} (last known)))
+          (is (= "Claudeworth Manor" (:lives (first known))))
+          (is (empty? others))))
+      (testing "someone else's guest is shown to Hale by public fields only"
+        (let [hales (judge/people world "hale")]
+          (is (= [{:id "captain-hart" :name "Captain Hart"}] (:others hales)))
+          (is (not (str/includes? (pr-str (:messages (judge/invitation-request world "hale" {:person "x" :recent []}))) "old friend")))))
+      (testing "code checks only the answer's shape"
+        (is (= {:existing "carter"} (:verdict (answer {:existing "carter"}))))
+        (is (= "existing must be the id of someone listed in people" (:error (answer {:existing "lord-claudeworth"}))))
+        (is (= "give exactly one of existing, new or impossible" (:error (answer {:existing "carter" :impossible "x"}))))
+        (is (= "a curate from Ely" (get-in (answer (assoc-in {:new (dissoc arden :known-as)} [:new :known_as] "a curate from Ely"))
+                                           [:verdict :new :known-as]))
+            "known_as is read as known-as")
+        (is (str/starts-with? (:error (answer {:new (assoc arden :name "Carter")})) "Carter is listed already (carter)"))
+        (is (:error (answer {:new (assoc arden :age 200)})))
+        (is (= {:impossible "Your father died in 1898."} (:verdict (answer {:impossible "Your father died in 1898."}))))
+        (is (= "ok" (:content (first (:replies (answer {:existing "carter"})))))))
       (finally (e/stop-run run)))))

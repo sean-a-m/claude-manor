@@ -206,6 +206,9 @@ Each action is a map. Each role's actions become that role's LLM tools.
  :roles   #{:explorer}               ; or :all (every non-GM role, the default)
  :needs   :shop-clerk                ; optional: a capability the agent's position must give
  :kind    :final                     ; :final (default) | :free | :query | :act (| :converse, built in)
+ :kind-for (fn [args] kind)          ; optional: the kind of a call with these args, for an action free
+                                     ; with some and a query with others (visits' invite); give it
+                                     ; both kinds' keys (:effect, :query-fn ...) and a :hint
  :available? (fn [world actor] bool) ; optional: leave the tool out of this model step
  :valid?  (fn [world actor args] nil-or-reason-string)
  :effect  (fn [world actor args] [events])
@@ -398,8 +401,10 @@ yet spawned is kept for the next delivery.
 
 A query needing several dependent bridge/adjudicator calls may supply
 `:query-fn (fn [world actor args services] result)` instead of `:bridge` or `:adjudicate`.
-`services` contains two engine-owned callbacks: `(bridge bridge-id args)` returns bridge data;
-`(adjudicate task-id args)` builds the registered request and returns only a checked verdict.
+`services` contains three engine-owned callbacks: `(bridge bridge-id args)` returns bridge data;
+`(adjudicate task-id args)` builds the registered request and returns only a checked verdict;
+`(recent)` returns the caller's own last ten narrated lines (`prompt/recent-lines`, their own
+view), for a judge that reads what they mean (the invitation judge).
 They throw on failure, check the run budget before each component, and record all calls and
 usage. Intermediate bridge events are **operator-only**, not visible to the calling character.
 Composed adjudicators use the run's `:model` (candidate generation must not inherit a work
@@ -1911,16 +1916,18 @@ not an exhaustive almanac; it has no recurrence and must be extended by hand bey
 
 ### Visits (`manor.mechanics.visits`)
 
-[visits-design.md](visits-design.md), phase 1 and phase 2 part A: guests **in the world**
+[visits-design.md](visits-design.md), phases 1 and 2: guests **in the world**
 (villagers, a candidate still about) invited to the house for a date and time, who make their own
 way, and guests **from elsewhere** (away agents), who arrive at the meeting place at the time and
 go with `take-leave`. Which kind a guest is, is decided when the visit falls due: are they active
-or away? Describing someone in `invite` (`person`) and the invitation judge are part B.
+or away? An inviter who describes someone (`invite`'s `person`) has them settled by the
+invitation judge, which matches someone in the world or writes someone new.
 
 - **Install** with `(visits/install scenario)` after `hiring/install` (it needs the meeting
   place). It adds `invite`, one `take-leave` for candidates and guests from elsewhere (in place of
-  hiring's), the GM's `schedule-visit` and `cancel-visit`, the `:visits/tick` system (after
-  hiring's and deliveries'), and the config in `[:state :visit-config]`. It's idempotent:
+  hiring's), the GM's `schedule-visit` and `cancel-visit`, the invitation judge (`:visits/invitee`
+  in `:adjudicators`, with its mock), the `:visits/tick` system (after hiring's and deliveries'),
+  and the config in `[:state :visit-config]`. It's idempotent:
   `claudeworth-medium` re-installs on `cw/scenario`. The scenario needs a clock, a `:guest`
   position for people made new (the catalogue has one), and `:calendar` for the guests' and hosts'
   entries (without it, visits still run but nobody's calendar shows them). Its `:observe` should
@@ -1945,7 +1952,12 @@ or away? Describing someone in `invite` (`person`) and the invitation judge are 
   `:bedroom`, `:known-to` (arranged visits), `:told?`, `:reminded?`, `:arrived` (the round it
   became `:here`), `:from-away?` (they arrived at the meeting place) and `:status`: `:scheduled` →
   `:here` → `:ended`, or `:lapsed` / `:cancelled`. The GM sees it in the world state.
-- **`invite {by who date time stay reason? via? bedroom?}`** is free and once a turn. Checks are
+- **`invite {by, who | person, date time stay reason? via? bedroom?}`** is once a turn. With `who`
+  (an id) it's free and calls nothing; with `person` (at most 300 characters, who they are in the
+  inviter's words) it's a query, counted towards the turn's `:max-queries` (`:kind-for`; see
+  Actions). Exactly one of the two. Its tool description and `visits/rules` tell inviters to give
+  the person's name whenever they know it, with how they stand to them ("my father, Sir Henry
+  Vane", not just "my father"); a description without a name is still accepted. Checks are
   structural, with reasons that say what to do: the guest exists, isn't you, the GM, retired, or
   someone of the household who is at home (`positions/household-member?` and active: "they live
   here"; the son away at school can be invited home); `in-person` needs them here with you; `post`
@@ -1953,11 +1965,36 @@ or away? Describing someone in `invite` (`person`) and the invitation judge are 
   with you, anyone but yourself, the invitee included; `date`/`time` parse and are at least the
   channel's lead time from now, plus `:from-away-hours` when the guest is away ("by post, the
   earliest they can be here is Saturday 15 October, 23:00"); `bedroom`, if given, is a
-  `:bedroom`. `who` isn't checked against whom the inviter knows. Its reply says who is expected
-  when. Events: `:visits/scheduled` (GM-only, the record), the host's calendar entry at once, and
+  `:bedroom`. `who` isn't checked against whom the inviter knows. With `person`, the checks that
+  need the guest (in person, the lead time from away, "they live here") wait for the judge. Its
+  reply says who is expected when, or for someone described why nothing is arranged. Events: `:visits/scheduled` (GM-only, the record), the host's calendar entry at once, and
   one per channel: `:visits/invited` (in person, seen by both), `:visits/posted` ("posts a
   letter", seen by those present, no contents) or `:visits/entrusted` (the message, seen by the
   inviter and the messenger).
+- **The invitation judge** (`manor.mechanics.visits.judge`, task `:visits/invitee`, tool
+  `invitee`) is one checked narrow call, built like the find judge. Its request
+  (`invitation-request`) holds the inviter's own context (name; age when known, their `:age` or
+  their position's when its `:ages` are fixed; sex; position title; persona as `nature`;
+  situation; last 15 notes; and their last ten narrated lines from the `recent` service), the
+  description and `reason`, and `people` (`judge/people`), each person once: `your-guests` (the
+  inviter's own guests, with situation and `known-as`), `known` (everyone active, the inviter's
+  household away members, the away people they've met and the candidates recommended to them who
+  have come: id, name, position title, where they live) and `others` (everyone else not retired:
+  only id, name, `from` and public `known-as`, so another inviter's guest is matched without
+  anything of who invited them, when or why). It answers `{existing id}` (a listed id), `{new
+  {name sex age from known-as situation}}` (`judge/new-person-fields`' limits; a listed person's
+  name is refused, "answer existing") or `{impossible reason}` (≤ 300). A bad answer is sent back
+  once; a second fails the query neutrally ("The enquiry failed; try again later.", an
+  operator-only `:adjudication/failed`, no other events). Its instructions say to decide who is
+  meant, never willingness, and to answer impossible only for physical impossibility (dead, or
+  the inviter), never for unlikelihood, rank, distance, inconvenience, propriety or
+  unwillingness; that's prompt guidance, and code checks only the answer's shape. `existing`
+  invites that person (all of `invite`'s checks, on the world when the query's done); `new` is
+  checked first (not in person, and the lead time from away), then written in the same query
+  (`write-new-person`) and made an away agent (`away-guest-events`) before the visit is
+  scheduled, all from the recorded result; `impossible` replies with the reason and schedules
+  nothing. `judge/mock-judge` stands in under `--mock`: the inviter's own name is impossible, a
+  listed person whose surname or `known-as` the description contains is them, anyone else is new.
 - **Telling** is for guests in the world. In person, or when the invitee carries their own
   message, the guest knows at once. Otherwise at `:deliver` (now plus the lead time) the tick sends
   `:visits/delivered` to the guest alone, if they're about ("A letter comes from Lord Claudeworth:
@@ -2007,7 +2044,7 @@ or away? Describing someone in `invite` (`person`) and the invitation judge are 
   record for that sex and exact age, with the name kept and `:lives` set to `from`, then
   `hiring/write-person` with `situation` as the polish's notes. `(away-guest-events scenario world
   p fields)` turns its result into events, all `:system`: the spawn as a `:guest` (no household),
-  `:agent/updated` with `:lives` and the public `:known-as`, and `:people/departed`. Returns
+  `:agent/updated` with `:lives`, the public `:known-as` and `:age`, and `:people/departed`. Returns
   `{:id :events}`. Everything is recorded from the query's result, so replay never calls out.
 - **GM and operator.** The GM's `schedule-visit {who | name sex age from known-as situation, date
   time stay reason? bedroom? known-to?}` is a **query** (it may write someone new; it counts

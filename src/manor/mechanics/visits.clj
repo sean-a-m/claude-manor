@@ -8,6 +8,9 @@
   is told, makes their own way (:here), goes home (:ended), or doesn't come
   (:lapsed); nobody moves them. An away guest (someone from elsewhere)
   arrives at the meeting place at the time, and goes with `take-leave`.
+  Someone described in `invite`'s `person` is settled by the invitation
+  judge (manor.mechanics.visits.judge), and someone new is made an away
+  agent in the same query.
   Their calendar entries, the host's and the guest's, are written from the
   record and owned by it (:managed-by :visits), so they're never GM-reviewed
   and only visits change them. A scenario with :hibernate keeps an expected
@@ -19,6 +22,7 @@
             [manor.mechanics.hiring :as hiring]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
+            [manor.mechanics.visits.judge :as judge]
             [manor.narrate :as n]
             [manor.world :as w])
   (:import (java.time Duration LocalDate LocalDateTime LocalTime)
@@ -124,10 +128,10 @@
 
 (defn- earliest
   "The earliest time a guest invited now `by` a channel can be expected, with
-  :from-away-hours more for a `guest` who is away."
-  ^LocalDateTime [world by guest]
+  :from-away-hours more for a guest who is away (`away?`)."
+  ^LocalDateTime [world by away?]
   (.plusMinutes (now world) (+ (lead-minutes world by)
-                               (if (away? world guest) (long (* 60 (:from-away-hours (config world)))) 0))))
+                               (if away? (long (* 60 (:from-away-hours (config world)))) 0))))
 
 (defn- next-round-time
   "The time of the next round: the GM's and operator's only lead time."
@@ -417,9 +421,12 @@
 (defn- post-offices [world]
   (sort-by :id (filter #(contains? (:services %) :post-office) (vals (get-in world [:space :locations])))))
 
-(defn- channel-reason [world actor {:keys [by who via]}]
+(defn- channel-reason
+  "Why the invitation can't go `by` this channel. In person needs the guest
+  here, which waits for the judge when they're described (`person`)."
+  [world actor {:keys [by who via]}]
   (case by
-    "in-person" (when-not (space/together? world actor who)
+    "in-person" (when (and who (not (space/together? world actor who)))
                   (str (agent-name world who) " must be here with you to be invited in person; otherwise send it by post or messenger"))
     "post" (when-not (contains? (:services (space/location world (space/location-of world actor))) :post-office)
              (str "go to a post office to send it by post"
@@ -433,20 +440,50 @@
 (def ^:private channel-names {"in-person" "in person, " "post" "by post, " "messenger" "by messenger, "})
 
 (defn invite-reason
-  "Why `actor` can't send this invitation, or nil: structural checks only."
-  [world actor {:keys [by who bedroom] :as args}]
+  "Why `actor` can't send this invitation, or nil: structural checks only.
+  For someone described (`person`), what can be checked before the judge
+  says who they are; `resolved-reason` checks the rest."
+  [world actor {:keys [by who person bedroom] :as args}]
   (or (when-not (config world) "visits are not enabled here")
-      (when (= who actor) "you can't invite yourself")
-      (guest-reason world who)
+      (cond (and who person) "give who (their id) or person (who they are, in your words), not both"
+            (not (or who person)) "say whom you're inviting: who (their id) or person (who they are, in your words)")
+      (when who
+        (or (when (= who actor) "you can't invite yourself")
+            (guest-reason world who)))
       (channel-reason world actor args)
-      (time-reason world (earliest world (keyword by) who) (channel-names by) args)
+      (time-reason world (earliest world (keyword by) (and who (away? world who))) (channel-names by) args)
       (bedroom-reason world bedroom)))
+
+(defn- new-guest-reason
+  "Why someone new from elsewhere, `fields` from the judge, can't be invited
+  so, or nil: they can't be here to be asked in person, and they come from
+  away. Checked before they're written."
+  [world {:keys [by] :as args} fields]
+  (or (when-not (get-in world [:state :positions :guest]) "this world has no :guest position for someone new")
+      (when (= "in-person" by)
+        (str (:name fields) " is not here to be invited in person; send it by post or messenger"))
+      (time-reason world (earliest world (keyword by) true) (channel-names by) args)))
+
+(defn- name-taken?
+  "Is `person-name` someone's in the world already, other than the retired?"
+  [world person-name]
+  (some #(and (= person-name (:name %)) (not= :retired (:status %))) (w/agents-in-order world)))
+
+(defn resolved-reason
+  "Why `actor`'s invitation of someone described can't go, now the judge's
+  `verdict` says who they are, or nil."
+  [world actor args verdict]
+  (cond (:impossible verdict) (:impossible verdict)
+        (:existing verdict) (invite-reason world actor (-> args (dissoc :person) (assoc :who (:existing verdict))))
+        (:new verdict) (or (new-guest-reason world args (:new verdict))
+                           (when (name-taken? world (get-in verdict [:new :name]))
+                             (str "someone called " (get-in verdict [:new :name]) " is in the world already; say more exactly whom you mean")))))
 
 (def new-person-keys
   "The fields of someone new from elsewhere: name, sex (\"male\" or
   \"female\"), age, from (where they live), known-as (a public description)
   and situation (who they are, in the second person)."
-  [:name :sex :age :from :known-as :situation])
+  (mapv first judge/new-person-fields))
 
 (defn- new-person? [spec] (some #(contains? spec %) new-person-keys))
 
@@ -493,7 +530,7 @@
         via (when (= :messenger by) via)
         deliver (if (or (= :in-person by) (= via who))
                   (:round world)
-                  (round-of (:clock world) (earliest world by nil)))
+                  (round-of (:clock world) (earliest world by false)))
         scheduled (scheduled-events world {:guest who :host actor :by by :via via :at (parse-time date time)
                                            :deliver deliver :stay stay :reason reason :bedroom bedroom})]
     (into [(channel-event world actor (:data (first scheduled)))] scheduled)))
@@ -547,15 +584,15 @@
 (defn away-guest-events
   "Events making person `p` (from `write-new-person`) an away agent, from
   their `fields`: spawned as a :guest with their situation and no household,
-  their :lives and public :known-as set, then away towards :lives. All
+  their :lives, public :known-as and :age set, then away towards :lives. All
   :system: a spawn holds a private persona and traits. {:id :events}."
-  [scenario world p {:keys [situation known-as]}]
+  [scenario world p {:keys [situation known-as age]}]
   (let [spawned (b/spawn-events scenario world (merge (hiring/spawn-spec p)
                                                       {:role :guest :situation situation :household nil}))
         id (get-in (first spawned) [:data :agent :id])]
     {:id id
      :events (into (mapv #(assoc % :visible-to :system) spawned)
-                   [{:type :agent/updated :visible-to :system :data {:id id :changes {:lives (:lives p) :known-as known-as}}}
+                   [{:type :agent/updated :visible-to :system :data {:id id :changes {:lives (:lives p) :known-as known-as :age age}}}
                     {:type :people/departed :visible-to :system
                      :data {:id id :reason "lives elsewhere" :towards (:lives p)}}])}))
 
@@ -621,21 +658,68 @@
    [:reason {:optional true} [:string {:min 1 :max max-reason}]]
    [:bedroom {:optional true} :string]])
 
-(def invite
+(def max-person 300)
+
+(defn- invitee!
+  "`invite` with `person`, a query: the invitation judge says who is meant
+  from the inviter's own context, and someone new is written now (I/O,
+  through `services`) unless they couldn't be invited anyway."
+  [world actor {:keys [person reason] :as args} {:keys [adjudicate recent] :as services}]
+  (let [verdict (adjudicate :visits/invitee (cond-> {:person person :recent (recent)} reason (assoc :reason reason)))]
+    (cond-> {:verdict verdict}
+      (and (:new verdict) (not (resolved-reason world actor args verdict)))
+      (assoc :person (write-new-person world services (:new verdict))))))
+
+(defn- described-invite-events
+  "The invitation of someone described, on the world as it is when the
+  query's done: of the person the judge matched, or of someone new, made an
+  away agent first from the query's written person. Nothing if it can't go
+  (impossible, or a check the judge's answer fails)."
+  [scenario world actor args {:keys [verdict person]}]
+  (when-not (resolved-reason world actor args verdict)
+    (cond (:existing verdict) (invite-events world actor (assoc args :who (:existing verdict)))
+          person (let [{:keys [id events]} (away-guest-events scenario world person (:new verdict))]
+                   (into events (invite-events (apply-all world events) actor (assoc args :who id)))))))
+
+(defn- expected [world guest at]
+  (str (agent-name world guest) " (" guest ") is expected at " (house world) " on " (when-label {:at at}) "."))
+
+(defn- invite-reply
+  "Who is expected when; for someone described, why nothing is arranged if it isn't."
+  ([world _ {:keys [who date time]}] (expected world who (str (parse-time date time))))
+  ([world actor args {:keys [verdict events]}]
+   (if-let [v (:data (first (filter #(= :visits/scheduled (:type %)) events)))]
+     (expected world (:guest v) (:at v))
+     (if-let [impossible (:impossible verdict)]
+       (str impossible " Nothing is arranged.")
+       (str "Nothing is arranged: " (or (resolved-reason world actor args verdict) "try again") ".")))))
+
+(defn- invite-action
+  "`invite`: free with `who`; with `person`, a query (the judge, and perhaps
+  the people writer)."
+  [scenario]
   {:name :invite :kind :free :roles :all :per-turn 1
+   :kind-for (fn [args] (if (:person args) :query :free))
+   :hint "Free: does not end your turn. With person, it's a query and counts towards your queries this turn."
    :doc (str "Invite someone to the house for a date and time. by: \"in-person\" (they're here with you), "
              "\"post\" (you're at a post office) or \"messenger\" (via: the id of anyone here who will carry it, "
              "the person invited included). who: their id, anyone you know, including people you've met who are "
-             "away now (away-acquaintances). date (\"1904-10-21\") and time (\"19:00\"): when "
+             "away now (away-acquaintances). Or, instead of who, person: who they are, in your own words (at most "
+             max-person " characters). Whenever you know their name, give it, with how they stand to you "
+             "(\"my father, Sir Henry Vane\", not just \"my father\"): a name makes it certain the right person comes. "
+             "A description without a name is still accepted. date (\"1904-10-21\") and time (\"19:00\"): when "
              "they're expected at the house. stay: how long, in your words (\"to dine\", \"a week\"). reason: "
              "optional, why. bedroom: optional, a bedroom id for a guest who stays the night.")
-   :args (into [:map [:by [:enum "in-person" "post" "messenger"]] [:who :string] [:via {:optional true} :string]]
+   :args (into [:map [:by [:enum "in-person" "post" "messenger"]]
+                [:who {:optional true} :string]
+                [:person {:optional true} [:string {:min 1 :max max-person}]]
+                [:via {:optional true} :string]]
                visit-args)
    :valid? invite-reason
    :effect invite-events
-   :reply (fn [world _ {:keys [who date time]}]
-            (str (agent-name world who) " (" who ") is expected at " (house world) " on "
-                 (when-label {:at (str (parse-time date time))}) "."))})
+   :query-fn invitee!
+   :on-result (partial described-invite-events scenario)
+   :reply invite-reply})
 
 (defn- gm-arranged-events
   "The GM's visit, on the world as it is when the query's done: for someone
@@ -658,15 +742,10 @@
               "\"a curate from Ely\") and situation (second person: who they are, and how they stand with the house); "
               "they're written now and arrive at the time. known-to: ids of anyone else who should have it in their "
               "calendar (default nobody).")
-    :args (into [:map [:who {:optional true} :string]
-                 [:name {:optional true} [:string {:min 1 :max 40}]]
-                 [:sex {:optional true} [:enum "male" "female"]]
-                 [:age {:optional true} [:int {:min 1 :max 110}]]
-                 [:from {:optional true} [:string {:min 1 :max 80}]]
-                 [:known-as {:optional true} [:string {:min 1 :max 120}]]
-                 [:situation {:optional true} [:string {:min 1 :max 600}]]
-                 [:known-to {:optional true} [:vector :string]]]
-                visit-args)
+    :args (-> [:map [:who {:optional true} :string]]
+              (into (map (fn [[k schema]] [k {:optional true} schema])) judge/new-person-fields)
+              (conj [:known-to {:optional true} [:vector :string]])
+              (into visit-args))
     :valid? (fn [world _ args] (arranged-reason world args))
     :query-fn (fn [world _ args services]
                 (if (:who args) {} {:person (write-new-person world services (select-keys args new-person-keys))}))
@@ -685,11 +764,11 @@
 (defn actions
   "`invite`, the shared `take-leave` and the GM's tools, for `scenario`."
   [scenario]
-  (into [invite (take-leave (first (filter #(= :take-leave (:name %)) hiring/actions)))] (gm-actions scenario)))
+  (into [(invite-action scenario) (take-leave (first (filter #(= :take-leave (:name %)) hiring/actions)))] (gm-actions scenario)))
 
 (def rules
-  "The rules paragraph (`who` only; describing someone new comes with the invitation judge)."
-  "Anyone may `invite` someone to the house for a date and time: in person (they're here with you), by post (at a post office) or by messenger (anyone here who will carry it, even the person invited). Name them with `who`, their id: anyone you know, including people you've met who are away now (`away-acquaintances` in your view). Someone who lives nearby makes their own way to the house at that time; someone from further off arrives at the meeting place (`hiring.meeting-place`). A guest from elsewhere stays as long as seems right and goes with `take-leave`; while staying, they see the house's bedrooms under `household.bedrooms`, to choose one if the invitation named none. If you're invited, your calendar says when and where to be expected.")
+  "The rules paragraph, from the design's section 9."
+  "Anyone may `invite` someone to the house for a date and time: in person (they're here with you), by post (at a post office) or by messenger (anyone here who will carry it, even the person invited). Name them with `who` if you know their id: anyone you know, including people you've met who are away now (`away-acquaintances` in your view). Otherwise say who they are in `person`, in your own words. If you know their name, always give it in `person`, with how they stand to you (\"my father, Sir Henry Vane\", not \"my father\"): the more exactly you say who they are, the surer it is that the right person comes. Someone who lives nearby makes their own way to the house at that time; someone from further off arrives at the meeting place (`hiring.meeting-place`). A guest from elsewhere stays as long as seems right and goes with `take-leave`; while staying, they see the house's bedrooms under `household.bedrooms`, to choose one if the invitation named none. If you're invited, your calendar says when and where to be expected.")
 
 (defn- merged
   "Configs merged in order, the :lead-hours map key by key."
@@ -704,7 +783,8 @@
 (defn install
   "Add visits to a scenario: `invite`, `take-leave` for candidates and guests
   from elsewhere alike (in place of hiring's), the GM's `schedule-visit` and
-  `cancel-visit`, the tick, and the config in [:state :visit-config]: the
+  `cancel-visit`, the invitation judge (`:visits/invitee` in :adjudicators;
+  it needs hiring's people writer), the tick, and the config in [:state :visit-config]: the
   defaults, the house's name from the world file's :meta :name, the
   scenario's :visits, then the run option :visits. Idempotent. Install it
   after hiring (it needs the meeting place); the scenario needs a clock, a
@@ -724,5 +804,6 @@
                                            (when-let [h (get-in result [:world-file :meta :name])] {:house h})
                                            (:visits scenario) (:visits opts))))))
         (update :actions #(into (vec (remove (comp names :name) %)) actions))
+        (update :adjudicators merge judge/adjudicators)
         (update :systems #(conj (vec (remove (fn [s] (= :visits/tick (:name s))) %))
                                 {:name :visits/tick :tick (fn [world _] (tick scenario world))})))))

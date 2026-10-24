@@ -11,6 +11,10 @@
      :needs   :shop-clerk                   ; optional: a capability the agent's
                                             ; position must give (manor.mechanics.positions)
      :kind    :final | :free | :query | :act
+     :kind-for (fn [args]) => kind          ; optional: the kind of a call with these
+                                            ; args, for an action that is free with
+                                            ; some and a query with others (invite);
+                                            ; give it both kinds' keys and a :hint
      :available? (fn [world actor]) => bool ; optional: offer the tool only when true
      :valid?  (fn [world actor args]) => nil or a reason string
      :effect  (fn [world actor args]) => [events]
@@ -59,7 +63,10 @@
             [malli.json-schema :as mjs]
             [malli.transform :as mt]))
 
-(defn kind [action] (or (:kind action) :final))
+(defn kind
+  "The action's kind, or with `args` the kind of that call (its :kind-for)."
+  ([action] (or (:kind action) :final))
+  ([action args] (if-let [f (:kind-for action)] (f args) (kind action))))
 
 (defn ends-turn? [action] (#{:final :act} (kind action)))
 

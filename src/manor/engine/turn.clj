@@ -44,7 +44,7 @@
           error (reply st (str "error: " error))
           spent (reply st (str "rejected: " spent))
           :else
-          (case (a/kind action)
+          (case (a/kind action args)
             :free
             (let [{:keys [rejected world]} (resolve/resolve! run agent-id action args keep-occupation?)]
               (-> st

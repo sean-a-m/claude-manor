@@ -91,6 +91,15 @@
       (vec (take-last 10 (str/split-lines (event-lines world shared (narrate/names world)))))
       [])))
 
+(defn recent-lines
+  "At most ten narrated lines `actor` saw last, as their prompt shows them:
+  their own view, for a judge reading what they mean (the invitation judge)."
+  [world events actor]
+  (let [shown (take-last 10 (visible-events events actor 10 true))]
+    (if (seq shown)
+      (vec (take-last 10 (str/split-lines (event-lines world shown (narrate/names world)))))
+      [])))
+
 (defn- heading
   "\"Round 3\", or with a clock \"Saturday 15 October 1904, 09:30\"."
   [world]

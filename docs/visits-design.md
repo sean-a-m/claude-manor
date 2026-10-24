@@ -1,8 +1,8 @@
 # Visits and guests
 
-Status: **phase 1 and phase 2 part A implemented** (guests in the world; guests from elsewhere
-without the invitation judge; section 16 records the implementation choices); phase 2 part B
-(`person` and the invitation judge) and phase 3 not started. Written 2026-10-23 from the user's brief and revised the
+Status: **phases 1 and 2 implemented** (guests in the world; guests from elsewhere; `person` and
+the invitation judge; section 16 records the implementation choices); phase 3 (authored visits)
+not started. Written 2026-10-23 from the user's brief and revised the
 same day with their answers (section 13).
 
 ## 1. What this adds
@@ -759,3 +759,53 @@ writer's options), `world.clj` (`:seen` on departure), `space.clj` (`away-acquai
 Part B can reuse: `visits/new-person-keys`, `visits/write-new-person`, `visits/away-guest-events`,
 `visits/arranged-reason` (and `guest-reason` through `invite-reason`), `visits/invite-events`,
 `space/away-acquaintances`, and the agent's public `:known-as` and `:lives`.
+
+### Phase 2, part B
+
+`invite`'s `person` and the invitation judge. Code in `visits/judge.clj` (the request, `people`,
+the checked answer, the mock), `visits.clj` (`invitee!`, `described-invite-events`,
+`resolved-reason`, the rules paragraph), `actions.clj` and `engine/turn.clj` (`:kind-for`),
+`engine/resolve.clj` (the `recent` service) and `prompt.clj` (`recent-lines`); tests in
+`visits_test.clj`. Choices where the design left a detail open:
+
+- **One tool, two kinds.** `invite` is free with `who` and a query with `person` (4.1), so an
+  action may now give `:kind-for (fn [args] kind)`; the turn dispatches on the kind of each call.
+  `invite` has both kinds' keys (`:effect` for `who`, `:query-fn` and `:on-result` for `person`)
+  and a `:hint` saying so. No other action uses it.
+- **Recent lines** come from a new composed-query service, `(recent)`: the caller's own last ten
+  narrated lines (`prompt/recent-lines`, their own view, private lines included since they're the
+  inviter's), since request functions don't get the event log. `prompt/scene-recent` is the work
+  judge's and stays as it is; the find judge still has none.
+- **Age.** Agents carry no age, so the inviter's is their `:age` if they have one (guests written
+  by the judge or the GM now get the judge's `:age` in their `:agent/updated`), else their
+  position's when its `:ages` are fixed (`[52 52]`), else it's left out.
+- **The lists** are three, each person once and in this order: `your-guests` (the inviter's own
+  guests: id, name, position, where they live, `known-as`, situation), `known` (id, name, position
+  title, where they live) and `others`. **`others` is everyone else in the world not retired**, by
+  id, name, `from` and `known-as` only: everyone else's guests as 4.2 asks, and also away people
+  the inviter has never met (the fixture's Captain Hart, a former courier). Without them, "my old
+  friend Captain Hart" would write a second Captain Hart. They show only what 4.2 allows for
+  others' guests, and the list never says who is a guest. Visits themselves (host, time, stay,
+  reason) never reach the judge, not even the inviter's own, beyond their guests' situations.
+- **Known candidates** are those recommended to the inviter who have an agent (they've come
+  before); one only in the pool isn't an agent yet and is reached by `send-for`.
+- **Where someone lives** is their `:lives`, the house for its household, a candidate's home, or
+  their bedroom's name, whichever comes first.
+- **A new name already listed** is refused to the judge ("answer existing with that id if they're
+  meant"), using the one correction; a retired namesake doesn't count, as spawning gives a fresh
+  id. The `new` map's keys are normalised like top-level ones (`known_as`), as models write them.
+- **Order of checks.** Before the query: the channel (except in person), the lead time without the
+  journey from away, and the bedroom. After the judge: `existing` gets all of `invite`'s checks;
+  `new` is refused in person ("not here to be invited in person") and gets the lead time from away
+  *before* anyone is written, so no call is spent on someone who can't come. `resolved-reason` runs
+  again on the world when the query's done.
+- **Replies.** "Baron von Visitsworth (baron-von-visitsworth) is expected at Claudeworth Manor on
+  …", as with `who`; an impossible answer gives the judge's reason and "Nothing is arranged.";
+  anything else refused says why. A judge that fails twice gives the composed query's neutral
+  "The enquiry failed; try again later." with an operator-only `:adjudication/failed`.
+- **The mock judge** (`--mock` runs): the inviter's own name means impossible, a listed person
+  whose surname or `known-as` the description contains is them, anyone else is someone new named
+  by the description's last capitalised part ("my father, Baron von Visitsworth"), aged 50, from
+  London. Tests replace it where they need a particular answer.
+- **Not checked by eye yet:** section 15 asks for one real roll of a judge-made guest; that needs
+  a real run, which wasn't part of this work.

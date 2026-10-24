@@ -60,7 +60,8 @@
 
 (defn query-services
   "Engine-owned I/O for a composed query. Raw intermediate records are operator-only;
-  only the query's checked projection is returned to its caller."
+  only the query's checked projection is returned to its caller. `(recent)`
+  gives the caller's own last few narrated lines, for a judge's context."
   [run actor]
   (let [budget! #(when-let [cap (get-in run [:opts :max-cost])]
                    (when (>= (w/total-cost @(:world run)) cap)
@@ -79,7 +80,8 @@
                          (judges/adjudicate run task @(:world run) actor args
                                             {:model (get-in run [:opts :model]) :before-call budget!})]
                      (when failure (throw (ex-info failure {})))
-                     verdict))}))
+                     verdict))
+     :recent (fn [] (prompt/recent-lines @(:world run) (run/events run) actor))}))
 
 (defn run-query!
   "Run a bridge or internal adjudication query during a turn. Only checked

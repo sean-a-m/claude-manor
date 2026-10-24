@@ -9,8 +9,9 @@
   rules, actions, judges and bridges, and its own cast. Nothing here is
   Claudeworth-specific beyond the meeting place (where candidates and
   deliveries arrive) and the default world file. The baron's son is away at
-  school (:away? true in the world file): in the run, but elsewhere until
-  someone invites him home (manor.mechanics.visits).
+  school (:away? true in the world file): in the run, but elsewhere until he
+  comes home on 20 December (the file's authored :visits) or someone invites
+  him home sooner (manor.mechanics.visits).
 
     clojure -M:run claudeworth-medium --mock --test
     clojure -M:run claudeworth-medium --test --max-cost 0.25"

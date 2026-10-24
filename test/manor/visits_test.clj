@@ -569,13 +569,23 @@
             world (reduce w/apply-event world (effect run world "lord-claudeworth" :invite
                                                       {:by "post" :who "master-claudeworth" :date "1904-10-16"
                                                        :time "14:00" :stay "the holidays"}))
-            v (visits/visit world "visit-1")
+            ;; visit-1 is the world file's homecoming on 20 December.
+            v (visits/visit world "visit-2")
             world (assoc world :round (:arrive v))
             after (reduce w/apply-event world (visits/tick (:scenario run) world))]
         (testing "his father can invite him by post, and he comes home from away"
           (is (= :away (:status (w/agent (e/world run) "master-claudeworth"))))
           (is (= {:guest "master-claudeworth" :host "lord-claudeworth" :by :post} (select-keys v [:guest :host :by])))
-          (is (= :here (:status (visits/visit after "visit-1"))))
+          (is (= :here (:status (visits/visit after "visit-2"))))
+          (is (= :scheduled (:status (visits/visit after "visit-1")))))
+        (testing "still home on 20 December, the homecoming is :here at once; he isn't told of it while he stays"
+          (let [later (assoc after :round (inc (:round after)))
+                _ (is (empty? (visits/tick (:scenario run) later)))
+                due (assoc after :round (:arrive (visits/visit after "visit-1")))
+                events (visits/tick (:scenario run) due)]
+            (is (= [:visits/arrived :people/bedroom-assigned] (map :type events)) "no arrival at the sweep, no letter")
+            (is (= :here (:status (visits/visit (reduce w/apply-event due events) "visit-1"))))))
+        (testing "he came home from away"
           (is (= "carriage-sweep" (space/location-of after "master-claudeworth")))))
       @(e/schedule-visit! run {:who "master-claudeworth" :date "1904-10-15" :time "08:30" :stay "a few days' holiday"
                                :known-to ["lord-claudeworth"]})
@@ -866,3 +876,89 @@
         (is (= {:impossible "Your father died in 1898."} (:verdict (answer {:impossible "Your father died in 1898."}))))
         (is (= "ok" (:content (first (:replies (answer {:existing "carter"})))))))
       (finally (e/stop-run run)))))
+
+;; ---------------------------------------------------------------------------
+;; Phase 3: authored visits, from the world file's :visits
+
+(defn- authored-world
+  "A copy of the fixture world with `visits` as its :visits, in a temporary file."
+  [visits]
+  (let [f (java.io.File/createTempFile "visits-authored-" ".edn")]
+    (.deleteOnExit f)
+    (spit f (worldfile/->edn-string (assoc (worldfile/read-file world-file) :visits visits)))
+    (str f)))
+
+(def homecoming
+  "Captain Hart, away, expected at 21:00 on the first evening (round 3); the earl knows."
+  {:who "captain-hart" :date "1904-10-15" :time "21:00" :stay "a week" :reason "For the shooting."
+   :bedroom "blue-room" :known-to ["lord-claudeworth"]})
+
+(def carter-calls
+  "Carter, in the world, means to call at 10:00 the next morning."
+  {:who "carter" :date "1904-10-16" :time "10:00" :stay "to see about the gate"})
+
+(deftest authored-visits-are-made-at-the-start-and-arrive
+  (let [run (start {} {:world-file (authored-world [homecoming carter-calls])})]
+    (try
+      (let [world (e/world run)]
+        (testing "made at initialization, after the cast, with no host and :by :authored"
+          (is (= [:authored :authored] (map #(:by (visits/visit world %)) ["visit-1" "visit-2"])))
+          (is (every? #(nil? (:host (visits/visit world %))) ["visit-1" "visit-2"]))
+          (is (= :away (:status (w/agent world "captain-hart"))) "the away friend is spawned first")
+          (is (zero? (:round world)) "before the first round"))
+        (testing "the known-to have the host's entry; a guest in the world is told at once"
+          (is (str/includes? (calendar-of run "lord-claudeworth") "Captain Hart (captain-hart) is expected at Claudeworth Manor"))
+          (is (not (str/includes? (str (calendar-of run "hale")) "Captain Hart")))
+          (is (str/includes? (calendar-of run "carter") "You mean to call at Claudeworth Manor"))
+          (is (not (str/includes? (str (calendar-of run "captain-hart")) "Claudeworth Manor")) "an away guest is told nothing")))
+      (until! run 3)
+      (let [world (e/world run)]
+        (testing "the away guest arrives at the meeting place at the time, with the named bedroom"
+          (is (= "carriage-sweep" (space/location-of world "captain-hart")))
+          (is (= :here (status world "visit-1")))
+          (is (= "blue-room" (get-in world [:state :bedrooms "captain-hart"])))
+          (is (= {:invited-for "a week" :reason "For the shooting." :bedroom "blue-room" :arrived "21:00"}
+                 (get-in (prompt/agent-view (:scenario run) world "captain-hart") [:you :visit])))))
+      (testing "replay, load and branch reproduce the visits and never make them again"
+        (replay! run)
+        (let [loaded (e/load-run (:id run) {:test? true})
+              branch (e/branch-run run 2)]
+          (try
+            (is (= (e/world run) (e/world loaded)))
+            (is (= 2 (count (visits/visits (e/world loaded)))))
+            (is (= 2 (count (visits/visits (e/world branch)))))
+            (is (= 2 (count (filter #(= :visits/scheduled (:type %)) (e/events branch)))))
+            (until! loaded 4)
+            (is (= 2 (count (visits/visits (e/world loaded)))))
+            (finally (e/stop-run loaded) (e/stop-run branch)))))
+      (testing "map export leaves the authored visits out, as it leaves out [:state :visits]"
+        (let [start (store/read-world-start (:dir run))]
+          (is (= 2 (count (:visits start))) "world-start.edn keeps the file as it was")
+          (is (not (contains? (worldfile/export (e/world run) start) :visits)))))
+      (finally (e/stop-run run)))))
+
+(defn- init-failure
+  "The message of the failure to start a run on a world with `visits`, or nil."
+  [visits opts]
+  (try (e/stop-run (start {} (merge {:world-file (authored-world visits)} opts)))
+       nil
+       (catch clojure.lang.ExceptionInfo ex (ex-message ex))))
+
+(deftest bad-authored-visits-fail-init-readably
+  (testing "a :who that isn't a character's id"
+    (is (= "bad :visits in the world file:\n- visit 2 (Mrs Bell): no one has the id Mrs Bell"
+           (init-failure [carter-calls (assoc carter-calls :who "Mrs Bell")] {}))))
+  (testing "a time already past at the start, the :start option included"
+    (is (= "bad :visits in the world file:\n- visit 1 (carter): 1904-10-15 19:00 is already past when the run starts (Saturday 15 October 1904, 20:00)"
+           (init-failure [(assoc carter-calls :date "1904-10-15" :time "19:00")] {})))
+    (is (str/includes? (init-failure [homecoming] {:start "1904-10-16T08:00"})
+                       "visit 1 (captain-hart): 1904-10-15 21:00 is already past when the run starts (Sunday 16 October 1904, 08:00)")))
+  (testing "every problem is listed, and structural ones are named"
+    (let [message (init-failure [(dissoc carter-calls :who) (assoc carter-calls :name "Mr Arden")
+                                 (assoc carter-calls :known-to "hale") (assoc carter-calls :stay "")]
+                                {})]
+      (is (str/includes? message "visit 1: :who must be the id of a character in the world"))
+      (is (str/includes? message "visit 2 (carter): unknown keys :name"))
+      (is (str/includes? message "visit 3 (carter): :known-to must be a vector of character ids"))
+      (is (str/includes? message "visit 4 (carter): stay must be 1 to 200 characters"))))
+  (is (nil? (init-failure [] {})) "an empty :visits is fine"))

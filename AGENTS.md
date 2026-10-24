@@ -23,7 +23,7 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/scene-view-design.md` | graphical scene page: phases 1–5 implemented and integration-checked; independent review pending |
 | `docs/inner-state-design.md` | proposal: private inner state, changed by the work judge, a conversation judge and the steward |
 | `docs/events-design.md` | in-world calendar contract and outcome: private/public entries and pre-turn GM review |
-| `docs/visits-design.md` | guests and visits (invitations by post, messenger or in person, GM visits, guests from the village or elsewhere); phases 1 and 2 implemented (3, authored visits, not started) |
+| `docs/visits-design.md` | guests and visits (invitations by post, messenger or in person, GM visits, guests from the village or elsewhere, authored visits in world files); phases 1–3 implemented |
 | `docs/household-1904-proposal.md` | proposal: a second Claudeworth scenario, a modest household with new ironstone income that means to expand; not started |
 | `docs/user-todos.md` | the user's own wishlist for later; not agent tasks |
 | `docs/archived/` | finished build briefs and old handoff notes: history, not the present state |

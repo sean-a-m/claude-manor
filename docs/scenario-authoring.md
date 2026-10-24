@@ -1480,6 +1480,7 @@ in `:init`:
            :away? true}]                           ; optional: away from the start (below)
  :items [{:id "pipe" :name "Pipe" :holder "Ben" :owner "Ben"   ; optional, see Items
           :aspects {:state "still warm"} :desc "A briar pipe."}]
+ :visits [{:who "ada" :date "1904-10-20" :time "14:00" :stay "a week"}]   ; optional (below)
  :shop {...}}                                       ; your own sections, from :world-file
 ```
 
@@ -1489,8 +1490,8 @@ in `:init`:
   second form after it is refused rather than ignored, because `edn/read-string` would otherwise
   silently drop whole sections (a missing `]` once left `:items` and `:agents` out of a file
   that appeared to load).
-  It returns `{:space :clock :agents :items :world-file}`. Read your own sections from
-  `:world-file`.
+  It returns `{:space :clock :agents :items :calendar :visits :world-file}` (each of the middle
+  ones only if the file has it). Read your own sections from `:world-file`.
 - An agent with `:away? true` (a boolean, checked) is in the run but **away from the start**: the
   engine spawns them like everyone else at initialization (post, bedroom, situation, held items
   and all), then emits `:people/departed` at once, all of it `:visible-to :system`, so nobody sees
@@ -1498,6 +1499,8 @@ in `:init`:
   `:people/returned` (a visit, see Visits). Unlike `:leave-out`, which keeps a character out of
   the run altogether, an away character is known and can be invited home (the medium
   household's son, at school).
+- `:visits` (optional) are **authored visits**, made when a fresh run starts (see Visits): each
+  names its guest in `:who` and its `:known-to` by **character id**, as calendar audiences do.
 - `:items` (optional) lists items as in Items, one per line, with `:holder` and an agent `:owner`
   given by agent **name**, as `:agents` does; loading turns those into ids (other owners, such as
   `"household"`, are kept). Each item is checked: its fields and lengths, a unique id, exactly one
@@ -1920,7 +1923,7 @@ not an exhaustive almanac; it has no recurrence and must be extended by hand bey
 
 ### Visits (`manor.mechanics.visits`)
 
-[visits-design.md](visits-design.md), phases 1 and 2: guests **in the world**
+[visits-design.md](visits-design.md), phases 1 to 3: guests **in the world**
 (villagers, a candidate still about) invited to the house for a date and time, who make their own
 way, and guests **from elsewhere** (away agents), who arrive at the meeting place at the time and
 go with `take-leave`. Which kind a guest is, is decided when the visit falls due: are they active
@@ -1950,8 +1953,8 @@ invitation judge, which matches someone in the world or writes someone new.
            :house "Claudeworth Manor"}
   ```
 - **The record** in `[:state :visits]`, by id (`"visit-1"`, …): `:guest` (an agent id), `:host`
-  (nil when arranged by the GM or operator), `:by` (`:in-person`, `:post`, `:messenger`, `:gm`,
-  `:operator`), `:via`, `:at` (the ISO time given), `:arrive` (its round), `:deliver` (the round the
+  (nil when arranged by the GM or operator, or authored), `:by` (`:in-person`, `:post`, `:messenger`, `:gm`,
+  `:operator`, `:authored`), `:via`, `:at` (the ISO time given), `:arrive` (its round), `:deliver` (the round the
   guest is told), `:wake` (the round from which they're kept in play), `:stay`, `:reason`,
   `:bedroom`, `:known-to` (arranged visits), `:told?`, `:reminded?`, `:arrived` (the round it
   became `:here`), `:from-away?` (they arrived at the meeting place) and `:status`: `:scheduled` →
@@ -2034,7 +2037,7 @@ invitation judge, which matches someone in the world or writes someone new.
   delivery comes. A guest in the world who goes away
   before the time arrives this way too. Another visit of theirs falling due while they're here
   from elsewhere (two due in the same round, say) is `:here` at once, with no arrival and no
-  letter, and its named bedroom is theirs.
+  letter, and its named bedroom is theirs; they aren't told of it while they stay.
 - **Views** (`add-to-view`): while a guest's visit is `:here`, `you.visit` shows their newest
   one, to them alone: `{:host "Lord Claudeworth" :invited-for "a week" :reason … :arrived "Fri
   19:00" :bedroom "blue-room"}` (no `:host` for an arranged visit). A guest from elsewhere who is
@@ -2068,6 +2071,27 @@ invitation judge, which matches someone in the world or writes someone new.
   including the tool's limits on `stay` (1–200 characters) and `reason` (at most 300), which the
   operator's spec doesn't get from a schema. Their only lead time is the next round. Only a
   `:scheduled` visit can be cancelled; its entries are cancelled with it.
+- **Authored visits** are a world file's top-level `:visits`, passed through `load-world` to
+  `:init` like `:calendar`:
+
+  ```clojure
+  :visits [{:who "master-claudeworth" :date "1904-12-20" :time "14:00" :stay "the Christmas holidays"
+            :reason "Home from Eton at the end of the Michaelmas half."   ; optional
+            :bedroom "sons-room" :known-to ["lord-claudeworth" "lady-claudeworth"]}]   ; optional
+  ```
+
+  At a fresh run's start, after the cast (away characters included), the final `:start` clock and
+  the calendar, the engine makes each in order (`visits/authored-events`) with the operator's
+  checks and events, `:host` nil and `:by :authored`: someone about is told at once in their
+  calendar, someone away arrives at the time told nothing before, and `:known-to` (character ids,
+  default nobody) get the host's entry. `:who` is a character id, never a name or someone new; the
+  keys are only those above; a time before the run starts is refused ("1904-10-15 19:00 is already
+  past when the run starts (Saturday 15 October 1904, 20:00)"), never dropped. Any problem stops
+  initialization with every bad visit listed by its place in the vector ("bad :visits in the world
+  file:\n- visit 2 (Mrs Bell): no one has the id Mrs Bell"). Load and branch replay the recorded
+  events and never make them again. Map export (`map.edn`) leaves `:visits` out, as it leaves out
+  `[:state :visits]` and the managed entries: a run started from an exported map has no authored
+  visits unless they're added back by hand. The medium household's son comes home this way.
 - **Hibernation guard.** `(visits/keeps-awake? world id)` is true from `:wake` (`:wake-from` on the
   visit's day, or the day before when the visit is earlier than `:wake-from` plus their journey to
   the meeting place and an hour, as for a 01:00 visit), once told, until the visit arrives, and

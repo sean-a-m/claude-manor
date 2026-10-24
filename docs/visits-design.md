@@ -1,9 +1,9 @@
 # Visits and guests
 
-Status: **phases 1 and 2 implemented** (guests in the world; guests from elsewhere; `person` and
-the invitation judge; section 16 records the implementation choices); phase 3 (authored visits)
-not started. Written 2026-10-23 from the user's brief and revised the
-same day with their answers (section 13).
+Status: **phases 1, 2 and 3 implemented** (guests in the world; guests from elsewhere; `person`
+and the invitation judge; authored visits in world files; section 16 records the implementation
+choices), mock-tested only: the real-model checks wait for the user's go-ahead. Written
+2026-10-23 from the user's brief and revised the same day with their answers (section 13).
 
 ## 1. What this adds
 
@@ -220,7 +220,8 @@ modelling where they live. Section 14 defers anything finer.
   between rounds like the calendar commands.
 - **Authored visits (phase 3):** visits written into the world file before the run starts, such
   as `{:who "master-claudeworth" :date "1904-12-20" :time "14:00" :stay "the Christmas holidays"}`.
-  They're the same records with no inviter, made at initialization.
+  They're the same records with no inviter, made at initialization (implemented; section 16,
+  phase 3).
 
 ## 5. The visit record and its states
 
@@ -527,7 +528,7 @@ Guests don't go into the candidate pool. An away guest needs no pool record to b
 | A villager invited for a week | Stays in play at the house; their shop is untended, which is their choice |
 | Judge or people server fails mid-query | Neutral error reply, no events, nobody made, as with `recommend` |
 | Branch, load, replay | Every step is an event; query results are recorded, so replay never calls out |
-| Map export | `[:state :visits]` and spawned guests aren't in `map.edn`, as with candidates; load/branch is the full-fidelity path |
+| Map export | `[:state :visits]`, a world file's authored `:visits` and spawned guests aren't in `map.edn`, as with candidates; load/branch is the full-fidelity path |
 
 ## 13. Decisions and open questions
 
@@ -641,8 +642,15 @@ real run (8–12 rounds, `:max-cost` 0.20) only with the user's go-ahead, as usu
   - nothing calls out offline.
   - Review one real roll of a judge-made guest by eye (no prose checks).
 
-**Phase 3 — authored visits.**
+**Phase 3 — authored visits.** Done (section 16).
 - Build: world-file `:visits`, made at initialization (for example the son home on 20 December).
+- Done when:
+  - an authored visit arrives at its time, and one for a guest in the world is in their calendar
+    from the start;
+  - a `:who` that isn't a character's id, or a time already past at the start (the `:start`
+    option included), fails initialization with a readable message;
+  - replay, load and branch don't make the visits again;
+  - the medium household's son is still away at the default start and comes home on 20 December.
 
 Suggested homes:
 
@@ -840,3 +848,45 @@ the checked answer, the mock), `visits.clj` (`invitee!`, `described-invite-event
   `:from-away?`, so `take-leave` and the bedrooms treat it like the first, and its named bedroom
   is assigned as an arrival's would be. Without it the second visit got a letter and calendar
   entry on the guest's arrival, and wasn't counted as from elsewhere.
+
+### Phase 3
+
+Authored visits: a world file's top-level `:visits`. Code in `visits.clj` (`authored-events`),
+`engine.clj` (`init!`), `io/worldfile.clj` (the schema, `load-world`, `export`), the medium world
+file and the authoring guide; tests in `visits_test.clj` (on copies of the fixture world with
+`:visits` added) and `claudeworth_medium_test.clj`. Choices where the design left a detail open:
+
+- **Made in the engine's `init!`, last:** after the cast (away characters included), the items
+  and the calendar, on the world with the final `:start` clock, so `:who` and `:known-to` are the
+  ids actually spawned and the host's entries go into the calendar. The engine already calls
+  `visits` for the operator's commands, so this needs no scenario hook. `load-world` passes
+  `:visits` through to `:init` like `:calendar`, and Claudeworth's `init` keeps it (it builds on
+  `load-world`'s result). Load and branch replay the events and never call `init!`.
+- **The same path as the operator's:** each visit is checked by `arranged-reason` and made by
+  `arranged-events` with `:host` nil and `:by :authored`, so the next-round lead time, the stay
+  and reason limits, the bedroom and `known-to` checks all apply, and someone about is told at
+  once while someone away arrives told nothing. The GM's record reads "…, from the world file".
+- **Only existing characters.** `:who` is a character id (a string); a new person's fields are
+  refused like any other key outside `:who :date :time :stay :reason :bedroom :known-to`, so a
+  typo such as `:known_to` stops the run instead of being ignored. `:known-to` must be a vector of
+  ids.
+- **A past time is refused,** not dropped: "1904-10-15 19:00 is already past when the run starts
+  (Saturday 15 October 1904, 20:00)". A time at the start itself is allowed (it's round 1).
+- **Every problem at once:** each visit is checked on the world the ones before it left, and the
+  failure lists every bad one by its place in the vector and its `:who` ("bad :visits in the world
+  file:\n- visit 2 (Mrs Bell): no one has the id Mrs Bell"), as `load-world` lists a file's problems.
+- **Map export leaves `:visits` out.** The visits made from it live on in `[:state :visits]`, which
+  isn't exported (phase 1), so copying the start file's `:visits` into `map.edn` would make them a
+  second time, or fail on a past time, if a run were started from the map. A run started from an
+  exported map has no authored visits unless they're added back; load/branch is the full-fidelity
+  path. `world-start.edn` keeps the file as it was.
+- **The son's homecoming** in `claudeworth-medium.edn`: 20 December 1904 at 14:00, "the Christmas
+  holidays", "Home from Eton at the end of the Michaelmas half.", bedroom `sons-room`, known to the
+  baron and baroness (their entries show from 30 days before, the calendar's lookahead). It's
+  `visit-1` in every fresh run of the scenario. If his family invites him home earlier and he's
+  still there on the 20th, the visit is `:here` at once (Phase 2 leftovers, above).
+- **A guest here from elsewhere isn't told of a later visit while they stay** (no letter, no guest
+  calendar entry): the word went to where they live, and if they're still here when it falls due
+  it's `:here` at once. Found with the homecoming: the son, invited home in October, would
+  otherwise have been sent "You mean to call at Claudeworth Manor … the Christmas holidays" in his
+  own house.

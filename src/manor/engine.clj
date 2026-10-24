@@ -406,7 +406,9 @@
   "Build the starting world from the scenario's :init. A :world-file in the
   result (see manor.io.worldfile) is saved as <run-dir>/world-start.edn. The
   run option :start overrides the clock's start time. If the scenario has
-  :items, the starting items are added after the agents."
+  :items, the starting items are added after the agents. Authored visits
+  (:visits, see manor.mechanics.visits/authored-events) are made last, after
+  the cast and the calendar."
   [run]
   (let [{:keys [scenario opts]} run
         {:keys [state agents clock world-file items] :as init} ((:init scenario) opts)
@@ -426,7 +428,9 @@
       (check-items! @(:world run) items)
       (run/emit! run (items/init-events items)))
     (when (:calendar scenario)
-      (run/emit! run (calendar/init-events @(:world run) (:calendar scenario) (:calendar init))))))
+      (run/emit! run (calendar/init-events @(:world run) (:calendar scenario) (:calendar init))))
+    (when (some? (:visits init))
+      (run/emit! run (visits/authored-events @(:world run) (:visits init))))))
 
 (defn start-run
   "Create and initialise a new run of `scenario-key` (e.g. :village)."

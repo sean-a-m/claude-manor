@@ -67,7 +67,8 @@
                 expected-visible #{"all-hallows-eve-1904" "all-saints-1904" "all-souls-1904"
                                    "guy-fawkes-1904" "martinmas-1904"}]
             (is (= 30 (get-in world [:calendar :lookahead-days])))
-            (is (= (set (map :id holidays/entries)) (set (keys records))))
+            ;; Besides the holidays, only entries visits manage (the medium son's homecoming).
+            (is (= (set (map :id holidays/entries)) (set (keys (remove (comp :managed-by val) records)))))
             (is (= :historical (status world "lady-day-1904")))
             (is (= :pending (status world "lady-day-1905")))
             (is (empty? (calendar/due-records world)))

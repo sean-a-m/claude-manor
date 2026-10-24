@@ -2,9 +2,10 @@
   "Visits: a guest expected at the house at a date and time (see
   docs/visits-design.md). A visit is one engine-owned record in
   [:state :visits]. Every source (the `invite` action, the GM's
-  `schedule-visit`, the operator's `engine/schedule-visit!`) makes the same
-  record, and a system tick moves it on before turns. Whether the guest is
-  in the world or away is decided when it falls due. A guest in the world
+  `schedule-visit`, the operator's `engine/schedule-visit!`, a world file's
+  authored :visits at the start) makes the same record, and a system tick
+  moves it on before turns. Whether the guest is in the world or away is
+  decided when it falls due. A guest in the world
   is told, makes their own way (:here), goes home (:ended), or doesn't come
   (:lapsed); nobody moves them. An away guest (someone from elsewhere)
   arrives at the meeting place at the time, and goes with `take-leave`.
@@ -263,7 +264,7 @@
   (str "Visit " (:id data) ": " (n/who names (:guest data)) " is expected at " (:at data)
        (if (:host data)
          (str ", invited by " (n/who names (:host data)) " (" (name (:by data)) ")")
-         (str ", arranged by the " (name (:by data))))
+         (if (= :authored (:by data)) ", from the world file" (str ", arranged by the " (name (:by data)))))
        ": " (:stay data) "."))
 (defmethod n/describe :visits/arrived [{:keys [data]} names]
   (let [{:keys [guest at known-as visitor?]} data]
@@ -298,10 +299,12 @@
       (:bedroom v) (conj (positions/bedroom-assigned (:guest v) (:bedroom v))))))
 
 (defn- telling
-  "A guest invited by post or messenger learns of it at :deliver."
+  "A guest invited by post or messenger learns of it at :deliver, if they're
+  about. One here from elsewhere isn't: the word went to where they live, and
+  the visit is theirs when it falls due (`staying`)."
   [world v]
   (when (and (= :scheduled (:status v)) (not (:told? v)) (>= (:round world) (:deliver v))
-             (w/active? world (:guest v)))
+             (w/active? world (:guest v)) (not (from-elsewhere? world (:guest v))))
     (into [{:type :visits/delivered :visible-to #{(:guest v)} :data (invitation-data world v)}]
           (guest-entry world v))))
 
@@ -574,6 +577,44 @@
   [world id]
   (when-let [r (cancel-reason world id)] (throw (ex-info r {:id id})))
   (cancel-events world id))
+
+(def ^:private authored-keys #{:who :date :time :stay :reason :bedroom :known-to})
+
+(defn- authored-reason
+  "Why the world file's visit `spec` can't be made at the start, or nil: an
+  existing character's id in :who, no other keys than an arranged visit's,
+  known-to a vector of ids, and a time not already past; then the GM's and
+  operator's checks (`arranged-reason`)."
+  [world {:keys [who date time known-to] :as spec}]
+  (let [at (parse-time date time)]
+    (or (when-let [extra (seq (remove authored-keys (keys spec)))]
+          (str "unknown keys " (str/join ", " (map pr-str extra)) "; a visit has " (str/join ", " (map pr-str (sort authored-keys)))))
+        (when-not (string? who) ":who must be the id of a character in the world")
+        (when-not (or (nil? known-to) (and (vector? known-to) (every? string? known-to)))
+          ":known-to must be a vector of character ids")
+        (when (and at (.isBefore at (now world)))
+          (str date " " time " is already past when the run starts (" (clock/label (:clock world) (:round world)) ")"))
+        (arranged-reason world spec))))
+
+(defn authored-events
+  "The world file's :visits, made at a fresh run's start (after the cast,
+  away characters included, and the calendar): each the same record and
+  events as the GM's and operator's (`arranged-events`), with no host and
+  :by :authored, on the world the one before left. Throws with every
+  problem, each naming its visit, if any can't be made. Load and branch
+  replay these events instead."
+  [world specs]
+  (when-not (vector? specs) (throw (ex-info "the world file's :visits must be a vector" {:visits specs})))
+  (let [[_ events problems]
+        (reduce (fn [[world events problems] [i spec]]
+                  (if-let [r (if (map? spec) (authored-reason world spec) "a visit must be a map")]
+                    [world events (conj problems (str "visit " (inc i) (when (and (map? spec) (:who spec)) (str " (" (:who spec) ")")) ": " r))]
+                    (let [evs (arranged-events world :authored spec)]
+                      [(apply-all world evs) (into events evs) problems])))
+                [world [] []] (map-indexed vector specs))]
+    (when (seq problems)
+      (throw (ex-info (str "bad :visits in the world file:\n- " (str/join "\n- " problems)) {:problems problems})))
+    events))
 
 ;; ---------------------------------------------------------------------------
 ;; Someone new from elsewhere, made in advance as an away agent

@@ -61,6 +61,11 @@
           (is (some? (w/agent (e/world run) "miss-claudeworth")))
           (is (= 12 (count (filter #(positions/household-member? (e/world run) (:id %))
                                    (w/active-agents (e/world run))))))
+          (testing "he comes home from Eton on 20 December, an authored visit his parents know of"
+            (is (= {:guest "master-claudeworth" :host nil :by :authored :at "1904-12-20T14:00" :bedroom "sons-room"
+                    :known-to #{"lord-claudeworth" "lady-claudeworth"} :status :scheduled}
+                   (select-keys (get-in (e/world run) [:state :visits "visit-1"])
+                                [:guest :host :by :at :bedroom :known-to :status]))))
           (finally (e/stop-run run)))))
     (testing "the quarried money is under the grand price, so one commission cannot take the account"
       (let [prices (:sizes (building/read-price-list (get-in wf [:meta :architect-prices])))

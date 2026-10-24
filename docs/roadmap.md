@@ -504,22 +504,25 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
 
 ### B14. Visits and guests
 
-- **Why:** nobody can come to the manor except candidates and couriers. The household can't
-  have anyone to dine or to stay, and the medium household's son has no way to come home
+- **Why:** nobody could come to the manor except candidates and couriers. The household couldn't
+  have anyone to dine or to stay, and the medium household's son had no way to come home
   (household proposal, decision 6).
 - **Design:** [visits-design.md](visits-design.md), written and revised with the user's
   answers on 2026-10-23. **Phase 1 is done** (guests in the world: `invite` with `who`, GM and
   operator visits, managed calendar entries, the all-day hibernation guard), and so is **phase 2
   part A** (guests from elsewhere: world-file `:away?` characters and the son, the GM's new people,
   arrival at the meeting place, `you.visit`, the shared `take-leave`, `away-acquaintances`) and
-  **part B** (`invite`'s `person` and the invitation judge). Phase 3 (authored visits) is not
-  started, and the design's one real-run check of a judge-made guest is still to do. It covers:
+  **part B** (`invite`'s `person` and the invitation judge), and **phase 3** (authored visits: a
+  world file's `:visits`, made at a fresh run's start; the medium household's son comes home from
+  Eton on 20 December). **All three phases are done, mock-tested only:** a short real-model check,
+  including the design's one look at a judge-made guest, waits for the user's go-ahead. It covers:
   - an `invite` action for anyone (in person, by post from the post office, or by any
     messenger present) and a GM `schedule-visit` for secret visits, making one visit record,
     scheduled by code with configurable lead times;
   - an invitation judge that settles who a description means ("my father, Baron von
     Visitsworth"): an existing person, or a new one written and spawned `:away`;
-  - away characters in world files (the son), never evicted;
+  - away characters in world files (the son), never evicted, and authored visits in world files
+    (the son's homecoming);
   - villagers kept awake all day when invited, coming by themselves;
   - guests from elsewhere appearing at the meeting place, seen only there and by the host;
   - guests leaving when they choose with `take-leave` (no timeout, no `send-away`).

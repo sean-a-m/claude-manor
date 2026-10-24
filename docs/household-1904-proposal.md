@@ -339,11 +339,13 @@ with `git diff`, and move its run record from `test-runs/` to `old-test-runs/` a
 
 ### 8.6 Later arrivals
 
-There's no timed-arrival mechanic (roadmap B4). For now the son and the Dowager can be added by
-the operator when their time comes, with `(spawn! {...})` at the REPL (`dev/user.clj`), giving a
-role, name, persona, location and bedroom. Alternatively keep them in the world file and start
-runs with `{:leave-out ["<their id>"]}` until they're due; a fresh run would then be needed to
-bring them in, so the operator spawn is the better fit for a single long run.
+Timed arrivals are visits (`docs/visits-design.md`). The son is in the world file, away at
+school (`:away? true`), and comes home by an authored visit in the file's `:visits`: 20 December
+1904 at 14:00, for the Christmas holidays, known to the baron and baroness, to the son's room.
+His family can also invite him home earlier, and the GM or the operator can bring him
+(`schedule-visit`, `engine/schedule-visit!`). The Dowager isn't in the file yet: when her suite
+exists she can be written in as an away character with an authored visit of her own, or added by
+the operator with `(spawn! {...})` at the REPL (`dev/user.clj`).
 
 ### 8.7 Verifying
 
@@ -377,7 +379,8 @@ The user's decisions, in brackets, and what they became:
    1 for the first three and 2 for the grand wing.
 6. **The son and the Dowager** [TBD; an event system is being built separately]: the son is in
    the world file (name, persona, room, situation) marked `:away? true`: he's in the run but away
-   at school, and his family can invite him home (visits; this replaced the scenario's
+   at school, comes home on 20 December by the world file's authored visit, and his family can
+   invite him home sooner (visits; this replaced the scenario's
    `:defaults :leave-out`). The Dowager is not in the file:
    she needs a suite that does not exist yet, and she comes with the arrival work.
 7. **Names** [`roll-cast!` cannot randomise them, so fitting ones]: the family is

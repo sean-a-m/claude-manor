@@ -54,22 +54,26 @@
 (defn run-steward!
   "After jobs finish, tidy only idle leftovers and take off what sleepers
   wouldn't keep on overnight, before bridges/systems or characters can
-  create new work: one call per place with candidates or sleepers. With
-  inner state, every sleeper is seen, and changes to their inner state
-  follow the place's :items/stewarded as their own GM-only events. The
-  marker is emitted even with none."
+  create new work: one call per place with candidates, sleepers or other
+  hindered people. With inner state, every sleeper is seen. Inner-state
+  changes and physical recovery follow the place's :items/stewarded as
+  their own GM-only events, without interrupting sleepers. The marker is
+  emitted even with none."
   [run]
   (let [world @(:world run)
         config (get-in run [:scenario :items :steward])]
     (when-let [day (item-steward/steward-day world config)]
       (run/emit! run [{:type :items/steward-ran :visible-to :gm :data {:day day}}])
       (let [all-candidates (item-steward/steward-candidates world config)
-            all-sleepers (item-steward/steward-sleepers world (get-in run [:scenario :inner]) (run/events run))]
-        (doseq [place (sort (distinct (concat (keys all-candidates) (keys all-sleepers))))]
+            all-sleepers (item-steward/steward-sleepers world (get-in run [:scenario :inner]) (run/events run))
+            all-hindered (item-steward/steward-hindered world)]
+        (doseq [place (sort (distinct (concat (keys all-candidates) (keys all-sleepers) (keys all-hindered))))]
           (let [candidates (get all-candidates place [])
                 sleepers (get all-sleepers place [])
-                {:keys [verdict failure]} (judges/ask-steward run world place candidates sleepers)]
+                hindered (get all-hindered place [])
+                {:keys [verdict failure]} (judges/ask-steward run world place candidates sleepers hindered)]
             (run/emit! run (cond-> [(item-steward/stewarded @(:world run) place verdict)]
                              (seq (:inner verdict)) (into (inner/changed-events {:steward day} (:inner verdict)))
+                             (seq (:physical verdict)) (into (item-steward/eased-events @(:world run) (:physical verdict)))
                              failure (conj {:type :items/steward-failed :visible-to :system
                                             :data {:place place :reason failure}})))))))))

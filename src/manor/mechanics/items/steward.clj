@@ -3,8 +3,11 @@
   and the people asleep or hibernating there with aspects, which it may
   only remove. With inner state (the scenario's :inner, see
   manor.mechanics.inner) it sees everyone asleep or hibernating there, with
-  their inner state, and may set, change or clear it. Its events are reduced and narrated in manor.mechanics.items
-  and manor.mechanics.inner."
+  their inner state, and may set, change or clear it. It also sees everyone
+  living there with physical statuses or impediments (manor.mechanics.physical),
+  asleep or not, and may clear or ease them, never set or worsen them. Its
+  events are reduced and narrated in manor.mechanics.items,
+  manor.mechanics.inner and manor.mechanics.physical."
   (:require [jsonista.core :as json]
             [malli.json-schema :as mjs]
             [manor.actions :as a]
@@ -14,6 +17,8 @@
             [manor.mechanics.items :as items]
             [manor.mechanics.items.judge :as item-judge]
             [manor.mechanics.items.work :as item-work]
+            [manor.mechanics.physical :as physical]
+            [manor.mechanics.physical.changes :as physical-changes]
             [manor.mechanics.space :as space]
             [manor.world :as w]))
 
@@ -61,27 +66,58 @@
   [{:keys [busy]}]
   (and (or (:asleep? busy) (:hibernating? busy)) (not (:interrupted-by busy))))
 
+(defn- hindered?
+  "Has agent `a` physical statuses or impediments?"
+  [a]
+  (boolean (or (seq (:physical a)) (seq (:impediments a)))))
+
 (defn steward-sleepers
   "The people asleep or hibernating at each place, as person things,
   grouped by place in place-id order, by id within a place. Nobody in play
   is among them. Without inner state (the scenario's :inner as
-  `inner-config`) only those with aspects are; with it everyone is, each
-  with :since (see `occupied-since`) when `events` have it."
+  `inner-config`) only those with aspects, statuses or impediments are; with
+  it everyone is, each with :since (see `occupied-since`) when `events` have
+  it."
   ([world] (steward-sleepers world nil nil))
   ([world inner-config events]
    (into (sorted-map)
-         (update-vals (group-by :location (filter #(and (overnight? %) (:location %) (or inner-config (seq (:aspects %))))
+         (update-vals (group-by :location (filter #(and (overnight? %) (:location %)
+                                                        (or inner-config (seq (:aspects %)) (hindered? %)))
                                                   (sort-by :id (w/active-agents world))))
                       #(mapv (fn [{:keys [id]}]
                                (let [since (when inner-config (occupied-since events id))]
                                  (cond-> (item-work/person-thing world id) since (assoc :since since))))
                              %)))))
 
+(defn steward-hindered
+  "The people with physical statuses or impediments at each place who aren't
+  asleep or hibernating (awake, roused or unconscious), as person things,
+  grouped by place in place-id order, by id within a place. The dead are
+  never among them."
+  [world]
+  (into (sorted-map)
+        (update-vals (group-by :location (filter #(and (not (overnight? %)) (:location %) (hindered? %))
+                                                 (sort-by :id (w/active-agents world))))
+                     #(mapv (fn [{:keys [id]}] (item-work/person-thing world id)) %))))
+
+(def eased-entry
+  "The steward's changes to faculties: each cleared (normal) or eased from
+  disabled to impeded, with an optional new cause."
+  [:physical {:optional true}
+   [:vector {:max item-judge/max-physical}
+    [:map
+     [:person :string]
+     [:faculty (into [:enum] (keys physical/faculties))]
+     [:level [:enum :normal :impeded]]
+     [:cause {:optional true} [:string {:min 1 :max physical/max-cause :json-schema/maxLength items/advised-aspect}]]]]])
+
 (defn- answer-schema
   "The steward's answer: the judge's (see item-judge/answer-schema, with
-  `inner` when the scenario has inner state), without `made`."
+  `inner` when the scenario has inner state), without `made` or deaths,
+  and with faculties only cleared or eased (`eased-entry`)."
   [inner-config]
-  (into [:map] (remove #(= :made (first %)) (rest (item-judge/answer-schema inner-config)))))
+  (let [entries (remove #(#{:made :died :physical} (first %)) (rest (item-judge/answer-schema inner-config)))]
+    (into [:map] (concat (butlast entries) [eased-entry (last entries)]))))
 
 (def steward-instructions
   (str "You are the simulation's nightly steward. Decide the fates of only the listed idle candidates, calling `steward`.
@@ -90,6 +126,7 @@
 - Absorb a container only with all its contents absorbed too; use one up only with all its contents used up too. Otherwise leave it.
 - Change only candidates, never the place or stores. Aspect keys are lower-case letters and hyphens, at most 24 characters; values are 1–" items/advised-aspect " characters, or empty to remove. Keep at most four aspects per thing.
 - `sleepers` are people asleep here, or out of sight here for the night. Their `appearance` is how they usually look, and their `aspects` how they differ from it now. Remove (value \"\") each aspect that wouldn't last the night, such as hair let down or evening dress taken off, and leave the ones that would, such as a grease-stained apron. Never set or change a sleeper's aspect: only remove.
+- `sleepers` and `hindered` (other people here, awake or unconscious) may show `physical`, the statuses of their faculties with a cause, and `impediments`, smaller physical hurts. You may clear what a night's passing would clear, or ease it: `physical: [{person, faculty, level, cause?}]` with level `normal` to clear a faculty, or `impeded` to ease a disabled one (movement, grasp or speech), with a new cause if it helps; `impediments: [{person, key, value}]` with \"\" to clear one, or a milder phrase for one they have. A twisted ankle may ease overnight and a cut finger mend a little, but ropes and gags don't untie themselves; someone unconscious may well have come to by morning. Never set or worsen anything, and leave as they are the things a night wouldn't change.
 - Never make anything. A store holds everything it keeps unless its aspects say otherwise. Do not invent events. Give a short third-person summary, at most 300 characters, for the GM only."))
 
 (defn- inner-instructions
@@ -137,16 +174,18 @@
   (`inner-config`) their temperament, their inner state, and how they spend
   the night (see `night-json`)."
   [world inner-config {:keys [id] :as sleeper}]
-  (cond-> (select-keys sleeper [:id :name :appearance :aspects])
+  (cond-> (select-keys sleeper [:id :name :appearance :aspects :physical :impediments])
     inner-config (merge (select-keys (w/agent world id) [:temperament])
                         {:inner (inner/judge-view inner-config world id)}
                         (night-json world sleeper))))
 
 (defn steward-request
-  "One place's narrow nightly request: its candidates, and the people asleep
+  "One place's narrow nightly request: its candidates, the people asleep
   or hibernating there (see `steward-sleepers`), with their inner state when
-  the scenario has it (`inner-config`); no one in play, no private lines or other rooms."
-  [world place candidates & [sleepers inner-config]]
+  the scenario has it (`inner-config`), and the others there with statuses
+  or impediments (`hindered`, see `steward-hindered`); no private lines or
+  other rooms."
+  [world place candidates & [sleepers inner-config hindered]]
   {:tools [(steward-tool inner-config)]
    :messages [{:role "system" :content (instructions inner-config)}
               {:role "user" :content (str "## The idle scene\n```json\n"
@@ -155,27 +194,74 @@
                                             :stores (mapv #(assoc (items/store-view place %) :keeps (get-in % [:store :keeps]))
                                                           (items/stores-for world place))
                                             :candidates (item-judge/judged-json candidates)
-                                            :sleepers (mapv #(sleeper-json world inner-config %) sleepers)} item-judge/pretty)
+                                            :sleepers (mapv #(sleeper-json world inner-config %) sleepers)
+                                            :hindered (mapv #(select-keys % [:id :name :appearance :physical :impediments]) hindered)}
+                                           item-judge/pretty)
                                           "\n```\n\nCall `steward` now.")}]})
+
+(defn- easing-problem
+  "Why `id`'s `change` (see manor.mechanics.physical.changes) isn't only
+  clearing or easing, or nil: each faculty set is one they have, made
+  normal or eased from disabled to impeded, and each impediment one they
+  have."
+  [world id {:keys [physical impediments]}]
+  (or (first (for [{:keys [faculty level]} physical
+                   :let [now (:level (physical/entry world id faculty))]
+                   :when (not (or (and now (= :normal level)) (and (= :disabled now) (= :impeded level))))]
+               (str "you may only clear a faculty someone has hindered (level normal) or ease a disabled one to impeded; "
+                    (:name (w/agent world id)) "'s " (name faculty) " is " (if now (name now) "normal"))))
+      (first (for [{:keys [key]} impediments
+                   :let [k (a/kebab-key key)]
+                   :when (not (contains? (:impediments (w/agent world id)) k))]
+               (str "you may only clear or ease impediments someone has; " (:name (w/agent world id)) " has no "
+                    (name k) " impediment")))))
+
+(defn- with-eased
+  "`v` (a checked verdict) with the steward's checked changes to bodies
+  under :physical, or the reason they won't do: only the `people`'s, and
+  each clears or eases."
+  [v world people args]
+  (let [changes (item-judge/physical-changes args)]
+    (if-let [p (or (item-judge/physical-problem world people changes)
+                   (first (keep (fn [[id change]] (easing-problem world id change)) changes)))]
+      {:error p}
+      (cond-> v (seq changes) (assoc :physical changes)))))
 
 (defn stewardship
   "Check the steward against only its candidates, the sleepers (whose
-  aspects it may only remove) and this place's stores. With inner state
+  aspects it may only remove), the hindered (whose aspects it leaves
+  alone) and this place's stores. Statuses and impediments of sleepers and
+  the hindered may only be cleared or eased: the verdict's :physical holds
+  them (see item-judge/physical-changes). With inner state
   (`inner-config`), the verdict's :inner holds the checked changes to the
   sleepers' inner state, which only they may have."
-  [response world place candidates & [sleepers inner-config]]
+  [response world place candidates & [sleepers inner-config hindered]]
   (adjudication/answer "steward" response
                        (fn [arguments]
                          (let [{:keys [args error]} (a/decode-args {:args (answer-schema inner-config)} arguments)
                                things (into (vec candidates) sleepers)
-                               v (when-not error (item-judge/checked-verdict world args things (items/stores-for world place) true))]
+                               v (when-not error (item-judge/checked-verdict world args things (items/stores-for world place) true))
+                               v (if (or error (:error v)) v (with-eased v world (into (vec sleepers) hindered) args))]
                            (cond error {:error error}
                                  (or (:error v) (nil? inner-config)) v
                                  :else (item-judge/with-inner v inner-config world things (:inner args)))))))
 
+(defn eased-events
+  "The steward's checked changes to bodies ([[id change] ...]) as their
+  events, GM-only as the rest of its night is, and interrupting nobody: the
+  night passing doesn't wake anyone."
+  [world changes]
+  (second (reduce (fn [[world evs] [id {:keys [physical impediments]}]]
+                    (let [more (cond-> []
+                                 (seq physical) (conj (physical-changes/physical-changed world id physical))
+                                 (seq impediments) (conj (physical-changes/impediments-changed world id impediments)))
+                          more (mapv #(assoc % :visible-to :gm) more)]
+                      [(reduce w/apply-event world more) (into evs more)]))
+                  [world []] changes)))
+
 (defn stewarded
   "A checked nightly result, GM-only; no character sees it happen. It holds
-  only the outward changes: inner ones are their own events."
+  only item and aspect changes: inner and physical ones are their own events."
   [world place verdict]
   {:type :items/stewarded :visible-to :gm
    :data (merge {:place place :changes (vec (:changes verdict))

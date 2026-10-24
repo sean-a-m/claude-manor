@@ -509,8 +509,10 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   (household proposal, decision 6).
 - **Design:** [visits-design.md](visits-design.md), written and revised with the user's
   answers on 2026-10-23. **Phase 1 is done** (guests in the world: `invite` with `who`, GM and
-  operator visits, managed calendar entries, the all-day hibernation guard); phases 2 and 3 are
-  not started. It covers:
+  operator visits, managed calendar entries, the all-day hibernation guard), and so is **phase 2
+  part A** (guests from elsewhere: world-file `:away?` characters and the son, the GM's new people,
+  arrival at the meeting place, `you.visit`, the shared `take-leave`, `away-acquaintances`).
+  Phase 2 part B (`person` and the invitation judge) and phase 3 are not started. It covers:
   - an `invite` action for anyone (in person, by post from the post office, or by any
     messenger present) and a GM `schedule-visit` for secret visits, making one visit record,
     scheduled by code with configurable lead times;

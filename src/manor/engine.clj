@@ -389,6 +389,19 @@
                        (str "agent " (pr-str name) ": " p)))]
     (throw (ex-info (str "bad :agents from :init: " (str/join "; " ps)) {:problems (vec ps)}))))
 
+(defn- spawn-at-start
+  "A starting agent's events. One marked :away? (see manor.io.worldfile) is
+  spawned with everything, then away from the start, all of it :system so
+  nobody sees them go."
+  [scenario world spec]
+  (let [spawned (b/spawn-events scenario world spec)]
+    (if (:away? spec)
+      (let [id (get-in (first spawned) [:data :agent :id])]
+        (conj (mapv #(assoc % :visible-to :system) spawned)
+              {:type :people/departed :visible-to :system
+               :data {:id id :reason "away at the start" :towards (or (:lives spec) "elsewhere")}}))
+      spawned)))
+
 (defn- init!
   "Build the starting world from the scenario's :init. A :world-file in the
   result (see manor.io.worldfile) is saved as <run-dir>/world-start.edn. The
@@ -408,7 +421,7 @@
     (run/emit! run (space/init-events (:space init)))
     (check-agents! scenario agents)
     (doseq [spec (cons {:name "GM" :role :gm :model (:gm-model opts) :controller (:gm opts)} agents)]
-      (run/emit! run (b/spawn-events scenario @(:world run) (into {} (remove (comp nil? val)) spec))))
+      (run/emit! run (spawn-at-start scenario @(:world run) (into {} (remove (comp nil? val)) spec))))
     (when (:items scenario)
       (check-items! @(:world run) items)
       (run/emit! run (items/init-events items)))

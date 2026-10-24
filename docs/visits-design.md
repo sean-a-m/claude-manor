@@ -1,7 +1,8 @@
 # Visits and guests
 
-Status: **phase 1 implemented** (guests in the world; section 16 records the implementation
-choices); phases 2 and 3 not started. Written 2026-10-23 from the user's brief and revised the
+Status: **phase 1 and phase 2 part A implemented** (guests in the world; guests from elsewhere
+without the invitation judge; section 16 records the implementation choices); phase 2 part B
+(`person` and the invitation judge) and phase 3 not started. Written 2026-10-23 from the user's brief and revised the
 same day with their answers (section 13).
 
 ## 1. What this adds
@@ -662,9 +663,8 @@ Phase 1 is in `src/manor/mechanics/visits.clj`, with the `:managed-by` branch in
 Tests: `test/manor/visits_test.clj` on the test-owned world `test/fixtures/visits.edn`. Where
 the design left a detail open, the simplest choice consistent with it was taken:
 
-- **Away guests are refused in phase 1** ("… is not in the neighbourhood now"), as nothing can
-  bring them yet. A visit whose guest leaves before the time lapses like any no-show. Phase 2
-  replaces both with arrival at the meeting place.
+- **Away guests were refused in phase 1**, and a visit whose guest left before the time lapsed.
+  Part A of phase 2 replaced both with arrival at the meeting place (below).
 - **`who` isn't checked against who the inviter knows.** Section 4.1's checks don't list it, so
   any existing id is accepted.
 - **Visit ids** are `visit-N`, N one more than the number of visits so far (visits are never
@@ -703,12 +703,59 @@ the design left a detail open, the simplest choice consistent with it was taken:
 - **The rules paragraph** (phase-1 wording, only `who`) is added by Claudeworth's `rules` when
   `[:state :visit-config]` is present, so worlds reusing those rules without visits (Lodge) don't
   get it.
-- **`:bedroom`** is checked and recorded but not yet used: phase 2 assigns it to guests from
-  elsewhere.
+- **`:bedroom`** is checked and recorded; since phase 2 part A it's assigned to a guest from
+  elsewhere when they arrive.
 - **Without `:calendar`** (the test household scenario drops it), visits still run but no entries
   are written.
 
-Left for phase 2: `person` and the invitation judge, away agents (world-file `:away? true`, the
-son), arrival at the meeting place, the `:guest` position, `you.visit`, beds for staying guests,
-the shared `take-leave`, `away-acquaintances`, the `:seen` fix on departure, the extracted arrival
-helper, and the GM's `:new` fields.
+### Phase 2, part A
+
+Guests from elsewhere, without the invitation judge or `person`. Code in `visits.clj` (arrival,
+`take-leave`, the new person, the view), `hiring.clj` (`arrival`, `room-for-arrival?`, the people
+writer's options), `world.clj` (`:seen` on departure), `space.clj` (`away-acquaintances`),
+`engine.clj` (`:away?` at init), `worldfile.clj`, `positions.clj` (`:visitor`) and the catalogue's
+`:guest`; tests in `visits_test.clj`. Choices where the design left a detail open:
+
+- **The GM's new person is given as flat fields** of `schedule-visit` (`name sex age from known-as
+  situation` beside `who`), not a nested `:new` map: the decoder normalises only top-level keys,
+  and models write `known_as`. Internally they're the same map (`visits/new-person-keys`), which
+  part B's judge answer will reuse.
+- **`schedule-visit` is a query** for the GM, as writing someone new is I/O (the people server and
+  two checked calls); with `who` it calls nothing. Its result is checked again on the world when
+  it lands, and a name already in the world is refused with "use who".
+- **The operator's `schedule-visit!` takes `who` only**; making someone new is the GM's (4.4 names
+  only the GM's `:new`).
+- **World-file away characters** are handled in `engine/init!` (`spawn-at-start`), as `:away?` is a
+  world-file field like any other: everything spawned is `:system`, then `:people/departed`
+  (towards their `:lives`, else "elsewhere"). The fixture's away friend and the son keep their
+  bedrooms from the world file.
+- **Who has come from elsewhere** is recorded on the visit (`:from-away?`, set by the arrival), so
+  `take-leave`, the bedrooms and the end of a visit go by it. Such a visit ends only through
+  `take-leave` or the guest no longer being active (a GM retire, say), not by walking to the village.
+- **`you.visit` is shown for any guest whose visit is `:here`**, villagers too, as it's theirs
+  alone and says what they came for; the bedrooms only for guests from elsewhere. "Staying" isn't
+  read from the prose `stay`, so every guest from elsewhere who is here sees them.
+- **Arrival narration** is one `:visits/arrived` event for those at the meeting place, the host and
+  the guest; the `:people/returned` beneath it is `:system`, so a first-time visitor isn't said
+  to "return". Someone of the household arriving home reads "… arrives at the Carriage sweep."
+  rather than "A visitor arrives".
+- **An away guest is never told** (no delivery, no guest calendar entry): someone away hears of it
+  only if they're about before it's due. A GM-arranged visit's delivery, if it ever comes, reads
+  "You mean to call at …".
+- **Lapsing** is only for guests who are about; an away guest whose arrival waits on the agent
+  cap stays `:scheduled` (12: "arrival waits").
+- **`take-leave` towards** the agent's `:lives`, else a former candidate's pool `:lives`, else
+  "elsewhere". Its guest branch is refused outside the house's area ("go back there first").
+- **Former couriers as guests:** deliveries' idle-courier departure skips anyone `visiting?`, or a
+  courier invited as a guest would be sent home by deliveries two rounds after arriving. Hiring's
+  `send-for` refuses a candidate who is about already (a guest), which would otherwise spawn a
+  second agent.
+- **The catalogue's `:guest`** has `:standing :visitor` and no `:sleeps` (the catalogue test allows
+  that for visitors); its `:ages` are only a default, as new guests are rolled at their given age.
+- **The arrival helper** is `hiring/arrival`, beside `departure`, since deliveries already uses
+  hiring's people writer; `hiring/room-for-arrival?` replaces the agent-cap checks hiring and
+  deliveries each had.
+
+Part B can reuse: `visits/new-person-keys`, `visits/write-new-person`, `visits/away-guest-events`,
+`visits/arranged-reason` (and `guest-reason` through `invite-reason`), `visits/invite-events`,
+`space/away-acquaintances`, and the agent's public `:known-as` and `:lives`.

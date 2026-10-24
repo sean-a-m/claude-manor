@@ -275,13 +275,14 @@
 
 (defn generate-args
   "The people server's generate_people request for one new holder of
-  `position-id`, whose catalogue entry is `entry`: its ages, and its sex
-  unless `sex` is given."
-  [position-id entry {:keys [sex seed taken-names]}]
-  (let [sex (or sex (:sex entry))]
+  `position-id`, whose catalogue entry is `entry`: its ages unless `ages`
+  ([youngest oldest]) is given, and its sex unless `sex` is."
+  [position-id entry {:keys [sex ages seed taken-names]}]
+  (let [sex (or sex (:sex entry))
+        ages (or ages (:ages entry))]
     (cond-> {:position (name position-id) :count 1 :setting "england-1900"
              :seed seed :taken-names (vec taken-names)}
-      (:ages entry) (assoc :ages (:ages entry))
+      ages (assoc :ages ages)
       sex (assoc :sex (name sex)))))
 
 (defn- roll-one

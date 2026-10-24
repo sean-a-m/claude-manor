@@ -51,7 +51,10 @@
       (is (contains? catalogue :none))
       (doseq [[id entry] catalogue]
         (is (empty? (positions/entry-problems id entry)) (str id))
-        (is (every? #(contains? entry %) [:title :about :standing :sleeps :ages]) (str id))))
+        ;; A visitor (the :guest) lives elsewhere, so the position doesn't say where they sleep.
+        (is (every? #(contains? entry %) (cond-> [:title :about :standing :ages]
+                                           (not= :visitor (:standing entry)) (conj :sleeps)))
+            (str id))))
     (testing "the butcher and the shopkeeper are separate positions, both shop clerks, each with its own trade"
       (is (= #{:shop-clerk} (get-in catalogue [:butcher :capabilities]) (get-in catalogue [:shopkeeper :capabilities])))
       (is (str/includes? (get-in catalogue [:butcher :about]) "Meat is your trade"))

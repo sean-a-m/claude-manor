@@ -376,8 +376,9 @@ The user's decisions, in brackets, and what they became:
    "small room" £300, "medium room" £650, "large room" £1,600, "grand wing" £4,000, build days
    1 for the first three and 2 for the grand wing.
 6. **The son and the Dowager** [TBD; an event system is being built separately]: the son is in
-   the world file (name, persona, room, situation) and the scenario's `:defaults :leave-out`
-   keeps him out of runs until there is a way to bring him home. The Dowager is not in the file:
+   the world file (name, persona, room, situation) marked `:away? true`: he's in the run but away
+   at school, and his family can invite him home (visits; this replaced the scenario's
+   `:defaults :leave-out`). The Dowager is not in the file:
    she needs a suite that does not exist yet, and she comes with the arrival work.
 7. **Names** [`roll-cast!` cannot randomise them, so fitting ones]: the family is
    Lord/Lady Claudeworth, Miss Claudeworth and Master Claudeworth; the staff are Mr Merrick

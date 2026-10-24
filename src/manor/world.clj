@@ -119,8 +119,21 @@
 (defmethod apply-event :agent/retired [world {:keys [data]}]
   (assoc-in world [:agents (:id data) :status] :retired))
 
+(defn- parting
+  "The world after `id` leaves for elsewhere: each active person in the
+  place they leave remembers seeing them there, and they each of those, as
+  manor.mechanics.space records it for moves (:seen)."
+  [world id]
+  (let [place (:location (agent world id))
+        others (keep #(when (and place (= place (:location %)) (not= id (:id %))) (:id %)) (active-agents world))]
+    (reduce (fn [world p]
+              (-> world
+                  (assoc-in [:seen p id] {:place place :round (:round world)})
+                  (assoc-in [:seen id p] {:place place :round (:round world)})))
+            world others)))
+
 (defmethod apply-event :people/departed [world {:keys [data]}]
-  (update-in world [:agents (:id data)]
+  (update-in (parting world (:id data)) [:agents (:id data)]
              #(-> % (assoc :status :away) (dissoc :location :travel :busy))))
 
 (defmethod apply-event :people/returned [world {:keys [data]}]

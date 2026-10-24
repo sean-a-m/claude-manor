@@ -1,19 +1,22 @@
 (ns manor.mechanics.visits
-  "Visits: a guest expected at the house at a date and time (phase 1 of
-  docs/visits-design.md: guests who are in the world). A visit is one
-  engine-owned record in [:state :visits]. Every source (the `invite` action,
-  the GM's `schedule-visit`, the operator's `engine/schedule-visit!`) makes
-  the same record, and a system tick moves it on before turns: the guest is
-  told, comes (:here), goes home (:ended), or doesn't come (:lapsed). The
-  guest makes their own way; nobody moves them. Their calendar entries, the
-  host's and the guest's, are written from the record and owned by it
-  (:managed-by :visits), so they're never GM-reviewed and only visits change
-  them. A scenario with :hibernate keeps an expected guest in play by
-  asking `keeps-awake?`."
+  "Visits: a guest expected at the house at a date and time (see
+  docs/visits-design.md). A visit is one engine-owned record in
+  [:state :visits]. Every source (the `invite` action, the GM's
+  `schedule-visit`, the operator's `engine/schedule-visit!`) makes the same
+  record, and a system tick moves it on before turns. Whether the guest is
+  in the world or away is decided when it falls due. A guest in the world
+  is told, makes their own way (:here), goes home (:ended), or doesn't come
+  (:lapsed); nobody moves them. An away guest (someone from elsewhere)
+  arrives at the meeting place at the time, and goes with `take-leave`.
+  Their calendar entries, the host's and the guest's, are written from the
+  record and owned by it (:managed-by :visits), so they're never GM-reviewed
+  and only visits change them. A scenario with :hibernate keeps an expected
+  guest in play by asking `keeps-awake?`."
   (:require [clojure.string :as str]
             [manor.clock :as clock]
             [manor.mechanics.builtins :as b]
             [manor.mechanics.calendar :as calendar]
+            [manor.mechanics.hiring :as hiring]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.narrate :as n]
@@ -26,8 +29,9 @@
   "Lead times are the shortest gap between sending an invitation and the
   guest being expected. A guest is kept in play from :wake-from on the
   visit's day, and no longer expected :lapse-hours after its time.
-  :from-away-hours is for guests from elsewhere (phase 2). :house names the
-  house in invitations; `install` takes it from the world file's :meta :name."
+  :from-away-hours is added to an invitation's lead time when the guest is
+  away (the letter and their journey). :house names the house in
+  invitations; `install` takes it from the world file's :meta :name."
   {:lead-hours {:in-person 0 :messenger 1 :post 3}
    :from-away-hours 24
    :wake-from "06:00"
@@ -55,6 +59,22 @@
   (if-let [place (meeting-place world)] (space/area world place) #{}))
 
 (defn- now ^LocalDateTime [world] (clock/time-of (:clock world) (:round world)))
+
+(defn- newest-here
+  "`guest`'s newest visit that is :here, or nil."
+  [world guest]
+  (last (filter #(and (= guest (:guest %)) (= :here (:status %))) (map #(visit world %) (ordered-ids world)))))
+
+(defn visiting?
+  "Is `id` a guest here now: one of their visits is :here?"
+  [world id]
+  (some? (newest-here world id)))
+
+(defn from-elsewhere?
+  "Is `id` a guest from elsewhere here now: one of their :here visits began
+  with their arrival at the meeting place?"
+  [world id]
+  (boolean (some #(and (= id (:guest %)) (= :here (:status %)) (:from-away? %)) (vals (visits world)))))
 
 (defn round-of
   "The first round starting at or after `t`."
@@ -100,10 +120,14 @@
 (defn- lead-minutes [world by]
   (long (Math/ceil (* 60 (get-in (config world) [:lead-hours by] 0)))))
 
+(defn- away? [world id] (= :away (:status (w/agent world id))))
+
 (defn- earliest
-  "The earliest time a guest invited now `by` a channel can be expected."
-  ^LocalDateTime [world by]
-  (.plusMinutes (now world) (lead-minutes world by)))
+  "The earliest time a guest invited now `by` a channel can be expected, with
+  :from-away-hours more for a `guest` who is away."
+  ^LocalDateTime [world by guest]
+  (.plusMinutes (now world) (+ (lead-minutes world by)
+                               (if (away? world guest) (long (* 60 (:from-away-hours (config world)))) 0))))
 
 (defn- next-round-time
   "The time of the next round: the GM's and operator's only lead time."
@@ -188,7 +212,8 @@
                          {:id (str "visit-" (inc (count (visits world))))
                           :at (str at) :arrive (round-of (:clock world) at) :deliver deliver
                           :wake (wake-round world guest at) :status :scheduled
-                          :told? (<= deliver (:round world))})
+                          ;; Someone away hears of it only if they come back before it's due.
+                          :told? (and (<= deliver (:round world)) (w/active? world guest))})
             (seq known-to) (assoc :known-to (set known-to)))
         scheduled {:type :visits/scheduled :visible-to :gm :data v}
         world' (w/apply-event world scheduled)]
@@ -202,7 +227,10 @@
   (assoc-in world [:state :visits (:visit data) :told?] true))
 (defmethod w/apply-event :visits/reminded [world {:keys [data]}]
   (assoc-in world [:state :visits (:visit data) :reminded?] true))
-(doseq [[type status] {:visits/arrived :here :visits/ended :ended :visits/lapsed :lapsed :visits/cancelled :cancelled}]
+(defmethod w/apply-event :visits/arrived [world {:keys [round data]}]
+  (update-in world [:state :visits (:visit data)]
+             #(cond-> (assoc % :status :here :arrived round) (:at data) (assoc :from-away? true))))
+(doseq [[type status] {:visits/ended :ended :visits/lapsed :lapsed :visits/cancelled :cancelled}]
   (defmethod w/apply-event type [world {:keys [data]}]
     (assoc-in world [:state :visits (:visit data) :status] status)))
 
@@ -221,10 +249,10 @@
   (str (n/who names (:host data)) " gives " (n/who names (:via data)) " a message for "
        (n/who names (:guest data)) ": an invitation to " (invitation-text data)))
 (defmethod n/describe :visits/delivered [{:keys [data]} names]
-  (str (if (:via data)
-         (str "A message comes from " (n/who names (:host data)) " (sent with " (n/who names (:via data)) ")")
-         (str "A letter comes from " (n/who names (:host data))))
-       ": you are invited to " (invitation-text data)))
+  (cond (nil? (:host data)) (str "You mean to call at " (invitation-text data))
+        (:via data) (str "A message comes from " (n/who names (:host data)) " (sent with " (n/who names (:via data))
+                         "): you are invited to " (invitation-text data))
+        :else (str "A letter comes from " (n/who names (:host data)) ": you are invited to " (invitation-text data))))
 (defmethod n/describe :visits/reminded [{:keys [data]} names]
   (str "You have an engagement: " (:house data) " at " (n/at names (:arrive data))
        (when (:host data) (str " (" (n/who names (:host data)) "'s invitation)")) "."))
@@ -234,7 +262,12 @@
          (str ", invited by " (n/who names (:host data)) " (" (name (:by data)) ")")
          (str ", arranged by the " (name (:by data))))
        ": " (:stay data) "."))
-(defmethod n/describe :visits/arrived [{:keys [data]} _] (str "The guest of " (:visit data) " has come."))
+(defmethod n/describe :visits/arrived [{:keys [data]} names]
+  (let [{:keys [guest at known-as visitor?]} data]
+    (cond (nil? at) (str "The guest of " (:visit data) " has come.")
+          visitor? (str "A visitor arrives at the " (n/place names at) ": " (n/who names guest) " (" guest ")"
+                        (when known-as (str ", " known-as)) ".")
+          :else (str (n/who names guest) " (" guest ") arrives at the " (n/place names at) "."))))
 (defmethod n/describe :visits/ended [{:keys [data]} _] (str (:visit data) " has ended: the guest has gone."))
 (defmethod n/describe :visits/lapsed [{:keys [data]} _] (str (:visit data) " has lapsed: the guest didn't come."))
 (defmethod n/describe :visits/cancelled [{:keys [data]} _] (str (:visit data) " is cancelled."))
@@ -280,48 +313,88 @@
              (>= (:round world) (- (:arrive v) (rounds-for-hours world 1))))
     [(status-event :visits/arrived v)]))
 
+(defn- position-title [world position]
+  (str/lower-case (get-in world [:state :positions position :title] (name position))))
+
+(defn- returning-situation
+  "A short situation, from their record, for a former candidate or courier
+  arriving as a guest, in place of the one hiring or deliveries gave them
+  (\"You have come about the cook place…\"); nil for anyone else."
+  [world guest]
+  (let [p (hiring/for-agent world guest)
+        [shop c] (first (filter #(= guest (:agent-id (val %))) (sort-by key (get-in world [:state :couriers]))))
+        lives (or (:lives p) (get-in c [:person :lives]))
+        you (str "You are " (agent-name world guest) (when lives (str ", of " lives)))]
+    (cond p (str you ". You came to " (house world) " once before, about the "
+                 (str/join ", " (map #(position-title world %) (:seeks p))) " place.")
+          c (str you "; you carry for the " (:name (space/location world shop) shop) "."))))
+
+(defn- coming
+  "An away guest, once the visit is due, arrives at the meeting place, if
+  there's room for another active person (else they wait): seen by those
+  there, the host wherever they are, and themselves. The named bedroom is theirs."
+  [scenario world v]
+  (let [guest (:guest v)
+        at (meeting-place world)]
+    (when (and (= :scheduled (:status v)) (>= (:round world) (:arrive v)) (away? world guest)
+               (space/location world at) (hiring/room-for-arrival? world))
+      (let [{:keys [events]} (hiring/arrival scenario world at {:id guest :visible-to :system
+                                                               :situation (returning-situation world guest)})]
+        (cond-> (conj events {:type :visits/arrived
+                              :visible-to (into (conj (space/present world at) guest) (remove nil?) [(:host v)])
+                              :data (cond-> {:visit (:id v) :guest guest :at at
+                                             :visitor? (not (positions/household-member? world guest))}
+                                      (:known-as (w/agent world guest)) (assoc :known-as (:known-as (w/agent world guest))))})
+          (:bedroom v) (conj (positions/bedroom-assigned guest (:bedroom v))))))))
+
 (defn- ending
-  "A guest no longer in, or heading to, the house's area has gone home."
+  "A guest from the village no longer in, or heading to, the house's area
+  has gone home. A guest from elsewhere goes with `take-leave`, which ends
+  the visit itself; here, only if they've gone some other way."
   [world v]
   (let [a (w/agent world (:guest v))
         area (house-area world)]
     (when (and (= :here (:status v))
                (not (and (= :active (:status a))
-                         (or (contains? area (:location a)) (contains? area (get-in a [:travel :to]))))))
+                         (or (:from-away? v)
+                             (contains? area (:location a)) (contains? area (get-in a [:travel :to]))))))
       [(status-event :visits/ended v)])))
 
 (defn- lapsing
-  "A guest who is retired, or hasn't come :lapse-hours after the time, isn't expected."
+  "A guest who is retired, or is about and hasn't come :lapse-hours after
+  the time, isn't expected. An away guest waits to arrive instead."
   [world v]
-  (when (and (= :scheduled (:status v))
-             (or (= :retired (:status (w/agent world (:guest v))))
-                 (>= (:round world) (+ (:arrive v) (rounds-for-hours world (:lapse-hours (config world)))))))
-    [(status-event :visits/lapsed v)]))
+  (let [status (:status (w/agent world (:guest v)))]
+    (when (and (= :scheduled (:status v))
+               (or (= :retired status)
+                   (and (= :active status)
+                        (>= (:round world) (+ (:arrive v) (rounds-for-hours world (:lapse-hours (config world))))))))
+      [(status-event :visits/lapsed v)])))
 
-(defn- visit-steps [world id]
+(defn- visit-steps [scenario world id]
   (reduce (fn [[world events] step]
             (let [evs (step world (visit world id))]
               [(apply-all world evs) (into events evs)]))
-          [world []] [telling reminding arriving ending lapsing]))
+          [world []] [telling reminding arriving (partial coming scenario) ending lapsing]))
 
 (defn tick
-  "Every visit's events this round."
-  [world]
+  "Every visit's events this round. `scenario` is for arrivals at the meeting place."
+  [scenario world]
   (second (reduce (fn [[world events] id]
-                    (let [[world evs] (visit-steps world id)] [world (into events evs)]))
+                    (let [[world evs] (visit-steps scenario world id)] [world (into events evs)]))
                   [world []] (ordered-ids world))))
 
 ;; ---------------------------------------------------------------------------
 ;; Checks
 
 (defn- guest-reason
-  "Why `guest` can't be invited, or nil. Phase 1 invites only people in the world."
+  "Why `guest` can't be invited, or nil. Someone away can be: they come from
+  elsewhere. Someone of the household can't while they're at home."
   [world guest]
   (let [a (w/agent world guest)]
     (cond (or (nil? a) (= :gm (:role a))) (str "no one has the id " guest)
           (= :retired (:status a)) (str (:name a) " cannot come")
-          (not= :active (:status a)) (str (:name a) " is not in the neighbourhood now")
-          (positions/household-member? world guest) (str (:name a) " lives here"))))
+          (and (= :active (:status a)) (positions/household-member? world guest)) (str (:name a) " lives here"))))
 
 (defn- time-reason [world ^LocalDateTime earliest channel {:keys [date time]}]
   (let [at (parse-time date time)]
@@ -366,14 +439,37 @@
       (when (= who actor) "you can't invite yourself")
       (guest-reason world who)
       (channel-reason world actor args)
-      (time-reason world (earliest world (keyword by)) (channel-names by) args)
+      (time-reason world (earliest world (keyword by) who) (channel-names by) args)
       (bedroom-reason world bedroom)))
 
+(def new-person-keys
+  "The fields of someone new from elsewhere: name, sex (\"male\" or
+  \"female\"), age, from (where they live), known-as (a public description)
+  and situation (who they are, in the second person)."
+  [:name :sex :age :from :known-as :situation])
+
+(defn- new-person? [spec] (some #(contains? spec %) new-person-keys))
+
+(defn- new-person-reason
+  "Why someone new can't be made from `spec`'s fields, or nil."
+  [world spec]
+  (let [missing (remove #(contains? spec %) new-person-keys)
+        same (first (filter #(= (:name spec) (:name %)) (w/agents-in-order world)))]
+    (cond (seq missing) (str "for someone new, give " (str/join ", " (map name new-person-keys))
+                             "; missing: " (str/join ", " (map name missing)))
+          (not (get-in world [:state :positions :guest])) "this world has no :guest position for someone new"
+          same (str "someone called " (:name same) " is in the world already (" (:id same) "): use who"))))
+
 (defn arranged-reason
-  "Why the GM or operator can't arrange this visit, or nil. Its only lead time is the next round."
+  "Why the GM or operator can't arrange this visit, or nil: for `who`, an
+  existing person, or for someone new (the GM only), `new-person-keys`. Its
+  only lead time is the next round."
   [world {:keys [who bedroom known-to] :as spec}]
   (or (when-not (config world) "visits are not enabled in this run")
-      (guest-reason world who)
+      (cond (and who (new-person? spec)) "give who for someone in the world, or a new person's fields, not both"
+            who (guest-reason world who)
+            (new-person? spec) (new-person-reason world spec)
+            :else "give who (their id), or a new person's name, sex, age, from, known-as and situation")
       (text-reason spec)
       (time-reason world (next-round-time world) "" spec)
       (bedroom-reason world bedroom)
@@ -397,15 +493,16 @@
         via (when (= :messenger by) via)
         deliver (if (or (= :in-person by) (= via who))
                   (:round world)
-                  (round-of (:clock world) (earliest world by)))
+                  (round-of (:clock world) (earliest world by nil)))
         scheduled (scheduled-events world {:guest who :host actor :by by :via via :at (parse-time date time)
                                            :deliver deliver :stay stay :reason reason :bedroom bedroom})]
     (into [(channel-event world actor (:data (first scheduled)))] scheduled)))
 
 (defn arranged-events
-  "A visit the GM or operator (`source`) arranges for an existing person:
-  told at once with their calendar entry, so they come; the host's entry
-  goes to `known-to` only (default nobody)."
+  "A visit the GM or operator (`source`) arranges for an existing person: if
+  they're about, told at once with their calendar entry, so they come; if
+  away, they arrive at the time, told nothing before. The host's entry goes
+  to `known-to` only (default nobody)."
   [world source {:keys [who date time stay reason bedroom known-to]}]
   (scheduled-events world {:guest who :host nil :by source :via nil :at (parse-time date time)
                            :deliver (:round world) :stay stay :reason reason :bedroom bedroom
@@ -415,9 +512,13 @@
   (into [(status-event :visits/cancelled (visit world id))] (cancelled-entries world (visit world id))))
 
 (defn operator-events
-  "The operator's `engine/schedule-visit!`. Throws with the reason if it can't be arranged."
+  "The operator's `engine/schedule-visit!`, for an existing person (`who`).
+  Throws with the reason if it can't be arranged."
   [world spec]
-  (when-let [r (arranged-reason world spec)] (throw (ex-info r {:spec spec})))
+  (when-let [r (or (when (and (nil? (:who spec)) (new-person? spec))
+                     "the operator names an existing person with :who; the GM's schedule-visit can write someone new")
+                   (arranged-reason world spec))]
+    (throw (ex-info r {:spec spec})))
   (arranged-events world :operator spec))
 
 (defn operator-cancel-events
@@ -425,6 +526,91 @@
   [world id]
   (when-let [r (cancel-reason world id)] (throw (ex-info r {:id id})))
   (cancel-events world id))
+
+;; ---------------------------------------------------------------------------
+;; Someone new from elsewhere, made in advance as an away agent
+
+(defn write-new-person
+  "Someone new from elsewhere, written to order from `fields` (see
+  `new-person-keys`) by the people writer: the people server's record for
+  their sex and exact age, with their name kept and :lives set to `from`,
+  then the appearance and polish, with `situation` as the polish's notes.
+  I/O, through the composed-query `services`: call it from a :query-fn or a
+  system's :compose, and make the agent from its result with `away-guest-events`."
+  [world services {:keys [name sex age from situation]}]
+  (let [p (hiring/person-record world services {:position :guest :area from :sex sex :ages [age age]
+                                                :seed (str (:seed world) "/guest/" (inc (:seq world)))
+                                                :taken-names (hiring/taken-names world)})
+        p (-> p (assoc :name name :lives from) (update :record assoc :name name :age age :sex sex :lives from))]
+    (hiring/write-person services p situation)))
+
+(defn away-guest-events
+  "Events making person `p` (from `write-new-person`) an away agent, from
+  their `fields`: spawned as a :guest with their situation and no household,
+  their :lives and public :known-as set, then away towards :lives. All
+  :system: a spawn holds a private persona and traits. {:id :events}."
+  [scenario world p {:keys [situation known-as]}]
+  (let [spawned (b/spawn-events scenario world (merge (hiring/spawn-spec p)
+                                                      {:role :guest :situation situation :household nil}))
+        id (get-in (first spawned) [:data :agent :id])]
+    {:id id
+     :events (into (mapv #(assoc % :visible-to :system) spawned)
+                   [{:type :agent/updated :visible-to :system :data {:id id :changes {:lives (:lives p) :known-as known-as}}}
+                    {:type :people/departed :visible-to :system
+                     :data {:id id :reason "lives elsewhere" :towards (:lives p)}}])}))
+
+;; ---------------------------------------------------------------------------
+;; Leaving
+
+(defn- leave-reason [world actor]
+  (cond (not (from-elsewhere? world actor)) "you are not a guest from elsewhere here"
+        (not (contains? (house-area world) (space/location-of world actor)))
+        (str "take your leave from " (house world) ": go back there first")))
+
+(defn- leave-events
+  "A guest from elsewhere goes home, towards where they live, and their visits here end."
+  [world actor]
+  (into [{:type :people/departed :visible-to (space/here world actor)
+          :data {:id actor :reason "takes leave"
+                 :towards (or (:lives (w/agent world actor)) (:lives (hiring/for-agent world actor)) "elsewhere")}}]
+        (for [v (map #(visit world %) (ordered-ids world))
+              :when (and (= actor (:guest v)) (= :here (:status v)))]
+          (status-event :visits/ended v))))
+
+(defn take-leave
+  "One `take-leave` for whatever brought someone: hiring's own for a
+  candidate here (`candidate-leave`, unchanged), and for a guest from
+  elsewhere anywhere in the house's area, going home."
+  [candidate-leave]
+  (let [candidate? (fn [world actor] (boolean (and candidate-leave ((:available? candidate-leave) world actor))))]
+    {:name :take-leave :kind :final :roles :all
+     :available? (fn [world actor] (or (candidate? world actor) (from-elsewhere? world actor)))
+     :doc "Leave: a candidate ends an unengaged visit, and a guest from elsewhere goes home. You can return if sent for or invited again."
+     :args [:map]
+     :valid? (fn [world actor args]
+               (if (candidate? world actor) ((:valid? candidate-leave) world actor args) (leave-reason world actor)))
+     :effect (fn [world actor args]
+               (if (candidate? world actor) ((:effect candidate-leave) world actor args) (leave-events world actor)))}))
+
+;; ---------------------------------------------------------------------------
+;; Views
+
+(defn add-to-view
+  "`view` with `you.visit` while `id` is a guest here (their newest visit
+  :here: who asked them, for how long and why, when they came, their
+  bedroom), and `away-acquaintances`: the people they've met who are away
+  now, whom they can invite by id."
+  [view world id]
+  (let [v (newest-here world id)
+        acquaintances (space/away-acquaintances world id)]
+    (cond-> view
+      v (assoc-in [:you :visit]
+                  (cond-> {:invited-for (:stay v)
+                           :arrived (clock/short-label (:clock world) (:arrived v) (:round world))}
+                    (:host v) (assoc :host (agent-name world (:host v)))
+                    (:reason v) (assoc :reason (:reason v))
+                    (:bedroom v) (assoc :bedroom (:bedroom v))))
+      (seq acquaintances) (assoc :away-acquaintances acquaintances))))
 
 ;; ---------------------------------------------------------------------------
 ;; Actions
@@ -439,7 +625,8 @@
   {:name :invite :kind :free :roles :all :per-turn 1
    :doc (str "Invite someone to the house for a date and time. by: \"in-person\" (they're here with you), "
              "\"post\" (you're at a post office) or \"messenger\" (via: the id of anyone here who will carry it, "
-             "the person invited included). who: their id. date (\"1904-10-21\") and time (\"19:00\"): when "
+             "the person invited included). who: their id, anyone you know, including people you've met who are "
+             "away now (away-acquaintances). date (\"1904-10-21\") and time (\"19:00\"): when "
              "they're expected at the house. stay: how long, in your words (\"to dine\", \"a week\"). reason: "
              "optional, why. bedroom: optional, a bedroom id for a guest who stays the night.")
    :args (into [:map [:by [:enum "in-person" "post" "messenger"]] [:who :string] [:via {:optional true} :string]]
@@ -450,23 +637,59 @@
             (str (agent-name world who) " (" who ") is expected at " (house world) " on "
                  (when-label {:at (str (parse-time date time))}) "."))})
 
-(def gm-actions
-  [{:name :schedule-visit :roles #{:gm} :kind :final
-    :doc "Arrange for someone in the world (who: their id) to call at the house at a date and time. They're told at once, in their calendar, and make their own way. known-to: ids of anyone else who should have it in their calendar (default nobody)."
-    :args (into [:map [:who :string] [:known-to {:optional true} [:vector :string]]] visit-args)
+(defn- gm-arranged-events
+  "The GM's visit, on the world as it is when the query's done: for someone
+  new, their away agent first (from the query's written person)."
+  [scenario world args {:keys [person]}]
+  (when-not (arranged-reason world args)
+    (if person
+      (let [{:keys [id events]} (away-guest-events scenario world person (select-keys args new-person-keys))]
+        (into events (arranged-events (apply-all world events) :gm (-> (apply dissoc args new-person-keys) (assoc :who id)))))
+      (arranged-events world :gm args))))
+
+(defn- gm-actions
+  "The GM's `schedule-visit` (a query: someone new is written first) and `cancel-visit`."
+  [scenario]
+  [{:name :schedule-visit :roles #{:gm} :kind :query
+    :doc (str "Arrange a visit to the house at a date and time. who: the id of anyone in the world; someone about is told "
+              "at once, in their calendar, and makes their own way, and someone away arrives at the meeting place at the "
+              "time, told nothing before. Or, for someone new from elsewhere, give instead of who: name, sex (\"male\" or "
+              "\"female\"), age, from (where they live), known-as (a public description with nothing private, "
+              "\"a curate from Ely\") and situation (second person: who they are, and how they stand with the house); "
+              "they're written now and arrive at the time. known-to: ids of anyone else who should have it in their "
+              "calendar (default nobody).")
+    :args (into [:map [:who {:optional true} :string]
+                 [:name {:optional true} [:string {:min 1 :max 40}]]
+                 [:sex {:optional true} [:enum "male" "female"]]
+                 [:age {:optional true} [:int {:min 1 :max 110}]]
+                 [:from {:optional true} [:string {:min 1 :max 80}]]
+                 [:known-as {:optional true} [:string {:min 1 :max 120}]]
+                 [:situation {:optional true} [:string {:min 1 :max 600}]]
+                 [:known-to {:optional true} [:vector :string]]]
+                visit-args)
     :valid? (fn [world _ args] (arranged-reason world args))
-    :effect (fn [world _ args] (arranged-events world :gm args))}
+    :query-fn (fn [world _ args services]
+                (if (:who args) {} {:person (write-new-person world services (select-keys args new-person-keys))}))
+    :on-result (fn [world _ args result] (gm-arranged-events scenario world args result))
+    :reply (fn [world _ args {:keys [events]}]
+             (if-let [v (:data (first (filter #(= :visits/scheduled (:type %)) events)))]
+               (str (:id v) ": " (agent-name world (:guest v)) " (" (:guest v) ") is expected at " (house world)
+                    " on " (when-label v) ".")
+               (str "Nothing was arranged: " (or (arranged-reason world args) "try again"))))}
    {:name :cancel-visit :roles #{:gm} :kind :final
     :doc "Cancel a visit not yet begun, by its id in state.visits, with its calendar entries."
     :args [:map [:id :string]]
     :valid? (fn [world _ {:keys [id]}] (cancel-reason world id))
     :effect (fn [world _ {:keys [id]}] (cancel-events world id))}])
 
-(def actions (into [invite] gm-actions))
+(defn actions
+  "`invite`, the shared `take-leave` and the GM's tools, for `scenario`."
+  [scenario]
+  (into [invite (take-leave (first (filter #(= :take-leave (:name %)) hiring/actions)))] (gm-actions scenario)))
 
 (def rules
-  "The rules paragraph (phase 1: only `who`)."
-  "Anyone may `invite` someone to the house for a date and time: in person (they're here with you), by post (at a post office) or by messenger (anyone here who will carry it, even the person invited). Name them with `who`, their id. They make their own way to the house at that time. If you're invited, your calendar says when and where to be expected.")
+  "The rules paragraph (`who` only; describing someone new comes with the invitation judge)."
+  "Anyone may `invite` someone to the house for a date and time: in person (they're here with you), by post (at a post office) or by messenger (anyone here who will carry it, even the person invited). Name them with `who`, their id: anyone you know, including people you've met who are away now (`away-acquaintances` in your view). Someone who lives nearby makes their own way to the house at that time; someone from further off arrives at the meeting place (`hiring.meeting-place`). A guest from elsewhere stays as long as seems right and goes with `take-leave`; while staying, they see the house's bedrooms under `household.bedrooms`, to choose one if the invitation named none. If you're invited, your calendar says when and where to be expected.")
 
 (defn- merged
   "Configs merged in order, the :lead-hours map key by key."
@@ -479,15 +702,18 @@
   {:id-prefix "visit-" :hint "use cancel-visit"})
 
 (defn install
-  "Add visits to a scenario: `invite`, the GM's `schedule-visit` and
+  "Add visits to a scenario: `invite`, `take-leave` for candidates and guests
+  from elsewhere alike (in place of hiring's), the GM's `schedule-visit` and
   `cancel-visit`, the tick, and the config in [:state :visit-config]: the
   defaults, the house's name from the world file's :meta :name, the
   scenario's :visits, then the run option :visits. Idempotent. Install it
-  after hiring (it needs the meeting place); the scenario needs a clock, and
-  :calendar for the entries (visits names itself there as their owner). A
-  scenario with :hibernate should leave out anyone `keeps-awake?`."
+  after hiring (it needs the meeting place); the scenario needs a clock, a
+  :guest position for someone new, and :calendar for the entries (visits
+  names itself there as their owner). A scenario with :hibernate should
+  leave out anyone `keeps-awake?`, and its :observe should call `add-to-view`."
   [scenario]
   (let [init (:init scenario)
+        actions (actions scenario)
         names (set (map :name actions))]
     (-> scenario
         (cond-> (:calendar scenario) (assoc-in [:calendar :managed :visits] calendar-owner))
@@ -499,4 +725,4 @@
                                            (:visits scenario) (:visits opts))))))
         (update :actions #(into (vec (remove (comp names :name) %)) actions))
         (update :systems #(conj (vec (remove (fn [s] (= :visits/tick (:name s))) %))
-                                {:name :visits/tick :tick (fn [world _] (tick world))})))))
+                                {:name :visits/tick :tick (fn [world _] (tick scenario world))})))))

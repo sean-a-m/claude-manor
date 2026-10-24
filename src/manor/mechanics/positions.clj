@@ -28,7 +28,9 @@
             [manor.narrate :as n]
             [manor.world :as w]))
 
-(def standings #{:family :upper-servant :servant :outdoor :tradesman :professional :villager})
+(def standings
+  "A :visitor (a guest from elsewhere) belongs to no household."
+  #{:family :upper-servant :servant :outdoor :tradesman :professional :villager :visitor})
 
 (def household-standings
   "The standings of a household's own people. A household's tradesmen and

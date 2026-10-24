@@ -35,10 +35,11 @@
 (def adjudicators
   {:people/appearance {:request (fn [_ _ {:keys [record]}] (people/appearance-request record))
                        :mock (fn [_] {:tool :appearance :args {:appearance "A young figure in plain working clothes and spectacles."}})}
-   :people/polish {:request (fn [world _ {:keys [record appearance]}]
+   :people/polish {:request (fn [world _ {:keys [record appearance notes]}]
                               (people/polish-request {:setting (get-in world [:state :setting])
                                                       :position (:position record) :record record
-                                                      :notes (str "Keep these visible physical facts consistent: " appearance)}))
+                                                      :notes (str (when-not (str/blank? notes) (str notes "\n\n"))
+                                                                  "Keep these visible physical facts consistent: " appearance)}))
                    :mock people/mock-polish}})
 
 (defn pool [world] (get-in world [:state :pool] {}))
@@ -106,12 +107,13 @@
 
 (defn person-record
   "The first, free half of a new person for `position`: the people server's
-  record, {:name :record :lives}. No model call."
-  [world {:keys [bridge]} {:keys [position area seed taken-names]}]
+  record, {:name :record :lives}. `sex` and `ages` ([youngest oldest]), if
+  given, replace the position's. No model call."
+  [world {:keys [bridge]} {:keys [position area seed taken-names sex ages]}]
   (let [record (check-record
                 (first (:people (bridge :people/generate
                                         (assoc (people/generate-args position (get-in world [:state :positions position])
-                                                                     {:seed seed :taken-names taken-names})
+                                                                     {:seed seed :taken-names taken-names :sex sex :ages ages})
                                                :area area)))))]
     {:name (:name record) :record record :lives (:lives record)}))
 
@@ -120,12 +122,15 @@
 (defn write-person
   "The second half: a public appearance and a private polish for person `p`
   from `person-record`, adding :persona :manner :appearance and the record's
-  circumstances."
-  [{:keys [adjudicate]} {:keys [record] :as p}]
-  (let [public (adjudicate :people/appearance {:record record})
-        polish (adjudicate :people/polish {:record record :appearance (:appearance public)})]
-    (merge (assoc-in p [:record :circumstances] (:circumstances polish))
-           (select-keys polish [:persona :manner]) public)))
+  circumstances. `notes`, if given, go to the polish (who they are, for a
+  guest written to order)."
+  ([services p] (write-person services p nil))
+  ([{:keys [adjudicate]} {:keys [record] :as p} notes]
+   (let [public (adjudicate :people/appearance {:record record})
+         polish (adjudicate :people/polish (cond-> {:record record :appearance (:appearance public)}
+                                             notes (assoc :notes notes)))]
+     (merge (assoc-in p [:record :circumstances] (:circumstances polish))
+            (select-keys polish [:persona :manner]) public))))
 
 (defn new-person
   "A fresh person for `position`, made through the composed-query services:
@@ -204,13 +209,19 @@
   (let [r (:reputation data)]
     (str (:acquaintance r) " " (str/join " " (map known-reading (mapcat val (:knows r)))))))
 
+(defn room-for-arrival?
+  "Is the run under its cap of active people, so someone more can arrive?"
+  [world]
+  (< (count (w/active-agents world)) (get-in world [:state :hiring-max-agents] b/default-max-agents)))
+
 (defn send-for-reason [world actor {:keys [candidate]}]
   (let [p (get (pool world) candidate)]
     (cond
       (not (contains? (:known-to p) actor)) "you have no current recommendation for that candidate"
       (not (#{:pooled :away} (:status p))) "that candidate has already been summoned or engaged"
       (= :retired (:status (w/agent world (:agent-id p)))) "that person cannot return"
-      (>= (count (w/active-agents world)) (get-in world [:state :hiring-max-agents] b/default-max-agents)) "there is no room for another active person"
+      (w/active? world (:agent-id p)) "that person is about already (a guest, perhaps); speak to them"
+      (not (room-for-arrival? world)) "there is no room for another active person"
       (nil? (space/location world (get-in world [:state :meeting-place]))) "this world has no meeting place")))
 
 (defn sent-for [world actor {:keys [candidate]}]
@@ -231,24 +242,37 @@
 (defmethod n/describe :people/returned [{:keys [data]} names]
   (str (n/who names (:id data)) " returns to " (n/place names (:at data)) "."))
 
+(defn arrival
+  "Someone arriving at `at` (the meeting place) from elsewhere, shared by
+  hiring, deliveries and visits: {:id :events}. An away agent `id` returns
+  there, seen by everyone there, themselves and the ids in `also` (or by
+  `visible-to`, when given), with their :situation replaced if `situation`
+  is given. Without an `id`, a new agent is spawned there from `spawn` (a
+  spec for b/spawn-events, without :location); the spawn holds a private
+  persona and traits, so its events are never public."
+  [scenario world at {:keys [id spawn situation also visible-to]}]
+  (if id
+    {:id id
+     :events (cond-> [{:type :people/returned :data {:id id :at at}
+                       :visible-to (or visible-to (into (conj (space/present world at) id) (remove nil?) also))}]
+               situation (conj {:type :agent/updated :visible-to :system :data {:id id :changes {:situation situation}}}))}
+    (let [spawned (b/spawn-events scenario world (assoc spawn :location at))]
+      {:id (get-in (first spawned) [:data :agent :id])
+       :events (mapv #(assoc % :visible-to :system) spawned)})))
+
 (defn- arrival-events [scenario world p]
   (let [at (get-in world [:state :meeting-place])
         situation (str "You have come about the " (str/join ", " (map name (:seeks p)))
                        " place, sent for by " (:name (w/agent world (:summoner p)))
                        ". Talk over the terms; you may refuse, haggle, accept-place, or take-leave. You leave after three rounds without a conversation.")
         returning? (= :away (:status (w/agent world (:agent-id p))))
-        spawned (when-not returning?
-                  (b/spawn-events scenario world
-                                  (merge (spawn-spec p)
-                                         {:role :none :location at :situation situation :household nil})))
-        id (if returning? (:agent-id p) (get-in (first spawned) [:data :agent :id]))
+        {:keys [id events]} (arrival scenario world at
+                                     (if returning?
+                                       {:id (:agent-id p) :situation situation :also [(:summoner p)]}
+                                       {:spawn (merge (spawn-spec p) {:role :none :situation situation :household nil})}))
         audience (conj (space/present world at) id (:summoner p))]
     (vec (concat
-          (if returning?
-            [{:type :people/returned :visible-to audience :data {:id id :at at}}
-             {:type :agent/updated :visible-to :system :data {:id id :changes {:situation situation}}}]
-            ;; The spawn contains a private persona and traits, so it is never a public event.
-            (map #(assoc % :visible-to :system) spawned))
+          events
           [(changed (:id p) {:status :here :agent-id id :arrived (:round world)})
            {:type :people/arrived :visible-to audience :data {:id id :at at :name (:name p)}}]))))
 (defmethod n/describe :people/arrived [{:keys [data]} names]
@@ -261,8 +285,7 @@
    (reduce
     (fn [[world events] p]
       (let [evs (cond
-                  (and (= :sent-for (:status p)) (<= (:arrival p) (:round world))
-                       (< (count (w/active-agents world)) (get-in world [:state :hiring-max-agents] b/default-max-agents)))
+                  (and (= :sent-for (:status p)) (<= (:arrival p) (:round world)) (room-for-arrival? world))
                   (arrival-events scenario world p)
                   (and (= :here (:status p)) (w/active? world (:agent-id p))
                        (>= (idle-rounds world (:agent-id p) (:arrived p)) leave-after))

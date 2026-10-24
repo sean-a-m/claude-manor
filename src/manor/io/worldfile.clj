@@ -54,11 +54,14 @@
   and nothing rewrites it. An optional :appearance is public at a glance,
   and optional :aspects (see manor.mechanics.items) say how they differ from it at
   the start. An optional :inner (see manor.mechanics.inner) is how they are
-  inside at the start, private like :situation."
+  inside at the start, private like :situation. With :away? true they're
+  spawned like everyone else, then away (elsewhere, with no place) from the
+  start, until something brings them back (manor.mechanics.visits)."
   [:map
    [:name :string]
    [:role :keyword]
    [:location {:optional true} :string]
+   [:away? {:optional true} :boolean]
    [:persona {:optional true} :string]
    [:situation {:optional true} :string]
    [:manner {:optional true} :string]

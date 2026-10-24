@@ -1,21 +1,24 @@
 ;; A small fixed world for visits tests (test/manor/visits_test.clj), on Claudeworth's
 ;; mechanics: a house with its carriage sweep (the meeting place), a village with a post
-;; office, and two villagers with routines who hibernate when nobody is near.
+;; office, two villagers with routines who hibernate when nobody is near, a guest bedroom,
+;; and a friend of the earl's who is away (from elsewhere) from the start.
 ;; Test-owned: don't sync it with the bundled worlds.
 {:meta {:name "Claudeworth Manor"
         :start "1904-10-15T20:00"
         :minutes-per-round 30
         :starting-funds 100
+        :positions "positions/england-1904.edn"
         :setting "Claudeworth Manor is a modest country house beside a small village with a post office and a forge."}
 
  :locations
  [{:id "carriage-sweep" :name "Carriage sweep" :domain :house :kind :approach
    :connects-to ["entrance-hall"] :desc "A gravel turning circle before the front door."}
   {:id "entrance-hall" :name "Entrance hall" :domain :house :kind :hall
-   :connects-to ["drawing-room" "earls-bedroom" "secretarys-room"] :desc "A modest hall."}
+   :connects-to ["drawing-room" "earls-bedroom" "secretarys-room" "blue-room"] :desc "A modest hall."}
   {:id "drawing-room" :name "Drawing room" :domain :house :kind :sitting-room :desc "Chintz chairs."}
   {:id "earls-bedroom" :name "Earl's bedroom" :domain :house :kind :bedroom :desc "A large bed."}
   {:id "secretarys-room" :name "Secretary's room" :domain :house :kind :bedroom :desc "A narrow bed."}
+  {:id "blue-room" :name "Blue room" :domain :house :kind :bedroom :desc "The guest bedroom."}
   {:id "village-green" :name "Village green" :domain :village :kind :green
    :connects-to ["post-office" "forge"] :desc "A sloping green."}
   {:id "post-office" :name "Post office" :domain :village :kind :office :hours ["08:00" "18:00"]
@@ -44,4 +47,6 @@
              {:from "22:00" :at "postmistress-room" :doing "asleep"}]}
   {:name "Carter" :role :blacksmith :location "forge" :bedroom "blacksmiths-room"
    :routine [{:from "07:00" :at "forge" :doing "working at the forge"}
-             {:from "19:00" :at "blacksmiths-room" :doing "resting by the fire"}]}]}
+             {:from "19:00" :at "blacksmiths-room" :doing "resting by the fire"}]}
+  {:name "Captain Hart" :role :guest :away? true :location "carriage-sweep" :bedroom "blue-room"
+   :situation "You are Captain Hart, an old friend of Lord Claudeworth's from his regiment, living in Bath."}]}

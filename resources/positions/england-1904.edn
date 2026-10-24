@@ -224,6 +224,13 @@
  {:title "Labourer" :standing :villager :sleeps :out :addressed-as "{first-name}" :ages [16 65] :sex :male
   :about "You work on the land, or wherever a day's wage is to be had: digging, hedging, carting, harvesting and any heavy work you are set."}
 
+ ;; ------------------------------------------------ visitors
+ ;; Someone from elsewhere, invited to the house (manor.mechanics.visits). No
+ ;; household and no :sleeps: they live elsewhere and stay as long as they like.
+ :guest
+ {:title "Guest" :standing :visitor :ages [18 80]
+  :about "You don't live here: you are a guest, and `visit` under `you` in your view says who asked you, why and for how long. When your visit is over, or it seems right to go, use `take-leave`."}
+
  ;; ------------------------------------------------ no post
  :none
  {:title "No post" :standing :villager :sleeps :out :ages [16 60]

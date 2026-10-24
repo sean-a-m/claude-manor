@@ -52,10 +52,12 @@
       (is (nil? (room-kind wf "bathroom")))
       (is (= :room (room-kind wf "box-room")))              ; the attic room to convert into beds
       (is (empty? (filter #(= :housekeeper (:role %)) (:agents wf)))))
-    (testing "the son is in the world file but out of the run until he comes home"
+    (testing "the son is in the run but away at school until he comes home"
       (let [run (start)]
         (try
-          (is (nil? (w/agent (e/world run) "master-claudeworth")))
+          (is (= :away (:status (w/agent (e/world run) "master-claudeworth"))))
+          (is (nil? (:location (w/agent (e/world run) "master-claudeworth"))))
+          (is (= "sons-room" (get-in (e/world run) [:state :bedrooms "master-claudeworth"])))
           (is (some? (w/agent (e/world run) "miss-claudeworth")))
           (is (= 12 (count (filter #(positions/household-member? (e/world run) (:id %))
                                    (w/active-agents (e/world run))))))

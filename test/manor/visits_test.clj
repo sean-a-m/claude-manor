@@ -1,8 +1,10 @@
 (ns manor.visits-test
-  "Visits, phase 1 (docs/visits-design.md): guests in the world, invited by
-  post, messenger or in person, or arranged by the GM or operator. Runs use
-  the production Claudeworth mechanics on the test-owned world
-  test/fixtures/visits.edn (start 1904-10-15 20:00, half-hour rounds)."
+  "Visits (docs/visits-design.md): guests in the world, invited by post,
+  messenger or in person, or arranged by the GM or operator (phase 1); and
+  guests from elsewhere, away agents who arrive at the meeting place (phase
+  2, part A). Runs use the production Claudeworth mechanics on the
+  test-owned world test/fixtures/visits.edn (start 1904-10-15 20:00,
+  half-hour rounds)."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
@@ -11,6 +13,8 @@
             [manor.io.worldfile :as worldfile]
             [manor.mechanics.builtins :as b]
             [manor.mechanics.calendar :as calendar]
+            [manor.mechanics.hiring :as hiring]
+            [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.mechanics.visits :as visits]
             [manor.narrate :as n]
@@ -24,11 +28,13 @@
 
 (def world-file "test/fixtures/visits.edn")
 
-(defn- start-with [scenario day opts]
-  (with-redefs [e/load-scenario (constantly (assoc scenario :mock-policy #(cw/scripted-policy day %)))]
+(defn- start-policy [scenario policy opts]
+  (with-redefs [e/load-scenario (constantly (assoc scenario :mock-policy policy))]
     (e/start-run :claudeworth (merge {:test? true :llm :mock :offline? true :gm :off :max-cost 0.20
                                       :world-file world-file :run-id (str (gensym "visits-"))}
                                      opts))))
+
+(defn- start-with [scenario day opts] (start-policy scenario #(cw/scripted-policy day %) opts))
 
 (defn- start [day opts] (start-with cw/scenario day opts))
 
@@ -257,8 +263,9 @@
         (is (not (str/includes? (calendar-of run "hale") "Mrs Bell")))
         (is (not (str/includes? (calendar-of run "mrs-bell") "18 October"))))
       (testing "the GM's schedule-visit makes the same record"
-        (let [evs (effect run (e/world run) "gm" :schedule-visit
-                          {:who "carter" :date "1904-10-16" :time "15:00" :stay "to see the earl"})
+        (let [args {:who "carter" :date "1904-10-16" :time "15:00" :stay "to see the earl"}
+              _ (is (nil? (check run (e/world run) "gm" :schedule-visit args)))
+              evs ((:on-result (action run :schedule-visit)) (e/world run) "gm" args {})
               after (reduce w/apply-event (e/world run) evs)]
           (is (= :gm (:by (visits/visit after "visit-4"))))
           (is (:told? (visits/visit after "visit-4")))))
@@ -342,4 +349,235 @@
         (is (str/includes? (calendar-of run "mrs-bell") "invited by Lord Claudeworth: to tea."))
         (is (not (str/includes? (calendar-of run "hale") "Mrs Bell"))))
       (replay! run)
+      (finally (e/stop-run run)))))
+
+;; ---------------------------------------------------------------------------
+;; Phase 2, part A: guests from elsewhere
+
+(def arden
+  "Someone new, as the GM gives them."
+  {:name "Mr Arden" :sex "male" :age 34 :from "Ely" :known-as "a curate from Ely"
+   :situation "You are Mr Arden, curate of Ely, and you have never met the earl; SECRET-SITUATION."})
+
+(defn- gm-then
+  "A policy: the GM calls `tool` with `args` once, in round `round`;
+  everyone else follows `day`."
+  [round tool args day]
+  (fn [{:keys [role used world] :as ctx}]
+    (if (= :gm role)
+      (if (and (= round (:round world)) (not (some #{(name tool)} used)))
+        {:tool tool :args args}
+        {:tool :done})
+      (cw/scripted-policy day ctx))))
+
+(def arden-day
+  "The earl waits at the carriage sweep. Mr Arden notes something when he
+  comes, and takes his leave the next round; the earl then walks in and
+  sends him an invitation by Hale, and Mr Arden comes again at 01:00."
+  {"lord-claudeworth" {"20:00" [[:travel {:to "carriage-sweep"}]]
+                       "23:00" [[:walk {:to "drawing-room"}]
+                                [:invite {:by "messenger" :via "hale" :who "mr-arden" :date "1904-10-16"
+                                          :time "01:00" :stay "a week"}]
+                                [:pass {}]]}
+   "mr-arden" {"22:00" [[:note {:text "MEMORY-SENTINEL"}] [:pass {}]]
+               "22:30" [[:take-leave {}]]}})
+
+(defn- visible-before [run id round]
+  (filter #(and (w/visible-to? % id) (< (:round %) round)) (e/events run)))
+
+(deftest gm-secret-visit-by-someone-new
+  (let [run (start-policy cw/scenario
+                          (gm-then 1 :schedule-visit (merge arden {:date "1904-10-15" :time "22:00" :stay "to call"}) arden-day)
+                          {:gm :llm :gm-check-in-every 1 :visits {:from-away-hours 1}})]
+    (try
+      (until! run 1)
+      (let [world (e/world run) a (w/agent world "mr-arden")]
+        (testing "the GM's new person is written in the query, spawned and away at once, all :system"
+          (is (= :away (:status a)))
+          (is (= {:name "Mr Arden" :role :guest :lives "Ely" :known-as "a curate from Ely" :sex :male}
+                 (select-keys a [:name :role :lives :known-as :sex])))
+          (is (str/includes? (:situation a) "SECRET-SITUATION"))
+          (is (seq (:persona a)))
+          (is (= {:position :guest :household nil} (select-keys (positions/post world "mr-arden") [:position :household])))
+          (is (= :system (:visible-to (first (filter #(and (= :agent/spawned (:type %)) (= "mr-arden" (get-in % [:data :agent :id])))
+                                                     (e/events run)))))))
+        (testing "nothing called out: the people server's stub and the mock writers"
+          (is (seq (of-type run :bridge/called)))
+          (is (every? #(nil? (get-in % [:data :error])) (of-type run :bridge/called)))
+          (is (empty? (of-type run :adjudication/failed))))
+        (let [v (visits/visit world "visit-1")]
+          (is (= {:guest "mr-arden" :by :gm :status :scheduled :told? false}
+                 (select-keys v [:guest :by :status :told?])))))
+      (until! run 4)
+      (testing "nobody is told in advance"
+        (doseq [id ["lord-claudeworth" "hale" "mrs-bell" "carter"]]
+          (is (not-any? #(str/includes? (pr-str %) "mr-arden") (visible-before run id 5)) id)
+          (is (not (str/includes? (calendar-of run id) "Arden")) id)))
+      (until! run 5)
+      (let [world (e/world run)
+            [arrived] (filter #(get-in % [:data :at]) (of-type run :visits/arrived))]
+        (testing "he arrives at the meeting place at the time, seen only by those there"
+          (is (= "carriage-sweep" (space/location-of world "mr-arden")))
+          (is (= :here (status world "visit-1")))
+          (is (= #{"lord-claudeworth" "mr-arden"} (:visible-to arrived)))
+          (is (= "A visitor arrives at the Carriage sweep: Mr Arden (mr-arden), a curate from Ely."
+                 (n/describe arrived (n/names world))))
+          (is (= :system (:visible-to (first (of-type run :people/returned))))))
+        (testing "his view: his visit, the house's bedrooms, and the guest's brief"
+          (let [view (prompt/agent-view (:scenario run) world "mr-arden")]
+            (is (= {:invited-for "to call" :arrived "22:00"} (get-in view [:you :visit])))
+            (is (some #(= "blue-room" (:id %)) (get-in view [:household :bedrooms]))))
+          (is (str/includes? (cw/agent-brief world "mr-arden") "`visit` under `you`"))
+          (is (not (str/includes? (pr-str (prompt/agent-messages (:scenario run) world (e/events run) "lord-claudeworth" {}))
+                                  "SECRET-SITUATION")))))
+      (until! run 6)
+      (let [world (e/world run)]
+        (testing "he takes his leave: away towards Ely, the visit over, and the earl saw him go"
+          (is (= :away (:status (w/agent world "mr-arden"))))
+          (is (= :ended (status world "visit-1")))
+          (is (= ["Ely"] (map #(get-in % [:data :towards])
+                              (filter #(= "takes leave" (get-in % [:data :reason])) (of-type run :people/departed)))))
+          (is (= [{:id "mr-arden" :name "Mr Arden" :place "Carriage sweep" :at "22:30"}]
+                 (:away-acquaintances (prompt/agent-view (:scenario run) world "lord-claudeworth"))))))
+      (until! run 7)
+      (testing "the earl invites him again by who: the lead time from away applies"
+        (let [v (visits/visit (e/world run) "visit-2")]
+          (is (= {:guest "mr-arden" :host "lord-claudeworth" :by :messenger :status :scheduled}
+                 (select-keys v [:guest :host :by :status])))))
+      (until! run 11)
+      (let [world (e/world run) a (w/agent world "mr-arden")]
+        (testing "and he comes back as the same agent, with his memories"
+          (is (= :here (status world "visit-2")))
+          (is (= "carriage-sweep" (:location a)))
+          (is (= 1 (count (filter #(= "Mr Arden" (:name %)) (vals (:agents world))))))
+          (is (= ["MEMORY-SENTINEL"] (map :text (:notes a))))
+          (is (str/includes? (pr-str (prompt/agent-messages (:scenario run) world (e/events run) "mr-arden" {}))
+                             "MEMORY-SENTINEL"))
+          (is (= {:host "Lord Claudeworth" :invited-for "a week" :arrived "01:00"}
+                 (get-in (prompt/agent-view (:scenario run) world "mr-arden") [:you :visit])))))
+      (is (empty? (of-type run :action/forfeited)))
+      (replay! run)
+      (finally (e/stop-run run)))))
+
+(deftest away-guests-wait-for-room-and-never-lapse
+  (let [scenario (-> cw/scenario (assoc-in [:limits :max-agents] 4) (hiring/install "carriage-sweep"))
+        run (start-with scenario {} {})]
+    (try
+      (testing "the world file's away friend is in the run, away, from the start"
+        (is (= :away (:status (w/agent (e/world run) "captain-hart"))))
+        (is (every? #(= :system (:visible-to %))
+                    (filter #(= "captain-hart" (or (get-in % [:data :agent :id]) (get-in % [:data :id])))
+                            (filter #(#{:agent/spawned :people/departed} (:type %)) (e/events run))))))
+      (testing "someone away can be invited; the lead time from away is added"
+        (let [world (assoc-in (e/world run) [:agents "hale" :location] "post-office")]
+          (is (= "by post, the earliest they can be here is Sunday 16 October, 23:00"
+                 (check run world "hale" :invite {:by "post" :who "captain-hart" :date "1904-10-16" :time "10:00" :stay "x"})))))
+      @(e/schedule-visit! run {:who "captain-hart" :date "1904-10-15" :time "21:00" :stay "to dine"
+                               :bedroom "blue-room" :known-to ["lord-claudeworth"]})
+      (until! run 3)
+      (testing "with the agent cap full, he waits"
+        (is (= :away (:status (w/agent (e/world run) "captain-hart"))))
+        (is (= :scheduled (status (e/world run) "visit-1"))))
+      (until! run 12)
+      (is (= :scheduled (status (e/world run) "visit-1")) "an away guest never lapses")
+      @(e/retire! run "carter" "moved away")
+      (until! run 13)
+      (let [world (e/world run)]
+        (testing "once there's room he arrives, with the named bedroom"
+          (is (= "carriage-sweep" (space/location-of world "captain-hart")))
+          (is (= :here (status world "visit-1")))
+          (is (= "blue-room" (get-in world [:state :bedrooms "captain-hart"])))
+          (is (= {:invited-for "to dine" :bedroom "blue-room" :arrived "02:00"}
+                 (get-in (prompt/agent-view (:scenario run) world "captain-hart") [:you :visit])))))
+      (replay! run)
+      (finally (e/stop-run run)))))
+
+(deftest returning-candidate-and-courier-get-a-guest-situation
+  (let [run (start {} {})
+        scenario (:scenario run)
+        world (e/world run)
+        person (fn [n] {:name n :persona "p" :appearance "a" :lives "a cottage in Ely"
+                        :record {:name n :age 30 :sex "female" :temperament [] :faculties [] :circumstances []}})
+        spawn (fn [world n situation]
+                (let [evs (b/spawn-events scenario world (merge (hiring/spawn-spec (person n))
+                                                                {:role :none :location "carriage-sweep" :situation situation}))]
+                  [(get-in (first evs) [:data :agent :id]) (reduce w/apply-event world evs)]))
+        [cand world] (spawn world "Pat Ellis" "You have come about the cook place, sent for by Lord Claudeworth.")
+        [courier world] (spawn world "Stephen Dobbs" "You carry for the Post office. You have brought up a parcel.")
+        world (reduce w/apply-event world
+                      [{:type :people/pooled :data {:id "candidate-1" :agent-id cand :seeks [:cook] :status :away
+                                                    :lives "a cottage in Ely" :known-to #{}}}
+                       {:type :deliveries/courier-updated :data {:shop "post-office" :changes {:agent-id courier :person (person "Stephen Dobbs")}}}
+                       {:type :people/departed :data {:id cand :reason "takes leave" :towards "Ely"}}
+                       {:type :people/departed :data {:id courier :reason "the delivery is made" :towards "the shop"}}])
+        world (reduce w/apply-event world (concat (visits/operator-events world {:who cand :date "1904-10-15" :time "21:00" :stay "to tea"})
+                                                  ))
+        world (reduce w/apply-event world (visits/operator-events world {:who courier :date "1904-10-15" :time "21:00" :stay "to tea"}))
+        world (assoc world :round 3)
+        events (visits/tick scenario world)
+        after (reduce w/apply-event world events)]
+    (try
+      (is (= :here (:status (visits/visit after "visit-1"))))
+      (is (= "You are Pat Ellis, of a cottage in Ely. You came to Claudeworth Manor once before, about the cook place."
+             (:situation (w/agent after cand))))
+      (is (= "You are Stephen Dobbs, of a cottage in Ely; you carry for the Post office."
+             (:situation (w/agent after courier))))
+      (finally (e/stop-run run)))))
+
+(deftest pool-eviction-leaves-away-agents-and-visits
+  (let [run (start {} {})
+        base (-> (e/world run) (assoc-in [:agents "hale" :location] "post-office"))
+        pooled (for [i (range hiring/pool-limit)]
+                 {:type :people/pooled :data {:id (str "candidate-" i) :created i :area "post-office" :seeks [:cook]
+                                              :known-to #{} :status :pooled :name (str "Pooled " i)}})
+        world (reduce w/apply-event base pooled)
+        world (reduce w/apply-event world (visits/operator-events world {:who "captain-hart" :date "1904-10-16" :time "10:00" :stay "a week"}))
+        agents (:agents world)
+        fresh {:id "candidate-new" :created 99 :area "post-office" :seeks [:cook] :known-to #{} :status :pooled
+               :name "New One" :record {:name "New One"}}
+        events (hiring/recommendation-events world "lord-claudeworth" {:position "cook" :for "hale"}
+                                             {:candidate fresh :new? true :reputation {:acquaintance "x" :knows {}}})
+        after (reduce w/apply-event world events)]
+    (try
+      (is (= [{:id "candidate-0"}] (map :data (filter #(= :people/evicted (:type %)) events))))
+      (is (= hiring/pool-limit (count (hiring/pool after))))
+      (is (= agents (:agents after)) "no agent is evicted, away ones included")
+      (is (= :away (:status (w/agent after "captain-hart"))))
+      (is (= (visits/visits world) (visits/visits after)))
+      (finally (e/stop-run run)))))
+
+(deftest the-son-can-be-invited-home
+  (let [run (e/start-run :claudeworth-medium {:llm :mock :offline? true :test? true :run-id (str (gensym "medium-visit-"))})]
+    (try
+      (let [world (e/world run)]
+        (is (= :away (:status (w/agent world "master-claudeworth"))))
+        (is (not= "Master Claudeworth lives here"
+                  (check run world "lord-claudeworth" :invite {:by "post" :who "master-claudeworth" :date "1904-10-20"
+                                                               :time "14:00" :stay "the holidays"}))))
+      @(e/schedule-visit! run {:who "master-claudeworth" :date "1904-10-15" :time "08:30" :stay "a few days' holiday"
+                               :known-to ["lord-claudeworth"]})
+      (until! run 2)
+      (let [world (e/world run)
+            [arrived] (filter #(get-in % [:data :at]) (of-type run :visits/arrived))]
+        (is (= "carriage-sweep" (space/location-of world "master-claudeworth")))
+        (is (= "sons-room" (get-in world [:state :bedrooms "master-claudeworth"])))
+        (is (= "Master Claudeworth (master-claudeworth) arrives at the Carriage sweep."
+               (n/describe arrived (n/names world))))
+        (is (contains? (:visible-to arrived) "master-claudeworth"))
+        (is (str/includes? (:situation (w/agent world "master-claudeworth")) "Eton") "his own situation is kept"))
+      (replay! run)
+      (finally (e/stop-run run)))))
+
+(deftest a-guest-who-goes-away-first-arrives-from-elsewhere
+  (let [run (start {} {})
+        world (e/world run)
+        world (reduce w/apply-event world (visits/operator-events world {:who "carter" :date "1904-10-15" :time "21:00" :stay "a word"}))
+        _ (is (:told? (visits/visit world "visit-1")))
+        world (w/apply-event world {:type :people/departed :data {:id "carter" :reason "gone to market" :towards "Ely"}})
+        world (assoc world :round (:arrive (visits/visit world "visit-1")))
+        after (reduce w/apply-event world (visits/tick (:scenario run) world))]
+    (try
+      (is (= :here (:status (visits/visit after "visit-1"))))
+      (is (:from-away? (visits/visit after "visit-1")))
+      (is (= "carriage-sweep" (space/location-of after "carter")))
       (finally (e/stop-run run)))))

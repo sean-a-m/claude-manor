@@ -279,16 +279,20 @@
    :hiring (hiring/reference world)})
 
 (defn observe
-  "Your bedroom, the house's bedrooms if you're of the household, opening
-  hours where you are, where you can walk from here, and the journeys to
-  other areas. Every place by area is in `reference`."
+  "Your bedroom, the house's bedrooms if you're of the household or a guest
+  from elsewhere, your visit if you're a guest and the people you've met who
+  are away (manor.mechanics.visits), opening hours where you are, where you
+  can walk from here, and the journeys to other areas. Every place by area
+  is in `reference`."
   [world id]
   (let [here (space/location-of world id)
         hours (:hours (space/location world here))]
     (cond-> (-> (merge-with merge (building/observe world id) (shop/observe world id))
                 (update :you assoc :bedroom (bedroom-of world id))
-                (assoc :hiring (hiring/observe world id)))
-      (positions/household-member? world id) (assoc-in [:household :bedrooms] (house-bedrooms world))
+                (assoc :hiring (hiring/observe world id))
+                (visits/add-to-view world id))
+      (or (positions/household-member? world id) (visits/from-elsewhere? world id))
+      (assoc-in [:household :bedrooms] (house-bedrooms world))
       hours (update :here merge {:open (str/join "-" hours) :open-now? (open-now? world hours)})
       here (assoc :walkable (vec (sort (walkable world here)))
                   :journeys (journeys world here)))))

@@ -8,6 +8,8 @@
             [manor.io.worldfile :as worldfile]
             [manor.mechanics.items :as items]
             [manor.mechanics.positions :as positions]
+            [manor.mechanics.space :as space]
+            [manor.mechanics.visits :as visits]
             [manor.scenarios.claudeworth :as cw]
             [manor.scenarios.claudeworth.building :as building]
             [manor.world :as w]))
@@ -52,13 +54,20 @@
       (is (nil? (room-kind wf "bathroom")))
       (is (= :room (room-kind wf "box-room")))              ; the attic room to convert into beds
       (is (empty? (filter #(= :housekeeper (:role %)) (:agents wf)))))
-    (testing "the son is in the world file but out of the run until he comes home"
+    (testing "the son is in the run but away at school until he comes home"
       (let [run (start)]
         (try
-          (is (nil? (w/agent (e/world run) "master-claudeworth")))
+          (is (= :away (:status (w/agent (e/world run) "master-claudeworth"))))
+          (is (nil? (:location (w/agent (e/world run) "master-claudeworth"))))
+          (is (= "sons-room" (get-in (e/world run) [:state :bedrooms "master-claudeworth"])))
           (is (some? (w/agent (e/world run) "miss-claudeworth")))
           (is (= 12 (count (filter #(positions/household-member? (e/world run) (:id %))
                                    (w/active-agents (e/world run))))))
+          (testing "he comes home from Eton on 20 December, an authored visit his parents know of"
+            (is (= {:guest "master-claudeworth" :host nil :by :authored :at "1904-12-20T14:00" :bedroom "sons-room"
+                    :known-to #{"lord-claudeworth" "lady-claudeworth"} :status :scheduled}
+                   (select-keys (get-in (e/world run) [:state :visits "visit-1"])
+                                [:guest :host :by :at :bedroom :known-to :status]))))
           (finally (e/stop-run run)))))
     (testing "the quarried money is under the grand price, so one commission cannot take the account"
       (let [prices (:sizes (building/read-price-list (get-in wf [:meta :architect-prices])))
@@ -108,3 +117,42 @@
     (is (every? #(entry wf %) ["Hobbs" "Briggs" "Miss Ellis" "Turner" "Polly" "Mrs Bell"
                                "Carter" "Rudge" "Webb" "Mrs Dobbins" "Father Anselm" "Pugh"])
         "the village's residents are in the world file")))
+
+(deftest authored-homecoming-respects-leave-out
+  (testing "leaving out the guest drops his authored visit"
+    (let [run (start {:leave-out ["master-claudeworth"]})]
+      (try
+        (is (nil? (w/agent (e/world run) "master-claudeworth")))
+        (is (empty? (visits/visits (e/world run))))
+        (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+        (finally (e/stop-run run)))))
+  (testing "leaving out either or both parents removes only their audience ids"
+    (doseq [left-out [["lord-claudeworth"] ["lady-claudeworth"] ["lord-claudeworth" "lady-claudeworth"]]]
+      (let [run (start {:leave-out left-out})]
+        (try
+          (is (= (apply disj #{"lord-claudeworth" "lady-claudeworth"} left-out)
+                 (set (:known-to (visits/visit (e/world run) "visit-1")))))
+          (is (= :scheduled (:status (visits/visit (e/world run) "visit-1"))))
+          (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+          (finally (e/stop-run run)))))))
+
+(deftest a-short-mock-homecoming
+  (let [run (start {:start "1904-12-20T13:00"})]
+    (try
+      (e/auto! run 3)
+      (is (= :idle (e/wait-idle run 60000)))
+      (let [world (e/world run)]
+        (is (= 3 (:round world)))
+        (is (= "carriage-sweep" (space/location-of world "master-claudeworth")))
+        (is (= :here (:status (visits/visit world "visit-1"))))
+        (is (= world (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))
+
+(deftest starting-after-homecoming-skips-it-without-reconstructing-a-stay
+  (let [run (start {:start "1904-12-25T08:00"})]
+    (try
+      (is (empty? (visits/visits (e/world run))))
+      (is (= :away (:status (w/agent (e/world run) "master-claudeworth"))))
+      (is (nil? (space/location-of (e/world run) "master-claudeworth")))
+      (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+      (finally (e/stop-run run)))))

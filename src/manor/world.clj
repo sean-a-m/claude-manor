@@ -140,9 +140,32 @@
 (defmethod apply-event :agent/retired [world {:keys [data]}]
   (assoc-in world [:agents (:id data) :status] :retired))
 
+(defn sees?
+  "Is `id` conscious and able to see? Used when reducers record sightings."
+  [world id]
+  (let [physical (:physical (agent world id))]
+    (not (or (= :disabled (get-in physical [:consciousness :level]))
+             (= :disabled (get-in physical [:sight :level]))))))
+
+(defn- parting
+  "The world after `id` leaves for elsewhere: each active person in the
+  place they leave remembers seeing them there, if able to see, as
+  manor.mechanics.space records it for moves (:seen)."
+  [world id]
+  (let [place (:location (agent world id))
+        others (keep #(when (and place (= place (:location %)) (not= id (:id %))) (:id %)) (active-agents world))]
+    (reduce (fn [world p]
+              (cond-> world
+                (sees? world p) (assoc-in [:seen p id] {:place place :round (:round world)})
+                (sees? world id) (assoc-in [:seen id p] {:place place :round (:round world)})))
+            world others)))
+
 (defmethod apply-event :people/departed [world {:keys [data]}]
-  (update-in world [:agents (:id data)]
-             #(-> % (assoc :status :away) (dissoc :location :travel :busy))))
+  ;; Departure must never turn a dead or retired person into a returning guest.
+  (if (active? world (:id data))
+    (update-in (parting world (:id data)) [:agents (:id data)]
+               #(-> % (assoc :status :away) (dissoc :location :travel :busy)))
+    world))
 
 (defmethod apply-event :people/returned [world {:keys [data]}]
   ;; Retired is permanent; only away people can return.

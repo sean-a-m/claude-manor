@@ -123,22 +123,35 @@
       address (assoc :address-as address)
       (:busy a) (assoc :doing (get-in a [:busy :activity])))))
 
-(defn last-seen
-  "Where `agent-id` last saw each active person who isn't with them now, most
-  recent first: [{:id :name :place (a place name) :at (a time, or :round)
-  :went (a place name, if they saw them go)}]."
-  [world agent-id]
+(defn- seen-where
+  "Where `agent-id` last saw each person `keep?` accepts (an id), most recent
+  first: [{:id :name :place (a place name) :at (a time, or :round) :went (a
+  place name, if they saw them go)}]."
+  [world agent-id keep?]
   (let [c (:clock world)
-        with-me (present world (location-of world agent-id))
         loc-name #(:name (location world %) %)]
     (->> (get-in world [:seen agent-id])
-         (filter (fn [[id _]] (and (w/active? world id) (not (with-me id)))))
+         (filter (fn [[id _]] (keep? id)))
          (sort-by (fn [[id {:keys [round]}]] [(- round) (:name (w/agent world id))]))
          (mapv (fn [[id {:keys [place round went]}]]
                  (cond-> {:id id :name (:name (w/agent world id)) :place (loc-name place)}
                    c (assoc :at (clock/short-label c round (:round world)))
                    (not c) (assoc :round round)
                    went (assoc :went (loc-name went))))))))
+
+(defn last-seen
+  "Where `agent-id` last saw each active person who isn't with them now, most
+  recent first: [{:id :name :place (a place name) :at (a time, or :round)
+  :went (a place name, if they saw them go)}]."
+  [world agent-id]
+  (let [with-me (present world (location-of world agent-id))]
+    (seen-where world agent-id #(and (w/active? world %) (not (with-me %))))))
+
+(defn away-acquaintances
+  "Where `agent-id` last saw each person they've met who is away now (gone
+  elsewhere, and able to come back), most recent first, as `last-seen` shows them."
+  [world agent-id]
+  (seen-where world agent-id #(= :away (:status (w/agent world %)))))
 
 (defn view
   "The location section of an agent's observation: the place you're in

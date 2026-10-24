@@ -90,7 +90,7 @@
 (defn sees?
   "Can `id` see what's around them: are they conscious, with sight?"
   [world id]
-  (and (not (unconscious? world id)) (can? world id :sight)))
+  (w/sees? world id))
 
 (defn dead-at
   "Ids of the dead lying at `loc-id`."

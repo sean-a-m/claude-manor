@@ -13,6 +13,7 @@
     (afflict! \"hale\" {:faculty :movement :level :disabled :cause \"bound hand and foot\"})  ; :normal clears
     (afflict! \"hale\" {:faculty :consciousness :level :disabled :minutes 60})  ; comes to in an hour
     (afflict! \"hale\" {:impediment :hand :value \"a cut finger\"})  (afflict! \"hale\" {:died \"a fall\"})
+    (schedule-visit! {:who \"mrs-bell\" :date \"1904-10-16\" :time \"15:00\" :stay \"to tea\"})  (cancel-visit! \"visit-1\")
     (approve! \"req-63\")  (deny! \"req-63\")
     (act! \"eva\" :plant {:grain 3})       ; for a seat with :controller :human
     (load! \"village-20261014-...\")  (branch! 3)
@@ -139,6 +140,8 @@
 (defn add-calendar-entry! [entry] @(e/add-calendar-entry! (run) entry))
 (defn update-calendar-entry! [id changes] @(e/update-calendar-entry! (run) id changes))
 (defn cancel-calendar-entry! [id] @(e/cancel-calendar-entry! (run) id))
+(defn schedule-visit! [spec] @(e/schedule-visit! (run) spec))
+(defn cancel-visit! [id] @(e/cancel-visit! (run) id))
 (defn approve! [req-id] @(e/approve! (run) req-id))
 (defn deny! [req-id] @(e/deny! (run) req-id))
 (defn act! [id action args] (e/act! (run) id action args))

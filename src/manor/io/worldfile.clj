@@ -22,6 +22,9 @@
   `:connects-to` is undirected: listing a neighbour on either side is enough.
   Calendar audiences stay explicit character IDs and are checked after cast
   creation by the engine; unlike item holders they are not name-converted.
+  Authored visits (:visits, see manor.mechanics.visits/authored-events) name
+  their guest and :known-to by character ID too, and are made and checked
+  by the engine at a fresh run's start.
   Items name their :holder (and an :owner who is an agent) by agent name;
   loading turns those into agent ids, and exporting turns them back.
   `load-world` reads and checks a file and returns the parts a scenario's
@@ -59,11 +62,14 @@
   the start. An optional :inner (see manor.mechanics.inner) is how they are
   inside at the start, private like :situation. Optional :physical and
   :impediments, and :status :dead with an optional :died {:cause}, are their
-  physical state at the start (see manor.mechanics.physical)."
+  physical state at the start (see manor.mechanics.physical). With :away? true
+  they are spawned, then away (elsewhere, with no place) until something brings
+  them back (visits). Starting dead takes precedence over :away?."
   [:map
    [:name :string]
    [:role :keyword]
    [:location {:optional true} :string]
+   [:away? {:optional true} :boolean]
    [:persona {:optional true} :string]
    [:situation {:optional true} :string]
    [:manner {:optional true} :string]
@@ -88,7 +94,8 @@
    [:routes {:optional true} [:vector [:vector :any]]]
    [:agents {:optional true} [:vector Agent]]
    [:items {:optional true} [:vector :map]]
-   [:calendar {:optional true} [:vector :map]]])
+   [:calendar {:optional true} [:vector :map]]
+   [:visits {:optional true} [:vector :map]]])
 
 ;; ---------------------------------------------------------------------------
 ;; Reading and checking
@@ -197,9 +204,9 @@
 (defn load-world
   "Read and check a world file (a path, or a classpath resource such as
   \"worlds/claudeworth.edn\"). Throws with a list of problems if it is
-  wrong. Returns {:space :clock :agents :items :calendar :world-file}; all but the
-  last are ready for a scenario's :init (:clock, :agents, :items and :calendar only if
-  the file has them), and :world-file is the data as read (the scenario
+  wrong. Returns {:space :clock :agents :items :calendar :visits :world-file}; all but the
+  last are ready for a scenario's :init (:clock, :agents, :items, :calendar and :visits only
+  if the file has them), and :world-file is the data as read (the scenario
   reads its own sections from it; the engine saves a copy)."
   [source]
   (let [wf (read-file source)]
@@ -209,7 +216,8 @@
       (->clock wf) (assoc :clock (->clock wf))
       (:agents wf) (assoc :agents (:agents wf))
       (:items wf) (assoc :items (->items wf))
-      (:calendar wf) (assoc :calendar (:calendar wf)))))
+      (:calendar wf) (assoc :calendar (:calendar wf))
+      (:visits wf) (assoc :visits (:visits wf)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Exporting the live map
@@ -263,8 +271,9 @@
 (defn export
   "The world file `start` with its :locations and :routes replaced by the
   live world's map, its :items by the live items if the world has items,
-  and its agents' :aspects, :inner and physical state by theirs now. Locations, routes and items keep
-  the order they had in `start`; new ones follow. Closed routes are left out."
+  and its agents' :aspects, :inner and physical state by theirs now, without :visits.
+  Locations, routes and items keep their original order; new ones follow.
+  Closed routes are left out."
   [world start]
   (let [locs (get-in world [:space :locations])
         routes (get-in world [:space :routes])
@@ -275,13 +284,15 @@
         connects (fn [id] (vec (sort (for [[to r] (get routes id)
                                            :when (and (= 0 (:travel r)) (two-way? id to))]
                                        to))))]
-    (cond-> (assoc start
+    ;; Authored :visits were made at the start and live on in [:state :visits], which isn't exported.
+    (cond-> (assoc (dissoc start :visits)
                    :locations (vec (for [id order
                                          :let [c (connects id)]]
                                      (cond-> (get locs id) (seq c) (assoc :connects-to c))))
                    :routes (export-routes routes start two-way?))
       (items/enabled? world) (assoc :items (export-items world start))
-      (:calendar world) (assoc :calendar (calendar/export-entries world))
+      ;; Entries a mechanic manages (visits) belong to records that aren't exported.
+      (:calendar world) (assoc :calendar (vec (remove :managed-by (calendar/export-entries world))))
       (:agents start) (assoc :agents (export-agents world start)))))
 
 (def ^:private key-order [:id :name])

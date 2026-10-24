@@ -60,14 +60,16 @@
 (deftest both-scenarios-start-with-the-shared-calendar
   (doseq [scenario [:claudeworth :claudeworth-medium]]
     (testing (name scenario)
-      (with-run scenario {}
+      ;; The expected entries are those in view from 15 October, whatever the world file says.
+      (with-run scenario {:start "1904-10-15T08:00"}
         (fn [run]
           (let [world (e/world run)
                 records (entries world)
                 expected-visible #{"all-hallows-eve-1904" "all-saints-1904" "all-souls-1904"
                                    "guy-fawkes-1904" "martinmas-1904"}]
             (is (= 30 (get-in world [:calendar :lookahead-days])))
-            (is (= (set (map :id holidays/entries)) (set (keys records))))
+            ;; Besides the holidays, only entries visits manage (the medium son's homecoming).
+            (is (= (set (map :id holidays/entries)) (set (keys (remove (comp :managed-by val) records)))))
             (is (= :historical (status world "lady-day-1904")))
             (is (= :pending (status world "lady-day-1905")))
             (is (empty? (calendar/due-records world)))

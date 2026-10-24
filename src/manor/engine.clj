@@ -52,6 +52,7 @@
             [manor.mechanics.physical.changes :as physical-changes]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
+            [manor.mechanics.visits :as visits]
             [manor.world :as w])
   (:import (java.util.concurrent ExecutorService Future TimeUnit)))
 
@@ -345,6 +346,20 @@
 (defn cancel-calendar-entry! [run id]
   (operator! run #(calendar/command-events % :cancel {:id id})))
 
+(defn schedule-visit!
+  "Arrange a visit by someone in the world (see manor.mechanics.visits):
+  {:who \"mrs-bell\" :date \"1904-10-16\" :time \"15:00\" :stay \"to tea\"
+   :reason \"...\" :bedroom \"...\" :known-to [\"lord-claudeworth\"]}. The guest is
+  told at once in their calendar; :known-to (default nobody) get the host's
+  entry. The time must be at least the next round's. Throws if it can't be arranged."
+  [run spec]
+  (operator! run #(visits/operator-events % spec)))
+
+(defn cancel-visit!
+  "Cancel a visit not yet begun, with its calendar entries."
+  [run id]
+  (operator! run #(visits/operator-cancel-events % id)))
+
 (defn approve! [run req-id]
   (operator! run (fn [world]
                    (when (get-in world [:pending-bridges req-id])
@@ -403,11 +418,26 @@
                        (str "agent " (pr-str name) ": " p)))]
     (throw (ex-info (str "bad :agents from :init: " (str/join "; " ps)) {:problems (vec ps)}))))
 
+(defn- spawn-at-start
+  "A starting agent's events. One marked :away? (see manor.io.worldfile) is
+  spawned with everything, then away from the start, all of it :system so
+  nobody sees them go."
+  [scenario world spec]
+  (let [spawned (b/spawn-events scenario world spec)]
+    (if (and (:away? spec) (not= :dead (:status spec)))
+      (let [id (get-in (first spawned) [:data :agent :id])]
+        (conj (mapv #(assoc % :visible-to :system) spawned)
+              {:type :people/departed :visible-to :system
+               :data {:id id :reason "away at the start" :towards (or (:lives spec) "elsewhere")}}))
+      spawned)))
+
 (defn- init!
   "Build the starting world from the scenario's :init. A :world-file in the
   result (see manor.io.worldfile) is saved as <run-dir>/world-start.edn. The
   run option :start overrides the clock's start time. If the scenario has
-  :items, the starting items are added after the agents."
+  :items, the starting items are added after the agents. Authored visits
+  (:visits, see manor.mechanics.visits/authored-events) are made last, after
+  the cast and the calendar."
   [run]
   (let [{:keys [scenario opts]} run
         {:keys [state agents clock world-file items] :as init} ((:init scenario) opts)
@@ -422,12 +452,14 @@
     (run/emit! run (space/init-events (:space init)))
     (check-agents! scenario agents)
     (doseq [spec (cons {:name "GM" :role :gm :model (:gm-model opts) :controller (:gm opts)} agents)]
-      (run/emit! run (b/spawn-events scenario @(:world run) (into {} (remove (comp nil? val)) spec))))
+      (run/emit! run (spawn-at-start scenario @(:world run) (into {} (remove (comp nil? val)) spec))))
     (when (:items scenario)
       (check-items! @(:world run) items)
       (run/emit! run (items/init-events items)))
     (when (:calendar scenario)
-      (run/emit! run (calendar/init-events @(:world run) (:calendar scenario) (:calendar init))))))
+      (run/emit! run (calendar/init-events @(:world run) (:calendar scenario) (:calendar init))))
+    (when (some? (:visits init))
+      (run/emit! run (visits/authored-events @(:world run) (:visits init))))))
 
 (defn start-run
   "Create and initialise a new run of `scenario-key` (e.g. :village)."

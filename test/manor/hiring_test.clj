@@ -97,9 +97,14 @@
       (let [world (e/world run) p (first-person world)]
         (is (= :pooled (:status p)))
         (is (= [secret] (get-in p [:record :circumstances])))
+        (is (= "a cottage in the next parish" (:candidate-home p)))
+        (is (= (:candidate-home p) (get-in p [:record :candidate-home])))
+        (is (not (contains? p :lives)))
+        (is (= (:candidate-home p) (get-in (h/observe world "employer") [:candidates 0 :candidate-home])))
         (let [events (e/events run)
               generated (first (filter #(= :people/generate (get-in % [:data :bridge])) events))
               reputation (first (filter #(= :people/reputation (get-in % [:data :bridge])) events))]
+          (is (true? (get-in generated [:data :args :candidate])))
           (is (not (contains? (get-in generated [:data :result :people 0]) :circumstances)))
           (is (= (:record p) (get-in reputation [:data :args :person]))))
         (is (nil? (:agent-id p)))
@@ -353,17 +358,24 @@
         (is (= (:notes (w/agent noted id)) (:notes (w/agent returned id))))
         (is (= :active (:status (w/agent returned id))))
         (is (= 4 (count (w/active-agents returned))))
-        (is (empty? (h/tick (:scenario run) (assoc talking :round 8))))
-        (is (some #(= :people/departed (:type %)) (h/tick (:scenario run) (assoc talking :round 9))))
+        (is (empty? (h/tick (:scenario run) (assoc talking :round 29))))
+        (is (some #(= :people/departed (:type %)) (h/tick (:scenario run) (assoc talking :round 30))))
+        (let [event (first (h/departure returned id "takes leave"))]
+          (is (= {:id id :reason "takes leave" :towards (:candidate-home p) :off-map? true} (:data event))))
+        (testing "legacy records never use their ungrounded lives text as a destination"
+          (let [legacy (-> returned
+                           (update-in [:state :pool (:id p)] dissoc :candidate-home)
+                           (assoc-in [:state :pool (:id p) :lives] "invented cottage, attic-landing"))]
+            (is (= "home" (get-in (first (h/departure legacy id "takes leave")) [:data :towards])))))
         (is (= :away (:status (w/agent (effect returned id :take-leave {}) id))))
         (let [retired (w/apply-event away {:type :agent/retired :data {:id id}})]
           (is (h/send-for-reason retired "employer" {:candidate (:id p)}))
           (is (= :retired (:status (w/agent (w/apply-event retired {:type :people/returned :data {:id id :at "gate"}}) id))))))
-      (rounds! run 4)
+      (rounds! run 24)
       (let [world (e/world run) id (:agent-id (first-person world))
             departure-round (:round (first (filter #(= :people/departed (:type %)) (e/events run))))]
         (is (= :away (:status (w/agent world id))))
-        (is (= 6 departure-round))
+        (is (= 27 departure-round))
         (is (not-any? #(and (= id (:actor %)) (> (:round %) departure-round) (= :llm/usage (:type %))) (e/events run))))
       (replay! run)
       (finally (e/stop-run run)))))
@@ -386,7 +398,7 @@
             (let [world (e/world run)]
               (is (= reason (a/check (action :take-leave) world id {})))
               (is (= reason (a/check (action :send-away) world "employer" {:who id}))))
-            (rounds! run 4)
+            (rounds! run 24)
             (let [world (e/world run)]
               (is (= :here (:status (first-person world))))
               (is (w/active? world id))
@@ -404,9 +416,62 @@
               (is (= :away (:status (first-person world))))
               (is (= :away (:status (w/agent world id))))
               (is (nil? (space/location-of world id)))
-              (is (= [8] (map :round (filter #(= :people/departed (:type %)) (e/events run)))))))
+              (is (= [28] (map :round (filter #(= :people/departed (:type %)) (e/events run)))))))
           (replay! run)
           (finally (e/stop-run run)))))))
+
+(deftest candidate-grace-is-a-full-game-day
+  (let [run (start)]
+    (try
+      (rounds! run 3)
+      (let [world (e/world run) p (first-person world) id (:agent-id p)]
+        (doseq [minutes [17 30 60 1440]]
+          (let [world (assoc world :clock {:start "1904-10-15T22:30" :minutes-per-round minutes})
+                wait (long (Math/ceil (/ 1440 minutes)))
+                due (+ (:arrived p) wait)
+                tick #(h/tick (:scenario run) (assoc world :round %))]
+            (is (= wait (h/candidate-wait-rounds world)))
+            (is (empty? (tick (dec due))))
+            (is (= :people/departed (:type (first (tick due)))))))
+        (let [world (assoc world :clock {:start "1904-10-15T22:30" :minutes-per-round 30})
+              talking (w/apply-event world {:type :conversation/started :actor "employer" :round 10
+                                             :data {:members ["employer" id]}})]
+          (is (empty? (h/tick (:scenario run) (assoc world :round 6))) "crossing midnight does not end the grace")
+          (is (empty? (h/tick (:scenario run) (assoc talking :round 57))))
+          (is (= :people/departed (:type (first (h/tick (:scenario run) (assoc talking :round 58))))))))
+      (finally (e/stop-run run)))))
+
+(deftest candidate-can-wait-elsewhere-and-be-hired-later
+  (let [init (:init (scenario))
+        hire (fn [{:keys [world agent-id used] :as ctx}]
+               (let [id (:agent-id (first-person world))]
+                 (cond
+                   (and (= id agent-id) (= 4 (:round world)) (not (some #{"walk"} used)))
+                   {:tool :walk :args {:to "room"}}
+                   (and (= "employer" agent-id) (= 10 (:round world)))
+                   (cond
+                     (not (some #{"walk"} used)) {:tool :walk :args {:to "room"}}
+                     (not (some #{"converse"} used)) {:tool :converse :args {:with [id] :text "At last, shall we settle the terms?"}}
+                     :else {:tool :engage :args {:who id :position "housemaid"}})
+                   (and (= id agent-id) (get-in world [:state :place-offers id]))
+                   {:tool :accept-place :args {}}
+                   :else (policy ctx))))
+        run (start {:init (fn [opts] (assoc (init opts) :clock {:start "1904-10-15T22:30" :minutes-per-round 30}))
+                    :actions (conj h/actions (first (filter #(= :walk (:name %)) claudeworth/actions)))
+                    :mock-policy hire} {})]
+    (try
+      (rounds! run 9)
+      (let [world (e/world run) id (:agent-id (first-person world))]
+        (is (= :here (:status (first-person world))))
+        (is (= :active (:status (w/agent world id))))
+        (is (= "room" (space/location-of world id))))
+      (rounds! run 1)
+      (let [world (e/world run) id (:agent-id (first-person world))]
+        (is (= :engaged (:status (first-person world))))
+        (is (= :housemaid (:role (w/agent world id))))
+        (is (empty? (filter #(#{:people/departed :action/forfeited :run/pause-requested} (:type %)) (e/events run)))))
+      (replay! run)
+      (finally (e/stop-run run)))))
 
 (deftest pool-fifo-protection-and-reuse
   (let [run (start)]
@@ -518,4 +583,33 @@
         (is (some #(= :people/arrived (:type %))
                   (h/tick (:scenario run) (-> world (assoc :round 3)
                                               (w/apply-event {:type :agent/retired :data {:id "bystander"}}))))))
+      (finally (e/stop-run run)))))
+
+(deftest returning-candidates-must-still-be-alive-away-and-mobile
+  (let [run (start)]
+    (try
+      (rounds! run 3)
+      (let [world (e/world run) p (first-person world) id (:agent-id p)
+            summoned (-> world
+                         (effect "employer" :send-away {:who id})
+                         (effect "employer" :send-for {:candidate (:id p)}))
+            due (assoc summoned :round 4)]
+        (doseq [faculty [:movement :consciousness]]
+          (let [held (assoc-in due [:agents id :physical faculty] {:level :disabled})]
+            (is (empty? (h/tick (:scenario run) held)))
+            (is (empty? (:events (h/arrival (:scenario run) held "gate" {:id id}))))))
+        (let [impeded (assoc-in due [:agents id :physical :movement] {:level :impeded})
+              events (h/tick (:scenario run) impeded)
+              arrived (reduce w/apply-event impeded events)]
+          (is (some #(= :people/returned (:type %)) events))
+          (is (= :active (:status (w/agent arrived id))))
+          (is (= 5 (count (:agents arrived))))
+          (is (= :here (:status (first-person arrived)))))
+        (let [dead (w/apply-event due {:type :person/died :data {:person id :cause "illness"}})]
+          (is (empty? (h/tick (:scenario run) dead)))
+          (is (= "that person cannot return"
+                 (h/send-for-reason (assoc-in dead [:state :pool (:id p) :status] :away) "employer" {:candidate (:id p)})))
+          (is (= dead (w/apply-event dead {:type :people/returned :data {:id id :at "gate"}})))
+          (is (= dead (w/apply-event dead {:type :people/departed :data {:id id}})))))
+      (replay! run)
       (finally (e/stop-run run)))))

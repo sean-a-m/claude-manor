@@ -28,6 +28,18 @@ non-actors still perceive nothing. Focused regressions check stored work audienc
 privacy and exact replay. All three fixes passed the full mock/offline suite: 385 tests,
 7629 assertions, 0 failures, 0 errors.
 
+Master integration (visits and the latest hiring contract): automatic arrivals and departures
+leave movement-disabled and unconscious people in place; impeded movement still permits them.
+Dead candidates/guests cannot return or be spawned again, death ends/lapses visits, and starting
+dead takes precedence over `:away?`. Arrival/departure audiences and off-map departure memories
+respect sight and consciousness. In-person invitations require speech and a conscious, hearing
+recipient; impeded speech emits only muffled noise and schedules nothing, with no described-person
+judge call. Post/messenger handling stays abstract and unchanged apart from sight-filtered visible
+events. Work/act judges retain shared-only recent lines; the invitation judge retains the inviter's
+own private recent lines. Candidate full-day availability and `candidate-home` remain intact.
+Integration regressions cover these edges and replay. Final `clojure -M:test`: 427 tests,
+8312 assertions, 0 failures, 0 errors. No real-model calls were made for integration.
+
 Where the build differs in detail: the event-making half (`change-events`, `interrupts`,
 `comings-to`) is in `manor.mechanics.physical.changes`, because `space` and `builtins` need the
 accessors and `physical` can't require them back; the impediments' shape is `items/Impediments`,

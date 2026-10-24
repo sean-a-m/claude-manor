@@ -45,7 +45,8 @@
         (testing "a small, walkable household with a vacancy and a cost guard"
           (is (= 3 (count agents)))
           (is (= 0.10 (get-in run [:opts :max-cost])))
-          (is (= "1904-10-15T08:00" (get-in world [:clock :start])))
+          (is (= (get-in (worldfile/load-world "worlds/lodge.edn") [:world-file :meta :start])
+                 (get-in world [:clock :start])))
           (doseq [agent agents]
             (is (= locations (space/area world (:location agent))))
             (is (seq (:situation agent)))

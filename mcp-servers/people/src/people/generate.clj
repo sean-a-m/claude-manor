@@ -79,7 +79,7 @@
   [position]
   (keyword (str/replace (str/lower-case (str/trim (str position))) #"[^a-z0-9]+" "-")))
 
-(defn- person [r {:keys [position area sex ages]} taken]
+(defn- person [r {:keys [position area sex ages candidate]} taken]
   (let [sex (or sex (pick r [:male :female]))
         [lo hi] (or ages default-ages)]
     {:name (roll-name r sex taken)
@@ -87,7 +87,12 @@
      :age (+ lo (.nextInt r (inc (- hi lo))))
      :position (name position)
      :origin (pick r (:origins names))
-     :lives (cond-> (pick r (:dwellings names)) (not (str/blank? area)) (str ", " area))
+     ;; A hiring home is off-map background, never an internal walking-area id.
+     (if candidate :candidate-home :lives)
+     (let [dwelling (pick r (:dwellings names))]
+       (if candidate
+         (str dwelling ", " (pick r (:candidate-home-areas names)))
+         (cond-> dwelling (not (str/blank? area)) (str ", " area))))
      :temperament (roll-temperament r)
      :faculties (roll-faculties r)}))
 
@@ -96,13 +101,14 @@
 
 (defn- checked
   "The request with defaults, or an ex-info saying what is wrong."
-  [{:keys [position count setting seed sex ages] :as req}]
+  [{:keys [position count setting seed sex ages candidate] :as req}]
   (let [n (or count 1)]
     (cond
       (str/blank? (str position)) (throw (ex-info "position is required, such as \"housemaid\"" {}))
       (not (and (integer? n) (<= 1 n max-count))) (throw (ex-info (str "count must be 1 to " max-count) {}))
       (and setting (not (settings setting))) (throw (ex-info (str "unknown setting; known: " (str/join ", " (sort settings))) {}))
       (nil? seed) (throw (ex-info "seed is required" {}))
+      (and (contains? req :candidate) (not (boolean? candidate))) (throw (ex-info "candidate must be a boolean" {}))
       (and sex (not (#{"male" "female"} sex))) (throw (ex-info "sex must be \"male\" or \"female\"" {}))
       (and ages (not (and (sequential? ages) (= 2 (clojure.core/count ages)) (every? nat-int? ages) (apply <= ages))))
       (throw (ex-info "ages must be [youngest oldest], whole numbers" {}))

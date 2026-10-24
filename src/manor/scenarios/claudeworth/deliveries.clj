@@ -14,6 +14,7 @@
             [manor.mechanics.physical :as physical]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
+            [manor.mechanics.visits :as visits]
             [manor.narrate :as n]
             [manor.scenarios.claudeworth.building :as building]
             [manor.scenarios.claudeworth.money :as money]
@@ -120,9 +121,6 @@
 (defn- courier-updated [shop changes]
   {:type :deliveries/courier-updated :visible-to :system :data {:shop shop :changes changes}})
 
-(defn- room? [world]
-  (< (count (w/active-agents world)) (get-in world [:state :hiring-max-agents] b/default-max-agents)))
-
 (defn- shop-name [world shop] (:name (space/location world shop) shop))
 
 (defn courier-line
@@ -147,7 +145,8 @@
 
 (defn- courier-events
   "Events bringing `shop`'s courier to the delivery place with `due`: already
-  here, back from the shop, or spawned the first time. None when the courier
+  here (a courier staying as a guest keeps their guest's situation), back
+  from the shop, or spawned the first time. None when the courier
   isn't written yet, or there's no room for one. A courier who arrives with
   nobody else there is put out of play at once (the scenario's :hibernate)."
   [scenario world shop due]
@@ -159,22 +158,20 @@
         clerk (:clerk (first due))
         evs (cond
               (not (hiring/written? (:person c))) []
+              (visits/visiting? world (:id agent)) [arrived]
               (= :active (:status agent))
               [arrived {:type :agent/updated :visible-to :system :data {:id (:id agent) :changes {:situation text}}}]
-              (not (room? world)) []
-              (= :away (:status agent))
-              [{:type :people/returned :visible-to (conj (space/present world place) (:id agent)) :data {:id (:id agent) :at place}}
-               {:type :agent/updated :visible-to :system :data {:id (:id agent) :changes {:situation text}}}
-               arrived]
+              (not (hiring/room-for-arrival? world)) []
+              (hiring/can-arrive? world (:id agent))
+              (conj (:events (hiring/arrival scenario world place {:id (:id agent) :situation text})) arrived)
               (nil? agent)
-              (let [spawned (b/spawn-events scenario world (merge (hiring/spawn-spec (:person c))
-                                                                  {:role (:position c) :location place :situation text
-                                                                   :household nil :routine (waiting world shop)}))
-                    id (get-in (first spawned) [:data :agent :id])
-                    world' (reduce w/apply-event world spawned)]
+              (let [{:keys [id events]} (hiring/arrival scenario world place
+                                                        {:spawn (merge (hiring/spawn-spec (:person c))
+                                                                       {:role (:position c) :situation text
+                                                                        :household nil :routine (waiting world shop)})})
+                    world' (reduce w/apply-event world events)]
                 (vec (concat
-                      ;; The spawn holds a private persona and traits, so it is never a public event.
-                      (map #(assoc % :visible-to :system) spawned)
+                      events
                       [(positions/post-changed world' id (:position c)
                                                {:household nil :employer clerk :visible-to #{id clerk}
                                                 :terms (str "carries for the " (shop-name world shop) " (" shop ")")})
@@ -182,7 +179,8 @@
               :else [])
         world' (reduce w/apply-event world evs)
         id (:agent-id (get (couriers world') shop))
-        rest (when (and (seq evs) (:hibernate scenario) (w/active? world' id) (not (w/busy world' id)))
+        rest (when (and (seq evs) (:hibernate scenario) (w/active? world' id)
+                        (not (physical/held-in-place? world' id)) (not (w/busy world' id)))
                (when-let [{:keys [activity]} ((:hibernate scenario) world' id)]
                  [(b/hibernate world' id activity)]))]
     (into evs rest)))
@@ -226,10 +224,11 @@
       (str "A delivery from the " (n/place names (:shop data)) " is left at the " (n/place names (:at data)) ": " goods "."))))
 
 (defn- departures
-  "Couriers going home: idle for `courier-leave-after` rounds."
+  "Couriers going home: idle for `courier-leave-after` rounds. A courier
+  who has come as a guest (manor.mechanics.visits) decides for himself."
   [world]
   (for [[shop {:keys [agent-id arrived]}] (sort-by key (couriers world))
-        :when (and agent-id (w/active? world agent-id)
+        :when (and agent-id (w/active? world agent-id) (not (visits/visiting? world agent-id))
                    (not (physical/held-in-place? world agent-id))
                    (>= (hiring/idle-rounds world agent-id arrived) courier-leave-after))]
     {:type :people/departed :visible-to (space/here world agent-id)

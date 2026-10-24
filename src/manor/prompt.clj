@@ -78,7 +78,7 @@
     (str/join "\n" (map #(str (stamp world (:round %)) " " (narrate/describe % names)) events))
     "(nothing yet)"))
 
-(defn recent-lines
+(defn shared-recent-lines
   "At most ten narrated lines `actor` saw in `events`, excluding events only
   they saw. Use the same visibility and narration as their prompt."
   [world events actor]
@@ -92,11 +92,20 @@
 
 (defn scene-recent
   "At most ten narrated lines the worker saw since this job began, excluding
-  worker-only events (see `recent-lines`)."
+  worker-only events (see `shared-recent-lines`)."
   [world events {:keys [id actor]}]
-  (recent-lines world (vec (rest (drop-while #(not (and (= :item/work-begun (:type %))
-                                                        (= id (get-in % [:data :id])))) events)))
-                actor))
+  (let [since (rest (drop-while #(not (and (= :item/work-begun (:type %))
+                                        (= id (get-in % [:data :id])))) events))]
+    (shared-recent-lines world (vec since) actor)))
+
+(defn recent-lines
+  "At most ten narrated lines `actor` saw last, as their prompt shows them:
+  their own view, for a judge reading what they mean (the invitation judge)."
+  [world events actor]
+  (let [shown (take-last 10 (visible-events events actor 10 true))]
+    (if (seq shown)
+      (vec (take-last 10 (str/split-lines (event-lines world shown (narrate/names world)))))
+      [])))
 
 (defn- heading
   "\"Round 3\", or with a clock \"Saturday 15 October 1904, 09:30\"."

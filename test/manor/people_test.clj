@@ -90,6 +90,27 @@
                          {:position "groom" :seed 1 :ages [40 20]} {:position "groom" :seed 1 :ages [18]}]]
               (is (thrown? clojure.lang.ExceptionInfo (call "generate_people" bad))))))))))
 
+(deftest candidate-homes-are-separate-and-off-map
+  (if-not (bb-available?)
+    (println "Skipping candidate home contract: bb unavailable")
+    (with-server
+      (fn [call]
+        (let [args {:position "housemaid" :count 5 :seed "candidate-home" :area "attic-landing"}
+              ordinary (:people (call "generate_people" args))
+              candidates (:people (call "generate_people" (assoc args :candidate true)))
+              homes (set (for [dwelling (:dwellings (data "names.edn"))
+                               area (:candidate-home-areas (data "names.edn"))]
+                           (str dwelling ", " area)))]
+          (is (= candidates (:people (call "generate_people" (assoc args :candidate true)))))
+          (is (= candidates (:people (call "generate_people" (assoc args :candidate true :area "other-internal-id")))))
+          (is (= (mapv :origin ordinary) (mapv :origin candidates)) "origin generation is unchanged")
+          (doseq [person candidates]
+            (is (homes (:candidate-home person)))
+            (is (not (contains? person :lives)))
+            (is (= (:candidate-home person) (:candidate-home (people/base-record person)))))
+          (is (not-any? #(contains? % :candidate-home) ordinary))
+          (is (thrown? clojure.lang.ExceptionInfo (call "generate_people" (assoc args :candidate "yes")))))))))
+
 (deftest people-server-reputation
   (if-not (bb-available?)
     (println "Skipping people MCP contracts: bb unavailable")

@@ -2,6 +2,7 @@
   "Candidate records, private recommendations and event-owned hiring.
   I/O runs through the engine's composed-query services; reducers never call out."
   (:require [clojure.string :as str]
+            [manor.clock :as clock]
             [manor.mechanics.builtins :as b]
             [manor.mechanics.items.actions :as item-actions]
             [manor.mechanics.people :as people]
@@ -12,7 +13,15 @@
             [manor.world :as w]))
 
 (def pool-limit 40)
-(def leave-after 3)
+(def candidate-wait-hours 24)
+
+(defn candidate-wait-rounds
+  "A full day's grace, rounded up to whole rounds. Without a game clock,
+  use 24 rounds; no real-time duration can be inferred in those worlds."
+  [world]
+  (if-let [c (:clock world)]
+    (clock/rounds-for c (* 60 candidate-wait-hours))
+    candidate-wait-hours))
 
 (def bridges
   {:people/generate {:mcp {:server :people :tool "generate_people"} :max-chars 20000}
@@ -21,10 +30,11 @@
 (def offline-stubs
   "Free fixtures, not a second production generator. Never start a process offline."
   {:people/generate
-   (fn [{:keys [position sex ages taken-names]} _]
+   (fn [{:keys [position sex ages taken-names candidate]} _]
      {:people [{:name (first (remove (set taken-names) (map #(str "Pat Ellis " %) (range))))
                 :age (first (or ages [22 40])) :sex (or sex "female") :position position
-                :origin "the neighbouring village" :lives "a cottage in the village"
+                :origin "the neighbouring village"
+                (if candidate :candidate-home :lives) (if candidate "a cottage in the next parish" "a cottage in the village")
                 :temperament (mapv #(hash-map :axis (name %) :level "average" :measures (people/axis-measures %)) people/axes)
                 :faculties [{:faculty "Sight" :size "small" :means "eyesight"}]}]})
    :people/reputation
@@ -36,10 +46,11 @@
 (def adjudicators
   {:people/appearance {:request (fn [_ _ {:keys [record]}] (people/appearance-request record))
                        :mock (fn [_] {:tool :appearance :args {:appearance "A young figure in plain working clothes and spectacles."}})}
-   :people/polish {:request (fn [world _ {:keys [record appearance]}]
+   :people/polish {:request (fn [world _ {:keys [record appearance notes]}]
                               (people/polish-request {:setting (get-in world [:state :setting])
                                                       :position (:position record) :record record
-                                                      :notes (str "Keep these visible physical facts consistent: " appearance)}))
+                                                      :notes (str (when-not (str/blank? notes) (str notes "\n\n"))
+                                                                  "Keep these visible physical facts consistent: " appearance)}))
                    :mock people/mock-polish}})
 
 (defn pool [world] (get-in world [:state :pool] {}))
@@ -88,14 +99,27 @@
 (defn- changed [id changes]
   {:type :people/candidate-updated :visible-to :system :data {:id id :changes changes}})
 
+(def ^:private not-posts
+  "Catalogue positions nobody is hired for: no post at all, the GM, and a
+  visitor (manor.mechanics.visits). Recommend and engage refuse them, and
+  `reference` doesn't list them."
+  #{:none :gm :guest})
+
+(defn- not-a-post-reason
+  "Why `position` can't be filled by hiring, or nil."
+  [world position]
+  (let [position (keyword position)]
+    (cond (not (get-in world [:state :positions position])) "use a position id from the catalogue"
+          (= :guest position) "guest is not a post; use the id of a position to fill"
+          (not-posts position) "name a character's position to fill")))
+
 (defn recommend-reason [world actor {:keys [position for]}]
-  (cond
-    (not (get-in world [:state :positions (keyword position)])) "use a position id from the catalogue"
-    (#{:none :gm} (keyword position)) "name a character's position to fill"
-    (= actor for) "ask someone else here to recommend to you, not yourself"
-    (not (and (w/active? world for) (not= :gm (:role (w/agent world for)))
-              (space/together? world actor for))) "the person asking must be here"
-    (not (or (reusable world actor (keyword position)) (room? world))) "the candidate pool is full of people still in play"))
+  (or (not-a-post-reason world position)
+      (cond
+        (= actor for) "ask someone else here to recommend to you, not yourself"
+        (not (and (w/active? world for) (not= :gm (:role (w/agent world for)))
+                  (space/together? world actor for))) "the person asking must be here"
+        (not (or (reusable world actor (keyword position)) (room? world))) "the candidate pool is full of people still in play")))
 
 (defn- check-record [record]
   (when-not (and (map? record) (string? (:name record)) (not (str/blank? (:name record)))
@@ -107,30 +131,38 @@
 
 (defn person-record
   "The first, free half of a new person for `position`: the people server's
-  record, {:name :record :lives}. No model call."
-  [world {:keys [bridge]} {:keys [position area seed taken-names]}]
+  record, {:name :record :lives | :candidate-home}. `candidate?` requests a
+  hiring-only, off-map home instead of :lives. `sex` and `ages`
+  ([youngest oldest]), if given, replace the position's. No model call."
+  [world {:keys [bridge]} {:keys [position area seed taken-names sex ages candidate?]}]
   (let [record (check-record
                 (first (:people (bridge :people/generate
-                                        (assoc (people/generate-args position (get-in world [:state :positions position])
-                                                                     {:seed seed :taken-names taken-names})
-                                               :area area)))))]
-    {:name (:name record) :record record :lives (:lives record)}))
+                                        (cond-> (assoc (people/generate-args position (get-in world [:state :positions position])
+                                                                             {:seed seed :taken-names taken-names :sex sex :ages ages})
+                                                       :area area)
+                                          candidate? (assoc :candidate true))))))]
+    (when (and candidate? (or (not (string? (:candidate-home record))) (str/blank? (:candidate-home record))))
+      (throw (ex-info "The people server returned no candidate home." {})))
+    (merge {:name (:name record) :record record} (select-keys record [:lives :candidate-home]))))
 
 (defn written? [p] (some? (:persona p)))
 
 (defn write-person
   "The second half: a public appearance and a private polish for person `p`
   from `person-record`, adding :persona :manner :appearance and the record's
-  circumstances."
-  [{:keys [adjudicate]} {:keys [record] :as p}]
-  (let [public (adjudicate :people/appearance {:record record})
-        polish (adjudicate :people/polish {:record record :appearance (:appearance public)})]
-    (merge (assoc-in p [:record :circumstances] (:circumstances polish))
-           (select-keys polish [:persona :manner]) public)))
+  circumstances. `notes`, if given, go to the polish (who they are, for a
+  guest written to order)."
+  ([services p] (write-person services p nil))
+  ([{:keys [adjudicate]} {:keys [record] :as p} notes]
+   (let [public (adjudicate :people/appearance {:record record})
+         polish (adjudicate :people/polish (cond-> {:record record :appearance (:appearance public)}
+                                             notes (assoc :notes notes)))]
+     (merge (assoc-in p [:record :circumstances] (:circumstances polish))
+            (select-keys polish [:persona :manner]) public))))
 
 (defn new-person
   "A fresh person for `position`, made through the composed-query services:
-  {:name :record :lives :persona :manner :appearance}. Candidates and couriers
+  {:name :record :lives | :candidate-home :persona :manner :appearance}. Candidates and couriers
   are both made here, so a change to how people are written reaches both."
   [world services opts]
   (write-person services (person-record world services opts)))
@@ -154,7 +186,7 @@
         old (reusable world actor position)
         p (or old (merge {:id (str "candidate-" (inc (:seq world))) :created (inc (:seq world))
                           :area (area world actor) :seeks [position] :known-to #{} :status :pooled}
-                         (new-person world services {:position position :area (area world actor)
+                         (new-person world services {:position position :area (area world actor) :candidate? true
                                                      :seed (str (:seed world) "/candidate/" (inc (:seq world)))
                                                      :taken-names (taken-names world)})))
         record (:record p)
@@ -205,13 +237,26 @@
   (let [r (:reputation data)]
     (str (:acquaintance r) " " (str/join " " (map known-reading (mapcat val (:knows r)))))))
 
+(defn room-for-arrival?
+  "Is the run under its cap of active people, so someone more can arrive?"
+  [world]
+  (< (count (w/active-agents world)) (get-in world [:state :hiring-max-agents] b/default-max-agents)))
+
+(defn can-arrive?
+  "May an existing away person return by code? Disabled movement or
+  unconsciousness keeps them away; impeded movement does not."
+  [world id]
+  (and (= :away (:status (w/agent world id)))
+       (not (physical/held-in-place? world id))))
+
 (defn send-for-reason [world actor {:keys [candidate]}]
   (let [p (get (pool world) candidate)]
     (cond
       (not (contains? (:known-to p) actor)) "you have no current recommendation for that candidate"
       (not (#{:pooled :away} (:status p))) "that candidate has already been summoned or engaged"
-      (= :retired (:status (w/agent world (:agent-id p)))) "that person cannot return"
-      (>= (count (w/active-agents world)) (get-in world [:state :hiring-max-agents] b/default-max-agents)) "there is no room for another active person"
+      (#{:retired :dead} (:status (w/agent world (:agent-id p)))) "that person cannot return"
+      (w/active? world (:agent-id p)) "that person is about already (a guest, perhaps); speak to them"
+      (not (room-for-arrival? world)) "there is no room for another active person"
       (nil? (space/location world (get-in world [:state :meeting-place]))) "this world has no meeting place")))
 
 (defn sent-for [world actor {:keys [candidate]}]
@@ -224,32 +269,62 @@
 (defn departure [world id reason]
   (let [p (for-agent world id)]
     (cond-> [{:type :people/departed :visible-to (space/here world id)
-              :data {:id id :reason reason :towards (or (:lives p) "the village")}}
+              :data {:id id :reason reason :towards (or (:candidate-home p) "home") :off-map? true}}
              {:type :people/offer-closed :visible-to :system :data {:who id}}]
       p (conj (changed (:id p) {:status :away :seen? true})))))
 (defmethod n/describe :people/departed [{:keys [data]} names]
-  (str (n/who names (:id data)) " leaves towards " (:towards data) ": " (:reason data) "."))
+  (str (n/who names (:id data)) " leaves towards " (:towards data)
+       (when (:off-map? data) " (outside the mapped area)") ": " (:reason data) "."))
 (defmethod n/describe :people/returned [{:keys [data]} names]
   (str (n/who names (:id data)) " returns to " (n/place names (:at data)) "."))
+
+(doseq [t [:people/departed :people/returned :people/arrived]]
+  (defmethod w/perceived-by t [_] :sight)
+  (defmethod w/done-to t [{:keys [data]}] [(:id data)]))
+
+(defn arrival
+  "Someone arriving at `at` (the meeting place) from elsewhere, shared by
+  hiring, deliveries and visits: {:id :events}. An away agent `id` returns
+  there, seen by everyone there, themselves and the ids in `also` (or by
+  `visible-to`, when given), with their :situation replaced if `situation`
+  is given. If they cannot return (`can-arrive?`), no events are made.
+  Without an `id`, a new agent is spawned there from `spawn` (a
+  spec for b/spawn-events, without :location); the spawn holds a private
+  persona and traits, so its events are never public."
+  [scenario world at {:keys [id spawn situation also visible-to]}]
+  (if id
+    {:id id
+     :events (if-not (can-arrive? world id)
+               []
+               (cond-> [{:type :people/returned :data {:id id :at at}
+                         :visible-to (or visible-to (into (conj (space/present world at) id) (remove nil?) also))}]
+                 situation (conj {:type :agent/updated :visible-to :system
+                                  :data {:id id :changes {:situation situation}}})))}
+    (let [spawned (b/spawn-events scenario world (assoc spawn :location at))]
+      {:id (get-in (first spawned) [:data :agent :id])
+       :events (mapv #(assoc % :visible-to :system) spawned)})))
 
 (defn- arrival-events [scenario world p]
   (let [at (get-in world [:state :meeting-place])
         situation (str "You have come about the " (str/join ", " (map name (:seeks p)))
                        " place, sent for by " (:name (w/agent world (:summoner p)))
-                       ". Talk over the terms; you may refuse, haggle, accept-place, or take-leave. You leave after three rounds without a conversation.")
+                       ". Talk over the terms; you may refuse, haggle, accept-place, or take-leave. "
+                       "Remain locally available while a decision is pending: wait at the house, in the village or at the pub, "
+                       "and tell the interviewer where you will be. Walking there does not end your application. "
+                       "Use take-leave only when you mean to abandon the application and leave the mapped area, not to wait nearby. "
+                       (if (:clock world)
+                         "You leave automatically only after a full 24 hours without a conversation involving you. "
+                         "You leave automatically only after 24 rounds without a conversation involving you. ")
+                       (when-let [home (:candidate-home p)]
+                         (str "Your home is " home ". It is outside the mapped area, not a walking destination. ")))
         returning? (= :away (:status (w/agent world (:agent-id p))))
-        spawned (when-not returning?
-                  (b/spawn-events scenario world
-                                  (merge (spawn-spec p)
-                                         {:role :none :location at :situation situation :household nil})))
-        id (if returning? (:agent-id p) (get-in (first spawned) [:data :agent :id]))
+        {:keys [id events]} (arrival scenario world at
+                                     (if returning?
+                                       {:id (:agent-id p) :situation situation :also [(:summoner p)]}
+                                       {:spawn (merge (spawn-spec p) {:role :none :situation situation :household nil})}))
         audience (conj (space/present world at) id (:summoner p))]
     (vec (concat
-          (if returning?
-            [{:type :people/returned :visible-to audience :data {:id id :at at}}
-             {:type :agent/updated :visible-to :system :data {:id id :changes {:situation situation}}}]
-            ;; The spawn contains a private persona and traits, so it is never a public event.
-            (map #(assoc % :visible-to :system) spawned))
+          events
           [(changed (:id p) {:status :here :agent-id id :arrived (:round world)})
            {:type :people/arrived :visible-to audience :data {:id id :at at :name (:name p)}}]))))
 (defmethod n/describe :people/arrived [{:keys [data]} names]
@@ -262,13 +337,15 @@
    (reduce
     (fn [[world events] p]
       (let [evs (cond
-                  (and (= :sent-for (:status p)) (<= (:arrival p) (:round world))
-                       (< (count (w/active-agents world)) (get-in world [:state :hiring-max-agents] b/default-max-agents)))
+                  (and (= :sent-for (:status p)) (<= (:arrival p) (:round world)) (room-for-arrival? world)
+                       (or (nil? (:agent-id p)) (can-arrive? world (:agent-id p))))
                   (arrival-events scenario world p)
                   (and (= :here (:status p)) (w/active? world (:agent-id p))
                        (not (physical/held-in-place? world (:agent-id p)))
-                       (>= (idle-rounds world (:agent-id p) (:arrived p)) leave-after))
-                  (departure world (:agent-id p) "the visit has ended")
+                       (>= (idle-rounds world (:agent-id p) (:arrived p)) (candidate-wait-rounds world)))
+                  (departure world (:agent-id p) (if (:clock world)
+                                                       "a day has passed without another conversation"
+                                                       "24 rounds have passed without another conversation"))
                   :else [])]
         [(reduce w/apply-event world evs) (into events evs)]))
     [world []] (ordered world))))
@@ -289,8 +366,8 @@
 (defn engage-reason [world actor {:keys [who position bedroom]}]
   (or (present-candidate-reason world actor who)
       (when (= actor who) "you cannot offer yourself a place")
-      (when-not (and (not (#{:none :gm} (keyword position))) (get-in world [:state :positions (keyword position)]))
-        "use a position id from the catalogue")
+      (when-let [r (not-a-post-reason world position)]
+        (if (= :guest (keyword position)) r "use a position id from the catalogue"))
       (when (and bedroom (not= :bedroom (:kind (space/location world bedroom)))) "name an existing bedroom")))
 (defn- offer-reason [world actor _]
   (let [offer (get-in world [:state :place-offers actor])]
@@ -372,13 +449,13 @@
   [world]
   {:meeting-place (get-in world [:state :meeting-place])
    :positions (mapv (fn [[id p]] {:id id :title (:title p) :sleeps (:sleeps p)})
-                    (sort-by key (dissoc (get-in world [:state :positions]) :gm :none)))})
+                    (sort-by key (apply dissoc (get-in world [:state :positions]) not-posts)))})
 
 (defn observe
   "Only known candidates and the viewer's reputations/agreements, never raw
   records. The meeting place and positions are in `reference`."
   [world id]
-  {:candidates (mapv #(select-keys % [:id :name :seeks :status :agent-id])
+  {:candidates (mapv #(select-keys % [:id :name :seeks :status :agent-id :candidate-home])
                      (filter #(contains? (:known-to %) id) (ordered world)))
    :reputations (get-in world [:state :reputations id] {})
    :place-offers (filterv (fn [offer] (or (= id (:who offer)) (= id (:employer offer))))
@@ -423,5 +500,14 @@
         (update :systems #(conj (vec (remove (fn [s] (= :people/visits (:name s))) %))
                                 {:name :people/visits :tick (fn [world _] (tick scenario world))})))))
 
-(def rules
-  "To find staff, ask someone for a recommendation; they must use recommend with a position id and your id in for. Do not try to recruit or recommend established characters already living or working in your village. This does not exclude a new candidate who lives locally but is not present yet as a character. You may describe knowing a possible candidate through local acquaintances, but use recommend to learn the candidate's name and details before naming or promising anyone. The recommendation gives a candidate id: use send-for to bring them to meeting-place next round. Interview by converse, then engage with who (their agent id), position, terms and optionally bedroom. The candidate may accept-place with conditions, decline-place and haggle, or take-leave. Send-away ends an unengaged visit. An unengaged visitor leaves after three rounds without a conversation. Nobody new arrives except through send-for. Outdoor servants' lodging and dismissal of hired staff are possible.")
+(defn- rules-text
+  "Hiring's rules, with `arrivals` saying who may arrive."
+  [arrivals]
+  (str "To find staff, ask someone for a recommendation; they must use recommend with a position id and your id in for. Do not try to recruit or recommend established characters already living or working in your village. This does not exclude a new candidate who lives locally but is not present yet as a character. You may describe knowing a possible candidate through local acquaintances, but use recommend to learn the candidate's name and details before naming or promising anyone. The recommendation gives a candidate id: use send-for to bring them to meeting-place next round. Interview by converse, then engage with who (their agent id), position, terms and optionally bedroom. The candidate may accept-place with conditions, decline-place and haggle, or take-leave. Send-away ends an unengaged visit. An unengaged candidate remains available for a full 24 hours after arrival or their latest conversation (24 rounds without a game clock), unless explicitly sent away or they choose to abandon the application with take-leave. They may wait at the house, in the village or at the pub: agree where to find them, and do not send them out of the mapped area merely to await a decision. A candidate-home is off-map background, not a place to walk to; while their status is here, their actual map location is where to meet them. Once away, use send-for to bring them back. " arrivals " Outdoor servants' lodging and dismissal of hired staff are possible."))
+
+(def rules (rules-text "Nobody new arrives except through send-for."))
+
+(def rules-beside-visits
+  "Hiring's rules for a world with visits (manor.mechanics.visits), where
+  guests arrive by invitation too."
+  (rules-text "No candidate arrives except through send-for."))

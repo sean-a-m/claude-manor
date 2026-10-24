@@ -56,7 +56,7 @@
   run's cost."
   [run world job work things]
   (let [work (assoc work :recent (if (:act? job)
-                                   (prompt/recent-lines world (run/events run) (:actor job))
+                                   (prompt/shared-recent-lines world (run/events run) (:actor job))
                                    (prompt/scene-recent world (run/events run) job)))
         request (assoc (item-judge/judge-request (:scenario run) world job work)
                        :label "judge" :defer-records? true

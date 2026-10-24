@@ -60,7 +60,8 @@
 (deftest both-scenarios-start-with-the-shared-calendar
   (doseq [scenario [:claudeworth :claudeworth-medium]]
     (testing (name scenario)
-      (with-run scenario {}
+      ;; The expected entries are those in view from 15 October, whatever the world file says.
+      (with-run scenario {:start "1904-10-15T08:00"}
         (fn [run]
           (let [world (e/world run)
                 records (entries world)

@@ -563,7 +563,8 @@
       (finally (e/stop-run run)))))
 
 (deftest the-son-can-be-invited-home
-  (let [run (e/start-run :claudeworth-medium {:llm :mock :offline? true :test? true :run-id (str (gensym "medium-visit-"))})]
+  (let [run (e/start-run :claudeworth-medium {:llm :mock :offline? true :test? true :start "1904-10-15T08:00"
+                                              :run-id (str (gensym "medium-visit-"))})]
     (try
       (let [world (assoc-in (e/world run) [:agents "lord-claudeworth" :location] "post-office")
             world (reduce w/apply-event world (effect run world "lord-claudeworth" :invite
@@ -794,7 +795,8 @@
       (finally (e/stop-run run)))))
 
 (deftest pugh-the-architect-is-pugh
-  (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true :gm :off :run-id (str (gensym "visits-pugh-"))})]
+  (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true :gm :off :start "1904-10-15T08:00"
+                                       :run-id (str (gensym "visits-pugh-"))})]
     (try
       (let [agents (count (:agents (e/world run)))
             {:keys [reply error]} (resolve/run-query! run "mrs-bell" (action run :invite)

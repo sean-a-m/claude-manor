@@ -19,7 +19,7 @@
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
 
 (deftest claudeworth-village-residents-and-counters
-  (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true
+  (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true :start "1904-10-15T08:00"
                                       :run-id (str (gensym "claudeworth-trades-"))})]
     (try
       (e/auto! run 1)

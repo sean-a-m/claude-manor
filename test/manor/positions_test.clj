@@ -24,8 +24,11 @@
 
 (def catalogue-source "positions/england-1904.edn")
 
-(defn- start [& [opts]]
-  (e/start-run :claudeworth (merge {:llm :mock :offline? true :test? true :gm :off
+(defn- start
+  "A Claudeworth run starting at 08:00 on 15 October, which the tests' rounds
+  and opening hours assume, whatever the world file's own start."
+  [& [opts]]
+  (e/start-run :claudeworth (merge {:llm :mock :offline? true :test? true :gm :off :start "1904-10-15T08:00"
                                     :run-id (str (gensym "positions-"))}
                                    opts)))
 

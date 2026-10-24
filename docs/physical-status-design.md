@@ -1,7 +1,7 @@
 # Physical status: bound, gagged, knocked out, dead
 
-Status: **proposal, not started.** Written 2026-10-24 from the user's brief and their answers the
-same day (section 11). A few small questions remain (section 12), each with a default.
+Status: **proposal, being built.** Written 2026-10-24 from the user's brief and their answers the
+same day (section 11, with section 12's questions settled the same day).
 
 ## 1. What this adds
 
@@ -129,8 +129,9 @@ person, through one hook in `run/emit!` (section 7).
   can still speak.
 - **Sight disabled:** they don't get events that are only seen (someone arriving, taking,
   giving, starting work, an act on someone else). Their view shows the place's name and what
-  they carry, with "You can't see" in place of the people and items here. `look`, `open`,
-  `find` and `take` are refused. They can still move as their movement allows, and still name
+  they carry, with "You can't see" in place of the people and items here. `look` and `open`
+  are refused; `find` is allowed and its judge is told they can't see (section 12), and `take`
+  is allowed for an id they know. They can still move as their movement allows, and still name
   people in an act or `spend-time` from memory; the judge decides how that goes.
 
 ### 4.5 Consciousness
@@ -323,17 +324,16 @@ stamping:
 15. Sight and hearing exist, disabled only. No dragging bodies or combat resolution beyond the
     judge.
 
-## 12. Still open (defaults proposed)
+## 12. Settled details (the user, 2026-10-24)
 
-1. **Name:** `act-on`. Alternatives: `do-to`, `handle`. Default `act-on`.
-2. **Does the act end the turn?** Default yes, with no occupation.
-3. **Deaf people in conversations:** default they can't start or be drawn in. The alternative
-   is to let them join and say lines without hearing any.
-4. **Are sight and hearing shown to others?** Default yes, like every status (the cause
-   explains it: "blindfolded"). Deafness doesn't really show, but this keeps one rule.
-5. **Impediment cap:** default 3, separate from the 4 aspects.
-6. **Blind people and `find`/`take`:** default refused. The alternative is to let `find`'s judge
-   decide what they can feel for.
+1. **Name:** `act-on`.
+2. **The act ends the turn,** with no occupation.
+3. **Deaf people** can't start a conversation or be drawn into one.
+4. **Sight and hearing are shown to others** like every status.
+5. **Impediment cap:** 3, separate from the 4 aspects.
+6. **Blind people may `find`,** and its judge is told they can't see. `take` of things already
+   in their reach is allowed too (they'd know the id from `find` or memory); `look` and `open`
+   stay refused.
 
 ## 13. Deferred (roadmap follow-ups)
 

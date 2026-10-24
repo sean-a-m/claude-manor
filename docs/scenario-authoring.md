@@ -347,7 +347,8 @@ co-location and opening-hours checks still apply. The GM is not a character and 
 receive these actions.
 Old Claudeworth runs are intentionally unsupported after this contract change.
 
-Claudeworth also reuses this counter service for its draper, publican and postmistress: each
+Claudeworth also reuses this counter service for its draper, publican and postmistress (and the
+medium world for its baker, poulterer and fishmonger, whose fish stall is a `:stall`): each
 position has `:shop-clerk`, and each location uses `:services #{:general-store}` (the post
 office also has `:post-office`) with its own `:store-profile` and `:hours`. Despite the service
 name, the profile determines the trade. It covers physical purchases only: cloth, refreshments,

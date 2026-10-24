@@ -67,9 +67,9 @@
       (doseq [[id {:keys [about]}] catalogue]
         (is (not (re-find #"(?i)my lord|my lady|\bMrs? [A-Z]|Claudeworth|Pugh|Hale|Nellie|address" about)) (str id))))
     (testing "counter trades share a capability; service-only trades do not sell services as goods"
-      (doseq [id [:draper :publican :postmistress]]
+      (doseq [id [:draper :publican :postmistress :baker :poulterer :fishmonger]]
         (is (= #{:shop-clerk} (get-in catalogue [id :capabilities])) (str id)))
-      (doseq [id [:blacksmith :chimney-sweep :barber :laundress]]
+      (doseq [id [:blacksmith :chimney-sweep :barber :laundress :cobbler :police-constable]]
         (is (contains? catalogue id))
         (is (not (contains? (get-in catalogue [id :capabilities] #{}) :shop-clerk)) (str id))))
     (testing "the people server's ages and sex are in the entries"

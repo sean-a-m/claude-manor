@@ -61,8 +61,9 @@
           (is (nil? (:location (w/agent (e/world run) "master-claudeworth"))))
           (is (= "sons-room" (get-in (e/world run) [:state :bedrooms "master-claudeworth"])))
           (is (some? (w/agent (e/world run) "miss-claudeworth")))
-          (is (= 12 (count (filter #(positions/household-member? (e/world run) (:id %))
-                                   (w/active-agents (e/world run))))))
+          (is (= (dec (count (merge family staff)))                     ; all but the son, who is away
+                 (count (filter #(positions/household-member? (e/world run) (:id %))
+                                (w/active-agents (e/world run))))))
           (testing "he comes home from Eton on 20 December, an authored visit his parents know of"
             (is (= {:guest "master-claudeworth" :host nil :by :authored :at "1904-12-20T14:00" :bedroom "sons-room"
                     :known-to #{"lord-claudeworth" "lady-claudeworth"} :status :scheduled}
@@ -100,23 +101,25 @@
           (is (= 2900 (quot (get-in w [:state :household :funds]) 240)))))
       (finally (e/stop-run run)))))
 
-(deftest the-village-and-the-abbey-are-the-claudeworth-ones
+(deftest the-village-and-the-abbey-keep-the-claudeworth-ones
+  ;; Read from both world files rather than listed here, so either village can
+  ;; gain or lose places and people without this test changing; the medium
+  ;; village may have more than the small one.
   (let [wf (world)
         claudeworth (:world-file (worldfile/load-world "worlds/claudeworth.edn"))
+        domains #{:village :abbey}
+        domain-of (fn [w id] (:domain (first (filter #(= id (:id %)) (:locations w)))))
         names (fn [w domain] (into {} (comp (filter #(= domain (:domain %))) (map (juxt :id :name)))
                                   (:locations w)))]
-    (doseq [domain [:village :abbey]]
+    (doseq [domain domains]
       (let [theirs (names claudeworth domain) here (names wf domain)]
         (is (= theirs (select-keys here (keys theirs)))
-            (str "the " (name domain) " keeps the :claudeworth world's places"))
-        (is (= (case domain
-                 :village {"labourers-cottage" "Labourer's cottage"}   ; where the garden lad lives
-                 :abbey {})
-               (apply dissoc here (keys theirs)))
-            (str "nothing else is added to the " (name domain)))))
-    (is (every? #(entry wf %) ["Hobbs" "Briggs" "Miss Ellis" "Turner" "Polly" "Mrs Bell"
-                               "Carter" "Rudge" "Webb" "Mrs Dobbins" "Father Anselm" "Pugh"])
-        "the village's residents are in the world file")))
+            (str "the " (name domain) " keeps the :claudeworth world's places"))))
+    (testing "the :claudeworth world's villagers and monks are here too, in the same posts"
+      (let [residents (filter #(domains (domain-of claudeworth (:bedroom %))) (:agents claudeworth))]
+        (is (seq residents))
+        (doseq [{:keys [name role]} residents]
+          (is (= role (:role (entry wf name))) name))))))
 
 (deftest authored-homecoming-respects-leave-out
   (testing "leaving out the guest drops his authored visit"

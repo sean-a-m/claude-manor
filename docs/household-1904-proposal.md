@@ -387,7 +387,10 @@ The user's decisions, in brackets, and what they became:
    Lord/Lady Claudeworth, Miss Claudeworth and Master Claudeworth; the staff are Mr Merrick
    (butler-valet), Mrs Thorne (cook), Miss Nash (lady's maid), Emily and Rose (housemaids),
    Bessie (kitchen maid), Mr Ridley (coachman), Mr Durrant (head gardener) and Alf (garden lad).
-   The village and abbey keep the `:claudeworth` cast, names and personas.
+   The village and abbey keep the `:claudeworth` cast, names and personas. The medium village
+   has since gained more trades of its own: Mr Pocock (baker), Mrs Garland (poulterer and game
+   dealer), Mr Jessop (fishmonger, at a stall on the green), Mr Kemp (cobbler) and Constable
+   Hollis (the county police constable), each with a workplace, bedroom and routine.
 
 ### 9.1 How the cast was written
 

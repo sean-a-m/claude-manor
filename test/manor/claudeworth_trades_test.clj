@@ -109,9 +109,12 @@
           (is (nil? (shop/quote-reason world clerk args)))
           (is (= (:delivery-profile loc) (get-in data [:store :delivery-profile])))
           (is (= (:delivery-profile loc) (get-in (shop/observe world clerk) [:here :delivery-profile]))))
-        (testing "all three shops get distinct couriers named before any delivery"
-          (is (= #{"general-store" "butchers-shop" "drapers-shop"} (set (keys couriers))))
-          (is (= 3 (count (distinct (map #(get-in % [:person :name]) (vals couriers))))))
+        (testing "every delivering shop gets a distinct courier named before any delivery"
+          (let [delivering (into #{} (comp (filter deliveries/delivers?) (map :id))
+                                 (vals (get-in world [:space :locations])))]
+            (is (contains? delivering "drapers-shop"))
+            (is (= delivering (set (keys couriers))))
+            (is (= (count delivering) (count (distinct (map #(get-in % [:person :name]) (vals couriers)))))))
           (is (not-any? #(hiring/written? (:person %)) (vals couriers)))
           (is (nil? (:agent-id courier)))
           (is (= (deliveries/courier-line world "drapers-shop")

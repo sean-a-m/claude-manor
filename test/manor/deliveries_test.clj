@@ -10,6 +10,7 @@
             [manor.mechanics.items :as items]
             [manor.mechanics.items.steward :as item-steward]
             [manor.mechanics.positions :as positions]
+            [manor.mechanics.space :as space]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as cw]
@@ -224,6 +225,32 @@
           (is (= 2 (count (filter :courier (map :data (of-type run :deliveries/arrived)))))))
         (is (= world (w/replay (store/read-events (:dir run))))))
       (finally (e/stop-run run)))))
+
+(deftest held-couriers-stay-until-they-can-move
+  (doseq [[faculty released-level] [[:movement :normal]
+                                   [:movement :impeded]
+                                   [:consciousness :normal]]]
+    (testing (str faculty " disabled, then " released-level)
+      (let [run (start)]
+        (try
+          (rounds! run 6)
+          (let [id (:agent-id (courier (e/world run)))]
+            @(e/afflict! run id {:faculty faculty :level :disabled})
+            (rounds! run 3)
+            (let [world (e/world run)]
+              (is (w/active? world id))
+              (is (= "front-door" (space/location-of world id)))
+              (is (= 6 (:arrived (courier world))))
+              (is (empty? (of-type run :people/departed)))
+              (is (= world (w/replay (store/read-events (:dir run))))))
+            @(e/afflict! run id {:faculty faculty :level released-level})
+            (rounds! run 1)
+            (let [world (e/world run)]
+              (is (= :away (:status (w/agent world id))))
+              (is (nil? (space/location-of world id)))
+              (is (= [10] (map :round (of-type run :people/departed))))
+              (is (= world (w/replay (store/read-events (:dir run)))))))
+          (finally (e/stop-run run)))))))
 
 (deftest a-conversation-keeps-the-courier-a-round-longer
   (let [run (start)]

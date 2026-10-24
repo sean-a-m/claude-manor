@@ -368,6 +368,46 @@
       (replay! run)
       (finally (e/stop-run run)))))
 
+(deftest held-candidates-stay-until-they-can-move
+  (doseq [[faculty released-level] [[:movement :normal]
+                                   [:movement :impeded]
+                                   [:consciousness :normal]]]
+    (testing (str faculty " disabled, then " released-level)
+      (let [run (start)]
+        (try
+          (rounds! run 3)
+          (let [id (:agent-id (first-person (e/world run)))
+                name (:name (w/agent (e/world run) id))
+                reason (str name " cannot leave: "
+                            (if (= :consciousness faculty)
+                              "they are unconscious; revive them first"
+                              "their movement is disabled; restore their movement first"))]
+            @(e/afflict! run id {:faculty faculty :level :disabled})
+            (let [world (e/world run)]
+              (is (= reason (a/check (action :take-leave) world id {})))
+              (is (= reason (a/check (action :send-away) world "employer" {:who id}))))
+            (rounds! run 4)
+            (let [world (e/world run)]
+              (is (= :here (:status (first-person world))))
+              (is (w/active? world id))
+              (is (= "gate" (space/location-of world id)))
+              (is (not-any? #(= :people/departed (:type %)) (e/events run))))
+            (replay! run)
+            @(e/afflict! run id {:faculty faculty :level released-level})
+            ;; Send-away tests the departing candidate, not the employer's movement.
+            @(e/afflict! run "employer" {:faculty :movement :level :disabled})
+            (let [world (e/world run)]
+              (is (nil? (a/check (action :take-leave) world id {})))
+              (is (nil? (a/check (action :send-away) world "employer" {:who id}))))
+            (rounds! run 1)
+            (let [world (e/world run)]
+              (is (= :away (:status (first-person world))))
+              (is (= :away (:status (w/agent world id))))
+              (is (nil? (space/location-of world id)))
+              (is (= [8] (map :round (filter #(= :people/departed (:type %)) (e/events run)))))))
+          (replay! run)
+          (finally (e/stop-run run)))))))
+
 (deftest pool-fifo-protection-and-reuse
   (let [run (start)]
     (try

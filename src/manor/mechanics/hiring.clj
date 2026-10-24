@@ -5,6 +5,7 @@
             [manor.mechanics.builtins :as b]
             [manor.mechanics.items.actions :as item-actions]
             [manor.mechanics.people :as people]
+            [manor.mechanics.physical :as physical]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.narrate :as n]
@@ -265,6 +266,7 @@
                        (< (count (w/active-agents world)) (get-in world [:state :hiring-max-agents] b/default-max-agents)))
                   (arrival-events scenario world p)
                   (and (= :here (:status p)) (w/active? world (:agent-id p))
+                       (not (physical/held-in-place? world (:agent-id p)))
                        (>= (idle-rounds world (:agent-id p) (:arrived p)) leave-after))
                   (departure world (:agent-id p) "the visit has ended")
                   :else [])]
@@ -275,6 +277,15 @@
   (cond
     (not (and (w/active? world who) (= :here (:status (for-agent world who))))) "that person is not an unengaged candidate here"
     (not (space/together? world actor who)) "the candidate must be present"))
+
+(defn- departure-reason [world actor who]
+  (or (present-candidate-reason world actor who)
+      (when (physical/held-in-place? world who)
+        (str (:name (w/agent world who)) " cannot leave: "
+             (if (physical/unconscious? world who)
+               "they are unconscious; revive them first"
+               "their movement is disabled; restore their movement first")))))
+
 (defn engage-reason [world actor {:keys [who position bedroom]}]
   (or (present-candidate-reason world actor who)
       (when (= actor who) "you cannot offer yourself a place")
@@ -346,12 +357,12 @@
     :available? (fn [world actor] (boolean (some #(nil? (present-candidate-reason world actor (:agent-id %))) (vals (pool world)))))
     :doc "Send an unengaged candidate here away. They keep their memories and can be sent for again. This does not dismiss hired staff."
     :args [:map [:who :string]]
-    :valid? (fn [world actor {:keys [who]}] (present-candidate-reason world actor who))
+    :valid? (fn [world actor {:keys [who]}] (departure-reason world actor who))
     :effect (fn [world _ {:keys [who]}] (departure world who "sent away"))}
    {:name :take-leave :kind :final :roles :all
     :available? (fn [world actor] (= :here (:status (for-agent world actor))))
     :doc "Leave an unengaged visit; you can return if sent for again."
-    :args [:map] :valid? (fn [world actor _] (present-candidate-reason world actor actor))
+    :args [:map] :valid? (fn [world actor _] (departure-reason world actor actor))
     :effect (fn [world actor _] (departure world actor "takes leave"))}])
 
 (defn reference

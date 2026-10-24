@@ -11,6 +11,7 @@
             [manor.mechanics.builtins :as b]
             [manor.mechanics.hiring :as hiring]
             [manor.mechanics.items :as items]
+            [manor.mechanics.physical :as physical]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.narrate :as n]
@@ -229,6 +230,7 @@
   [world]
   (for [[shop {:keys [agent-id arrived]}] (sort-by key (couriers world))
         :when (and agent-id (w/active? world agent-id)
+                   (not (physical/held-in-place? world agent-id))
                    (>= (hiring/idle-rounds world agent-id arrived) courier-leave-after))]
     {:type :people/departed :visible-to (space/here world agent-id)
      :data {:id agent-id :reason "the delivery is made" :towards (str "the " (shop-name world shop))}}))

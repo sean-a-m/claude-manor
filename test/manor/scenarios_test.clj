@@ -10,7 +10,7 @@
             [manor.scenarios.claudeworth :as cw]
             [manor.world :as w]))
 
-(def bundled [:village :treasure :quiz :claudeworth :claudeworth-medium :lodge :dressing])
+(def bundled [:village :treasure :quiz :claudeworth :claudeworth-medium :lodge :dressing :burglary])
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
 

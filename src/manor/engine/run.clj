@@ -8,6 +8,7 @@
   (:require [manor.actions :as a]
             [manor.io.store :as store]
             [manor.io.worldfile :as worldfile]
+            [manor.mechanics.physical :as physical]
             [manor.tools.transcript :as transcript]
             [manor.world :as w]))
 
@@ -35,11 +36,14 @@
     (store/write-text! (:dir run) "map.edn" (worldfile/->edn-string (worldfile/export @(:world run) start)))))
 
 (defn emit!
-  "Stamp, apply, persist and broadcast events. The only way the world changes."
+  "Stamp, apply, persist and broadcast events. The only way the world changes.
+  Each event's audience first loses those who can't perceive it
+  (manor.mechanics.physical/perceivable), so the stored audience is what
+  replay and prompts see."
   [run events]
   (locking (:world run)
     (doseq [e events]
-      (let [e (w/stamp @(:world run) e)]
+      (let [e (w/stamp @(:world run) (physical/perceivable @(:world run) e))]
         (swap! (:world run) w/apply-stamped e)
         (swap! (:events run) conj e)
         (store/append-event! (:dir run) e)

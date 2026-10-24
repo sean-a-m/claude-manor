@@ -14,6 +14,7 @@
   engine's loop; the events are the record."
   (:require [clojure.string :as str]
             [manor.mechanics.builtins :as b]
+            [manor.mechanics.physical :as physical]
             [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
             [manor.world :as w]))
@@ -46,6 +47,7 @@
           (not (and a (w/active? world id) (not= :gm (:role a)))) (str "no one has the id " id)
           (not (here? world actor id)) (str (who world id) " is not here")
           (b/asleep? world id) (str (who world id) " is asleep")
+          (physical/unconscious? world id) (str (who world id) " is unconscious")
           (and (:hibernating? busy) (not (:interrupted-by busy)))
           (str (who world id) " is " (:activity busy) " and not free to talk")
           (= :human (:controller a)) (str (who world id) " can't be drawn into a conversation"))))

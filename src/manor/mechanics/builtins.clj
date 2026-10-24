@@ -1,6 +1,7 @@
 (ns manor.mechanics.builtins
   "Actions every scenario gets. Scenarios can override any of them by name."
   (:require [clojure.string :as str]
+            [manor.mechanics.physical :as physical]
             [manor.mechanics.space :as space]
             [manor.world :as w]))
 
@@ -24,8 +25,11 @@
   :situation is kept: only their own prompt shows it. The public
   :appearance is kept too, and :aspects if there are any (manor.mechanics.items).
   A starting :inner (manor.mechanics.inner) is private like :situation, and
-  its entries count as set in this round."
-  [scenario world {:keys [role name persona model controller location situation appearance aspects inner] :as spec}]
+  its entries count as set in this round. So do a starting :physical's, and
+  :impediments are kept; with :status :dead (and optionally :died {:cause})
+  they start dead (manor.mechanics.physical)."
+  [scenario world {:keys [role name persona model controller location situation appearance aspects inner
+                          physical impediments status died] :as spec}]
   (let [id (unique-id world (slug name))
         location (or location (get-in scenario [:roles role :start-location]))
         agent (cond-> (merge {:id id :name name :role role :persona (or persona "")}
@@ -36,7 +40,10 @@
                 situation (assoc :situation situation)
                 appearance (assoc :appearance appearance)
                 (seq aspects) (assoc :aspects aspects)
-                (seq inner) (assoc :inner inner :inner-at (zipmap (keys inner) (repeat (:round world)))))
+                (seq inner) (assoc :inner inner :inner-at (zipmap (keys inner) (repeat (:round world))))
+                (seq physical) (assoc :physical (physical/starting-entries world physical))
+                (seq impediments) (assoc :impediments impediments)
+                (= :dead status) (assoc :status :dead :died (assoc (or died {}) :round (:round world))))
         spawned {:type :agent/spawned :data {:agent agent} :visible-to :all}
         world' (w/apply-event world spawned)
         on-spawn (get-in scenario [:roles role :on-spawn])
@@ -61,6 +68,8 @@
   ([world id activity until {:keys [asleep?]}]
    {:type :agent/occupied :actor id :visible-to (space/here world id)
     :data (cond-> {:activity activity :until until} asleep? (assoc :asleep? true))}))
+
+(defmethod w/perceived-by :agent/occupied [_] :sight)
 
 (defn asleep?
   "Is `id` asleep (occupied with :asleep?) and not roused?"
@@ -136,9 +145,11 @@
 (defn hibernations
   "Events putting agents out of play or back in, as `hibernate-fn` (the
   scenario's :hibernate) says. Each agent is decided on the world as the
-  previous one left it. Travellers, human seats, and agents interrupted or
-  busy with an occupation of their own are left alone. `skip` gives agents
-  released this round a turn before returning to their routine."
+  previous one left it. Travellers, human seats, agents interrupted or
+  busy with an occupation of their own, and anyone code mustn't move (their
+  movement disabled or unconscious, see manor.mechanics.physical) are left
+  alone. `skip` gives agents released this round a turn before returning
+  to their routine."
   ([hibernate-fn world] (hibernations hibernate-fn world #{}))
   ([hibernate-fn world skip]
    (second
@@ -149,6 +160,7 @@
             (filter #(and (not (contains? skip (:id %)))
                           (not (:travel %))
                           (not= :human (:controller %))
+                          (not (physical/held-in-place? world (:id %)))
                           (or (nil? (:busy %))
                               (and (get-in % [:busy :hibernating?]) (not (get-in % [:busy :interrupted-by])))))
                     (w/active-agents world))))))
@@ -161,6 +173,9 @@
         :when (and (:hibernating? busy) (not (:interrupted-by busy))
                    (nil? (hibernate-fn world id)))]
     (free world id)))
+
+(defmethod w/perceived-by :agent/said [_] :hearing)
+(defmethod w/perceived-by :agent/whispered [_] :hearing)
 
 (def speech-limit
   "The length `say` and `whisper` tell models to keep to. Their schemas allow

@@ -8,8 +8,9 @@
 
   A round:
     1. :round/started
-    2. travellers who are due arrive, and occupied agents who are due are
-       freed; the scenario's :hibernate puts agents out of play or wakes
+    2. travellers who are due arrive, occupied agents who are due are
+       freed, and the knocked out who are due come to (manor.mechanics.physical);
+       the scenario's :hibernate puts agents out of play or wakes
        them; work on items that ends now is judged and its results applied
        (manor.mechanics.items); run act-bridges the operator approved
     3. run world systems (ticks, possibly fed by bridges), then batched calendar GM review
@@ -47,6 +48,8 @@
             [manor.mechanics.items.find :as item-find]
             [manor.mechanics.items.judge :as item-judge]
             [manor.mechanics.items.steward :as item-steward]
+            [manor.mechanics.physical :as physical]
+            [manor.mechanics.physical.changes :as physical-changes]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.world :as w])
@@ -300,6 +303,29 @@
                                                 :terms (:terms opts)
                                                 :visible-to #{id}})])))))
 
+(defn- affliction
+  "The operator's `afflict!` change as manor.mechanics.physical.changes takes it."
+  [{:keys [faculty impediment value died] :as change}]
+  (cond faculty {:physical [(select-keys change [:faculty :level :cause :minutes])]}
+        impediment {:impediments [{:key impediment :value (or value "")}]}
+        died {:died died}
+        :else (throw (ex-info "afflict! takes :faculty, :impediment or :died" {:change change}))))
+
+(defn afflict!
+  "Change `id`'s physical status (manor.mechanics.physical), with one of:
+    {:faculty :movement :level :disabled :cause \"bound hand and foot\"}  ; :level :normal clears it
+    {:faculty :consciousness :level :disabled :minutes 60}              ; comes to in an hour
+    {:impediment :hand :value \"a cut finger\"}                          ; \"\" (or no value) removes it
+    {:died \"struck on the head\"}                                       ; or true, with no cause
+  Everyone present who can see sees it. If they're busy, they're interrupted
+  by :by (default: themselves), unless it knocks them out or kills them.
+  Throws if they aren't a living participant or the change isn't allowed."
+  [run id change]
+  (let [c (affliction change)]
+    (when-let [p (physical-changes/problem @(:world run) id c)]
+      (throw (ex-info (str "afflict!: " p) {:id id :change change})))
+    (operator! run #(physical-changes/change-events % id c (or (:by change) id)))))
+
 (defn announce!
   "Operator announcement to everyone, or to a set of agent ids."
   ([run text] (announce! run text :all))
@@ -364,11 +390,14 @@
     (throw (ex-info (str "bad :items from :init: " (str/join "; " ps)) {:problems (vec ps)}))))
 
 (defn- check-agents!
-  "Throw if a starting agent's :aspects aren't well formed (see items/Aspects),
-  or its :inner doesn't fit the scenario's (see inner/problem)."
+  "Throw if a starting agent's :aspects or :impediments aren't well formed
+  (see items/Aspects and items/Impediments), its :physical either (see
+  physical/Starting), or its :inner doesn't fit the scenario's (see inner/problem)."
   [scenario agents]
   (when-let [ps (seq (for [{:keys [name aspects inner] :as a} agents
                            p [(when (contains? a :aspects) (items/aspects-problem aspects))
+                              (when (contains? a :impediments) (items/impediments-problem (:impediments a)))
+                              (when (contains? a :physical) (physical/shape-problem (:physical a)))
                               (when (contains? a :inner) (inner/problem (:inner scenario) inner))]
                            :when p]
                        (str "agent " (pr-str name) ": " p)))]

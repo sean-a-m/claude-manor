@@ -209,7 +209,8 @@ Each action is a map. Each role's actions become that role's LLM tools.
  :available? (fn [world actor] bool) ; optional: leave the tool out of this model step
  :valid?  (fn [world actor args] nil-or-reason-string)
  :effect  (fn [world actor args] [events])
- :per-turn  1                        ; optional: at most this many accepted uses per turn
+ :per-turn  1                        ; optional: at most this many accepted uses per turn, or
+                                     ; (fn [world actor]) => n or nil (no limit)
  :limit-key :speech                  ; optional: actions with the same key share :per-turn
  :hint    "..."                      ; optional: replaces the kind's hint ("Ends your turn.") in the tool description
  :reply   (fn [world actor args] data)}   ; :free only, optional: the tool result instead of "ok"
@@ -250,7 +251,10 @@ rejected by `:valid?` or with bad arguments leaves the limit untouched. Actions 
 call gets `rejected: you can use say or whisper only once per turn; take your turn-ending action
 now, and use them again next turn`. The tool description ends with "Once per turn." or "At most n
 times per turn."; say in the `:doc` which other actions share the limit. The count is turn state,
-not world state, so it leaves no events and replay is unaffected.
+not world state, so it leaves no events and replay is unaffected. A `:per-turn` function of the
+world and actor gives a limit that depends on who is acting now (Claudeworth's `walk` uses
+`physical/walks-per-turn`: 3 with movement impeded, else none); it isn't told in the tool
+description, so say it in the rules.
 
 Every model call in a turn counts towards `:max-steps` (default 10): free and query actions, and
 retries after an error or rejection. A turn with no turn-ending action by then is forfeited. To
@@ -535,6 +539,16 @@ Event shape (returned by effects, ticks and hooks; the engine stamps `:id` and `
   `:clock` when the scenario has one, and `:items` (and `:item-jobs`) once a world has items.
   Scenario reducers should only touch `:state`, unless deliberately using engine semantics via
   engine events.
+- **Perception:** an event type may say which sense it's perceived by, with
+  `(defmethod manor.world/perceived-by :treasure/dug [_] :sight)` (`:sight`, `:hearing`, or nil,
+  the default). Before stamping, `run/emit!` drops from a set audience everyone unconscious, and
+  those who lack the sense (see Physical status); the actor is always kept, and
+  `manor.world/done-to` names others never dropped for lack of sight (`:item/given`'s recipient).
+  `:all`, `:gm` and `:system` are never trimmed, and the stored audience is the trimmed one, so
+  replay is unaffected. Tagged so far: speech (`:agent/said`, `:agent/whispered`, Claudeworth's
+  `:claudeworth/called`) is heard; moves, departures, arrivals and placings, occupations (work
+  starts, falling asleep), items taken, put down, put in, given, found or not found, and status
+  changes are seen. Untagged events reach everyone in the audience who is conscious.
 - Multimethods are global. Namespace your event types (`:treasure/...`) so scenarios can't collide.
 
 ### Narration
@@ -1442,6 +1456,70 @@ reads it. Opt in with a scenario `:inner` entry:
   what's said to you and how you sleep. Let it colour what you do and say, as anyone's would.*
   Don't invite them to manage or improve it.
 
+### Physical status (`manor.mechanics.physical`)
+
+People's bodies can be hindered, and people can die (docs/physical-status-design.md). Every
+scenario has it; nothing is set unless a world file, the operator or (later) a judge sets it.
+
+```clojure
+;; on an agent
+:physical {:movement      {:level :disabled :cause "bound hand and foot" :since 31}
+           :speech        {:level :impeded  :cause "gagged with a napkin" :since 31}
+           :consciousness {:level :disabled :cause "struck on the head" :since 31 :until 35}}
+:impediments {:hand "a cut finger, bound in a rag"}
+:status :dead :died {:round 40 :cause "..."}
+```
+
+- **Faculties and levels** (`physical/faculties`): movement, grasp and speech may be `:impeded`
+  or `:disabled`; sight, hearing and consciousness only `:disabled` (unconscious). No entry is
+  normal. `:cause` is a short phrase shown beside the level, never read by code; `:since` is the
+  round it was set; `:until` (consciousness only) the round they come to. While unconscious,
+  movement, grasp and speech count as disabled (`physical/level`, `physical/can?`) without
+  their entries changing.
+- **Impediments** are a subcategory of a person's aspects: keyed phrases, keys and values as
+  aspects', at most 3 (`items/Impediments`), separate from the 4 aspects.
+- **Death** is `:status :dead` (`manor.world/dead?`). The dead aren't active, so they drop out of
+  turns, `present`, conversations, whispers, hibernation and the steward; they stay at their
+  `:location`, keep what they hold, and others see them.
+- **What code enforces now:** movement disabled: no `walk`, `travel` or `move`, and hibernation
+  leaves them alone (routines don't move them); impeded: at most 3 walks a turn, no `travel`, no
+  `move` along a route with travel above 0 (`physical/movement-reason`). Grasp disabled: no
+  `take`, `give`, `put-in` or `open`; `put-down` is allowed and nothing is dropped. `take` also
+  takes what's held by someone here who is dead, unconscious or grasp-disabled
+  (`physical/helpless?`), even out of something they carry; the `:item/taken` then has
+  `:from-person`. Unconscious: no turns, `rouse` and conversations refuse them, any occupation
+  ends, and at the start of the `:until` round the engine emits `:person/came-to`, beside
+  releases (they then get a turn before any routine). Death ends any occupation too. Either way
+  a job in progress ends early and is judged on the time worked, as when a worker stops.
+  The reasons repeat the status: "your grasp is disabled (wrists tied), so you can't open things".
+- **Who sees it:** everyone present who can see, beside aspects in `people-here` and `look`:
+  `physical: {"movement": "disabled: bound hand and foot", "consciousness": "unconscious: struck
+  on the head"}`, `impediments: {...}`, and `dead: true` for the dead (with their name,
+  appearance, aspects and what they carry). The person sees their own under `:you :physical`
+  and `:you :impediments`. The GM's default view has them too.
+- **Events:** `:person/physical-changed {:person :changes [{:faculty :level :cause? :until?}]}`
+  (`:level :normal` clears; knocking out ends the occupation), `:person/impediments-changed
+  {:person :changes [{:key :from :to}]}` (`:to` nil removes), `:person/died {:person :cause?}`
+  and `:person/came-to {:person}`, each with the person as `:actor`, seen by everyone at their
+  place who can see. Build them with `manor.mechanics.physical.changes`: `change-events` (world,
+  id, `{:physical [{:faculty :level :cause :minutes}] :impediments [{:key :value}] :died cause}`,
+  by) also interrupts the person if they're busy (asleep, working, hibernating), so they get a
+  turn to decide whether to stop, except when the change knocks them out or kills them;
+  `interrupts` does only that, for changes made by other events; `problem` checks a change.
+  `:minutes` (consciousness) become `:until` through the clock (at least one round).
+- **World files and `:init` agents** may start someone with `:physical` (`{:movement {:level
+  :disabled :cause "..."}}`, and for consciousness optionally `:minutes` until they come to),
+  `:impediments`, or `:status :dead` with an optional `:died {:cause "..."}`.
+  `worldfile/problems` (and the engine, for `:init` agents) checks their shape. The exported
+  `map.edn` writes the live levels and causes, impediments and deaths back.
+- **The operator** sets and clears them with `manor.engine/afflict!` (and `afflict!` at the
+  REPL): `{:faculty :movement :level :disabled :cause "..."}`, `{:faculty :consciousness :level
+  :disabled :minutes 60}`, `{:impediment :hand :value "a cut finger"}` (`""` or no value removes),
+  `{:died "a fall"}`, with an optional `:by` for whoever interrupts them (default: themselves).
+- **What to tell agents:** `physical/rules`, in Claudeworth's rules.
+- Not yet: speech, hearing and sight effects on `say`, `whisper`, `call`, conversations and
+  views; the judges setting and clearing statuses, and the immediate `act-on`.
+
 ### World files (`manor.io.worldfile`)
 
 A scenario can keep its starting world in an EDN file instead of code: locations, routes, the
@@ -1465,7 +1543,9 @@ in `:init`:
  :routes [["porch" "green" 1]]                     ; journeys, as in :space
  :agents [{:name "Ada" :role :resident :location "hall"
            :aspects {:hands "inky"}                 ; optional (see People's aspects)
-           :inner {:mind "the unanswered letter"}}] ; optional (see Inner state)
+           :inner {:mind "the unanswered letter"}   ; optional (see Inner state)
+           :physical {:grasp {:level :impeded :cause "a sprained wrist"}}}  ; optional (see Physical status),
+          {:name "Cal" :role :resident :status :dead :died {:cause "a fall"}}] ; as are :impediments, :status :dead
  :items [{:id "pipe" :name "Pipe" :holder "Ben" :owner "Ben"   ; optional, see Items
           :aspects {:state "still warm"} :desc "A briar pipe."}]
  :shop {...}}                                       ; your own sections, from :world-file
@@ -1921,8 +2001,9 @@ they get one turn before returning to their routine next round.
   nothing happens.
 - nil, for an agent who is hibernating: `(b/free world id)`. They act this round.
 
-Agents busy on their own account (`sleep`, `spend-time`), travellers, human seats and interrupted
-agents are left alone. `rouse` works on a hibernating agent as on anyone busy; the agent's view and
+Agents busy on their own account (`sleep`, `spend-time`), travellers, human seats, interrupted
+agents, and anyone whose movement is disabled or who is unconscious (see Physical status) are
+left alone. `rouse` works on a hibernating agent as on anyone busy; the agent's view and
 the narration leave out the end time. `(b/hibernating? world id)` tells you whether someone is
 hibernating. Agents are decided one at a time, each on the world as the previous one left it.
 

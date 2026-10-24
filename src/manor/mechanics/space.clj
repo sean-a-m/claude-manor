@@ -24,6 +24,7 @@
   Ada saw Ben in the hall in round 4, going to the porch (:went only for
   the one who stayed). `last-seen` reads it for views."
   (:require [manor.clock :as clock]
+            [manor.mechanics.physical :as physical]
             [manor.mechanics.positions :as positions]
             [manor.world :as w]))
 
@@ -112,11 +113,13 @@
 (defn- person
   "Someone in a view of the people here: who they are, how to address them
   if their position says (manor.mechanics.positions), their appearance, how they
-  differ from it now (:aspects, see manor.mechanics.items) and what they're doing."
+  differ from it now (:aspects, see manor.mechanics.items), their physical
+  statuses and impediments, whether they're dead (manor.mechanics.physical)
+  and what they're doing."
   [world id]
   (let [a (w/agent world id)
         address (positions/addressed-as world id)]
-    (cond-> (select-keys a [:id :name :role :appearance :aspects])
+    (cond-> (physical/with-status (select-keys a [:id :name :role :appearance :aspects]) a)
       address (assoc :address-as address)
       (:busy a) (assoc :doing (get-in a [:busy :activity])))))
 
@@ -139,8 +142,9 @@
 
 (defn view
   "The location section of an agent's observation: the place you're in
-  (with its :aspects, if it has any), the exits, the people here and where
-  you last saw others. With a clock, times replace round numbers."
+  (with its :aspects, if it has any), the exits, the people here (the dead
+  among them) and where you last saw others. With a clock, times replace
+  round numbers."
   [world agent-id]
   (let [a (w/agent world agent-id)
         c (:clock world)
@@ -157,7 +161,8 @@
                             c (assoc :travel-minutes (* travel (:minutes-per-round c)))
                             (not c) (assoc :travel-rounds travel)))
                         (exits world loc))
-           :people-here (mapv #(person world %) (sort (disj (present world loc) agent-id)))}))
+           :people-here (mapv #(person world %) (sort (into (disj (present world loc) agent-id)
+                                                             (physical/dead-at world loc))))}))
       (seq (last-seen world agent-id)) (assoc :last-seen (last-seen world agent-id)))))
 
 ;; ---------------------------------------------------------------------------
@@ -223,6 +228,9 @@
 (defmethod w/apply-event :agent/arrived [world {:keys [actor data]}]
   (update-in world [:agents actor] #(-> % (assoc :location (:to data)) (dissoc :travel))))
 
+(doseq [t [:agent/moved :agent/placed :agent/departed :agent/arrived]]
+  (defmethod w/perceived-by t [_] :sight))
+
 ;; ---------------------------------------------------------------------------
 ;; Actions
 
@@ -241,7 +249,8 @@
                 (cond (= to from) "you are already there"
                       (nil? (location world to)) (str "there is no location " to)
                       (nil? r) (str "there is no route from here to " to)
-                      (not (:open? r)) (str "the route to " to " is closed"))))
+                      (not (:open? r)) (str "the route to " to " is closed")
+                      :else (physical/movement-reason world actor (:travel r)))))
     :effect (fn [world actor {:keys [to]}]
               (let [from (location-of world actor)
                     travel (:travel (route world from to))]

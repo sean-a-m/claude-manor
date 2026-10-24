@@ -1,0 +1,96 @@
+;; Fixed world for physical status (manor.scenarios.burglary): a house at one
+;; in the morning, after a burglary has gone wrong. The butler is bound and
+;; gagged in his pantry; in the dining room the housemaid is blindfolded, the
+;; first footman lies dead, and the burglar has the countess's jewels; the cook
+;; is knocked out in the kitchen and comes to within the hour; the
+;; under-gardener is tied up in the potting shed, away from his routine.
+;; Test-owned: don't sync it with any bundled scenario.
+{:meta {:name "Hollin Grange"
+        :start "1904-10-16T01:00"
+        :minutes-per-round 30
+        :starting-funds 0
+        :positions "positions/england-1904.edn"
+        :setting "Hollin Grange is a country house in rural England, 1904. The family are away in London, and the servants keep the house. It is the middle of the night."}
+
+ :locations
+ [{:id "carriage-sweep" :name "Carriage sweep" :domain :house :floor :outside :kind :approach
+   :connects-to ["entrance-hall" "potting-shed"]
+   :desc "A gravel turning circle before the front door, dark at this hour."}
+  {:id "potting-shed" :name "Potting shed" :domain :garden :floor :outside :kind :shed
+   :desc "A lean-to shed of flowerpots, twine and a long bench, smelling of earth."}
+  {:id "entrance-hall" :name "Entrance hall" :domain :house :floor :ground :kind :hall
+   :connects-to ["dining-room" "butlers-pantry" "kitchen"]
+   :desc "A stone-flagged hall with a long-case clock."}
+  {:id "dining-room" :name "Dining room" :domain :house :floor :ground :kind :dining-room
+   :desc "A panelled room with a long table and a mahogany sideboard."}
+  {:id "butlers-pantry" :name "Butler's pantry" :domain :house :floor :ground :kind :pantry
+   :desc "A narrow room of baize-lined drawers and the iron plate chest."}
+  {:id "kitchen" :name "Kitchen" :domain :house :floor :ground :kind :kitchen
+   :connects-to ["butlers-room" "cooks-room" "footmens-room" "maids-room"]
+   :desc "A big kitchen with a range banked for the night."}
+  {:id "butlers-room" :name "Butler's room" :domain :house :floor :ground :kind :bedroom
+   :desc "A plain bedroom off the kitchen passage."}
+  {:id "cooks-room" :name "Cook's room" :domain :house :floor :ground :kind :bedroom
+   :desc "A small bedroom behind the kitchen."}
+  {:id "footmens-room" :name "Footmen's room" :domain :house :floor :ground :kind :bedroom
+   :desc "Two iron beds and a shared washstand."}
+  {:id "maids-room" :name "Maid's room" :domain :house :floor :ground :kind :bedroom
+   :desc "A narrow room with one bed and a chest of drawers."}
+  {:id "village-green" :name "Village green" :domain :village :kind :green
+   :connects-to ["gardeners-cottage" "lodging-house"]
+   :desc "A sloping green, silent and moonlit."}
+  {:id "gardeners-cottage" :name "Gardener's cottage" :domain :village :kind :bedroom
+   :desc "A two-room cottage by the green."}
+  {:id "lodging-house" :name "Lodging house" :domain :village :kind :bedroom
+   :desc "A common lodging house where travellers take a bed by the night."}]
+
+ :routes [["carriage-sweep" "village-green" 1]]
+
+ :roles
+ {:burglar {:title "Burglar" :standing :villager :sleeps :out
+            :about "You make your living by burglary. You came for the silver and the jewels, and you mean to get away with them."}
+  :gm {:about "A house at night after a burglary has gone wrong."}}
+
+ :items
+ [{:id "sideboard" :name "Sideboard" :place "dining-room" :fixed? true :container :closed :desc "A mahogany sideboard with two cupboards."}
+  {:id "silver-candlesticks" :name "Silver candlesticks" :in "sideboard" :desc "A pair of Georgian silver candlesticks."}
+  {:id "brass-candlestick" :name "Brass candlestick" :place "dining-room" :aspects {:state "bloodied at the base"} :desc "A heavy brass candlestick."}
+  {:id "plate-chest" :name "Plate chest" :place "butlers-pantry" :fixed? true :container :closed :desc "An iron-bound chest for the household's plate."}
+  {:id "silver-salver" :name "Silver salver" :in "plate-chest" :desc "A large silver salver engraved with the family's crest."}
+  {:id "pantry-keys" :name "Pantry keys" :holder "Albert" :desc "A ring of keys to the pantry and the plate chest."}
+  {:id "jewel-case" :name "Jewel case" :holder "Slade" :desc "A red morocco jewel case holding the countess's pearls and a diamond brooch."}
+  {:id "sack" :name "Sack" :holder "Slade" :container :closed :desc "A coarse sack for carrying off what he takes."}]
+
+ :agents
+ [{:name "Crane" :role :butler :location "butlers-pantry" :bedroom "butlers-room"
+   :persona "Mr Crane, the butler: stiff, loyal and furious at the indignity."
+   :appearance "A tall grey man in shirtsleeves and a waistcoat."
+   :physical {:movement {:level :disabled :cause "bound hand and foot to a chair"}
+              :grasp {:level :disabled :cause "wrists tied behind the chair"}
+              :speech {:level :impeded :cause "gagged with a table napkin"}}}
+  {:name "Ivy" :role :housemaid :location "dining-room" :bedroom "maids-room"
+   :persona "Ivy, the housemaid: young and frightened, but no fool."
+   :appearance "A slight girl in a nightgown and a shawl."
+   :physical {:sight {:level :disabled :cause "blindfolded with a pillowcase"}}}
+  {:name "Albert" :role :footman :location "dining-room" :bedroom "footmens-room"
+   :persona "Albert, the first footman."
+   :appearance "A tall young man in his livery."
+   :status :dead :died {:cause "struck on the head with a candlestick"}}
+  {:name "Will" :role :footman :location "footmens-room" :bedroom "footmens-room"
+   :persona "Will, the second footman: strong, slow to anger and quick to act."
+   :appearance "A broad young man in a nightshirt."}
+  {:name "Slade" :role :burglar :location "dining-room" :bedroom "lodging-house"
+   :persona "Jack Slade, a burglar from the city: quick, quiet and not squeamish."
+   :appearance "A wiry man in a dark coat and a cap pulled low."
+   :impediments {:hand "a cut palm, from the pantry window"}}
+  {:name "Mrs Bell" :role :cook :location "kitchen" :bedroom "cooks-room"
+   :persona "Mrs Bell, the cook: stout and sharp-tongued."
+   :appearance "A stout woman in a wrapper, her hair in curling papers."
+   :physical {:consciousness {:level :disabled :cause "struck on the head" :minutes 60}}}
+  {:name "Tom" :role :under-gardener :location "potting-shed" :bedroom "gardeners-cottage"
+   :persona "Tom, the under-gardener, who came up to see what the noise was."
+   :appearance "A weathered man in a smock."
+   :physical {:movement {:level :disabled :cause "tied to the potting bench"}}
+   :routine [{:from "06:00" :at "potting-shed" :doing "potting on seedlings"}
+             {:from "18:00" :at "gardeners-cottage" :doing "at home"}
+             {:from "22:00" :at "gardeners-cottage" :doing "asleep"}]}]}

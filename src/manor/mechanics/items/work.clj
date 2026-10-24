@@ -21,7 +21,7 @@
   [world {:keys [id actor started due quick?]}]
   (let [round (:round world)]
     (cond
-      (not (w/active? world actor)) {:outcome :dropped :minutes 0}
+      (and (not (w/active? world actor)) (not (w/dead? world actor))) {:outcome :dropped :minutes 0}
       quick? (when (<= due round) {:outcome :finished :minutes 0 :stopped-early? false})
       (not= id (:job (w/busy world actor)))
       {:outcome :stopped :minutes (minutes-of world (- round 1 started)) :stopped-early? true}
@@ -32,8 +32,8 @@
   {:job job :outcome o :minutes m :stopped-early? bool :luck 1-100}:
     :dropped   the worker has been retired
     :stopped   the worker's occupation is no longer this job (they stopped
-               after being interrupted, or something replaced it): judged on
-               the rounds before this one
+               after being interrupted, something replaced it, or they were
+               knocked out or died): judged on the rounds before this one
     :finished  :due has come: judged on the whole time
   Call it on the world before occupations are released, so the worker of a
   job that is due still holds it."

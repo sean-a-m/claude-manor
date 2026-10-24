@@ -24,7 +24,7 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/inner-state-design.md` | proposal: private inner state, changed by the work judge, a conversation judge and the steward |
 | `docs/events-design.md` | in-world calendar contract and outcome: private/public entries and pre-turn GM review |
 | `docs/visits-design.md` | proposal: guests and visits (invitations by post, messenger or in person, GM visits, guests from the village or elsewhere); not started |
-| `docs/physical-status-design.md` | proposal: physical status (bound, gagged, blind, deaf, unconscious, dead), impediments, the immediate `act-on`; not started |
+| `docs/physical-status-design.md` | physical status (bound, gagged, blind, deaf, unconscious, dead), impediments, the immediate `act-on`; being built (phase 1 core done) |
 | `docs/household-1904-proposal.md` | proposal: a second Claudeworth scenario, a modest household with new ironstone income that means to expand; not started |
 | `docs/user-todos.md` | the user's own wishlist for later; not agent tasks |
 | `docs/archived/` | finished build briefs and old handoff notes: history, not the present state |
@@ -114,6 +114,8 @@ src/manor/
                    address, bedroom and routine events
     hiring.clj     candidate records, private recommendations and event-owned hiring
     inner.clj      inner state: private keyed phrases judges change (checks, judge view, :person/inner-changed)
+    physical.clj   physical status: faculties and levels, death, impediments, views, reducers, the perception
+                   filter emit! applies; physical/changes.clj makes its events and the interrupts they cause
   io/            everything that leaves the process
     llm.clj        LLM protocol; OpenRouter (JDK HTTP) and Mock (scenario policy) implementations
     bridge.clj     bridge executor: timeout, truncation, stubs, MCP tools; never throws
@@ -142,10 +144,11 @@ resources/architect/    architect price lists (whole pounds), one per world, nam
 mcp-servers/architect/  the architect MCP server: babashka, stateless, reference and draft tools
 mcp-servers/people/     the people MCP server: babashka, stateless, generate_people and reputation from data files
 config/        mcp.example.edn; mcp.edn is local and gitignored (the user's sets pi-sandbox)
-dev/user.clj     REPL helpers (start! step! auto! feed view last-prompt transcript! spawn! change-post! approve! act! roll-cast! ...)
+dev/user.clj     REPL helpers (start! step! auto! feed view last-prompt transcript! spawn! change-post! afflict! approve! act! roll-cast! ...)
 test/            engine, conversation, space, items, MCP, clock, world-file, panel, transcript, cache-report, Claudeworth and scenario smoke tests;
                  test scenarios prize.clj and hamlet.clj (world file test/fixtures/hamlet.edn);
-                 household.clj reuses Claudeworth mechanics with fixed household.edn / household-day.edn fixtures;
+                 household.clj reuses Claudeworth mechanics with fixed household.edn / household-day.edn fixtures,
+                 and burglary.clj with burglary.edn (physical status);
                  test/fixtures/fake-pi.mjs (fake `pi --mode rpc` for free MCP tests)
 runs/            real runs (gitignored; the user's data; never delete). runs/smoke-llm is a real 5-round village run
 test-runs/       test and ad-hoc runs ({:test? true} / --test); mock runs are safe to delete

@@ -14,7 +14,8 @@
      :available? (fn [world actor]) => bool ; optional: offer the tool only when true
      :valid?  (fn [world actor args]) => nil or a reason string
      :effect  (fn [world actor args]) => [events]
-     :per-turn  1                           ; optional: accepted uses per turn
+     :per-turn  1                           ; optional: accepted uses per turn, or
+                                            ; (fn [world actor]) => n or nil (no limit)
      :limit-key :speech                     ; optional: actions with the same key
                                             ; share one :per-turn limit (default:
                                             ; the action's own :name)
@@ -68,6 +69,13 @@
   same :limit-key share one limit."
   [action]
   (or (:limit-key action) (:name action)))
+
+(defn per-turn
+  "How many times `actor` may use `action` in a turn now, or nil for no limit:
+  its :per-turn, a number or a function of the world and actor."
+  [action world actor]
+  (let [n (:per-turn action)]
+    (if (fn? n) (n world actor) n)))
 
 (defn args-schema [action] (or (:args action) [:map]))
 
@@ -131,8 +139,11 @@
                                       (m/-update-properties s dissoc :max)
                                       s)))))
 
-(defn- per-turn-hint [action]
-  (when-let [n (:per-turn action)]
+(defn- per-turn-hint
+  "The limit in a tool's description; one that depends on the actor isn't
+  told there."
+  [action]
+  (when-let [n (when (number? (:per-turn action)) (:per-turn action))]
     (if (= 1 n) " Once per turn." (str " At most " n " times per turn."))))
 
 (defn ->tool [action]

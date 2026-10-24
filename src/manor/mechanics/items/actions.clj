@@ -7,6 +7,7 @@
             [manor.mechanics.items :as items]
             [manor.mechanics.items.find :as item-find]
             [manor.mechanics.items.views :as item-views]
+            [manor.mechanics.physical :as physical]
             [manor.mechanics.space :as space]
             [manor.world :as w]))
 
@@ -25,16 +26,34 @@
 (defn- carried-list [world actor]
   (str "you carry: " (listing (items/held-by world actor) "nothing")))
 
+(defn- held-by-helpless
+  "The person here who holds `it`, or the thing it's in, and can't keep hold
+  of it (dead, unconscious or unable to grasp, see manor.mechanics.physical),
+  or nil."
+  [world actor it]
+  (let [holder (:holder (items/outermost world it))]
+    (when (and holder (not= actor holder) (space/together? world actor holder) (physical/helpless? world holder))
+      holder)))
+
+(defn- grasp-reason
+  "Why `actor` can't take hold of things, or nil."
+  [world actor cant]
+  (physical/disabled-reason world actor :grasp cant))
+
 (defn- take-reason
   "Why `actor` can't take the item `id`, or nil: it must lie here, directly or
-  in a container (at any depth, open or closed), and not be fixed. Something
-  inside what another person holds is just \"not here\", so nothing hidden leaks."
+  in a container (at any depth, open or closed), and not be fixed, or be
+  held (or be in something held) by someone here who can't keep hold of it.
+  Something inside what anyone else keeps hold of is just \"not here\", so
+  nothing hidden leaks. With their grasp disabled, they can't take anything."
   [world actor {id :item}]
   (let [it (items/item world id)
         holder (:holder it)]
     (cond
       (nil? (space/location-of world actor)) "you can't pick things up while travelling"
+      (not (physical/can? world actor :grasp)) (grasp-reason world actor "pick things up")
       (= actor holder) (str "you are already carrying the " (:name it))
+      (and it (held-by-helpless world actor it)) nil
       (and holder (space/together? world actor holder))
       (str (:name (w/agent world holder)) " is holding the " (:name it))
       (not (and it (items/reachable? world actor it))) (str id " is not here; " (here-list world actor))
@@ -54,7 +73,8 @@
   and the item isn't the container or around it."
   [world actor {id :item to :container}]
   (let [it (items/item world id)]
-    (or (when-not (and it (= actor (:holder it))) (take-reason world actor {:item id}))
+    (or (grasp-reason world actor "put things in anything")
+        (when-not (and it (= actor (:holder it))) (take-reason world actor {:item id}))
         (container-reason world actor to "put things in")
         (cond
           (or (= id to) (some #(= to (:id %)) (items/within world id)))
@@ -63,7 +83,7 @@
 
 (defn- open-reason [world actor {id :container}]
   (if (space/location-of world actor)
-    (container-reason world actor id "open")
+    (or (grasp-reason world actor "open things") (container-reason world actor id "open"))
     "you can't open things while travelling"))
 
 (defn- carrying-reason [world actor id]
@@ -71,7 +91,8 @@
     (str "you are not carrying " id "; " (carried-list world actor))))
 
 (defn- give-reason [world actor {id :item to :to}]
-  (or (carrying-reason world actor id)
+  (or (grasp-reason world actor "hand things over")
+      (carrying-reason world actor id)
       (cond (= to actor) "you already have it; give it to someone else here"
             (not (some #(= to (:id %)) (w/active-agents world))) (str "no one has the id " to)
             (not (space/together? world actor to)) (str to " is not here"))))
@@ -211,9 +232,11 @@
      :args [:map [:item :string]]
      :valid? take-reason
      :effect (fn [world actor {id :item}]
-               (let [it (items/item world id)]
+               (let [it (items/item world id)
+                     from (held-by-helpless world actor it)]
                  [{:type :item/taken :data (cond-> {:item id :from-place (items/place-of world it)}
-                                             (:in it) (assoc :from-item (:in it)))
+                                             (:in it) (assoc :from-item (:in it))
+                                             from (assoc :from-person from))
                    :visible-to (space/here world actor)}]))}
 
     {:name :open

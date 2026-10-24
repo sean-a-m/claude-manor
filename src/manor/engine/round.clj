@@ -1,5 +1,5 @@
 (ns manor.engine.round
-  "One round, in order: arrivals, releases and hibernation; work that ends;
+  "One round, in order: arrivals, releases, coming to and hibernation; work that ends;
   the steward; approved act-bridges; world systems; each schedule group's
   turns; the GM if anything triggers it. Calendar review runs before turns.
   See manor.engine for the outline."
@@ -12,6 +12,8 @@
             [manor.mechanics.builtins :as b]
             [manor.mechanics.calendar :as calendar]
             [manor.mechanics.items.work :as item-work]
+            [manor.mechanics.physical :as physical]
+            [manor.mechanics.physical.changes :as physical-changes]
             [manor.mechanics.space :as space]
             [manor.world :as w]))
 
@@ -26,16 +28,22 @@
       (= s :simultaneous) [ids]
       :else (mapv vector ids))))
 
+(defn- turn-due?
+  "Does `id` take a turn now: active, not travelling or unconscious, and not
+  busy unless interrupted?"
+  [world id]
+  (and (w/active? world id)
+       (not (space/in-transit? world id))
+       (not (physical/unconscious? world id))
+       (let [busy (w/busy world id)]
+         (or (nil? busy) (:interrupted-by busy)))))
+
 (defn- run-group!
   "Agents in a group act on the same snapshot. A group of one commits its
   action immediately; a larger group's actions are checked during the turn
   and resolved afterwards in schedule order, so conflicts are rejected."
   [run ids]
-  (let [ids (filter #(and (w/active? @(:world run) %)
-                          (not (space/in-transit? @(:world run) %))
-                          (let [busy (w/busy @(:world run) %)]
-                            (or (nil? busy) (:interrupted-by busy))))
-                    ids)
+  (let [ids (filter #(turn-due? @(:world run) %) ids)
         snapshot @(:world run)
         simultaneous? (> (count ids) 1)
         turn (fn [id]
@@ -159,10 +167,13 @@
                    ;; decided before releases, so a worker whose job is due still holds it
                              (let [ending (item-work/ending-jobs @(:world run))]
                                (run/emit! run (space/arrivals @(:world run)))
-                               (let [released (b/releases @(:world run))]
+                               (let [released (b/releases @(:world run))
+                                     came-to (physical-changes/comings-to @(:world run))]
                                  (run/emit! run released)
+                                 (run/emit! run came-to)
                                  (when-let [hibernate (:hibernate (:scenario run))]
-                                   (run/emit! run (b/hibernations hibernate @(:world run) (set (map :actor released))))))
+                                   (run/emit! run (b/hibernations hibernate @(:world run)
+                                                                  (set (map :actor (concat released came-to)))))))
                                ending)))
     (work/run-steward! run)
     (run-approved-bridges! run)
@@ -174,9 +185,8 @@
       ;; One fixed trailing pass, only for default schedules. A later waking
       ;; during this pass waits until next round.
       (when-not (fn? (:schedule (:scenario run)))
-        (let [late (for [{:keys [id travel busy]} (w/active-agents @(:world run))
-                         :when (and (not (contains? acted id)) (not travel)
-                                    (or (nil? busy) (:interrupted-by busy)))]
+        (let [late (for [{:keys [id]} (w/active-agents @(:world run))
+                         :when (and (not (contains? acted id)) (turn-due? @(:world run) id))]
                      id)]
           (doseq [id (vec late)]
             (run-group! run [id])))))

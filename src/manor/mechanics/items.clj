@@ -110,6 +110,22 @@
   (when-let [e (m/explain Aspects aspects)]
     (pr-str {:aspects (me/humanize e)})))
 
+(def max-impediments 3)
+
+(def Impediments
+  "A person's open physical hindrances, a subcategory of their aspects
+  (manor.mechanics.physical): keyed phrases as aspects are, at most
+  `max-impediments` of them ({:hand \"a cut finger, bound in a rag\"})."
+  [:map-of {:max max-impediments}
+   [:fn {:error/message "should be a key of lower-case letters and hyphens, at most 24 characters"} aspect-key?]
+   [:string {:min 1 :max max-aspect}]])
+
+(defn impediments-problem
+  "Why `impediments` aren't well formed (see `Impediments`), readably, or nil."
+  [impediments]
+  (when-let [e (m/explain Impediments impediments)]
+    (pr-str {:impediments (me/humanize e)})))
+
 (def Item
   "An item as written in a world file or returned by :init (holder and owner
   are agent names in a world file, agent ids elsewhere)."
@@ -353,6 +369,11 @@
       (assoc-in [:items (:item data) :holder] (:to data))
       (touch (:item data))))
 
+(doseq [t [:item/taken :item/put-down :item/put-in :item/given :item/found :item/not-found]]
+  (defmethod w/perceived-by t [_] :sight))
+
+(defmethod w/done-to :item/given [{:keys [data]}] [(:to data)])
+
 (defmethod w/apply-event :item/work-begun [world {:keys [data]}]
   (assoc-in world [:item-jobs (:id data)] data))
 
@@ -460,9 +481,13 @@
       :else (str "Item added in " (n/place names place) ": " named "."))))
 
 (defmethod n/describe :item/taken [{:keys [actor data]} names]
-  (if-let [box (:from-item data)]
-    (str (n/who names actor) " takes " (the names (:item data)) " from " (the names box) ".")
-    (str (n/who names actor) " picks up " (the names (:item data)) ".")))
+  (let [{box :from-item person :from-person} data]
+    (cond
+      (and box person) (str (n/who names actor) " takes " (the names (:item data)) " from " (the names box)
+                            " " (n/who names person) " holds.")
+      person (str (n/who names actor) " takes " (the names (:item data)) " from " (n/who names person) ".")
+      box (str (n/who names actor) " takes " (the names (:item data)) " from " (the names box) ".")
+      :else (str (n/who names actor) " picks up " (the names (:item data)) "."))))
 
 (defmethod n/describe :item/put-in [{:keys [actor data]} names]
   (str (n/who names actor) " puts " (the names (:item data)) " in " (the names (:into data)) "."))

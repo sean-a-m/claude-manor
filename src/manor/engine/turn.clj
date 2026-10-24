@@ -9,11 +9,11 @@
             [manor.prompt :as prompt]))
 
 (defn- limit-reached
-  "Why `action` can't be used again this turn, or nil: its :per-turn uses
-  (counted under its limit key, in the turn state's :uses) are spent."
-  [by-name st action]
+  "Why `actor` can't use `action` again this turn, or nil: its :per-turn
+  uses (counted under its limit key, in the turn state's :uses) are spent."
+  [by-name st action world actor]
   (let [k (a/limit-key action)
-        n (:per-turn action)]
+        n (a/per-turn action world actor)]
     (when (and n (>= (get-in st [:uses k] 0) n))
       (let [sharing (sort (keep #(when (= k (a/limit-key %)) (name (:name %))) (vals by-name)))]
         (str "you can use " (str/join " or " sharing) " only "
@@ -39,7 +39,7 @@
       (nil? action) (reply st (str "error: there is no tool called " name))
       :else
       (let [{:keys [args error]} (a/decode-args action arguments)
-            spent (when-not error (limit-reached by-name st action))]
+            spent (when-not error (limit-reached by-name st action @(:world run) agent-id))]
         (cond
           error (reply st (str "error: " error))
           spent (reply st (str "rejected: " spent))

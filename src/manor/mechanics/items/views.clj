@@ -2,6 +2,7 @@
   "What can be seen of items: the replies of `look` and `open`, and the
   item parts of each agent's view and the GM's."
   (:require [manor.mechanics.items :as items]
+            [manor.mechanics.physical :as physical]
             [manor.mechanics.space :as space]
             [manor.world :as w]))
 
@@ -35,21 +36,21 @@
 (defn- look-person [world id]
   (let [a (w/agent world id)
         carried (items/by-name (items/held-by world id))]
-    (cond-> (select-keys a [:name :appearance :aspects])
+    (cond-> (physical/with-status (select-keys a [:name :appearance :aspects]) a)
       (:busy a) (assoc :doing (get-in a [:busy :activity]))
       (seq carried) (assoc :carrying (mapv #(select-keys % [:id :name :desc :aspects :candidate-id]) carried)))))
 
 (defn look
   "What `actor` sees on looking around: the place (with its :aspects and
   :detail, if it has them), the items lying here in detail (with what's in
-  open containers), and the other people here with what they carry. Empty
-  parts are left out."
+  open containers), and the other people here, the dead among them, with
+  their statuses and what they carry. Empty parts are left out."
   [world actor]
   (let [here (space/location-of world actor)
         loc (space/location world here)
         lying (items/by-name (items/items-at world here))
         stores (items/stores-for world here)
-        people (sort (disj (space/present world here) actor))]
+        people (sort (into (disj (space/present world here) actor) (physical/dead-at world here)))]
     (cond-> {:place (select-keys loc [:name :aspects :detail])}
       (seq lying) (assoc :items (mapv #(as-seen world (partial look-item world) %) lying))
       (seq stores) (assoc :stores (mapv #(assoc (items/store-view here %) :keeps (get-in % [:store :keeps])) stores))

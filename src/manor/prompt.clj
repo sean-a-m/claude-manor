@@ -21,6 +21,7 @@
             [manor.mechanics.items :as items]
             [manor.mechanics.items.views :as item-views]
             [manor.mechanics.people :as people]
+            [manor.mechanics.physical :as physical]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
@@ -125,8 +126,9 @@ Take your turn now.")
 
 (defn agent-view
   "Everything an agent is shown about the world: the scenario's `observe`
-  projection, plus identity, their own aspects and inner state (see
-  manor.mechanics.inner), (when the world has locations) where they are,
+  projection, plus identity, their own aspects, inner state (see
+  manor.mechanics.inner), physical statuses and impediments (see
+  manor.mechanics.physical), (when the world has locations) where they are,
   and (when it has items) what they carry and the things around them."
   [scenario world agent-id]
   (let [a (w/agent world agent-id)
@@ -138,6 +140,8 @@ Take your turn now.")
                 (update :you #(merge {:id agent-id :name (:name a) :role (name (:role a))} %)))
       (seq (:aspects a)) (assoc-in [:you :aspects] (:aspects a))
       (seq (:inner a)) (assoc-in [:you :inner] (:inner a))
+      (seq (:physical a)) (assoc-in [:you :physical] (physical/shown a))
+      (seq (:impediments a)) (assoc-in [:you :impediments] (:impediments a))
       (get-in a [:busy :interrupted-by])
       (assoc-in [:you :busy] (cond-> {:activity (get-in a [:busy :activity])
                                       :interrupted-by (:name (w/agent world (get-in a [:busy :interrupted-by])))}
@@ -312,7 +316,7 @@ Each message to you gives the recent events, oldest first, then the time now and
   "What the GM is shown of the world unless a scenario sets :gm-view."
   [world]
   (cond-> {:state (gm-state world)
-           :agents (mapv #(select-keys % [:id :name :role :status :persona :appearance :aspects :inner :situation :location :travel :busy])
+           :agents (mapv #(select-keys % [:id :name :role :status :died :persona :appearance :aspects :impediments :physical :inner :situation :location :travel :busy])
                          (w/agents-in-order world))}
     (space/enabled? world) (assoc :space (:space world))
     (items/enabled? world) (assoc :items (item-views/gm-view world))

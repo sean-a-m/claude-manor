@@ -541,8 +541,10 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
 - **Why:** nothing physical holds anyone. A bound butler can walk away, a gagged one can still
   talk, nobody can die, and an act on someone (`spend-time` with `on`) lands only when the job
   ends, so a fleeing burglar can't be stopped. Murders, burglaries and the like need it.
-- **Design:** [physical-status-design.md](physical-status-design.md), a proposal written with
-  the user's decisions of 2026-10-24, not started. It covers:
+- **Design:** [physical-status-design.md](physical-status-design.md), written with the user's
+  decisions of 2026-10-24. Being built: phase 1's core is done (statuses, death, impediments,
+  movement and grasp, coming to, interrupts, the perception hook); its speech, hearing and sight
+  effects are next, then phase 2. It covers:
   - fixed faculties with levels that code enforces: movement, grasp, speech (impeded or
     disabled), sight, hearing and consciousness (disabled only), each with an optional cause;
   - death as `:status :dead`;

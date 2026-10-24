@@ -30,6 +30,7 @@
             [manor.mechanics.items :as items]
             [manor.mechanics.items.views :as item-views]
             [manor.mechanics.people :as people]
+            [manor.mechanics.physical :as physical]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
@@ -124,6 +125,8 @@
               :visible-to heard-by}]
       (and to (heard-by to) (answers-calls? world to)) (conj (b/interrupt world to actor)))))
 
+(defmethod w/perceived-by :claudeworth/called [_] :hearing)
+
 (defmethod narrate/describe :claudeworth/called [{:keys [actor data]} names]
   (str (narrate/who names actor) " calls" (when-let [to (:to data)] (str " for " (narrate/who names to)))
        " from the " (str/lower-case (narrate/place names (:at data))) ": \"" (:text data) "\""))
@@ -149,6 +152,7 @@
     :kind :free
     :doc "Walk to any place listed under `walkable` in your view (use its id). You arrive at once, so you can act there this turn; the reply shows the place, who is there and what is there."
     :args [:map [:to :string]]
+    :per-turn physical/walks-per-turn
     :valid? (fn [world actor {:keys [to]}]
               (let [here (space/location-of world actor)]
                 (cond (nil? (space/location world to))
@@ -157,7 +161,8 @@
                              (str "; to go to the " to ", use travel")))
                       (= to here) (str "you are already in " (loc-name world to))
                       (not (contains? (space/area world here) to))
-                      (str (loc-name world to) " is not within walking distance of here; use travel"))))
+                      (str (loc-name world to) " is not within walking distance of here; use travel")
+                      :else (physical/movement-reason world actor 0))))
     :effect (fn [world actor {:keys [to]}]
               [{:type :agent/moved :data {:from (space/location-of world actor) :to to}
                 :visible-to (into (space/here world actor) (space/present world to))}])
@@ -192,7 +197,8 @@
                       (= dest here) (str "you are already in " (loc-name world dest))
                       (contains? (space/area world here) dest)
                       (str (loc-name world dest) " is close by; use walk, which doesn't use up your turn")
-                      (nil? (space/distance world here dest)) (str "there is no way to " (loc-name world dest) " from here"))))
+                      (nil? (space/distance world here dest)) (str "there is no way to " (loc-name world dest) " from here")
+                      :else (physical/movement-reason world actor 1))))
     :effect (fn [world actor {:keys [to]}]
               (let [here (space/location-of world actor)
                     dest (destination world actor to)
@@ -226,6 +232,9 @@
     :args [:map [:who :string]]
     :valid? (fn [world actor {:keys [who]}]
               (cond (not (space/together? world actor who)) (str who " is not here")
+                    (w/dead? world who) (str (:name (w/agent world who)) " is dead")
+                    (physical/unconscious? world who)
+                    (str (:name (w/agent world who)) " is unconscious: rousing won't bring them round")
                     (not (w/busy world who)) (str (:name (w/agent world who)) " is not asleep or busy")
                     (:interrupted-by (w/busy world who)) (str (:name (w/agent world who)) " has already been interrupted")))
     :effect (fn [world actor {:keys [who]}] [(b/interrupt world who actor)])}])
@@ -381,7 +390,7 @@
          "you each speak in turn, up to " conversation/passes " times, so nobody waits a turn for each answer, and then you carry on with your turn. "
          "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). Someone who lives in needs a bed in the house: members of the household see the house's bedrooms, and who sleeps in each, under `household.bedrooms` in their view, and whether to share a room or make do is for you to decide. You get no turns while asleep or busy, unless someone uses `rouse` to interrupt you. On that turn, `carry-on` ignores them; any other accepted action means you stop. "
          "`spend-time` spends time on work or pastimes (`spend-time {doing, hours, on?}`, half an hour to " items/max-work-hours " hours); optionally name things here or carried, the room itself, stores in scope, or people here (yourself included) with `on`. What you do to someone counts only if they're still with you when you finish, and when someone is spending time on you (doing your hair, say), stay with them if you want it done. Describe everyday tools and supplies in `doing`; they need no item ids. Carry things such as dishes with `take` and `walk`; they are used up where they are eaten, not while being carried. Results show when you finish. `note` keeps private notes. "
-         "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows them in detail, with their descriptions, owners and aspects (how clean they are, what needs mending, and so on), along with the room and what the people here carry, so use it to examine something closely, not routinely on arrival. The room's own aspects (its floor, hearth and air) and the stores in scope are under `here` in your view. What's notable about how someone looks now (their dress, hair or hands) is in their `aspects`, beside their usual `appearance`, and yours are under `you`. Under `you`, `inner` says how you are inside now: your spirits, how your body is, what's on your mind. Nobody else can see it unless you show or say so. It changes with what you do, what's said to you and how you sleep. Let it colour what you do and say, as anyone's would. Supplies are kept in stores (shelves, cupboards), listed under `here.stores`: a store has everything it keeps unless its `stock` or `lacking` says otherwise; `look` shows what it keeps. "
+         "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows them in detail, with their descriptions, owners and aspects (how clean they are, what needs mending, and so on), along with the room and what the people here carry, so use it to examine something closely, not routinely on arrival. The room's own aspects (its floor, hearth and air) and the stores in scope are under `here` in your view. What's notable about how someone looks now (their dress, hair or hands) is in their `aspects`, beside their usual `appearance`, and yours are under `you`. Under `you`, `inner` says how you are inside now: your spirits, how your body is, what's on your mind. Nobody else can see it unless you show or say so. It changes with what you do, what's said to you and how you sleep. Let it colour what you do and say, as anyone's would. " physical/rules " Supplies are kept in stores (shelves, cupboards), listed under `here.stores`: a store has everything it keeps unless its `stock` or `lacking` says otherwise; `look` shows what it keeps. "
          "The house has the ordinary things a house like it keeps: everyday things (cloths, paper, pans, salt, matches and the like) can be assumed to be to hand unless you've been told otherwise. The things listed in your view are the notable ones, not everything there is. "
          "Use `find` only for something you must pick up or hand over, or whose presence is in doubt; everyday things you merely use need no finding. "
          (if (find-everywhere? world)

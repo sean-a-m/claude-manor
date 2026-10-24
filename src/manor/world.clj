@@ -48,6 +48,21 @@
                  :round (if (= :round/started (:type event)) (get-in event [:data :round]) (:round world)))
     (not (contains? event :visible-to)) (assoc :visible-to :gm)))
 
+(defmulti perceived-by
+  "The sense an event of this type is perceived by: :sight, :hearing, or nil
+  (the default) for anyone in its audience. Before an event is stamped, its
+  audience loses those lacking that sense (see manor.mechanics.physical)."
+  :type)
+
+(defmethod perceived-by :default [_] nil)
+
+(defmulti done-to
+  "Ids of the people an event's action was done to (handed something, say):
+  like its actor, they're never left out of its audience for lack of sight."
+  :type)
+
+(defmethod done-to :default [_] nil)
+
 (defn apply-stamped [world event]
   (-> world (assoc :seq (:id event)) (apply-event event)))
 
@@ -62,6 +77,12 @@
 (defn agent [world id] (get-in world [:agents id]))
 
 (defn active? [world id] (= :active (:status (agent world id))))
+
+(defn dead?
+  "Is `id` dead (:status :dead, see manor.mechanics.physical)? The dead get no
+  turns and stay where they died."
+  [world id]
+  (= :dead (:status (agent world id))))
 
 (defn agents-in-order
   "All agents in spawn order."

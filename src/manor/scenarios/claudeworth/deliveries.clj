@@ -144,7 +144,8 @@
 
 (defn- courier-events
   "Events bringing `shop`'s courier to the delivery place with `due`: already
-  here, back from the shop, or spawned the first time. None when the courier
+  here (a courier staying as a guest keeps their guest's situation), back
+  from the shop, or spawned the first time. None when the courier
   isn't written yet, or there's no room for one. A courier who arrives with
   nobody else there is put out of play at once (the scenario's :hibernate)."
   [scenario world shop due]
@@ -156,6 +157,7 @@
         clerk (:clerk (first due))
         evs (cond
               (not (hiring/written? (:person c))) []
+              (visits/visiting? world (:id agent)) [arrived]
               (= :active (:status agent))
               [arrived {:type :agent/updated :visible-to :system :data {:id (:id agent) :changes {:situation text}}}]
               (not (hiring/room-for-arrival? world)) []

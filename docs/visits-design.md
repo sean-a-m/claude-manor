@@ -809,3 +809,22 @@ the checked answer, the mock), `visits.clj` (`invitee!`, `described-invite-event
   London. Tests replace it where they need a particular answer.
 - **Not checked by eye yet:** section 15 asks for one real roll of a judge-made guest; that needs
   a real run, which wasn't part of this work.
+
+### Phase 2 review fixes
+
+- **Bedrooms show only the household and the viewer as sleepers.** 8.2 says a staying guest sees
+  "who sleeps in each"; listing every active agent told the whole house a guest had come the
+  round they took a named room, against decision 7 and 8.1. So `household.bedrooms` lists as
+  sleepers the active members of the household and the viewer: a guest sees their own room and
+  the family's, the household never sees a guest's name, and two guests don't see each other's
+  rooms. Whoever shows a guest up knows where they sleep by being told.
+- **Hiring's rules beside visits** say "No candidate arrives except through send-for." instead of
+  "Nobody new arrives …" (`hiring/rules-beside-visits`), which Claudeworth uses when visits are
+  configured; `hiring/rules` is unchanged for worlds without them.
+- **An evicted former candidate** (role `:none`, no pool record left) arriving as a guest gets
+  "You are X[, of Y]. You have been to the house before." instead of keeping hiring's candidate
+  situation. Hiring is unchanged.
+- **A courier staying as a guest** keeps their guest's situation when a delivery comes; the
+  delivery is still made (`courier-events`).
+- **`judge/visit-number`** is the one place a visit id's number is parsed; `visits.clj` orders by
+  it, as `visits` requires the judge and not the reverse.

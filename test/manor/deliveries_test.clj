@@ -239,6 +239,24 @@
           (is (= ["pat-ellis-0"] (map (comp :id :data) (at talked 9))))))
       (finally (e/stop-run run)))))
 
+(deftest a-courier-staying-as-a-guest-keeps-their-situation
+  (let [run (start)]
+    (try
+      (rounds! run 6)
+      (let [world (e/world run)
+            later (-> world
+                      (assoc-in [:state :orders "order-late"] (assoc (:data (first (of-type run :deliveries/ordered)))
+                                                                     :id "order-late" :due 7))
+                      (assoc :round 7))
+            guest (assoc-in later [:state :visits "visit-1"] {:id "visit-1" :guest "pat-ellis-0" :status :here})
+            updated (fn [events] (filter #(and (= :agent/updated (:type %)) (= "pat-ellis-0" (get-in % [:data :id]))) events))]
+        (is (= :active (:status (w/agent world "pat-ellis-0"))))
+        (is (seq (updated (deliveries/tick (:scenario run) later {}))) "a courier who is here is given the new delivery")
+        (let [events (deliveries/tick (:scenario run) guest {})]
+          (is (some #(= :deliveries/arrived (:type %)) events))
+          (is (empty? (updated events)) "a guest keeps the visit's situation")))
+      (finally (e/stop-run run)))))
+
 (deftest with-no-room-the-goods-come-without-a-courier
   (let [run (start {:delivery-profile delivery-profile :hiring-max-agents 3})]
     (try

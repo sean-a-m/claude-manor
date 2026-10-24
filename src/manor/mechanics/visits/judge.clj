@@ -81,12 +81,21 @@
             (map :id (space/away-acquaintances world actor))
             (keep #(when (contains? (:known-to %) actor) (:agent-id %)) (sort-by :id (vals (hiring/pool world)))))))
 
-(defn- own-guest-ids [world actor]
+(defn visit-number
+  "A visit id's number, for putting visits in order: \"visit-3\" → 3."
+  [id]
+  (parse-long (subs id (count "visit-"))))
+
+(defn- own-guest-ids
+  "The guests `actor` has invited, in the order of their visits (with repeats)."
+  [world actor]
   (->> (get-in world [:state :visits])
-       (sort-by #(parse-long (subs (key %) (count "visit-"))))
+       (sort-by (comp visit-number key))
        (keep #(when (= actor (:host (val %))) (:guest (val %))))))
 
-(defn- entry [world id ks]
+(defn- entry
+  "What the judge is shown of `id`: the fields `ks` they have."
+  [world id ks]
   (let [a (w/agent world id)
         fields {:id id :name (:name a) :position (title world id) :lives (lives world id) :from (:lives a)
                 :known-as (:known-as a) :situation (:situation a)}]
@@ -135,7 +144,10 @@
                 :else (json/read-value raw json/keyword-keys-object-mapper))]
     (cond-> m (map? (:new m)) (update :new update-keys a/kebab-key))))
 
-(defn- new-problem [listed fields]
+(defn- new-problem
+  "Why the judge's `new` person can't be written, or nil: a blank field, or a
+  name already `listed`."
+  [listed fields]
   (let [same (first (filter #(= (str/lower-case (str/trim (:name fields))) (str/lower-case (:name %))) listed))]
     (cond (some #(str/blank? (get fields %)) [:name :from :known-as :situation])
           "new needs a name, from, known-as and situation that aren't blank"

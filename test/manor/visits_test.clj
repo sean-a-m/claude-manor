@@ -492,7 +492,13 @@
           (is (= :here (status world "visit-1")))
           (is (= "blue-room" (get-in world [:state :bedrooms "captain-hart"])))
           (is (= {:invited-for "to dine" :bedroom "blue-room" :arrived "02:00"}
-                 (get-in (prompt/agent-view (:scenario run) world "captain-hart") [:you :visit])))))
+                 (get-in (prompt/agent-view (:scenario run) world "captain-hart") [:you :visit]))))
+        (testing "his room tells only him: the household's bedrooms don't name him"
+          (let [sleeps (fn [id] (some #(when (= "blue-room" (:id %)) (:sleeps %))
+                                      (get-in (prompt/agent-view (:scenario run) world id) [:household :bedrooms])))]
+            (is (= ["Captain Hart"] (sleeps "captain-hart")))
+            (doseq [id ["hale" "lord-claudeworth"]]
+              (is (= [] (sleeps id)) id)))))
       (replay! run)
       (finally (e/stop-run run)))))
 
@@ -508,15 +514,18 @@
                   [(get-in (first evs) [:data :agent :id]) (reduce w/apply-event world evs)]))
         [cand world] (spawn world "Pat Ellis" "You have come about the cook place, sent for by Lord Claudeworth.")
         [courier world] (spawn world "Stephen Dobbs" "You carry for the Post office. You have brought up a parcel.")
+        [evicted world] (spawn world "Ann Moss" "You have come about the housemaid place, sent for by Lord Claudeworth.")
         world (reduce w/apply-event world
                       [{:type :people/pooled :data {:id "candidate-1" :agent-id cand :seeks [:cook] :status :away
                                                     :lives "a cottage in Ely" :known-to #{}}}
                        {:type :deliveries/courier-updated :data {:shop "post-office" :changes {:agent-id courier :person (person "Stephen Dobbs")}}}
                        {:type :people/departed :data {:id cand :reason "takes leave" :towards "Ely"}}
-                       {:type :people/departed :data {:id courier :reason "the delivery is made" :towards "the shop"}}])
+                       {:type :people/departed :data {:id courier :reason "the delivery is made" :towards "the shop"}}
+                       {:type :people/departed :data {:id evicted :reason "takes leave" :towards "Ely"}}])
         world (reduce w/apply-event world (concat (visits/operator-events world {:who cand :date "1904-10-15" :time "21:00" :stay "to tea"})
                                                   ))
         world (reduce w/apply-event world (visits/operator-events world {:who courier :date "1904-10-15" :time "21:00" :stay "to tea"}))
+        world (reduce w/apply-event world (visits/operator-events world {:who evicted :date "1904-10-15" :time "21:00" :stay "to tea"}))
         world (assoc world :round 3)
         events (visits/tick scenario world)
         after (reduce w/apply-event world events)]
@@ -526,6 +535,9 @@
              (:situation (w/agent after cand))))
       (is (= "You are Stephen Dobbs, of a cottage in Ely; you carry for the Post office."
              (:situation (w/agent after courier))))
+      (is (= "You are Ann Moss. You have been to Claudeworth Manor before."
+             (:situation (w/agent after evicted)))
+          "a candidate whose pool record was evicted gets a plain situation, not hiring's")
       (finally (e/stop-run run)))))
 
 (deftest pool-eviction-leaves-away-agents-and-visits
@@ -553,11 +565,18 @@
 (deftest the-son-can-be-invited-home
   (let [run (e/start-run :claudeworth-medium {:llm :mock :offline? true :test? true :run-id (str (gensym "medium-visit-"))})]
     (try
-      (let [world (e/world run)]
-        (is (= :away (:status (w/agent world "master-claudeworth"))))
-        (is (not= "Master Claudeworth lives here"
-                  (check run world "lord-claudeworth" :invite {:by "post" :who "master-claudeworth" :date "1904-10-20"
-                                                               :time "14:00" :stay "the holidays"}))))
+      (let [world (assoc-in (e/world run) [:agents "lord-claudeworth" :location] "post-office")
+            world (reduce w/apply-event world (effect run world "lord-claudeworth" :invite
+                                                      {:by "post" :who "master-claudeworth" :date "1904-10-16"
+                                                       :time "14:00" :stay "the holidays"}))
+            v (visits/visit world "visit-1")
+            world (assoc world :round (:arrive v))
+            after (reduce w/apply-event world (visits/tick (:scenario run) world))]
+        (testing "his father can invite him by post, and he comes home from away"
+          (is (= :away (:status (w/agent (e/world run) "master-claudeworth"))))
+          (is (= {:guest "master-claudeworth" :host "lord-claudeworth" :by :post} (select-keys v [:guest :host :by])))
+          (is (= :here (:status (visits/visit after "visit-1"))))
+          (is (= "carriage-sweep" (space/location-of after "master-claudeworth")))))
       @(e/schedule-visit! run {:who "master-claudeworth" :date "1904-10-15" :time "08:30" :stay "a few days' holiday"
                                :known-to ["lord-claudeworth"]})
       (until! run 2)
@@ -611,6 +630,9 @@
       (is (str/includes? (get-in (a/->tool invite) [:function :description]) "my father, Sir Henry Vane"))
       (is (str/includes? visits/rules "my father, Sir Henry Vane"))
       (let [world (e/world run)]
+        (testing "hiring's rules limit only candidates to send-for, as guests arrive by invitation"
+          (is (str/includes? (cw/rules world) "No candidate arrives except through send-for."))
+          (is (not (str/includes? (cw/rules world) "Nobody new arrives"))))
         (is (= "give who (their id) or person (who they are, in your words), not both"
                (check run world "lord-claudeworth" :invite {:by "post" :who "mrs-bell" :person "Mrs Bell"
                                                             :date "1904-10-16" :time "10:00" :stay "x"})))

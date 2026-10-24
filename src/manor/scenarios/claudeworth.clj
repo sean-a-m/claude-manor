@@ -263,10 +263,12 @@
             :arrive (clock/short-label c (+ (max 1 round) d) round)}))))
 
 (defn- house-bedrooms
-  "The house's bedrooms, and who sleeps in each (anyone active whose
-  bedroom it is): [{:id :name :sleeps [names]}]."
-  [world]
-  (let [sleepers (group-by #(bedroom-of world (:id %)) (w/active-agents world))]
+  "The house's bedrooms, and who sleeps in each, as `viewer` sees them: active
+  members of the household and `viewer` themselves, so a guest's room doesn't
+  tell the house they've come. [{:id :name :sleeps [names]}]."
+  [world viewer]
+  (let [shown? #(or (= viewer (:id %)) (positions/household-member? world (:id %)))
+        sleepers (group-by #(bedroom-of world (:id %)) (filter shown? (w/active-agents world)))]
     (vec (for [l (sort-by :id (vals (get-in world [:space :locations])))
                :when (and (= :bedroom (:kind l)) (= :house (:domain l)))]
            {:id (:id l) :name (:name l) :sleeps (mapv :name (get sleepers (:id l)))}))))
@@ -292,7 +294,7 @@
                 (assoc :hiring (hiring/observe world id))
                 (visits/add-to-view world id))
       (or (positions/household-member? world id) (visits/from-elsewhere? world id))
-      (assoc-in [:household :bedrooms] (house-bedrooms world))
+      (assoc-in [:household :bedrooms] (house-bedrooms world id))
       hours (update :here merge {:open (str/join "-" hours) :open-now? (open-now? world hours)})
       here (assoc :walkable (vec (sort (walkable world here)))
                   :journeys (journeys world here)))))
@@ -376,8 +378,7 @@
   (let [turn (duration (:minutes-per-round (:clock world)))
         max-queries (get-in world [:state :max-queries] 2)
         architect? (some #(contains? (:services %) :architect) (vals (get-in world [:space :locations])))]
-    (str hiring/rules
-         (when (visits/config world) (str "\n\n" visits/rules))
+    (str (if (visits/config world) (str hiring/rules-beside-visits "\n\n" visits/rules) hiring/rules)
          "\n\nEach turn is " turn " of game time, and you take one turn-ending action per turn. "
          "`walk` takes you at once to any place under `walkable` in your view, and doesn't end your turn: walk, then act there. Its reply shows the place, who is there and what is there, so you needn't `look` on arriving. "
          "`travel` goes to another area: use a place id from `places`, or an area name. It takes your turn; `journeys` "

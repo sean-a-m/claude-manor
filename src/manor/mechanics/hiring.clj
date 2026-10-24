@@ -435,5 +435,14 @@
         (update :systems #(conj (vec (remove (fn [s] (= :people/visits (:name s))) %))
                                 {:name :people/visits :tick (fn [world _] (tick scenario world))})))))
 
-(def rules
-  "To find staff, ask someone for a recommendation; they must use recommend with a position id and your id in for. Do not try to recruit or recommend established characters already living or working in your village. This does not exclude a new candidate who lives locally but is not present yet as a character. You may describe knowing a possible candidate through local acquaintances, but use recommend to learn the candidate's name and details before naming or promising anyone. The recommendation gives a candidate id: use send-for to bring them to meeting-place next round. Interview by converse, then engage with who (their agent id), position, terms and optionally bedroom. The candidate may accept-place with conditions, decline-place and haggle, or take-leave. Send-away ends an unengaged visit. An unengaged visitor leaves after three rounds without a conversation. Nobody new arrives except through send-for. Outdoor servants' lodging and dismissal of hired staff are possible.")
+(defn- rules-text
+  "Hiring's rules, with `arrivals` saying who may arrive."
+  [arrivals]
+  (str "To find staff, ask someone for a recommendation; they must use recommend with a position id and your id in for. Do not try to recruit or recommend established characters already living or working in your village. This does not exclude a new candidate who lives locally but is not present yet as a character. You may describe knowing a possible candidate through local acquaintances, but use recommend to learn the candidate's name and details before naming or promising anyone. The recommendation gives a candidate id: use send-for to bring them to meeting-place next round. Interview by converse, then engage with who (their agent id), position, terms and optionally bedroom. The candidate may accept-place with conditions, decline-place and haggle, or take-leave. Send-away ends an unengaged visit. An unengaged visitor leaves after three rounds without a conversation. " arrivals " Outdoor servants' lodging and dismissal of hired staff are possible."))
+
+(def rules (rules-text "Nobody new arrives except through send-for."))
+
+(def rules-beside-visits
+  "Hiring's rules for a world with visits (manor.mechanics.visits), where
+  guests arrive by invitation too."
+  (rules-text "No candidate arrives except through send-for."))

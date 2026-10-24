@@ -51,8 +51,7 @@
 (defn visits [world] (get-in world [:state :visits] {}))
 (defn visit [world id] (get (visits world) id))
 
-(defn- visit-number [id] (parse-long (subs id (count "visit-"))))
-(defn- ordered-ids [world] (sort-by visit-number (keys (visits world))))
+(defn- ordered-ids [world] (sort-by judge/visit-number (keys (visits world))))
 
 (defn- meeting-place [world] (get-in world [:state :meeting-place]))
 (defn- house [world] (:house (config world) "the house"))
@@ -323,15 +322,18 @@
 (defn- returning-situation
   "A short situation, from their record, for a former candidate or courier
   arriving as a guest, in place of the one hiring or deliveries gave them
-  (\"You have come about the cook place…\"); nil for anyone else."
+  (\"You have come about the cook place…\"). A candidate whose pool record
+  was evicted (role :none, no record left) gets a plain one. Nil for anyone
+  else, who keeps their own."
   [world guest]
   (let [p (hiring/for-agent world guest)
         [shop c] (first (filter #(= guest (:agent-id (val %))) (sort-by key (get-in world [:state :couriers]))))
-        lives (or (:lives p) (get-in c [:person :lives]))
+        lives (or (:lives p) (get-in c [:person :lives]) (:lives (w/agent world guest)))
         you (str "You are " (agent-name world guest) (when lives (str ", of " lives)))]
     (cond p (str you ". You came to " (house world) " once before, about the "
                  (str/join ", " (map #(position-title world %) (:seeks p))) " place.")
-          c (str you "; you carry for the " (:name (space/location world shop) shop) "."))))
+          c (str you "; you carry for the " (:name (space/location world shop) shop) ".")
+          (= :none (:role (w/agent world guest))) (str you ". You have been to " (house world) " before."))))
 
 (defn- coming
   "An away guest, once the visit is due, arrives at the meeting place, if

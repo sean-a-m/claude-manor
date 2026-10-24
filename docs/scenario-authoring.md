@@ -1799,7 +1799,9 @@ set by `:people/bedroom-assigned` and `:people/routine-set`. Claudeworth's `:on-
 agent's post, bedroom and routine from their spawn spec, so `(spawn! {:role :footman :name "James
 Ward" :location "entrance-hall" :bedroom "maids-room"})` gets the footman's brief, a post in the
 household and a bed. Members of the household see the house's bedrooms (`:kind :bedroom`, `:domain
-:house`) and who sleeps in each under `household.bedrooms` in their view. The rules say someone who
+:house`) and who sleeps in each under `household.bedrooms` in their view. The sleepers shown are
+the active members of the household and the viewer, so a guest's bedroom names them only to
+themselves. The rules say someone who
 lives in needs a bed; nothing enforces it, and sharing is the agents' call.
 
 **Situations.** An agent's `:situation` in the world file is what is neither their job nor their
@@ -2024,13 +2026,17 @@ invitation judge, which matches someone in the world or writes someone new.
   former candidate or courier (known by `hiring/for-agent` or `[:state :couriers]`) gets a short
   situation from their record in place of hiring's or deliveries' ("You are Pat Ellis, of a
   cottage in Ely. You came to Claudeworth Manor once before, about the cook place." or "…; you
-  carry for the General store."); anyone else keeps theirs. A guest in the world who goes away
+  carry for the General store."). A former candidate whose pool record was evicted (role `:none`,
+  no record) gets "You are Pat Ellis. You have been to Claudeworth Manor before."; anyone else
+  keeps theirs. A courier staying as a guest isn't given deliveries' courier situation when a
+  delivery comes. A guest in the world who goes away
   before the time arrives this way too.
 - **Views** (`add-to-view`): while a guest's visit is `:here`, `you.visit` shows their newest
   one, to them alone: `{:host "Lord Claudeworth" :invited-for "a week" :reason … :arrived "Fri
   19:00" :bedroom "blue-room"}` (no `:host` for an arranged visit). A guest from elsewhere who is
   here (`from-elsewhere?`) sees the house's bedrooms under `household.bedrooms`, as the household
-  does. `away-acquaintances` lists the people the viewer has met who are away now, with where they
+  does; the sleepers listed are the household and themselves, never other guests, and the
+  household never sees a guest's name there. `away-acquaintances` lists the people the viewer has met who are away now, with where they
   parted (`space/away-acquaintances`), so they can be invited by `who`.
 - **`take-leave`** (final) is shared: for a candidate here it is hiring's, unchanged; for a guest
   from elsewhere, anywhere in the house's area, it emits `:people/departed` towards where they

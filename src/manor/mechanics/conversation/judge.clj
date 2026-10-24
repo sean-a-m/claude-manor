@@ -58,12 +58,14 @@
 
 (def line-types
   "The events that are a conversation's lines."
-  #{:agent/said :conversation/silent :conversation/left})
+  #{:agent/said :person/muffled :conversation/silent :conversation/left})
 
 (defn lines
-  "The lines of conversation `id` among `events`, in order."
+  "The lines of conversation `id` among `events`, in order. A gagged
+  speaker's words (:muffled, see manor.mechanics.physical/spoken) aren't
+  among them: their muffled noise is."
   [events id]
-  (filter #(line-types (:type %)) (conversation/of events id)))
+  (filter #(and (line-types (:type %)) (not (get-in % [:data :muffled]))) (conversation/of events id)))
 
 (defn heard-by
   "The `members` (ids, in order) who heard `event`, from its :visible-to."
@@ -71,11 +73,14 @@
   (filterv #(w/visible-to? event %) members))
 
 (defn- line-json
-  "A line as the judge sees it, with :heard_by when not every member heard it."
+  "A line as the judge sees it, with :heard_by when not every member heard it.
+  A muffled noise counts as heard by its speaker too."
   [members {:keys [type actor data] :as event}]
-  (let [heard (heard-by members event)]
+  (let [heard (heard-by members (cond-> event
+                                  (and (= :person/muffled type) (set? (:visible-to event))) (update :visible-to conj actor)))]
     (cond-> (case type
               :agent/said {:person actor :says (:text data)}
+              :person/muffled {:person actor :does "tries to speak, but only muffled noises come out"}
               :conversation/silent {:person actor :does "says nothing"}
               :conversation/left {:person actor :does "leaves the conversation, staying within hearing"})
       (not= heard members) (assoc :heard_by heard))))

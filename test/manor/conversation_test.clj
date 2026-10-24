@@ -331,11 +331,11 @@
       (is (str/includes? (get-in tool [:function :description]) "at most 400 characters"))
       (is (not (str/includes? (prompt-json tool) "1500")))))
   (testing "speaking-turn tools say they end the line, not the turn"
-    (doseq [tool (map a/->tool (conversation/speaking-actions {:id "c" :initiator "a"} "b"))]
+    (doseq [tool (map a/->tool (conversation/speaking-actions {} {:id "c" :initiator "a"} "b"))]
       (is (str/ends-with? (get-in tool [:function :description])
                           "Ends your part in this round of the conversation, not your own turn."))))
   (testing "quotation marks around a whole line are dropped"
-    (let [reply (first (conversation/speaking-actions {:id "c" :initiator "a"} "b"))
+    (let [reply (first (conversation/speaking-actions {} {:id "c" :initiator "a"} "b"))
           text #(get-in (first (a/effect-events reply {:agents {}} "b" {:text %})) [:data :text])]
       (is (= "My lady, it shall be so." (text "\"\"My lady, it shall be so.\"\"")))
       (is (= "My lady." (text "“My lady.”")))
@@ -345,7 +345,7 @@
     (is (= {:args {:with ["hale"] :text "Hello."}}
            (a/decode-args conversation/converse "{\"with\": \"hale\", \"text\": \"Hello.\"}"))))
   (testing "lines up to 1500 characters are accepted; longer ones are advised down to 400"
-    (let [reply (first (conversation/speaking-actions {:id "c" :initiator "a"} "b"))]
+    (let [reply (first (conversation/speaking-actions {} {:id "c" :initiator "a"} "b"))]
       (is (:args (a/decode-args reply {:text (apply str (repeat 1500 "x"))})))
       (is (str/starts-with? (:error (a/decode-args reply {:text (apply str (repeat 1501 "x"))}))
                             "invalid arguments: text is 1501 characters; the limit is 400 - shorten it by at least 1101"))))

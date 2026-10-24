@@ -82,7 +82,7 @@
                                           (not= :system (:visible-to %))
                                           (not= :llm/usage (:type %))) events))
      :dialogue (->> events
-                    (filter #(and (or (#{:agent/said :agent/whispered} (:type %))
+                    (filter #(and (or (#{:agent/said :agent/whispered :person/muffled} (:type %))
                                       (= "conversation" (namespace (:type %))))
                                   (w/visible-to? % id)))
                     (take-last 8) vec)}))

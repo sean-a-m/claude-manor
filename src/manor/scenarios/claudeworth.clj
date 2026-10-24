@@ -97,12 +97,14 @@
 (defn arrival
   "What `walk` replies about the place `id` has walked into: what their view
   would show of it (the place, its opening hours, who is there and what they
-  are doing or carrying, and the things there), so they needn't `look`."
+  are doing or carrying, and the things there), so they needn't `look`.
+  Someone who can't see gets only the place's name and :cant-see
+  (manor.mechanics.physical/view-by-sight)."
   [world id]
   (let [here (space/location-of world id)
         hours (:hours (space/location world here))
-        loc (:location (item-views/add-to-view {:location (space/view world id)} world id))]
-    (cond-> (select-keys loc [:here :people-here])
+        loc (:location (physical/view-by-sight world id (item-views/add-to-view {:location (space/view world id)} world id)))]
+    (cond-> (select-keys loc [:here :people-here :cant-see])
       hours (update :here merge {:open (str/join "-" hours) :open-now? (open-now? world hours)}))))
 
 (defn- hearers
@@ -118,18 +120,21 @@
 
 (defn- call-events
   "The call, heard by everyone within walking distance; and if it names
-  someone who hears it and is busy but awake, their interruption."
+  someone who hears it and is busy but awake, their interruption. With the
+  caller's speech impeded, it's a muffled cry heard only in the room
+  (manor.mechanics.physical/spoken)."
   [world actor {:keys [text to]}]
-  (let [heard-by (hearers world actor)]
-    (cond-> [{:type :claudeworth/called :data (cond-> {:text text :at (space/location-of world actor)} to (assoc :to to))
-              :visible-to heard-by}]
-      (and to (heard-by to) (answers-calls? world to)) (conj (b/interrupt world to actor)))))
+  (let [heard-by (if (physical/impeded? world actor :speech) (space/here world actor) (hearers world actor))]
+    (cond-> (physical/spoken world actor :call
+                             {:type :claudeworth/called :data (cond-> {:text text :at (space/location-of world actor)} to (assoc :to to))
+                              :visible-to heard-by})
+      (and to (heard-by to) (physical/can? world to :hearing) (answers-calls? world to)) (conj (b/interrupt world to actor)))))
 
 (defmethod w/perceived-by :claudeworth/called [_] :hearing)
 
 (defmethod narrate/describe :claudeworth/called [{:keys [actor data]} names]
   (str (narrate/who names actor) " calls" (when-let [to (:to data)] (str " for " (narrate/who names to)))
-       " from the " (str/lower-case (narrate/place names (:at data))) ": \"" (:text data) "\""))
+       " from the " (str/lower-case (narrate/place names (:at data))) ": \"" (:text data) "\"" (narrate/muffled data)))
 
 (defn- destination
   "Where `travel` to `to` goes: the place itself, or for an area name the
@@ -174,10 +179,12 @@
               "a short call, at most " max-call " characters. Name someone with to (their id) to call for them; "
               "if they hear you and are busy, but not asleep, they may stop to answer. Shares its limit with say and whisper.")
     :args [:map [:text [:string {:min 1 :max max-call}]] [:to {:optional true} :string]]
+    :available? (fn [world actor] (physical/can? world actor :speech))
     :valid? (fn [world actor {:keys [to]}]
-              (cond (nil? (space/location-of world actor)) "you can't call out while travelling"
-                    (= to actor) "you can't call for yourself"
-                    (and to (not (some #(= to (:id %)) (w/active-agents world)))) (str "no one has the id " to)))
+              (or (physical/speech-reason world actor)
+                  (cond (nil? (space/location-of world actor)) "you can't call out while travelling"
+                        (= to actor) "you can't call for yourself"
+                        (and to (not (some #(= to (:id %)) (w/active-agents world)))) (str "no one has the id " to))))
     :effect call-events}
 
    {:name :travel

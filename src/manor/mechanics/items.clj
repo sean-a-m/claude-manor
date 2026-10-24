@@ -373,6 +373,7 @@
   (defmethod w/perceived-by t [_] :sight))
 
 (defmethod w/done-to :item/given [{:keys [data]}] [(:to data)])
+(defmethod w/done-to :item/taken [{:keys [data]}] (some-> (:from-person data) vector))
 
 (defmethod w/apply-event :item/work-begun [world {:keys [data]}]
   (assoc-in world [:item-jobs (:id data)] data))

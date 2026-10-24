@@ -8,6 +8,7 @@
             [manor.mechanics.adjudication :as adjudication]
             [manor.mechanics.items :as items]
             [manor.mechanics.items.judge :as item-judge]
+            [manor.mechanics.physical :as physical]
             [manor.mechanics.space :as space]
             [manor.rng :as rng]
             [manor.world :as w]))
@@ -101,7 +102,8 @@
 
 (defn finder-request
   "No call for local item names or fates. Otherwise the asker's own context,
-  visible items here, serving stores and identity-only candidates reach the oracle."
+  visible items here, serving stores and identity-only candidates reach the oracle.
+  An asker who can't see (manor.mechanics.physical) is marked so under :sight."
   [world actor {:keys [what]}]
   (if-let [result (local-find world actor what)]
     {:result result}
@@ -114,9 +116,13 @@
           candidates (finder-candidates world)]
       {:messages [{:role "system" :content finder-instructions}
                   {:role "user" :content (json/write-value-as-string
-                                          {:finder {:name (:name asker) :nature (:persona asker)
-                                                    :carrying (mapv #(select-keys % [:id :name]) carrying)
-                                                    :notes (mapv #(select-keys % [:round :text]) (take-last 15 (:notes asker)))}
+                                          {:finder (cond-> {:name (:name asker) :nature (:persona asker)
+                                                            :carrying (mapv #(select-keys % [:id :name]) carrying)
+                                                            :notes (mapv #(select-keys % [:round :text]) (take-last 15 (:notes asker)))}
+                                                     (not (physical/can? world actor :sight))
+                                                     (assoc :sight (str "can't see"
+                                                                        (when-let [c (:cause (physical/entry world actor :sight))] (str " (" c ")"))
+                                                                        ": searching by touch, only within reach")))
                                            :place (select-keys (space/location world place) [:id :name :desc :aspects])
                                            :here (mapv #(select-keys % [:id :name]) here)
                                            :stores (mapv #(assoc (items/store-view place %) :keeps (get-in % [:store :keeps]))

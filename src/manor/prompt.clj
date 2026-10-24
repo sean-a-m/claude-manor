@@ -129,26 +129,30 @@ Take your turn now.")
   projection, plus identity, their own aspects, inner state (see
   manor.mechanics.inner), physical statuses and impediments (see
   manor.mechanics.physical), (when the world has locations) where they are,
-  and (when it has items) what they carry and the things around them."
+  and (when it has items) what they carry and the things around them.
+  Someone who can't see doesn't see the people and things around them
+  (physical/view-by-sight)."
   [scenario world agent-id]
   (let [a (w/agent world agent-id)
         observe (:observe scenario (fn [_ _] {}))]
-    (cond-> (-> (merge (if-let [c (:clock world)]
-                         {:time (clock/label c (:round world))}
-                         {:round (:round world)})
-                       (observe world agent-id))
-                (update :you #(merge {:id agent-id :name (:name a) :role (name (:role a))} %)))
-      (seq (:aspects a)) (assoc-in [:you :aspects] (:aspects a))
-      (seq (:inner a)) (assoc-in [:you :inner] (:inner a))
-      (seq (:physical a)) (assoc-in [:you :physical] (physical/shown a))
-      (seq (:impediments a)) (assoc-in [:you :impediments] (:impediments a))
-      (get-in a [:busy :interrupted-by])
-      (assoc-in [:you :busy] (cond-> {:activity (get-in a [:busy :activity])
-                                      :interrupted-by (:name (w/agent world (get-in a [:busy :interrupted-by])))}
-                               (get-in a [:busy :until])
-                               (assoc :until (narrate/at (narrate/names world) (get-in a [:busy :until])))))
-      (space/enabled? world) (assoc :location (space/view world agent-id))
-      (items/enabled? world) (item-views/add-to-view world agent-id))))
+    (physical/view-by-sight
+     world agent-id
+     (cond-> (-> (merge (if-let [c (:clock world)]
+                          {:time (clock/label c (:round world))}
+                          {:round (:round world)})
+                        (observe world agent-id))
+                 (update :you #(merge {:id agent-id :name (:name a) :role (name (:role a))} %)))
+       (seq (:aspects a)) (assoc-in [:you :aspects] (:aspects a))
+       (seq (:inner a)) (assoc-in [:you :inner] (:inner a))
+       (seq (:physical a)) (assoc-in [:you :physical] (physical/shown a))
+       (seq (:impediments a)) (assoc-in [:you :impediments] (:impediments a))
+       (get-in a [:busy :interrupted-by])
+       (assoc-in [:you :busy] (cond-> {:activity (get-in a [:busy :activity])
+                                       :interrupted-by (:name (w/agent world (get-in a [:busy :interrupted-by])))}
+                                (get-in a [:busy :until])
+                                (assoc :until (narrate/at (narrate/names world) (get-in a [:busy :until])))))
+       (space/enabled? world) (assoc :location (space/view world agent-id))
+       (items/enabled? world) (item-views/add-to-view world agent-id)))))
 
 (defn- brief-text
   "A role's :brief: a string, or a function of the world (and, for agents,
@@ -215,6 +219,16 @@ Take your turn now.")
   [scenario world events agent-id opts]
   (agent-request scenario world events agent-id opts turn-closing))
 
+(defn- how-to-answer-speechless
+  "The rules of a speaking turn for someone who can't speak
+  (manor.mechanics.physical), for the conversation's closing."
+  [initiator?]
+  (str "How to answer:\n- You can't speak, so you have no line to say. Call exactly ONE of "
+       (if initiator?
+         "`end-conversation` (end it now)."
+         "`stay-silent` (stay in the conversation) or `leave` (drop out of the conversation; you stay where you are and still hear it).")
+       "\n- `note` is free, if you want to remember something."))
+
 (defn- how-to-answer
   "The rules of a speaking turn, for the conversation's closing."
   [initiator? extra-actions items?]
@@ -262,7 +276,8 @@ Take your turn now.")
         you? (= agent-id initiator)
         others (remove #{agent-id} in)
         gone (remove (set in) members)
-        busy (w/busy world agent-id)]
+        busy (w/busy world agent-id)
+        speechless? (not (physical/can? world agent-id :speech))]
     (str "## The conversation\n"
          (conversation-lines (if you? :initiator :member))
          "\n\n"
@@ -277,9 +292,11 @@ Take your turn now.")
            (str "\n\nYou are busy " (:activity busy)
                 (when-let [u (:until busy)] (str " until " (narrate/at names u)))
                 "; talking doesn't stop it."))
-         "\n\n" (how-to-answer you? extra-actions (items/enabled? world))
+         "\n\n" (if speechless? (how-to-answer-speechless you?) (how-to-answer you? extra-actions (items/enabled? world)))
          "\n\n"
-         (cond final? (:last-word conversation-lines)
+         (cond speechless? (str "Pass " pass " of " conversation/passes ". Your turn: you can't speak; call "
+                                (if you? "`end-conversation`" "`stay-silent` or `leave`") ".")
+               final? (:last-word conversation-lines)
                you? (str "Pass " pass " of " conversation/passes ". Your turn: call `reply` with your line, or `end-conversation` to end it now.")
                :else (str "Pass " pass " of " conversation/passes ". Your turn: call `reply` with your line, or `stay-silent` or `leave`.")))))
 

@@ -215,22 +215,29 @@
     :doc (str "Say something out loud to everyone in the same place: a few sentences, at most "
               speech-limit " characters. Shares its limit with whisper.")
     :args [:map [:text speech]]
+    :available? (fn [world actor] (physical/can? world actor :speech))
+    :valid? (fn [world actor _] (physical/speech-reason world actor))
     :effect (fn [world actor {:keys [text]}]
-              [{:type :agent/said :data {:text text :at (space/location-of world actor)}
-                :visible-to (space/here world actor)}])}
+              (physical/spoken world actor :speech
+                               {:type :agent/said :data {:text text :at (space/location-of world actor)}
+                                :visible-to (space/here world actor)}))}
 
    {:name :whisper
     :kind :free :per-turn 1 :limit-key :speech
     :doc (str "Say something privately to one other participant in the same place (use their id): "
               "a few sentences, at most " speech-limit " characters. Shares its limit with say.")
     :args [:map [:to :string] [:text speech]]
+    :available? (fn [world actor] (physical/can? world actor :speech))
     :valid? (fn [world actor {:keys [to]}]
-              (cond (= to actor) "you cannot whisper to yourself"
-                    (not (contains? (active-ids world) to)) (str "no active participant with id " to)
-                    (and (space/location-of world actor) (not (space/together? world actor to)))
-                    (str to " is not here")))
-    :effect (fn [_ actor {:keys [to text]}]
-              [{:type :agent/whispered :data {:to to :text text} :visible-to #{actor to}}])}
+              (or (physical/speech-reason world actor)
+                  (cond (= to actor) "you cannot whisper to yourself"
+                        (not (contains? (active-ids world) to)) (str "no active participant with id " to)
+                        (and (space/location-of world actor) (not (space/together? world actor to)))
+                        (str to " is not here")
+                        :else (physical/hearing-reason world to))))
+    :effect (fn [world actor {:keys [to text]}]
+              (physical/spoken world actor :whisper
+                               {:type :agent/whispered :data {:to to :text text} :visible-to #{actor to}}))}
 
    {:name :pray
     :kind :free

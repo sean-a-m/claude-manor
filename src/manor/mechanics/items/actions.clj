@@ -19,9 +19,12 @@
     none))
 
 (defn- here-list
-  "The items `actor` can see here, for reasons: never what's in closed containers."
+  "The items `actor` can see here, for reasons: never what's in closed
+  containers, and nothing if they can't see."
   [world actor]
-  (str "items here: " (listing (items/visible-at world (space/location-of world actor)) "none")))
+  (if (physical/can? world actor :sight)
+    (str "items here: " (listing (items/visible-at world (space/location-of world actor)) "none"))
+    "you can't see what's here"))
 
 (defn- carried-list [world actor]
   (str "you carry: " (listing (items/held-by world actor) "nothing")))
@@ -83,7 +86,9 @@
 
 (defn- open-reason [world actor {id :container}]
   (if (space/location-of world actor)
-    (or (grasp-reason world actor "open things") (container-reason world actor id "open"))
+    (or (grasp-reason world actor "open things")
+        (physical/sight-reason world actor "see inside things")
+        (container-reason world actor id "open"))
     "you can't open things while travelling"))
 
 (defn- carrying-reason [world actor id]
@@ -106,11 +111,14 @@
        (some #(= id (:id %)) (w/active-agents world))))
 
 (defn- people-list
-  "The people here, for reasons: \"people here: you (ada), Ben (ben)\"."
+  "The people here, for reasons: \"people here: you (ada), Ben (ben)\";
+  only yourself if you can't see."
   [world actor]
   (str "people here: you (" actor ")"
-       (str/join (for [id (sort (disj (space/present world (space/location-of world actor)) actor))]
-                   (str ", " (:name (w/agent world id)) " (" id ")")))))
+       (if (physical/can? world actor :sight)
+         (str/join (for [id (sort (disj (space/present world (space/location-of world actor)) actor))]
+                     (str ", " (:name (w/agent world id)) " (" id ")")))
+         "; you can't see who else is here")))
 
 (defn- work-reason
   "Why `actor` can't name `id` as focus: items here or carried, the place
@@ -223,7 +231,9 @@
                "Use it when you need to inspect the state of something or see it in detail; "
                "your view already lists who is here and what items are here, so don't look routinely on arrival.")
      :valid? (fn [world actor _]
-               (when-not (space/location-of world actor) "you can't look around while travelling"))
+               (if (space/location-of world actor)
+                 (physical/sight-reason world actor "look around")
+                 "you can't look around while travelling"))
      :reply (fn [world actor _] (item-views/look world actor))}
 
     {:name :take

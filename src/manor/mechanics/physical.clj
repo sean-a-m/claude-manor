@@ -16,8 +16,9 @@
   drop out of turns, `present`, conversations and hibernation, but stay
   where they died, shown to others with dead: true.
 
-  This namespace holds the data, accessors, reasons, views, reducers,
-  narration and the perception filter `run/emit!` applies. Events with
+  This namespace holds the data, accessors, reasons, views (the sightless
+  one too), reducers, narration, muffled speech and the perception filter
+  `run/emit!` applies. Events with
   their audience, and the interrupts a change causes, are in
   manor.mechanics.physical.changes."
   (:require [clojure.string :as str]
@@ -86,6 +87,11 @@
   [world id]
   (not (can? world id :movement)))
 
+(defn sees?
+  "Can `id` see what's around them: are they conscious, with sight?"
+  [world id]
+  (and (not (unconscious? world id)) (can? world id :sight)))
+
 (defn dead-at
   "Ids of the dead lying at `loc-id`."
   [world loc-id]
@@ -133,6 +139,25 @@
   [world id]
   (when (impeded? world id :movement) impeded-walks))
 
+(defn speech-reason
+  "Why `id` can't speak at all, or nil."
+  [world id]
+  (disabled-reason world id :speech "speak"))
+
+(defn hearing-reason
+  "Why nobody can speak to `id`, or nil: \"Hale can't hear you (deafened by
+  the blast)\"."
+  [world id]
+  (when-not (can? world id :hearing)
+    (str (:name (w/agent world id) id) " can't hear you"
+         (when-let [c (:cause (entry world id :hearing))] (str " (" c ")")))))
+
+(defn sight-reason
+  "Why `id` can't do what needs sight, or nil: \"your sight is disabled
+  (blindfolded), so you can't \" and `cant`."
+  [world id cant]
+  (disabled-reason world id :sight cant))
+
 ;; ---------------------------------------------------------------------------
 ;; Views: everyone present sees everyone's statuses, and their own under :you
 
@@ -157,12 +182,32 @@
     (seq (:impediments a)) (assoc :impediments (:impediments a))
     (= :dead (:status a)) (assoc :dead true)))
 
+(def cant-see
+  "What someone who can't see is told in their view, in place of the people
+  and things around them."
+  "You can't see: who and what is here is hidden from you.")
+
+(defn view-by-sight
+  "`view` (an agent's, see manor.prompt/agent-view) as `id` has it: as it is
+  if they can see; otherwise only the place's id and name, no people or
+  things here, and :cant-see in their place. What they carry, the exits and
+  where they last saw people stay: they know those."
+  [world id view]
+  (if (or (can? world id :sight) (nil? (get-in view [:location :here])))
+    view
+    (-> view
+        (update-in [:location :here] select-keys [:id :name])
+        (update :location dissoc :people-here)
+        (assoc-in [:location :cant-see] cant-see))))
+
 (def rules
   "What the levels stop people doing, for a scenario's rules."
   (str "Your body can be hindered. Under `physical` you may see that your movement, grasp or speech is impeded or disabled, "
        "or that you can't see or hear. Impeded movement keeps you to a few steps within the house; disabled, you can't move from where you are. "
        "With your grasp disabled you can't pick up, hand over or put things in; your speech impeded, others hear only muffled noises; "
-       "disabled, you can't speak at all. `impediments` are smaller hurts that make work harder. "
+       "disabled, you can't speak at all. Unable to see, you don't see who or what is around you, but you can still `find` things by touch "
+       "and `take` what you know is there; unable to hear, you can't hold a conversation and nobody can whisper to you. "
+       "`impediments` are smaller hurts that make work harder. "
        "Others see all of these on you, and you on them, and someone marked `dead` is dead. "
        "You can `take` what's held by someone here who is dead, unconscious or can't grasp."))
 
@@ -219,6 +264,33 @@
             done-to (set (w/done-to event))]
         (assoc event :visible-to (set (filter #(or (= % (:actor event)) (perceives? world % sense done-to)) v))))
       event)))
+
+;; ---------------------------------------------------------------------------
+;; Muffled speech
+
+(defn spoken
+  "The events of speech `event` by `actor` (something said, whispered or
+  called out): just `event`, unless `actor`'s speech is impeded. Then its
+  words reach only the speaker, marked :muffled (the GM sees every event),
+  and the rest of its audience gets a :person/muffled event instead, whose
+  :sound (:speech, :whisper or :call) says what it sounded like."
+  [world actor sound event]
+  (if (impeded? world actor :speech)
+    (let [audience (:visible-to event)]
+      [(-> event (assoc :visible-to #{actor}) (assoc-in [:data :muffled] true))
+       {:type :person/muffled :actor actor
+        :visible-to (if (set? audience) (disj audience actor) audience)
+        :data (merge {:sound sound} (select-keys (:data event) [:at :to :conversation]))}])
+    [event]))
+
+(defmethod w/perceived-by :person/muffled [_] :hearing)
+
+(defmethod n/describe :person/muffled [{:keys [actor data]} names]
+  (case (:sound data)
+    :whisper (str (n/who names actor) " makes muffled noises to " (n/who names (:to data)) ", as if trying to whisper.")
+    :call (str (n/who names actor) " gives a muffled cry from the " (str/lower-case (n/place names (:at data))) ".")
+    (str (n/who names actor) (when-let [at (:at data)] (str " (" (n/place names at) ")"))
+         " makes muffled noises, as if trying to speak.")))
 
 ;; ---------------------------------------------------------------------------
 ;; Reducers

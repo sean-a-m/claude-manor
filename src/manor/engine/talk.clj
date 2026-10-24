@@ -11,6 +11,7 @@
             [manor.engine.turn :as turn]
             [manor.mechanics.conversation :as conversation]
             [manor.mechanics.conversation.judge :as conversation-judge]
+            [manor.mechanics.physical :as physical]
             [manor.narrate :as narrate]
             [manor.prompt :as prompt]
             [manor.world :as w]))
@@ -48,7 +49,7 @@
         extra-actions (extra-speaking-actions scenario world speaker conv)
         query? (some #(= :query (a/kind %)) extra-actions)
         max-steps (speaking-turn-steps query?)
-        actions (into (cond-> (conversation/speaking-actions conv speaker)
+        actions (into (cond-> (conversation/speaking-actions world conv speaker)
                         (run/action-named run :note) (conj (run/action-named run :note)))
                       extra-actions)
         initiator? (= speaker (:initiator conv))]
@@ -63,7 +64,7 @@
                                 :call-opts {:commit (fn [action args] (resolve/resolve! run speaker action args true))
                                             :max-finals 1 :max-queries (if query? 1 0) :keep-occupation? true
                                        ;; models often write the line as plain text, not as a reply
-                                            :text-as "reply"}
+                                            :text-as (when (physical/can? world speaker :speech) "reply")}
                                 :remind (partial speaking-reminder max-steps)
                                 :ctx {:role (:role (w/agent world speaker))
                                       :conversation (assoc (select-keys conv [:id :initiator :members])
@@ -166,7 +167,7 @@
                   :members (conversation/members world actor with)}]
         (locking (:world run)
           (run/emit! run [(conversation/started @(:world run) actor conv)])
-          (run/emit! run [(conversation/said @(:world run) actor conv text)]))
+          (run/emit! run (conversation/line-events @(:world run) actor conv text)))
         (let [ending (converse! run conv)
               handed (conversation/handed @(:world run) (during run (:id conv)))]
           (run/emit! run [(conversation/ended @(:world run) conv ending handed)])

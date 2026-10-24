@@ -9,7 +9,9 @@
   The engine runs the exchange (manor.engine.talk/run-conversation!), one short
   model call per speaking turn. This namespace has the rules: who can be
   drawn in, the tools of a speaking turn, the events and their narration.
-  Lines are ordinary `:agent/said` events, heard by everyone in the place.
+  Lines are ordinary `:agent/said` events, heard by everyone in the place,
+  or by the speaker only, with a muffled noise for the rest, when their
+  speech is impeded (manor.mechanics.physical/spoken).
   The conversation's state (who is still in it, the pass) lives only in the
   engine's loop; the events are the record."
   (:require [clojure.string :as str]
@@ -48,6 +50,7 @@
           (not (here? world actor id)) (str (who world id) " is not here")
           (b/asleep? world id) (str (who world id) " is asleep")
           (physical/unconscious? world id) (str (who world id) " is unconscious")
+          (not (physical/can? world id :hearing)) (physical/hearing-reason world id)
           (and (:hibernating? busy) (not (:interrupted-by busy)))
           (str (who world id) " is " (:activity busy) " and not free to talk")
           (= :human (:controller a)) (str (who world id) " can't be drawn into a conversation"))))
@@ -70,6 +73,8 @@
   (let [ids (invited world actor with)
         problems (keep #(reason-not-drawn-in world actor %) ids)]
     (cond
+      (not (physical/can? world actor :speech)) (physical/speech-reason world actor)
+      (not (physical/can? world actor :hearing)) (physical/disabled-reason world actor :hearing "hold a conversation")
       (and (space/enabled? world) (nil? (space/location-of world actor))) "you can't converse while travelling"
       (= (:round world) (:conversed-round (w/agent world actor))) "you have already started a conversation this round"
       (not= (count ids) (count (distinct ids))) "name each person in with only once"
@@ -105,6 +110,12 @@
   [world actor {:keys [id]} text]
   {:type :agent/said :actor actor :visible-to (space/here world actor)
    :data {:text text :at (space/location-of world actor) :conversation id}})
+
+(defn line-events
+  "Events: `actor`'s line `text` in the conversation, heard as muffled
+  noises if their speech is impeded (manor.mechanics.physical/spoken)."
+  [world actor conv text]
+  (physical/spoken world actor :speech (said world actor conv text)))
 
 (defn silent [world actor {:keys [id]}]
   {:type :conversation/silent :actor actor :visible-to (space/here world actor) :data {:conversation id}})
@@ -186,6 +197,7 @@
    :args [:map
           [:with {:optional true} [:vector {:max 10 :decode/json #(if (string? %) [%] %)} :string]]
           [:text line]]
+   :available? (fn [world actor] (physical/can? world actor :speech))
    :valid? check})
 
 (def ^:private speaking-hint
@@ -193,9 +205,12 @@
   the usual hint, as ending their own turn."
   "Ends your part in this round of the conversation, not your own turn.")
 
-(defn- speaking-turn-action [conv spec effect]
+(defn- speaking-turn-action
+  "A speaking-turn tool for `spec`, whose `effect` (fn [world actor conv
+  args]) returns its events."
+  [conv spec effect]
   (assoc spec :kind :final :hint speaking-hint
-         :effect (fn [world actor args] [(effect world actor conv args)])))
+         :effect (fn [world actor args] (effect world actor conv args))))
 
 (defn- unquote-line
   "`text` without quotation marks around the whole of it, which models
@@ -210,22 +225,22 @@
 (defn speaking-actions
   "The tools of `speaker`'s speaking turn in `conv` ({:id :initiator}),
   besides `note`. Each ends the speaking turn. `end-conversation` emits
-  nothing: the engine ends the conversation."
-  [{:keys [initiator] :as conv} speaker]
+  nothing: the engine ends the conversation. Someone who can't speak
+  (manor.mechanics.physical) has no `reply`."
+  [world {:keys [initiator] :as conv} speaker]
   (let [reply (speaking-turn-action conv {:name :reply
                                           :doc (str "Say your line to the conversation: a few sentences, at most "
                                                     line-limit " characters.")
                                           :args [:map [:text line]]}
-                                    (fn [world actor conv {:keys [text]}] (said world actor conv (unquote-line text))))]
-    (if (= speaker initiator)
-      [reply
-       {:name :end-conversation :kind :final :hint speaking-hint
-        :doc "End the conversation now, without another word."}]
-      [reply
-       (speaking-turn-action conv {:name :stay-silent :doc "Say nothing this time; you stay in the conversation."}
-                             (fn [world actor conv _] (silent world actor conv)))
-       (speaking-turn-action conv {:name :leave :doc "Leave the conversation. You stay where you are, and still hear it."}
-                             (fn [world actor conv _] (left world actor conv)))])))
+                                    (fn [world actor conv {:keys [text]}] (line-events world actor conv (unquote-line text))))]
+    (into (if (physical/can? world speaker :speech) [reply] [])
+          (if (= speaker initiator)
+            [{:name :end-conversation :kind :final :hint speaking-hint
+              :doc "End the conversation now, without another word."}]
+            [(speaking-turn-action conv {:name :stay-silent :doc "Say nothing this time; you stay in the conversation."}
+                                   (fn [world actor conv _] [(silent world actor conv)]))
+             (speaking-turn-action conv {:name :leave :doc "Leave the conversation. You stay where you are, and still hear it."}
+                                   (fn [world actor conv _] [(left world actor conv)]))]))))
 
 (defn outcome
   "How a speaking turn went, from the name of its accepted action (nil if

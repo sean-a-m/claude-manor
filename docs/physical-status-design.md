@@ -1,11 +1,10 @@
 # Physical status: bound, gagged, knocked out, dead
 
 Status: **being built.** Written 2026-10-24 from the user's brief and their answers the
-same day (section 11, with section 12's questions settled the same day). Phase 1's core is built
+same day (section 11, with section 12's questions settled the same day). Phase 1 is built
 (data, world files, `afflict!`, views, movement, grasp, `take` from the helpless, coming to,
-death, interrupts, the emit filter and its tags, hibernation; the burglary fixture and
-`physical_test.clj`); its speech, hearing and sight effects on actions, conversations and views
-are next, then phase 2.
+death, interrupts, the emit filter and its tags, hibernation, and speech, hearing and sight in
+actions, conversations and views; the burglary fixture and `physical_test.clj`). Phase 2 is next.
 
 Where the build differs in detail: the event-making half (`change-events`, `interrupts`,
 `comings-to`) is in `manor.mechanics.physical.changes`, because `space` and `builtins` need the
@@ -18,8 +17,17 @@ take a turn before a routine claims them, as a release does. A world file's dead
 `:status :dead` with an optional `:died {:cause}`; consciousness may take `:minutes`. The
 operator's `afflict!` interrupts on behalf of `:by`, by default the person themselves. The
 rules paragraph leaves out `act-on` until it exists and adds that the dead are marked `dead`
-and that their things can be taken; `walk`'s limit of 3 is told only in the rules and in its
-rejection.
+and that their things can be taken, and a sentence on what not seeing and not hearing stop;
+`walk`'s limit of 3 is told only in the rules and in its rejection.
+
+Speech, hearing and sight: the speaker isn't in their muffled noise's audience; their own words
+carry `:muffled` and are narrated "(only muffled noises come out)", so they know. A muffled call
+naming someone busy in the room still interrupts them, as a clear call would; a call never
+interrupts someone deaf. Deaf people are refused `converse` (it stays offered), while the
+speech-disabled aren't offered it. `conversation/speaking-actions` takes the world. Someone who
+can't see keeps the exits and `last-seen` in their view, reasons don't list the items or people
+here for them, and `parted` doesn't record a sighting by or of them in `last-seen` (nor for the
+unconscious). `w/done-to` also names an `:item/taken`'s `:from-person`.
 
 ## 1. What this adds
 

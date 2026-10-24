@@ -543,10 +543,11 @@ Event shape (returned by effects, ticks and hooks; the engine stamps `:id` and `
   `(defmethod manor.world/perceived-by :treasure/dug [_] :sight)` (`:sight`, `:hearing`, or nil,
   the default). Before stamping, `run/emit!` drops from a set audience everyone unconscious, and
   those who lack the sense (see Physical status); the actor is always kept, and
-  `manor.world/done-to` names others never dropped for lack of sight (`:item/given`'s recipient).
+  `manor.world/done-to` names others never dropped for lack of sight (`:item/given`'s recipient,
+  and the `:from-person` of an `:item/taken`).
   `:all`, `:gm` and `:system` are never trimmed, and the stored audience is the trimmed one, so
   replay is unaffected. Tagged so far: speech (`:agent/said`, `:agent/whispered`, Claudeworth's
-  `:claudeworth/called`) is heard; moves, departures, arrivals and placings, occupations (work
+  `:claudeworth/called`) and muffled noises (`:person/muffled`) are heard; moves, departures, arrivals and placings, occupations (work
   starts, falling asleep), items taken, put down, put in, given, found or not found, and status
   changes are seen. Untagged events reach everyone in the audience who is conscious.
 - Multimethods are global. Namespace your event types (`:treasure/...`) so scenarios can't collide.
@@ -1492,6 +1493,28 @@ scenario has it; nothing is set unless a world file, the operator or (later) a j
   releases (they then get a turn before any routine). Death ends any occupation too. Either way
   a job in progress ends early and is judged on the time worked, as when a worker stops.
   The reasons repeat the status: "your grasp is disabled (wrists tied), so you can't open things".
+- **Speech:** impeded, `say`, `whisper`, `call` and conversation lines still take text, but
+  `physical/spoken` gives the words (marked `:muffled`, narrated "(only muffled noises come
+  out)") only to the speaker (the GM sees every event), and the rest of the audience a
+  `:person/muffled {:sound :at? :to? :conversation?}` instead (`:sound` `:speech`, `:whisper` or
+  `:call`: "Crane makes muffled noises, as if trying to speak"). A muffled whisper's noise reaches
+  only its target, and a muffled `call` is heard only in the room. In a conversation the
+  conversation judge sees the muffled line, not the words. Use `spoken` for any new speech
+  action. Disabled: `say`, `whisper`, `call` and `converse` aren't offered (`:available?`) and
+  refuse ("your speech is disabled (gagged), so you can't speak"); they can still be drawn into
+  a conversation, but their speaking turns offer only `stay-silent` and `leave`, and the
+  prompt says they can't speak.
+- **Hearing** disabled: the perception hook keeps speech and muffled noises from them; they
+  can't start a conversation, be drawn into one or be whispered to ("Hale can't hear you
+  (deafened)", `physical/hearing-reason`); a named `call` doesn't interrupt them. They can
+  still speak.
+- **Sight** disabled: seen events pass them by unless they're the actor or it was done to them.
+  Their view (and the `walk` reply) keeps only the place's id and name, what they carry, the
+  exits and `last-seen`, with `:cant-see` in place of the people and things here
+  (`physical/view-by-sight`, applied by `prompt/agent-view`), and they don't record anyone in
+  `last-seen` as they part. `look` and `open` refuse; reasons don't list the items or people
+  here. `find` is allowed and its judge gets `:sight "can't see (...): searching by touch, only
+  within reach"`; `take` works for an id they name.
 - **Who sees it:** everyone present who can see, beside aspects in `people-here` and `look`:
   `physical: {"movement": "disabled: bound hand and foot", "consciousness": "unconscious: struck
   on the head"}`, `impediments: {...}`, and `dead: true` for the dead (with their name,
@@ -1517,8 +1540,7 @@ scenario has it; nothing is set unless a world file, the operator or (later) a j
   :disabled :minutes 60}`, `{:impediment :hand :value "a cut finger"}` (`""` or no value removes),
   `{:died "a fall"}`, with an optional `:by` for whoever interrupts them (default: themselves).
 - **What to tell agents:** `physical/rules`, in Claudeworth's rules.
-- Not yet: speech, hearing and sight effects on `say`, `whisper`, `call`, conversations and
-  views; the judges setting and clearing statuses, and the immediate `act-on`.
+- Not yet: the judges setting and clearing statuses, and the immediate `act-on`.
 
 ### World files (`manor.io.worldfile`)
 
@@ -2037,8 +2059,10 @@ on with it. It uses nobody else's turn either.
   Each speaking turn is one short model call (at most 3 with retries) with its own prompt (the
   agent's usual view, notes and recent events, plus who is in the conversation and where it has
   got to) and its own tools: members get `reply {text}`, `stay-silent` and `leave`; the
-  initiator gets `reply` and `end-conversation`; everyone also has `note`. A speaking turn that
-  answers with plain text and no tool call has the text taken as its `reply` (normal turns are
+  initiator gets `reply` and `end-conversation`; everyone also has `note`. Someone whose speech
+  is disabled has no `reply`, and a gagged member's line is muffled for the others (see Physical
+  status). Nobody deaf can start or join one. A speaking turn that
+  answers with plain text and no tool call has the text taken as its `reply`, if it has one (normal turns are
   nudged to call a tool instead). These tools exist only
   in speaking turns and can't be overridden. Lines are told 400 characters and accept 1500.
   The prompt also says that a line agrees to things but doesn't do them: nothing is handed over,

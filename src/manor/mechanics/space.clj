@@ -204,12 +204,15 @@
 (defn- parted
   "The world after `mover` leaves `from` for `to` (nil if unseen): each
   person there remembers seeing them go there, and they remember each person
-  they left. Call it before the move is applied."
+  they left, if they could see them (manor.mechanics.physical/sees?). Call
+  it before the move is applied."
   [world mover from to]
   (reduce (fn [world p]
-            (-> world
-                (assoc-in [:seen p mover] (cond-> {:place from :round (:round world)} to (assoc :went to)))
-                (assoc-in [:seen mover p] {:place from :round (:round world)})))
+            (cond-> world
+              (physical/sees? world p)
+              (assoc-in [:seen p mover] (cond-> {:place from :round (:round world)} to (assoc :went to)))
+              (physical/sees? world mover)
+              (assoc-in [:seen mover p] {:place from :round (:round world)})))
           world
           (disj (present world from) mover)))
 

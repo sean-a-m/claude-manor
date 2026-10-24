@@ -52,9 +52,15 @@
 (defmethod describe :agent/updated [{:keys [data]} names]
   (str (who names (:id data)) " updated: " (pr-str (:changes data))))
 
+(defn muffled
+  "After a speaker's own words, when their speech was impeded (:muffled in
+  its data, see manor.mechanics.physical/spoken): what the others heard."
+  [data]
+  (when (:muffled data) " (only muffled noises come out)"))
+
 (defmethod describe :agent/said [{:keys [actor data]} names]
   (str (who names actor) (when-let [at (:at data)] (str " (" (place names at) ")"))
-       " says: \"" (:text data) "\""))
+       " says: \"" (:text data) "\"" (muffled data)))
 
 (defmethod describe :agent/moved [{:keys [actor data]} names]
   (str (who names actor) " goes from " (place names (:from data)) " to " (place names (:to data)) "."))
@@ -97,7 +103,7 @@
   (str "Route closed: " (place names (:from data)) (if (:one-way? data) " -> " " <-> ") (place names (:to data)) "."))
 
 (defmethod describe :agent/whispered [{:keys [actor data]} names]
-  (str (who names actor) " whispers to " (who names (:to data)) ": \"" (:text data) "\""))
+  (str (who names actor) " whispers to " (who names (:to data)) ": \"" (:text data) "\"" (muffled data)))
 
 (defmethod describe :agent/noted [{:keys [actor data]} names]
   (str (who names actor) " notes privately: " (:text data)))

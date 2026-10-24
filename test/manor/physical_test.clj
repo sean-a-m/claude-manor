@@ -2,8 +2,8 @@
   "Physical status (manor.mechanics.physical) in the burglary fixture world:
   starting statuses and their shape, views, each faculty's code effects,
   taking from the helpless, coming to, death, interrupts, the perception
-  filter, hibernation and replay. Speech, hearing and sight effects on
-  actions and views are tested with them, not here."
+  filter, hibernation, speech muffled or disabled (in conversations too),
+  hearing and sight, and replay."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
@@ -14,13 +14,16 @@
             [manor.io.worldfile :as wf]
             [manor.mechanics.builtins :as b]
             [manor.mechanics.conversation :as conversation]
+            [manor.mechanics.conversation.judge :as conversation-judge]
             [manor.mechanics.items :as items]
+            [manor.mechanics.items.find :as item-find]
             [manor.mechanics.items.judge :as item-judge]
             [manor.mechanics.items.steward :as item-steward]
             [manor.mechanics.items.views :as item-views]
             [manor.mechanics.physical :as physical]
             [manor.mechanics.physical.changes :as changes]
             [manor.mechanics.space :as space]
+            [manor.narrate :as narrate]
             [manor.prompt :as prompt]
             [manor.scenarios.burglary :as burglary]
             [manor.scenarios.claudeworth :as cw]
@@ -368,5 +371,180 @@
                    (get-in (first (:agents exported)) [:physical :speech])))
             (is (= {:status :dead :died {:cause "struck on the head with a candlestick"}}
                    (select-keys (nth (:agents exported) 2) [:status :died]))))))
+      (is (replays? run))
+      (finally (e/stop-run run)))))
+
+;; ---------------------------------------------------------------------------
+;; Speech
+
+(defn- place! [run id to]
+  (e/emit! run [{:type :agent/placed :data {:id id :to to} :visible-to :gm}]))
+
+(defn- act!
+  "Emit the events of `id`'s action `n` with `args`, after checking it."
+  [run id n args]
+  (let [world (e/world run)]
+    (is (nil? (check run world id n args)))
+    (e/emit! run (a/effect-events (action run n) world id args))))
+
+(defn- describe [run event] (narrate/describe event (narrate/names (e/world run))))
+
+(deftest impeded-speech-is-heard-as-muffled-noises
+  (let [run (start)]
+    (try
+      (place! run "will" "butlers-pantry")
+      (testing "say: the words reach only the speaker, the others hear a muffled noise"
+        (act! run "crane" :say {:text "Untie me, Will!"})
+        (let [said (last (of-type run :agent/said))
+              muffled (last (of-type run :person/muffled))]
+          (is (= #{"crane"} (:visible-to said)))
+          (is (true? (get-in said [:data :muffled])))
+          (is (= "Crane (Butler's pantry) says: \"Untie me, Will!\" (only muffled noises come out)" (describe run said)))
+          (is (= {:type :person/muffled :actor "crane" :visible-to #{"will"} :data {:sound :speech :at "butlers-pantry"}}
+                 (select-keys muffled [:type :actor :visible-to :data])))
+          (is (= "Crane (Butler's pantry) makes muffled noises, as if trying to speak." (describe run muffled)))))
+      (testing "a whisper's noise reaches only its target"
+        (place! run "slade" "butlers-pantry")
+        (act! run "crane" :whisper {:to "will" :text "The jewels are in his coat."})
+        (is (= #{"crane"} (:visible-to (last (of-type run :agent/whispered)))))
+        (let [muffled (last (of-type run :person/muffled))]
+          (is (= #{"will"} (:visible-to muffled)))
+          (is (= {:sound :whisper :to "will"} (:data muffled)))
+          (is (= "Crane makes muffled noises to Will, as if trying to whisper." (describe run muffled)))))
+      (testing "speech that isn't impeded is as before"
+        (act! run "will" :say {:text "Hold still, Mr Crane."})
+        (is (= #{"will" "crane" "slade"} (:visible-to (last (of-type run :agent/said)))))
+        (is (nil? (get-in (last (of-type run :agent/said)) [:data :muffled]))))
+      (is (replays? run))
+      (finally (e/stop-run run)))))
+
+(deftest a-muffled-call-is-heard-only-in-the-room
+  (let [run (start)]
+    (try
+      (place! run "will" "butlers-pantry")
+      (act! run "crane" :call {:text "Help!"})
+      (let [called (last (of-type run :claudeworth/called))
+            muffled (last (of-type run :person/muffled))]
+        (is (= #{"crane"} (:visible-to called)))
+        (is (= #{"will"} (:visible-to muffled)) "not Ivy and Slade in the dining room")
+        (is (= "Crane gives a muffled cry from the butler's pantry." (describe run muffled))))
+      (act! run "will" :call {:text "Thieves!"})
+      (let [heard (:visible-to (last (of-type run :claudeworth/called)))]
+        (is (every? heard ["crane" "ivy" "slade"]) "a clear call carries through the house")
+        (is (not (heard "mrs-bell")) "but not to the unconscious"))
+      (is (replays? run))
+      (finally (e/stop-run run)))))
+
+(deftest disabled-speech
+  (let [run (start)]
+    (try
+      @(e/afflict! run "crane" {:faculty :speech :level :disabled :cause "the gag pulled tight"})
+      (place! run "will" "butlers-pantry")
+      (let [world (e/world run)
+            tools (set (map :name (a/available (:actions run) world "crane")))]
+        (testing "say, whisper, call and converse aren't offered, and refuse if called"
+          (is (not-any? tools [:say :whisper :call :converse]))
+          (is (tools :pass))
+          (doseq [[n args] [[:say {:text "Mmph"}] [:whisper {:to "will" :text "Mmph"}] [:call {:text "Mmph"}]
+                            [:converse {:with ["will"] :text "Mmph"}]]]
+            (is (= "your speech is disabled (the gag pulled tight), so you can't speak" (check run world "crane" n args)))))
+        (testing "they can still be drawn in, but can only stay silent or leave"
+          (is (nil? (conversation/reason-not-drawn-in world "will" "crane")))
+          (is (= [:stay-silent :leave] (map :name (conversation/speaking-actions world {:id "c" :initiator "will"} "crane"))))
+          (is (str/includes? (:content (last (prompt/conversation-messages (:scenario run) world (e/events run) "crane" {}
+                                                                           {:id "c" :initiator "will" :members ["will" "crane"]}
+                                                                           {:pass 1 :in ["will" "crane"]})))
+                             "Your turn: you can't speak; call `stay-silent` or `leave`."))))
+      (finally (e/stop-run run)))))
+
+(deftest a-gagged-member-of-a-conversation-is-muffled
+  (let [run (start {:llm-impl (llm/mock (fn [{:keys [world agent-id role step conversation] :as ctx}]
+                                          (cond (= role :gm) {:tool :done}
+                                                (= role :conversation-judge) (conversation-judge/mock-judge ctx)
+                                                conversation (if (= "crane" agent-id)
+                                                               {:tool :reply :args {:text "It was Slade, the cook's cousin!"}}
+                                                               {:tool :end-conversation})
+                                                (and (= "will" agent-id) (= 1 (:round world)) (zero? step))
+                                                {:tool :converse :args {:with ["crane"] :text "Mr Crane! Who did this?"}}
+                                                :else {:tool :pass})))})]
+    (try
+      (place! run "will" "butlers-pantry")
+      (rounds! run 1)
+      (let [conv (get-in (first (of-type run :conversation/started)) [:data :conversation])
+            lines (filter #(= conv (get-in % [:data :conversation])) (e/events run))
+            crane-said (first (filter #(and (= :agent/said (:type %)) (= "crane" (:actor %))) lines))
+            muffled (first (filter #(= :person/muffled (:type %)) lines))
+            judged (first (filter #(= "conversation-judge" (:agent %)) (store/read-llm (:dir run))))
+            judge-saw (str/join "\n" (map :content (:messages judged)))]
+        (is (= #{"crane"} (:visible-to crane-said)))
+        (is (= #{"will"} (:visible-to muffled)))
+        (is (= {:sound :speech :at "butlers-pantry" :conversation conv} (:data muffled)))
+        (testing "the conversation judge sees the muffled line, not the words"
+          (is (some? judged))
+          (is (str/includes? judge-saw "only muffled noises come out"))
+          (is (str/includes? judge-saw "Who did this?"))
+          (is (not (str/includes? judge-saw "cook's cousin")))))
+      (testing "a gagged opening line is muffled too"
+        (is (= [:agent/said :person/muffled]
+               (map :type (conversation/line-events (e/world run) "crane" {:id "c"} "Mmph!")))))
+      (is (replays? run))
+      (finally (e/stop-run run)))))
+
+;; ---------------------------------------------------------------------------
+;; Hearing
+
+(deftest disabled-hearing
+  (let [run (start)]
+    (try
+      (place! run "will" "butlers-pantry")
+      @(e/afflict! run "will" {:faculty :hearing :level :disabled :cause "deafened by the shot"})
+      (let [world (e/world run)]
+        (is (= "Will can't hear you (deafened by the shot)" (check run world "crane" :whisper {:to "will" :text "Psst"})))
+        (is (= "Will can't hear you (deafened by the shot)" (conversation/reason-not-drawn-in world "crane" "will")))
+        (is (= "your hearing is disabled (deafened by the shot), so you can't hold a conversation"
+               (check run world "will" :converse {:with ["crane"] :text "What?"})))
+        (is (nil? (check run world "will" :say {:text "I can't hear a thing!"})) "they can still speak"))
+      (act! run "crane" :say {:text "Behind you!"})
+      (is (= #{} (:visible-to (last (of-type run :person/muffled)))) "nobody hears the gagged butler's noise")
+      (is (replays? run))
+      (finally (e/stop-run run)))))
+
+;; ---------------------------------------------------------------------------
+;; Sight
+
+(deftest disabled-sight
+  (let [run (start)]
+    (try
+      (let [world (e/world run)
+            ivy (view run world "ivy")]
+        (testing "the view shows the place's name and what she carries, not who or what is here"
+          (is (= {:id "dining-room" :name "Dining room"} (get-in ivy [:location :here])))
+          (is (nil? (get-in ivy [:location :people-here])))
+          (is (= physical/cant-see (get-in ivy [:location :cant-see])))
+          (is (= [] (get-in ivy [:you :carrying])))
+          (is (seq (get-in ivy [:location :exits])))
+          (is (= #{:here :cant-see} (set (keys (cw/arrival world "ivy")))) "nor does the walk reply"))
+        (testing "look and open are refused"
+          (is (= "your sight is disabled (blindfolded with a pillowcase), so you can't look around"
+                 (check run world "ivy" :look {})))
+          (is (str/includes? (check run world "ivy" :open {:container "sideboard"}) "so you can't see inside things")))
+        (testing "take is allowed for an id she knows, and a wrong id lists nothing"
+          (is (nil? (check run world "ivy" :take {:item "brass-candlestick"})))
+          (let [reason (check run world "ivy" :take {:item "poker"})]
+            (is (str/includes? reason "you can't see what's here"))
+            (is (not (str/includes? reason "brass")))))
+        (testing "find is allowed, and its judge is told she can't see"
+          (is (nil? (check run world "ivy" :find {:what "a poker"})))
+          (is (str/includes? (get-in (item-find/finder-request world "ivy" {:what "a poker"}) [:messages 1 :content])
+                             "can't see (blindfolded with a pillowcase)"))))
+      (testing "what's only seen passes her by, unless it's done to her"
+        (act! run "slade" :walk {:to "entrance-hall"})
+        (is (not (contains? (:visible-to (last (of-type run :agent/moved))) "ivy")))
+        (is (nil? (get-in (e/world run) [:seen "ivy" "slade"])) "nor does she remember seeing him go")
+        (is (= "dining-room" (get-in (e/world run) [:seen "slade" "ivy" :place])))
+        (is (= #{"slade" "ivy"} (:visible-to (physical/perceivable (e/world run)
+                                                                  {:type :item/taken :actor "slade" :visible-to #{"slade" "ivy"}
+                                                                   :data {:item "sack" :from-person "ivy"}})))
+            "having something taken from her she knows"))
       (is (replays? run))
       (finally (e/stop-run run)))))

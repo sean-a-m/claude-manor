@@ -1,11 +1,24 @@
 # Physical status: bound, gagged, knocked out, dead
 
-Status: **phases 1–2 built and mock/offline-tested; phase 3 awaits the user's go-ahead.**
+Status: **built, mock/offline-tested, and checked in a four-round real-model Claudeworth smoke run.**
+A targeted real-model burglary check remains optional follow-up, not yet run.
 Written 2026-10-24 from the user's brief and their answers the same day (sections 11–12).
 The core, senses, work judge, immediate `act-on` with transfers, and nightly recovery are built.
 The burglary mock night proves binding and gagging, silver theft, seizure and recovery of the
 jewels, coming to, an eased ankle with ropes left alone, stored-audience privacy and replay
-equality. No real-model check has been run for this feature.
+equality.
+
+Real-model compatibility check (the user's requested scope): four ordinary Claudeworth morning
+rounds (08:00–09:30), DeepSeek V4.1 Flash, real model calls with offline bridge stubs, no panel,
+`:max-rounds 4`, `:max-cost 0.20`. Cost $0.045355686 for 121 calls, including nine work judgements
+and seven conversation judgements. Stopped normally at the round cap, no engine error, no
+forfeited turns or failed judgements, and stored-event replay exactly matched the live world.
+The transcript had one rejected argument shape (a shop quantity above its limit) and seven
+ordinary tool rejections (speech/conversation limits, work targets not here or not items);
+characters continued after them. No physical statuses or `act-on` were exercised, and the
+morning did not reach the steward: this is a compatibility smoke check, not real-model
+validation of physical outcomes. Preserved, relative to this worktree, at
+`old-test-runs/physical-status-4round-real-1792872662451/` (transcript and `smoke-check.edn`).
 
 Independent-review fixes: deferred final actions recheck the live actor's eligibility before
 applying or judging; bound hiring candidates and couriers stay put instead of departing;

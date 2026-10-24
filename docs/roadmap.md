@@ -557,9 +557,14 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   - the work judge setting all of it, and the steward clearing or easing it overnight;
   - one perception hook in `emit!` for sight, hearing and the unconscious.
 
-  **Remaining: phase 3, a short real-model fixture check, only with the user's go-ahead.**
-  Not run: sensible judge use of statuses, model choice of immediate versus timed actions,
-  and behaviour/privacy in the transcript. No real-model calls were made in phases 1–2.
+  **Real-model compatibility smoke check passed:** the user's requested four ordinary
+  Claudeworth rounds, 121 calls ($0.04536), nine work judgements and seven conversation
+  judgements, no engine errors/forfeits/failed judgements, exact replay. Bridge calls were
+  stubbed; ordinary argument/limit rejections were handled and play continued. Preserved in
+  the physical-status worktree at `old-test-runs/physical-status-4round-real-1792872662451/`.
+  **Optional follow-up, requiring fresh go-ahead:** a targeted real-model burglary/overnight
+  check for sensible physical outcomes, immediate versus timed actions, steward recovery and
+  behaviour/privacy. Those were covered by mock tests, not this ordinary morning run.
 - **Deferred (design section 13):**
   - dead bodies as items that can be carried, hidden and found;
   - GM tools for statuses;

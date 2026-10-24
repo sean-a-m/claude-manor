@@ -536,6 +536,32 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   - postage costs;
   - per-place travel distances for people from elsewhere.
 
+### B15. Physical status
+
+- **Why:** nothing physical holds anyone. A bound butler can walk away, a gagged one can still
+  talk, nobody can die, and an act on someone (`spend-time` with `on`) lands only when the job
+  ends, so a fleeing burglar can't be stopped. Murders, burglaries and the like need it.
+- **Design:** [physical-status-design.md](physical-status-design.md), a proposal written with
+  the user's decisions of 2026-10-24, not started. It covers:
+  - fixed faculties with levels that code enforces: movement, grasp, speech (impeded or
+    disabled), sight, hearing and consciousness (disabled only), each with an optional cause;
+  - death as `:status :dead`;
+  - open impediments as a new subcategory of person aspects;
+  - `act-on`, an immediate act on other people, judged within the turn, which may move held
+    items;
+  - the work judge setting all of it, and the steward clearing or easing it overnight;
+  - one perception hook in `emit!` for sight, hearing and the unconscious.
+
+  Three phases, the last a short real run with the user's go-ahead.
+- **Deferred (design section 13):**
+  - dead bodies as items that can be carried, hidden and found;
+  - GM tools for statuses;
+  - arrests (a constable, a lockup);
+  - impeded sight and hearing;
+  - the posts of the dead;
+  - dragging people;
+  - combat resolution beyond the judge.
+
 ---
 
 ## C. Known issues and small fixes

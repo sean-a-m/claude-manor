@@ -39,6 +39,9 @@ events. Work/act judges retain shared-only recent lines; the invitation judge re
 own private recent lines. Candidate full-day availability and `candidate-home` remain intact.
 Integration regressions cover these edges and replay. Final `clojure -M:test`: 427 tests,
 8312 assertions, 0 failures, 0 errors. No real-model calls were made for integration.
+A follow-up hiring regression covers a former candidate returning as a guest and dying:
+recommendations skip dead linked agents without clearing their pool records, while living
+away candidates remain reusable.
 
 Where the build differs in detail: the event-making half (`change-events`, `interrupts`,
 `comings-to`) is in `manor.mechanics.physical.changes`, because `space` and `builtins` need the

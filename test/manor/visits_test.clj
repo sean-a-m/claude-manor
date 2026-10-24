@@ -540,6 +540,63 @@
           "a candidate whose pool record was evicted gets a plain situation, not hiring's")
       (finally (e/stop-run run)))))
 
+(deftest a-former-candidate-who-dies-as-a-guest-is-not-recommended-again
+  (let [run (start {} {})
+        recommend! #(resolve/run-query! run "hale" (action run :recommend)
+                                        {:position "cook" :for "lord-claudeworth"})
+        generated #(count (filter (fn [event] (= :people/generate (get-in event [:data :bridge])))
+                                  (e/events run)))]
+    (try
+      @(e/place! run "hale" "carriage-sweep")
+      @(e/place! run "lord-claudeworth" "carriage-sweep")
+      (is (nil? (:error (recommend!))))
+      (let [p (first (vals (hiring/pool (e/world run))))
+            candidate-id (:id p)]
+        (is (nil? (:rejected (resolve/resolve! run "lord-claudeworth" (action run :send-for)
+                                             {:candidate candidate-id}))))
+        (until! run 1)
+        (let [id (:agent-id (hiring/candidate (e/world run) candidate-id))]
+          (is (w/active? (e/world run) id))
+          (is (nil? (:rejected (resolve/resolve! run "lord-claudeworth" (action run :send-away) {:who id}))))
+          (testing "an ordinary away former candidate is still reused"
+            (is (= :away (:status (w/agent (e/world run) id))))
+            (let [result (recommend!)]
+              (is (false? (get-in result [:result :new?])))
+              (is (= candidate-id (get-in result [:result :candidate :id]))))
+            (is (= 1 (generated))))
+          @(e/schedule-visit! run {:who id :date "1904-10-15" :time "20:30" :stay "to call"})
+          (until! run 2)
+          (is (= :here (status (e/world run) "visit-1")))
+          (is (w/active? (e/world run) id))
+          (is (= :away (:status (hiring/candidate (e/world run) candidate-id))))
+          @(e/afflict! run id {:died "a sudden illness"})
+          (until! run 3)
+          (let [world (e/world run)
+                old (hiring/candidate world candidate-id)]
+            (is (= :dead (:status (w/agent world id))))
+            (is (= :ended (status world "visit-1")))
+            (is (= :away (:status old)))
+            (is (= "that person cannot return"
+                   (hiring/send-for-reason world "lord-claudeworth" {:candidate candidate-id})))
+            (let [result (recommend!)
+                  replacement (get-in result [:result :candidate])
+                  recommended (last (of-type run :people/recommended))]
+              (is (nil? (:error result)))
+              (is (true? (get-in result [:result :new?])))
+              (is (not= candidate-id (:id replacement)))
+              (is (not= candidate-id (get-in recommended [:data :id])))
+              (is (= 2 (generated)))
+              (is (= old (hiring/candidate (e/world run) candidate-id)) "the dead pool record is not cleared or rewritten")
+              (is (nil? (:rejected (resolve/resolve! run "lord-claudeworth" (action run :send-for)
+                                                   {:candidate (get-in recommended [:data :id])}))))
+              (until! run 4)
+              (let [living (hiring/candidate (e/world run) (get-in recommended [:data :id]))]
+                (is (= :here (:status living)))
+                (is (w/active? (e/world run) (:agent-id living)))
+                (is (not= id (:agent-id living))))))))
+      (replay! run)
+      (finally (e/stop-run run)))))
+
 (deftest pool-eviction-leaves-away-agents-and-visits
   (let [run (start {} {})
         base (-> (e/world run) (assoc-in [:agents "hale" :location] "post-office"))

@@ -78,7 +78,7 @@
   (first (filter #(and (#{:pooled :away} (:status %))
                        (= (area world actor) (:area %))
                        (some #{position} (:seeks %))
-                       (not= :retired (:status (w/agent world (:agent-id %)))))
+                       (not (#{:retired :dead} (:status (w/agent world (:agent-id %))))))
                  (ordered world))))
 
 (defmethod w/apply-event :people/pooled [world {:keys [data]}]

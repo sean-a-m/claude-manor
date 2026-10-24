@@ -1135,6 +1135,48 @@
       (replay! run)
       (finally (e/stop-run run)))))
 
+(deftest timed-recovery-allows-an-authored-away-guest-to-arrive
+  (doseq [[time arrival-round] [["20:30" 2] ["21:00" 3]]]
+    (let [init (:init cw/scenario)
+          scenario (assoc cw/scenario :init
+                          (fn [opts]
+                            (update (init opts) :agents
+                                    (fn [agents]
+                                      (mapv #(cond-> % (= "Captain Hart" (:name %))
+                                               (assoc :physical {:consciousness {:level :disabled :minutes 60}}))
+                                            agents)))))
+          run (start-with scenario {} {:world-file (authored-world [(assoc homecoming :time time)])})]
+      (try
+        (is (= :away (:status (w/agent (e/world run) "captain-hart"))))
+        (is (= 2 (get-in (w/agent (e/world run) "captain-hart") [:physical :consciousness :until])))
+        (until! run 1)
+        (is (= :scheduled (status (e/world run) "visit-1")))
+        (is (empty? (of-type run :person/came-to)))
+        (is (empty? (of-type run :visits/arrived)))
+        (until! run 2)
+        (is (= [[2 "captain-hart"]] (map (juxt :round :actor) (of-type run :person/came-to))))
+        (is (nil? (:physical (w/agent (e/world run) "captain-hart"))))
+        (when (= 3 arrival-round)
+          (is (= :away (:status (w/agent (e/world run) "captain-hart"))))
+          (is (nil? (space/location-of (e/world run) "captain-hart")))
+          (is (= :scheduled (status (e/world run) "visit-1")))
+          (is (empty? (of-type run :people/returned)))
+          (is (not-any? #(= "captain-hart" (:agent %)) (store/read-llm (:dir run))))
+          (replay! run))
+        (until! run arrival-round)
+        (let [came-to (first (of-type run :person/came-to))
+              returned (first (of-type run :people/returned))
+              arrived (first (of-type run :visits/arrived))]
+          (is (= :active (:status (w/agent (e/world run) "captain-hart"))))
+          (is (= "carriage-sweep" (space/location-of (e/world run) "captain-hart")))
+          (is (= :here (status (e/world run) "visit-1")))
+          (is (= arrival-round (:round returned) (:round arrived)))
+          (is (and came-to returned arrived (< (:id came-to) (:id returned) (:id arrived)))))
+        (is (not-any? #(and (= "captain-hart" (:agent %)) (< (:round %) arrival-round))
+                      (store/read-llm (:dir run))))
+        (replay! run)
+        (finally (e/stop-run run))))))
+
 (deftest starting-dead-and-away-does-not-resurrect-an-agent
   (let [init (:init cw/scenario)
         scenario (assoc cw/scenario :init (fn [opts]

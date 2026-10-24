@@ -102,9 +102,11 @@
           (when (seq after) (items/impediments-problem after))))))
 
 (defn comings-to
-  "Events for everyone whose unconsciousness ends by the current round."
+  "Events for active and away people whose unconsciousness ends by the
+  current round, in spawn order. Coming to does not bring an away person back."
   [world]
-  (for [a (w/active-agents world)
+  (for [a (w/agents-in-order world)
+        :when (and (#{:active :away} (:status a)) (not= :gm (:role a)))
         :let [{:keys [until]} (get-in a [:physical :consciousness])]
         :when (and until (<= until (:round world)))]
     {:type :person/came-to :actor (:id a) :visible-to (audience world (:id a)) :data {:person (:id a)}}))

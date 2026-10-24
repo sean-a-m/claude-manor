@@ -257,6 +257,28 @@
 ;; ---------------------------------------------------------------------------
 ;; Consciousness and death
 
+(deftest timed-recovery-includes-away-people-in-spawn-order
+  (let [person (fn [id status spawned-at until]
+                 {:id id :role :guest :status status :spawned-at spawned-at
+                  :physical {:consciousness (cond-> {:level :disabled :since 0} until (assoc :until until))}})
+        agents [(person "active-first" :active 1 2)
+                (person "away" :away 2 1)
+                (person "active-last" :active 3 2)
+                (person "dead" :dead 4 1)
+                (person "retired" :retired 5 1)
+                (person "not-due" :away 6 3)
+                (person "untimed" :away 7 nil)
+                (assoc (person "gm" :active 8 1) :role :gm)]
+        world (assoc (w/new-world) :round 2 :agents (into {} (map (juxt :id identity)) (reverse agents)))
+        events (changes/comings-to world)
+        after (reduce w/apply-event world events)]
+    (is (= ["active-first" "away" "active-last"] (map :actor events)))
+    (is (= #{"away"} (:visible-to (second events))))
+    (is (= (dissoc (w/agent world "away") :physical) (w/agent after "away"))
+        "coming to neither moves nor reactivates an away person")
+    (doseq [id ["dead" "retired" "not-due" "untimed" "gm"]]
+      (is (= (w/agent world id) (w/agent after id))))))
+
 (deftest the-unconscious-get-no-turns-and-come-to-on-time
   (let [run (start)]
     (try

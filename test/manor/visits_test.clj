@@ -493,12 +493,12 @@
           (is (= "blue-room" (get-in world [:state :bedrooms "captain-hart"])))
           (is (= {:invited-for "to dine" :bedroom "blue-room" :arrived "02:00"}
                  (get-in (prompt/agent-view (:scenario run) world "captain-hart") [:you :visit]))))
-        (testing "his room tells only him: the household's bedrooms don't name him"
+        (testing "bedroom lists show all active assigned sleepers, even a secret guest"
           (let [sleeps (fn [id] (some #(when (= "blue-room" (:id %)) (:sleeps %))
                                       (get-in (prompt/agent-view (:scenario run) world id) [:household :bedrooms])))]
             (is (= ["Captain Hart"] (sleeps "captain-hart")))
             (doseq [id ["hale" "lord-claudeworth"]]
-              (is (= [] (sleeps id)) id)))))
+              (is (= ["Captain Hart"] (sleeps id)) id)))))
       (replay! run)
       (finally (e/stop-run run)))))
 
@@ -948,11 +948,13 @@
   (testing "a :who that isn't a character's id"
     (is (= "bad :visits in the world file:\n- visit 2 (Mrs Bell): no one has the id Mrs Bell"
            (init-failure [carter-calls (assoc carter-calls :who "Mrs Bell")] {}))))
-  (testing "a time already past at the start, the :start option included"
-    (is (= "bad :visits in the world file:\n- visit 1 (carter): 1904-10-15 19:00 is already past when the run starts (Saturday 15 October 1904, 20:00)"
-           (init-failure [(assoc carter-calls :date "1904-10-15" :time "19:00")] {})))
-    (is (str/includes? (init-failure [homecoming] {:start "1904-10-16T08:00"})
-                       "visit 1 (captain-hart): 1904-10-15 21:00 is already past when the run starts (Sunday 16 October 1904, 08:00)")))
+  (testing ":leave-out does not hide genuinely unknown ids or malformed audiences"
+    (is (str/includes? (init-failure [(assoc homecoming :who "nobody")] {:leave-out ["nobody"]})
+                       "no one has the id nobody"))
+    (is (str/includes? (init-failure [(assoc homecoming :known-to ["nobody"])] {:leave-out ["nobody"]})
+                       "unknown: nobody"))
+    (is (str/includes? (init-failure [(assoc homecoming :known-to "hale")] {:leave-out ["hale"]})
+                       ":known-to must be a vector")))
   (testing "every problem is listed, and structural ones are named"
     (let [message (init-failure [(dissoc carter-calls :who) (assoc carter-calls :name "Mr Arden")
                                  (assoc carter-calls :known-to "hale") (assoc carter-calls :stay "")]
@@ -962,3 +964,56 @@
       (is (str/includes? message "visit 3 (carter): :known-to must be a vector of character ids"))
       (is (str/includes? message "visit 4 (carter): stay must be 1 to 200 characters"))))
   (is (nil? (init-failure [] {})) "an empty :visits is fine"))
+
+(deftest past-authored-visits-are-skipped-after-validation
+  (doseq [opts [{} {:start "1904-10-16T08:00"}]]
+    (let [run (start {} (merge {:world-file (authored-world [(assoc homecoming :time "19:00") carter-calls])} opts))]
+      (try
+        (is (= ["carter"] (map :guest (vals (visits/visits (e/world run))))))
+        (is (= :away (:status (w/agent (e/world run) "captain-hart"))))
+        (is (nil? (get-in (e/world run) [:calendar :entries "visit-1-host"])))
+        (replay! run)
+        (finally (e/stop-run run)))))
+  (testing "arrival exactly at the final start is allowed"
+    (let [run (start {} {:world-file (authored-world [homecoming]) :start "1904-10-15T21:00"})]
+      (try
+        (is (= :scheduled (status (e/world run) "visit-1")))
+        (until! run 1)
+        (is (= :here (status (e/world run) "visit-1")))
+        (replay! run)
+        (finally (e/stop-run run)))))
+  (testing "past dates do not hide invalid ids, keys, text, bedrooms or audiences"
+    (doseq [[spec expected] [[(assoc homecoming :who "nobody") "no one has the id nobody"]
+                             [(assoc homecoming :known_to []) "unknown keys :known_to"]
+                             [(assoc homecoming :stay "") "stay must be"]
+                             [(assoc homecoming :bedroom "drawing-room") "bedroom must be"]
+                             [(assoc homecoming :known-to ["nobody"]) "unknown: nobody"]
+                             [(assoc homecoming :known-to "hale") ":known-to must be a vector"]
+                             [(assoc homecoming :date "1904-99-99") "give the date like"]]]
+      (is (str/includes? (init-failure [spec] {:start "1904-10-16T08:00"}) expected)))))
+
+(deftest operator-schedules-a-guest-already-here-from-elsewhere
+  (let [run (start {} {})]
+    (try
+      @(e/schedule-visit! run homecoming)
+      (until! run 3)
+      (is (visits/from-elsewhere? (e/world run) "captain-hart"))
+      @(e/schedule-visit! run (assoc homecoming :time "22:00"))
+      (testing "no instruction to call or guest calendar entry while already staying"
+        (is (false? (:told? (visits/visit (e/world run) "visit-2"))))
+        (is (nil? (get-in (e/world run) [:calendar :entries "visit-2-guest"]))))
+      (testing "direct invitations still tell a staying guest"
+        (let [world (e/world run)
+              together (assoc-in world [:agents "lord-claudeworth" :location] "carriage-sweep")]
+          (doseq [channel [{:by "in-person"} {:by "messenger" :via "captain-hart"}]]
+            (let [spec (merge homecoming channel {:time "22:00"})
+                  after (reduce w/apply-event together (effect run together "lord-claudeworth" :invite spec))]
+              (is (:told? (visits/visit after "visit-3")))
+              (is (some? (get-in after [:calendar :entries "visit-3-guest"])))))))
+      (until! run 5)
+      (is (= :here (status (e/world run) "visit-2")))
+      (is (false? (:told? (visits/visit (e/world run) "visit-2"))))
+      (is (nil? (get-in (e/world run) [:calendar :entries "visit-2-guest"])))
+      (is (empty? (of-type run :visits/delivered)))
+      (replay! run)
+      (finally (e/stop-run run)))))

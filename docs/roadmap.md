@@ -522,10 +522,15 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   - an invitation judge that settles who a description means ("my father, Baron von
     Visitsworth"): an existing person, or a new one written and spawned `:away`;
   - away characters in world files (the son), never evicted, and authored visits in world files
-    (the son's homecoming);
+    (the son's homecoming); valid past visits are skipped after the final `:start` override,
+    with no catch-up, and `:leave-out` drops omitted guests and trims their audiences;
   - villagers kept awake all day when invited, coming by themselves;
   - guests from elsewhere appearing at the meeting place, seen only there and by the host;
   - guests leaving when they choose with `take-leave` (no timeout, no `send-away`).
+  Final user fixes are implemented and covered offline: scheduling a guest already staying from
+  elsewhere sends no guest calendar entry; a three-round medium-household homecoming replays
+  exactly. Bedroom lists intentionally show all active assigned sleepers, even secret guests;
+  invitation/calendar privacy otherwise stays unchanged.
   It shares hiring's arrival and departure code but keeps separate tools. Three phases; section
   13 records the decisions; none are open.
 - **Deferred, by the user's decision:**

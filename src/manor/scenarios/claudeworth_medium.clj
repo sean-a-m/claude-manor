@@ -11,7 +11,9 @@
   deliveries arrive) and the default world file. The baron's son is away at
   school (:away? true in the world file): in the run, but elsewhere until he
   comes home on 20 December (the file's authored :visits) or someone invites
-  him home sooner (manor.mechanics.visits).
+  him home sooner (manor.mechanics.visits). Starting after that homecoming
+  skips it, with no reconstructed stay; he remains away. :leave-out can
+  remove him and his authored visit altogether.
 
     clojure -M:run claudeworth-medium --mock --test
     clojure -M:run claudeworth-medium --test --max-cost 0.25"

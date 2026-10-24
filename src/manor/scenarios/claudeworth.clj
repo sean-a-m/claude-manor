@@ -263,12 +263,10 @@
             :arrive (clock/short-label c (+ (max 1 round) d) round)}))))
 
 (defn- house-bedrooms
-  "The house's bedrooms, and who sleeps in each, as `viewer` sees them: active
-  members of the household and `viewer` themselves, so a guest's room doesn't
-  tell the house they've come. [{:id :name :sleeps [names]}]."
-  [world viewer]
-  (let [shown? #(or (= viewer (:id %)) (positions/household-member? world (:id %)))
-        sleepers (group-by #(bedroom-of world (:id %)) (filter shown? (w/active-agents world)))]
+  "The house's bedrooms and all active assigned sleepers, guests included.
+   [{:id :name :sleeps [names]}]."
+  [world]
+  (let [sleepers (group-by #(bedroom-of world (:id %)) (w/active-agents world))]
     (vec (for [l (sort-by :id (vals (get-in world [:space :locations])))
                :when (and (= :bedroom (:kind l)) (= :house (:domain l)))]
            {:id (:id l) :name (:name l) :sleeps (mapv :name (get sleepers (:id l)))}))))
@@ -294,7 +292,7 @@
                 (assoc :hiring (hiring/observe world id))
                 (visits/add-to-view world id))
       (or (positions/household-member? world id) (visits/from-elsewhere? world id))
-      (assoc-in [:household :bedrooms] (house-bedrooms world id))
+      (assoc-in [:household :bedrooms] (house-bedrooms world))
       hours (update :here merge {:open (str/join "-" hours) :open-now? (open-now? world hours)})
       here (assoc :walkable (vec (sort (walkable world here)))
                   :journeys (journeys world here)))))
@@ -502,8 +500,9 @@
 
 (defn init
   "The world file, its agents (without any whose id is in :leave-out, and
-  without anything they hold), its items, and in :state the positions
-  (without forms of address if :addressed-as? is false), the setting, the
+  without anything they hold), its items and authored visits (dropping
+  left-out guests and removing left-out ids from :known-to), and in :state
+  the positions (without forms of address if :addressed-as? is false), the setting, the
   query limit the rules quote and :find-everywhere? (default true).
   Everyone's post, bedroom and routine are set as they arrive (`on-spawn`)."
   [{:keys [world-file leave-out] :as opts}]
@@ -511,10 +510,17 @@
         {wf :world-file :as loaded} (worldfile/load-world source)]
     (when-let [ps (seq (problems wf))]
       (throw (ex-info (str "world file " source " has problems:\n- " (str/join "\n- " ps)) {:problems (vec ps)})))
-    (let [agents (remove #(contains? (set leave-out) (b/slug (:name %))) (:agents loaded))
+    (let [left-out (set (filter (set leave-out) (map (comp b/slug :name) (:agents loaded))))
+          agents (remove #(left-out (b/slug (:name %))) (:agents loaded))
           ids (set (map (comp b/slug :name) agents))
           table (positions/table wf opts)]
-      (assoc loaded
+      (assoc (cond-> loaded
+               (:visits loaded)
+               (update :visits #(mapv (fn [v]
+                                       (cond-> v
+                                         (vector? (:known-to v))
+                                         (update :known-to (fn [ids] (filterv (complement left-out) ids)))))
+                                     (remove (comp left-out :who) %))))
              :agents (vec agents)
              :items (filterv #(or (nil? (:holder %)) (ids (:holder %))) (:items loaded))
              :state (merge (building/initial-state wf agents table opts)

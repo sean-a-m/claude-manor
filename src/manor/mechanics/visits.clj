@@ -211,13 +211,15 @@
   "The new visit's record, as a GM-only event, and the calendar entries due
   now: the host's at once, and the guest's if they're told now (`:deliver`
   is this round)."
-  [world {:keys [guest at deliver known-to] :as spec}]
+  [world {:keys [guest at deliver known-to by via] :as spec}]
   (let [v (cond-> (merge (select-keys spec [:guest :host :by :via :stay :reason :bedroom])
                          {:id (str "visit-" (inc (count (visits world))))
                           :at (str at) :arrive (round-of (:clock world) at) :deliver deliver
                           :wake (wake-round world guest at) :status :scheduled
                           ;; Someone away hears of it only if they come back before it's due.
-                          :told? (and (<= deliver (:round world)) (w/active? world guest))})
+                          :told? (and (<= deliver (:round world)) (w/active? world guest)
+                                       (or (not (from-elsewhere? world guest))
+                                           (= :in-person by) (= guest via)))})
             (seq known-to) (assoc :known-to (set known-to)))
         scheduled {:type :visits/scheduled :visible-to :gm :data v}
         world' (w/apply-event world scheduled)]
@@ -511,21 +513,26 @@
           (not (get-in world [:state :positions :guest])) "this world has no :guest position for someone new"
           same (str "someone called " (:name same) " is in the world already (" (:id same) "): use who"))))
 
-(defn arranged-reason
-  "Why the GM or operator can't arrange this visit, or nil: for `who`, an
-  existing person, or for someone new (the GM only), `new-person-keys`. Its
-  only lead time is the next round."
-  [world {:keys [who bedroom known-to] :as spec}]
+(defn- arranged-reason-from
+  "Shared checks with a chosen lower time bound; authored visits allow past times."
+  [world {:keys [who bedroom known-to] :as spec} earliest]
   (or (when-not (config world) "visits are not enabled in this run")
       (cond (and who (new-person? spec)) "give who for someone in the world, or a new person's fields, not both"
             who (guest-reason world who)
             (new-person? spec) (new-person-reason world spec)
             :else "give who (their id), or a new person's name, sex, age, from, known-as and situation")
       (text-reason spec)
-      (time-reason world (next-round-time world) "" spec)
+      (time-reason world earliest "" spec)
       (bedroom-reason world bedroom)
       (when-let [bad (seq (remove #(let [a (w/agent world %)] (and a (not= :gm (:role a)))) known-to))]
         (str "known-to must be character ids; unknown: " (str/join ", " bad)))))
+
+(defn arranged-reason
+  "Why the GM or operator can't arrange this visit, or nil: for `who`, an
+  existing person, or for someone new (the GM only), `new-person-keys`. Its
+  only lead time is the next round."
+  [world spec]
+  (arranged-reason-from world spec (next-round-time world)))
 
 (defn cancel-reason [world id]
   (let [v (visit world id)]
@@ -551,9 +558,9 @@
 
 (defn arranged-events
   "A visit the GM or operator (`source`) arranges for an existing person: if
-  they're about, told at once with their calendar entry, so they come; if
-  away, they arrive at the time, told nothing before. The host's entry goes
-  to `known-to` only (default nobody)."
+  they're about, told at once with their calendar entry, so they come;
+  guests already here from elsewhere and away guests are told nothing.
+  The host's entry goes to `known-to` only (default nobody)."
   [world source {:keys [who date time stay reason bedroom known-to]}]
   (scheduled-events world {:guest who :host nil :by source :via nil :at (parse-time date time)
                            :deliver (:round world) :stay stay :reason reason :bedroom bedroom
@@ -583,8 +590,8 @@
 (defn- authored-reason
   "Why the world file's visit `spec` can't be made at the start, or nil: an
   existing character's id in :who, no other keys than an arranged visit's,
-  known-to a vector of ids, and a time not already past; then the GM's and
-  operator's checks (`arranged-reason`)."
+  known-to a vector of ids; then the GM's and operator's checks, without
+  their lead time (valid past visits are skipped after validation)."
   [world {:keys [who date time known-to] :as spec}]
   (let [at (parse-time date time)]
     (or (when-let [extra (seq (remove authored-keys (keys spec)))]
@@ -592,16 +599,15 @@
         (when-not (string? who) ":who must be the id of a character in the world")
         (when-not (or (nil? known-to) (and (vector? known-to) (every? string? known-to)))
           ":known-to must be a vector of character ids")
-        (when (and at (.isBefore at (now world)))
-          (str date " " time " is already past when the run starts (" (clock/label (:clock world) (:round world)) ")"))
-        (arranged-reason world spec))))
+        (arranged-reason-from world spec (or at (now world))))))
 
 (defn authored-events
   "The world file's :visits, made at a fresh run's start (after the cast,
   away characters included, and the calendar): each the same record and
   events as the GM's and operator's (`arranged-events`), with no host and
   :by :authored, on the world the one before left. Throws with every
-  problem, each naming its visit, if any can't be made. Load and branch
+  problem, each naming its visit, if any is invalid. Valid visits before
+  the final start time are skipped, with no catch-up. Load and branch
   replay these events instead."
   [world specs]
   (when-not (vector? specs) (throw (ex-info "the world file's :visits must be a vector" {:visits specs})))
@@ -609,8 +615,10 @@
         (reduce (fn [[world events problems] [i spec]]
                   (if-let [r (if (map? spec) (authored-reason world spec) "a visit must be a map")]
                     [world events (conj problems (str "visit " (inc i) (when (and (map? spec) (:who spec)) (str " (" (:who spec) ")")) ": " r))]
-                    (let [evs (arranged-events world :authored spec)]
-                      [(apply-all world evs) (into events evs) problems])))
+                    (if (.isBefore (parse-time (:date spec) (:time spec)) (now world))
+                      [world events problems]
+                      (let [evs (arranged-events world :authored spec)]
+                        [(apply-all world evs) (into events evs) problems]))))
                 [world [] []] (map-indexed vector specs))]
     (when (seq problems)
       (throw (ex-info (str "bad :visits in the world file:\n- " (str/join "\n- " problems)) {:problems problems})))

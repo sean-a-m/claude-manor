@@ -404,9 +404,11 @@ outside.
 
 ### 8.2 Beds
 
-A guest from elsewhere who is staying sees the house's bedrooms and who sleeps in each (today
-only household members do), so they, or whoever shows them up, can choose a bed when the
-invitation named none. Sharing or making do is their decision, as the rules already say.
+A guest from elsewhere who is staying sees the house's bedrooms and all active assigned
+sleepers, as the household does, so they, or whoever shows them up, can choose a bed when the
+invitation named none. These lists may reveal guests, even secret visitors. This explicit usage
+is intentional; no bedroom-knowledge tracking is added. Sharing or making do is their decision,
+as the rules already say.
 
 ### 8.3 Inviting someone again
 
@@ -429,6 +431,8 @@ reducers in `space.clj` do. Candidates and couriers benefit too.
 - The posting event shows that a letter went, not to whom.
 - Arrivals go only to the meeting place and the host (6.2).
 - A guest's `:visit` and calendar entries go only to their audience, never into `:reference`.
+- Bedroom lists show all active assigned sleepers, so may reveal even secret guests (8.2).
+  Invitation and calendar privacy is otherwise unchanged.
 - The judge shows private detail only for people the inviter knows of. Everyone else's guests
   appear only by name, `from` and public `known-as`, so a match reveals a name and nothing about
   who invited them, when, or why.
@@ -647,8 +651,9 @@ real run (8–12 rounds, `:max-cost` 0.20) only with the user's go-ahead, as usu
 - Done when:
   - an authored visit arrives at its time, and one for a guest in the world is in their calendar
     from the start;
-  - a `:who` that isn't a character's id, or a time already past at the start (the `:start`
-    option included), fails initialization with a readable message;
+  - a `:who` that isn't a character's id, malformed date or other invalid field fails
+    initialization with a readable message; valid visits before the final start (the `:start`
+    option included) are skipped without catch-up, and equality is allowed;
   - replay, load and branch don't make the visits again;
   - the medium household's son is still away at the default start and comes home on 20 December.
 
@@ -820,12 +825,9 @@ the checked answer, the mock), `visits.clj` (`invitee!`, `described-invite-event
 
 ### Phase 2 review fixes
 
-- **Bedrooms show only the household and the viewer as sleepers.** 8.2 says a staying guest sees
-  "who sleeps in each"; listing every active agent told the whole house a guest had come the
-  round they took a named room, against decision 7 and 8.1. So `household.bedrooms` lists as
-  sleepers the active members of the household and the viewer: a guest sees their own room and
-  the family's, the household never sees a guest's name, and two guests don't see each other's
-  rooms. Whoever shows a guest up knows where they sleep by being told.
+- **Bedroom filtering was undone by the final user decisions below.** `household.bedrooms`
+  again lists all active assigned sleepers, guests included. This may reveal secret visitors;
+  explicit bedroom usage is preferred to privacy machinery.
 - **Hiring's rules beside visits** say "No candidate arrives except through send-for." instead of
   "Nobody new arrives …" (`hiring/rules-beside-visits`), which Claudeworth uses when visits are
   configured; `hiring/rules` is unchanged for worlds without them.
@@ -870,23 +872,42 @@ file and the authoring guide; tests in `visits_test.clj` (on copies of the fixtu
   refused like any other key outside `:who :date :time :stay :reason :bedroom :known-to`, so a
   typo such as `:known_to` stops the run instead of being ignored. `:known-to` must be a vector of
   ids.
-- **A past time is refused,** not dropped: "1904-10-15 19:00 is already past when the run starts
-  (Saturday 15 October 1904, 20:00)". A time at the start itself is allowed (it's round 1).
+- **Valid past visits are skipped** after validation, using the final start time (including a
+  `:start` override). A time at the start itself is allowed (it's round 1). No catch-up or active
+  stay reconstruction is performed, even if the stay would still have continued.
 - **Every problem at once:** each visit is checked on the world the ones before it left, and the
   failure lists every bad one by its place in the vector and its `:who` ("bad :visits in the world
   file:\n- visit 2 (Mrs Bell): no one has the id Mrs Bell"), as `load-world` lists a file's problems.
 - **Map export leaves `:visits` out.** The visits made from it live on in `[:state :visits]`, which
   isn't exported (phase 1), so copying the start file's `:visits` into `map.edn` would make them a
-  second time, or fail on a past time, if a run were started from the map. A run started from an
+  second time if still in the future when a run starts from the map. A run started from an
   exported map has no authored visits unless they're added back; load/branch is the full-fidelity
   path. `world-start.edn` keeps the file as it was.
 - **The son's homecoming** in `claudeworth-medium.edn`: 20 December 1904 at 14:00, "the Christmas
   holidays", "Home from Eton at the end of the Michaelmas half.", bedroom `sons-room`, known to the
   baron and baroness (their entries show from 30 days before, the calendar's lookahead). It's
-  `visit-1` in every fresh run of the scenario. If his family invites him home earlier and he's
+  `visit-1` in fresh runs starting at or before the homecoming, unless he's left out. Later
+  starts skip it, leaving him away. If his family invites him home earlier and he's
   still there on the 20th, the visit is `:here` at once (Phase 2 leftovers, above).
 - **A guest here from elsewhere isn't told of a later visit while they stay** (no letter, no guest
   calendar entry): the word went to where they live, and if they're still here when it falls due
   it's `:here` at once. Found with the homecoming: the son, invited home in October, would
   otherwise have been sent "You mean to call at Claudeworth Manor … the Christmas holidays" in his
   own house.
+
+### Final user decisions
+
+- **`:leave-out` and authored visits:** Claudeworth drops visits whose guest is left out and
+  removes left-out character ids from `:known-to`. Unknown ids and malformed entries still fail.
+- **Already-staying guests:** GM/operator scheduling does not mark a guest here from elsewhere
+  told or create a guest calendar entry. In-person invitations and carrying their own message
+  still count as told. The operator regression test covers scheduling during a stay.
+- **Past authored visits:** validate entries, then skip valid arrivals strictly before the final
+  start time; equality is allowed. Starting on 22 December misses the 20 December homecoming,
+  even if the stay would have continued. No catch-up, stay reconstruction or calendar redesign.
+- **Bedroom usage:** list all active assigned sleepers again, including guests and secret
+  visitors. Keep existing guest access; no permissions, flags or knowledge tracking. Bedroom
+  assignment will later move to personal notes. Invitation/calendar privacy otherwise stays as is.
+- **Free homecoming check:** the medium household starts at `1904-12-20T13:00` and runs through
+  round 3 with mock/offline models and `:test? true`, without a UI port. The son is at the carriage
+  sweep, his visit is `:here`, and replay matches. A later-start test leaves him away on 25 December.

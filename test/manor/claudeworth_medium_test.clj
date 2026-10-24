@@ -8,6 +8,8 @@
             [manor.io.worldfile :as worldfile]
             [manor.mechanics.items :as items]
             [manor.mechanics.positions :as positions]
+            [manor.mechanics.space :as space]
+            [manor.mechanics.visits :as visits]
             [manor.scenarios.claudeworth :as cw]
             [manor.scenarios.claudeworth.building :as building]
             [manor.world :as w]))
@@ -115,3 +117,42 @@
     (is (every? #(entry wf %) ["Hobbs" "Briggs" "Miss Ellis" "Turner" "Polly" "Mrs Bell"
                                "Carter" "Rudge" "Webb" "Mrs Dobbins" "Father Anselm" "Pugh"])
         "the village's residents are in the world file")))
+
+(deftest authored-homecoming-respects-leave-out
+  (testing "leaving out the guest drops his authored visit"
+    (let [run (start {:leave-out ["master-claudeworth"]})]
+      (try
+        (is (nil? (w/agent (e/world run) "master-claudeworth")))
+        (is (empty? (visits/visits (e/world run))))
+        (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+        (finally (e/stop-run run)))))
+  (testing "leaving out either or both parents removes only their audience ids"
+    (doseq [left-out [["lord-claudeworth"] ["lady-claudeworth"] ["lord-claudeworth" "lady-claudeworth"]]]
+      (let [run (start {:leave-out left-out})]
+        (try
+          (is (= (apply disj #{"lord-claudeworth" "lady-claudeworth"} left-out)
+                 (set (:known-to (visits/visit (e/world run) "visit-1")))))
+          (is (= :scheduled (:status (visits/visit (e/world run) "visit-1"))))
+          (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+          (finally (e/stop-run run)))))))
+
+(deftest a-short-mock-homecoming
+  (let [run (start {:start "1904-12-20T13:00"})]
+    (try
+      (e/auto! run 3)
+      (is (= :idle (e/wait-idle run 60000)))
+      (let [world (e/world run)]
+        (is (= 3 (:round world)))
+        (is (= "carriage-sweep" (space/location-of world "master-claudeworth")))
+        (is (= :here (:status (visits/visit world "visit-1"))))
+        (is (= world (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))
+
+(deftest starting-after-homecoming-skips-it-without-reconstructing-a-stay
+  (let [run (start {:start "1904-12-25T08:00"})]
+    (try
+      (is (empty? (visits/visits (e/world run))))
+      (is (= :away (:status (w/agent (e/world run) "master-claudeworth"))))
+      (is (nil? (space/location-of (e/world run) "master-claudeworth")))
+      (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+      (finally (e/stop-run run)))))

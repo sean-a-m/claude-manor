@@ -1805,8 +1805,8 @@ agent's post, bedroom and routine from their spawn spec, so `(spawn! {:role :foo
 Ward" :location "entrance-hall" :bedroom "maids-room"})` gets the footman's brief, a post in the
 household and a bed. Members of the household see the house's bedrooms (`:kind :bedroom`, `:domain
 :house`) and who sleeps in each under `household.bedrooms` in their view. The sleepers shown are
-the active members of the household and the viewer, so a guest's bedroom names them only to
-themselves. The rules say someone who
+all active assigned sleepers, guests included: bedroom lists may reveal even secret visitors.
+Invitation and calendar privacy is otherwise unchanged. The rules say someone who
 lives in needs a bed; nothing enforces it, and sharing is the agents' call.
 
 **Situations.** An agent's `:situation` in the world file is what is neither their job nor their
@@ -2042,9 +2042,9 @@ invitation judge, which matches someone in the world or writes someone new.
   one, to them alone: `{:host "Lord Claudeworth" :invited-for "a week" :reason … :arrived "Fri
   19:00" :bedroom "blue-room"}` (no `:host` for an arranged visit). A guest from elsewhere who is
   here (`from-elsewhere?`) sees the house's bedrooms under `household.bedrooms`, as the household
-  does; the sleepers listed are the household and themselves, never other guests, and the
-  household never sees a guest's name there. `away-acquaintances` lists the people the viewer has met who are away now, with where they
-  parted (`space/away-acquaintances`), so they can be invited by `who`.
+  does; all active assigned sleepers are listed, including guests. These lists may reveal even
+  secret visitors; invitation and calendar privacy is otherwise unchanged. `away-acquaintances`
+  lists the people the viewer has met who are away now, with where they parted (`space/away-acquaintances`), so they can be invited by `who`.
 - **`take-leave`** (final) is shared: for a candidate here it is hiring's, unchanged; for a guest
   from elsewhere, anywhere in the house's area, it emits `:people/departed` towards where they
   live (their `:lives`) and ends their `:here` visits. They're away again and can be invited
@@ -2062,8 +2062,10 @@ invitation judge, which matches someone in the world or writes someone new.
 - **GM and operator.** The GM's `schedule-visit {who | name sex age from known-as situation, date
   time stay reason? bedroom? known-to?}` is a **query** (it may write someone new; it counts
   towards the GM's queries), and `cancel-visit {id}` is final. `who` is anyone in the world:
-  someone about is told at once (their calendar entry: "You mean to call at …"), someone away
-  arrives at the time told nothing before. Or the new person's fields: they're written in the
+  someone about is told at once (their calendar entry: "You mean to call at …"), except a guest
+  already staying from elsewhere, who gets neither `:told?` nor a guest entry. Someone away
+  arrives at the time told nothing before. In-person invitations and carrying their own message
+  still tell a staying guest at once. Or the new person's fields: they're written in the
   query, spawned away when it's done (the checks are run again on the world then), and arrive at
   the time; nobody is told unless named in `known-to`. A new name already in the world is refused
   ("use who"). Operators use `engine/schedule-visit!` (with `:who` only) and `engine/cancel-visit!`
@@ -2085,8 +2087,12 @@ invitation judge, which matches someone in the world or writes someone new.
   checks and events, `:host` nil and `:by :authored`: someone about is told at once in their
   calendar, someone away arrives at the time told nothing before, and `:known-to` (character ids,
   default nobody) get the host's entry. `:who` is a character id, never a name or someone new; the
-  keys are only those above; a time before the run starts is refused ("1904-10-15 19:00 is already
-  past when the run starts (Saturday 15 October 1904, 20:00)"), never dropped. Any problem stops
+  keys are only those above. Valid visits strictly before the final start time (after a `:start`
+  override) are skipped; equality is allowed. There is no catch-up or reconstruction of a stay,
+  even if it would still have continued. All entries are validated before skipping: malformed
+  dates, unknown ids or keys, and other invalid fields still fail. Claudeworth's `:leave-out`
+  drops visits for left-out characters and removes their ids from `:known-to`; genuinely unknown
+  ids and malformed audiences are still errors. Any problem stops
   initialization with every bad visit listed by its place in the vector ("bad :visits in the world
   file:\n- visit 2 (Mrs Bell): no one has the id Mrs Bell"). Load and branch replay the recorded
   events and never make them again. Map export (`map.edn`) leaves `:visits` out, as it leaves out

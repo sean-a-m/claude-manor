@@ -691,6 +691,15 @@ the design left a detail open, the simplest choice consistent with it was taken:
 - **Managed entries** are refused by `calendar/command-events` for any change and can't be passed
   `:managed-by` by anyone; only `calendar/managed-command-events` with the owner changes them.
   World-file export leaves them out, as it leaves out `[:state :visits]`.
+- **Visit entry ids are reserved** so a GM's or operator's entry can't take `visit-N-host` first and
+  make a later invitation throw: an owner names itself in the scenario's `:calendar :managed`
+  (`{:visits {:id-prefix "visit-" :hint "use cancel-visit"}}`, added by `visits/install` and recorded
+  in `:calendar/initialized`), and nobody else may add an id with that prefix. The refusal of an
+  edit ends with the owner's hint, so the calendar names no owner itself (review fix).
+- **The operator's `schedule-visit!`** is checked for `stay` (1–200) and `reason` (≤ 300) in
+  `arranged-reason`, as the GM tool's schema checks them (review fix).
+- **Messenger delivery** reads "A message comes from Lord Claudeworth (sent with Hale): …": the
+  messenger needn't have gone to the guest himself (review fix).
 - **The rules paragraph** (phase-1 wording, only `who`) is added by Claudeworth's `rules` when
   `[:state :visit-config]` is present, so worlds reusing those rules without visits (Lodge) don't
   get it.

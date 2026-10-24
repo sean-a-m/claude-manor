@@ -8,10 +8,12 @@
             [manor.actions :as a]
             [manor.engine :as e]
             [manor.io.store :as store]
+            [manor.io.worldfile :as worldfile]
             [manor.mechanics.builtins :as b]
             [manor.mechanics.calendar :as calendar]
             [manor.mechanics.space :as space]
             [manor.mechanics.visits :as visits]
+            [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as cw]
             [manor.scenarios.claudeworth-medium :as medium]
@@ -22,11 +24,13 @@
 
 (def world-file "test/fixtures/visits.edn")
 
-(defn- start [day opts]
-  (with-redefs [e/load-scenario (constantly (assoc cw/scenario :mock-policy #(cw/scripted-policy day %)))]
+(defn- start-with [scenario day opts]
+  (with-redefs [e/load-scenario (constantly (assoc scenario :mock-policy #(cw/scripted-policy day %)))]
     (e/start-run :claudeworth (merge {:test? true :llm :mock :offline? true :gm :off :max-cost 0.20
                                       :world-file world-file :run-id (str (gensym "visits-"))}
                                      opts))))
+
+(defn- start [day opts] (start-with cw/scenario day opts))
 
 (defn- until!
   "Run rounds until round `r` has run."
@@ -267,3 +271,75 @@
     (is (= 1 (count (filter #(= :visits/tick (:name %)) (:systems scenario)))))
     (is (= :visits/tick (:name (last (:systems scenario))))
         "after hiring's and deliveries' systems")))
+
+(deftest visit-calendar-ids-are-reserved
+  (let [run (start {} {:gm :llm})]
+    (try
+      (let [world (e/world run)]
+        (testing "nobody else may add an entry with a visit's id, so a visit never clashes"
+          (is (= "calendar IDs starting \"visit-\" are kept for visits; choose another ID"
+                 (check run world "gm" :add-calendar-entry {:id "visit-1-host" :date "1904-10-16" :description "Mine."})))
+          (is (thrown-with-msg? Exception #"are kept for visits"
+                                @(e/add-calendar-entry! run {:id "visit-1-guest" :date "1904-10-16" :description "Mine."})))
+          (is (nil? (check run world "gm" :add-calendar-entry {:id "visiting-day" :date "1904-10-16" :description "Fine."})))))
+      @(e/schedule-visit! run {:who "carter" :date "1904-10-16" :time "15:00" :stay "to see the earl" :known-to ["hale"]})
+      (is (= #{"visit-1-host" "visit-1-guest"}
+             (set (keep #(when (:managed-by %) (:id %)) (calendar/export-entries (e/world run))))))
+      (testing "world-file export leaves managed entries out"
+        @(e/add-calendar-entry! run {:id "harvest-supper" :date "1904-10-20" :description "The harvest supper."})
+        (let [start (store/read-world-start (:dir run))
+              exported (worldfile/export (e/world run) start)]
+          (is (some #{"harvest-supper"} (map :id (:calendar exported))))
+          (is (not-any? #(str/starts-with? (:id %) "visit-") (:calendar exported)))
+          (is (not-any? :managed-by (:calendar exported)))))
+      (finally (e/stop-run run)))))
+
+(deftest operator-visits-check-stay-and-reason
+  (let [run (start {} {})]
+    (try
+      (is (thrown-with-msg? Exception #"stay must be 1 to 200 characters"
+                            @(e/schedule-visit! run {:who "carter" :date "1904-10-16" :time "15:00"})))
+      (is (thrown-with-msg? Exception #"stay must be 1 to 200 characters"
+                            @(e/schedule-visit! run {:who "carter" :date "1904-10-16" :time "15:00" :stay (apply str (repeat 201 "x"))})))
+      (is (thrown-with-msg? Exception #"reason must be 1 to 300 characters"
+                            @(e/schedule-visit! run {:who "carter" :date "1904-10-16" :time "15:00" :stay "to tea"
+                                                     :reason (apply str (repeat 301 "x"))})))
+      (is (empty? (visits/visits (e/world run))))
+      (finally (e/stop-run run)))))
+
+(deftest scenario-visits-config-between-defaults-and-run-option
+  (let [scenario (visits/install (assoc cw/scenario :visits {:lead-hours {:post 2 :messenger 2} :lapse-hours 5}))
+        run (start-with scenario {} {:visits {:lead-hours {:messenger 4}}})]
+    (try
+      (is (= {:lead-hours {:in-person 0 :messenger 4 :post 2} :from-away-hours 24 :wake-from "06:00"
+              :lapse-hours 5 :house "Claudeworth Manor"}
+             (visits/config (e/world run))))
+      (finally (e/stop-run run)))))
+
+(def messenger-day
+  "Hale goes down to the post office at 20:00, where the earl gives him a
+  message for Mrs Bell at 20:30."
+  {"hale" {"20:00" [[:travel {:to "post-office"}]]}
+   "lord-claudeworth" {"20:30" [[:invite {:by "messenger" :via "hale" :who "mrs-bell" :date "1904-10-16"
+                                          :time "15:00" :stay "to tea"}]]}})
+
+(deftest messenger-invitation-delivered
+  (let [run (start messenger-day {})]
+    (try
+      (until! run 2)
+      (let [world (e/world run) v (visits/visit world "visit-1")]
+        (is (= [#{"lord-claudeworth" "hale"}] (map :visible-to (of-type run :visits/entrusted))))
+        (is (= (round-at world "1904-10-15T21:30") (:deliver v)))
+        (is (not (:told? v))))
+      (until! run 3)
+      (is (empty? (of-type run :visits/delivered)))
+      (until! run 4)
+      (testing "she's told at the end of the messenger's lead time, without saying he came"
+        (let [[delivered] (of-type run :visits/delivered)]
+          (is (= #{"mrs-bell"} (:visible-to delivered)))
+          (is (= "A message comes from Lord Claudeworth (sent with Hale): you are invited to Claudeworth Manor on Sunday 16 October at 15:00: to tea."
+                 (n/describe delivered (n/names (e/world run))))))
+        (is (str/includes? (calendar-of run "mrs-bell") "invited by Lord Claudeworth: to tea."))
+        (is (not (str/includes? (calendar-of run "hale") "Mrs Bell"))))
+      (replay! run)
+      (finally (e/stop-run run)))))

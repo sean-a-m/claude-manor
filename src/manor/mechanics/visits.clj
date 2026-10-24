@@ -222,7 +222,7 @@
        (n/who names (:guest data)) ": an invitation to " (invitation-text data)))
 (defmethod n/describe :visits/delivered [{:keys [data]} names]
   (str (if (:via data)
-         (str (n/who names (:via data)) " brings a message from " (n/who names (:host data)))
+         (str "A message comes from " (n/who names (:host data)) " (sent with " (n/who names (:via data)) ")")
          (str "A letter comes from " (n/who names (:host data))))
        ": you are invited to " (invitation-text data)))
 (defmethod n/describe :visits/reminded [{:keys [data]} names]
@@ -328,6 +328,15 @@
     (cond (nil? at) "give the date like \"1904-10-21\" and the time like \"19:00\""
           (.isBefore at earliest) (str channel "the earliest they can be here is " (.format earliest earliest-format)))))
 
+(defn- text-reason
+  "The action schema's limits on stay and reason, for the operator, whose
+  spec isn't decoded by a schema."
+  [{:keys [stay reason]}]
+  (cond (not (and (string? stay) (<= 1 (count stay) max-stay)))
+        (str "stay must be 1 to " max-stay " characters: how long, in your words (\"to dine\", \"a week\")")
+        (and (some? reason) (not (and (string? reason) (<= 1 (count reason) max-reason))))
+        (str "reason must be 1 to " max-reason " characters")))
+
 (defn- bedroom-reason [world bedroom]
   (when (and bedroom (not= :bedroom (:kind (space/location world bedroom))))
     "bedroom must be the id of a bedroom"))
@@ -365,6 +374,7 @@
   [world {:keys [who bedroom known-to] :as spec}]
   (or (when-not (config world) "visits are not enabled in this run")
       (guest-reason world who)
+      (text-reason spec)
       (time-reason world (next-round-time world) "" spec)
       (bedroom-reason world bedroom)
       (when-let [bad (seq (remove #(let [a (w/agent world %)] (and a (not= :gm (:role a)))) known-to))]
@@ -463,18 +473,24 @@
   [& configs]
   (apply merge-with (fn [a b] (if (map? a) (merge a b) b)) configs))
 
+(def calendar-owner
+  "How visits own their calendar entries (see manor.mechanics.calendar): ids
+  starting visit- are theirs, and an edit is refused with a pointer to cancel-visit."
+  {:id-prefix "visit-" :hint "use cancel-visit"})
+
 (defn install
   "Add visits to a scenario: `invite`, the GM's `schedule-visit` and
   `cancel-visit`, the tick, and the config in [:state :visit-config]: the
   defaults, the house's name from the world file's :meta :name, the
   scenario's :visits, then the run option :visits. Idempotent. Install it
   after hiring (it needs the meeting place); the scenario needs a clock, and
-  :calendar for the entries. A scenario with :hibernate should leave out
-  anyone `keeps-awake?`."
+  :calendar for the entries (visits names itself there as their owner). A
+  scenario with :hibernate should leave out anyone `keeps-awake?`."
   [scenario]
   (let [init (:init scenario)
         names (set (map :name actions))]
     (-> scenario
+        (cond-> (:calendar scenario) (assoc-in [:calendar :managed :visits] calendar-owner))
         (assoc :init (fn [opts]
                        (let [result (init opts)]
                          (assoc-in result [:state :visit-config]

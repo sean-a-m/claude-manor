@@ -2,7 +2,11 @@
   "The in-world schedule: validation, commands, lifecycle and safe projections.
   Review acknowledges an arrangement, never performs its promised effects.
   An entry may be owned by a mechanic (:managed-by, engine-owned, such as
-  :visits): it is never queued for GM review, and only its owner edits it."
+  :visits): it is never queued for GM review, and only its owner edits it.
+  An owner names itself in the scenario's :calendar config, under :managed:
+  {:visits {:id-prefix \"visit-\" :hint \"use cancel-visit\"}}. Nobody else may
+  add an entry whose id starts with its :id-prefix, and its :hint ends the
+  refusal of an edit."
   (:require [clojure.string :as str]
             [malli.core :as m]
             [manor.clock :as clock]
@@ -53,6 +57,16 @@
 
 (defn- event [type data] {:type type :visible-to :gm :data data})
 
+(defn- reserving-owner
+  "The managed owner whose :id-prefix `id` starts with, as [owner config], or nil."
+  [world id]
+  (first (filter (fn [[_ {:keys [id-prefix]}]] (and id-prefix (str/starts-with? (str id) id-prefix)))
+                 (sort-by key (get-in world [:calendar :managed])))))
+
+(defn- managed-refusal [world owner]
+  (str "that entry is managed by " (name owner)
+       (when-let [hint (get-in world [:calendar :managed owner :hint])] (str "; " hint))))
+
 (defn- commands
   "`command-events` for an `owner` (nil for the GM, operator and init, or a
   mechanic such as :visits). Only the owner of a managed entry may change it."
@@ -68,12 +82,16 @@
                           (:at fields) (dissoc :date))
                 :cancel (dissoc old :lifecycle :managed-by))
         rescheduled? (not= (select-keys old [:date :at]) (select-keys entry [:date :at]))
+        reserver (when (= op :add) (first (reserving-owner world id)))
         problem (or (when (and (= op :add) old) "calendar ID is already reserved")
+                    (when (and reserver (not= owner reserver))
+                      (str "calendar IDs starting \"" (get-in world [:calendar :managed reserver :id-prefix])
+                           "\" are kept for " (name reserver) "; choose another ID"))
                     (when (and (not= op :add) (or (nil? old) (= :cancelled (get-in old [:lifecycle :status]))))
                       "no non-cancelled calendar entry with that ID")
                     (when (and (not= op :add) (not= owner (:managed-by old)))
                       (if (:managed-by old)
-                        (str "that entry is managed by " (name (:managed-by old)) "; use cancel-visit")
+                        (managed-refusal world (:managed-by old))
                         "that entry is not a managed entry"))
                     (when (and (not initial?) (contains? args :lifecycle)) "lifecycle is engine-owned")
                     (when (contains? args :managed-by) "managed-by is engine-owned")
@@ -117,7 +135,8 @@
       (assoc-in [:calendar :due id] (get-in entry [:lifecycle :revision])))))
 
 (defmethod w/apply-event :calendar/initialized [world {:keys [data]}]
-  (assoc world :calendar {:lookahead-days (:lookahead-days data) :entries {} :due {}}))
+  (assoc world :calendar (cond-> {:lookahead-days (:lookahead-days data) :entries {} :due {}}
+                           (:managed data) (assoc :managed (:managed data)))))
 (doseq [type [:calendar/added :calendar/updated :calendar/cancelled]]
   (defmethod w/apply-event type [world {:keys [data]}] (store-entry world (:entry data))))
 
@@ -154,7 +173,8 @@
   (when-not (and (map? config) (nat-int? (:lookahead-days config 30)))
     (throw (ex-info "calendar lookahead-days must be a non-negative integer" {})))
   (when-not (or (nil? entries) (vector? entries)) (throw (ex-info "initial calendar must be a vector" {})))
-  (let [start (event :calendar/initialized {:lookahead-days (:lookahead-days config 30)})
+  (let [start (event :calendar/initialized (cond-> {:lookahead-days (:lookahead-days config 30)}
+                                             (:managed config) (assoc :managed (:managed config))))
         [world events] (reduce (fn [[world events] entry]
                                  (let [evs (command-events world :add entry true)]
                                    [(reduce w/apply-event world evs) (into events evs)]))

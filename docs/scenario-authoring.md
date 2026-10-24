@@ -1861,9 +1861,15 @@ through `worldfile/load-world`'s `:calendar` from a world file:
 - **Managed entries.** A mechanic may own entries: `calendar/managed-command-events world op
   args owner` adds, updates or cancels them, marking them `:managed-by owner` (engine-owned:
   `command-events` refuses it as an argument). They're **never queued for GM review**, and the
-  GM's and operator's update/cancel refuse them ("that entry is managed by visits; use
-  cancel-visit"). Characters see them like any entry; the GM sees the marker. World-file export
+  GM's and operator's update/cancel refuse them ("that entry is managed by visits", followed by
+  the owner's hint). Characters see them like any entry; the GM sees the marker. World-file export
   leaves them out, as their owner's records aren't exported. Visits are the one owner (below).
+- **Owners name themselves** in the scenario's `:calendar` config, under `:managed`:
+  `{:visits {:id-prefix "visit-" :hint "use cancel-visit"}}` (`visits/install` adds its own). It's
+  recorded in `:calendar/initialized`. Nobody but the owner may add an entry whose id starts with
+  its `:id-prefix` ("calendar IDs starting "visit-" are kept for visits; choose another ID"), so an
+  owner's ids never clash with a GM's or operator's entry; the `:hint` ends the refusal of an edit.
+  The calendar itself names no owner.
 - Calendar review never credits money, spawns a visitor or guarantees an outcome. Those need
   separate supported actions. No scheduling schemas are added to work/conversation judges or
   the steward. Scenarios without `:calendar` retain their existing prompts and tools.
@@ -1921,9 +1927,11 @@ nobody moves them. Guests from elsewhere, the invitation judge and away agents a
   `:visits/entrusted` (the message, seen by the inviter and the messenger).
 - **Telling.** In person, or when the invitee carries their own message, the guest knows at
   once. Otherwise at `:deliver` (now plus the lead time) the tick sends `:visits/delivered` to the
-  guest alone ("A letter comes from Lord Claudeworth: …") with their calendar entry.
+  guest alone ("A letter comes from Lord Claudeworth: …", or by messenger "A message comes from
+  Lord Claudeworth (sent with Hale): …", which doesn't say the messenger came) with their calendar
+  entry.
 - **Calendar entries** (`<visit-id>-host`, `<visit-id>-guest`) are written from the record and
-  managed by visits: the host side goes to the inviter only, or an arranged visit's `known-to`
+  managed by visits, which keeps every id starting `visit-` for itself (see Calendar): the host side goes to the inviter only, or an arranged visit's `known-to`
   (default nobody); the guest side goes to the guest from when they're told, saying where to
   come (the meeting place's id). Nobody else is told. The GM never reviews them.
 - **The tick**, before turns, takes visits in id order, each step on the world the previous left:
@@ -1941,7 +1949,8 @@ nobody moves them. Guests from elsewhere, the invitation judge and away agents a
 - **GM and operator.** `schedule-visit {who date time stay reason? bedroom? known-to?}` and
   `cancel-visit {id}` are GM tools (final). Operators use `engine/schedule-visit!` and
   `engine/cancel-visit!` (REPL: `schedule-visit!`, `cancel-visit!`), queued between rounds; they
-  throw with the reason. Their only lead time is the next round, and the guest is told at once
+  throw with the reason, including the tool's limits on `stay` (1–200 characters) and `reason`
+  (at most 300), which the operator's spec doesn't get from a schema. Their only lead time is the next round, and the guest is told at once
   (their calendar entry: "You mean to call at …"). Only a `:scheduled` visit can be cancelled; its
   entries are cancelled with it.
 

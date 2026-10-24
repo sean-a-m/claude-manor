@@ -179,8 +179,9 @@ that branch is merged:
 - **Spawning a person:** `(people/spawn-spec person)`, the traits and public and private prose
   that hiring's `arrival-events` merges into a spawn spec. Hiring's arrivals call it too.
 - **The idle timer:** `(hiring/idle-rounds world agent-id arrived)`, the number of rounds since
-  arrival or the last conversation. Hiring's `tick` compares it with `leave-after` (3) and
-  deliveries with `courier-leave-after` (2).
+  arrival or the last conversation. Hiring's `tick` now compares it with
+  `candidate-wait-rounds` (a full 24 game hours; 24 rounds without a clock), while deliveries
+  still uses `courier-leave-after` (2). The longer hiring grace does not extend courier visits.
 
 Deliveries treat the person as opaque: they store it, pass it to `spawn-spec` and read only
 `:name`. A later change to how people are written then reaches candidates and couriers alike,

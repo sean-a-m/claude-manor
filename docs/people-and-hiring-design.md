@@ -731,7 +731,7 @@ persona, plus:
 
 ```clojure
 {:seeks [:chauffeur :groom]                     ; positions they'd take
- :lives "the smithy's yard by the crossroads"   ; flavour only
+ :candidate-home "a cottage by the pond, in the next parish" ; off-map background, not a map id
  :known-to #{"hale" "hobbs"}                    ; who has heard of them
  :status :pooled}                               ; :pooled, :sent-for, :here, :engaged, :away
 ```
@@ -789,8 +789,12 @@ work judge can be shown what the writer knows.
   bedroom given in the offer if there is one (unchecked, decision 12), and marks the record
   `:engaged`.
 - `send-away {who}`, or the candidate's own `take-leave`, emits `:people/departed`. The record goes
-  back to the pool marked as seen at the house. A candidate still unengaged leaves three rounds after arrival or their last
-  conversation, whichever is later (the user's clarification replaces end-of-day departure).
+  back to the pool marked as seen at the house. A candidate still unengaged leaves only after
+  24 in-world hours since arrival or their last conversation, whichever is later (24 rounds
+  without a clock). This replaces the earlier three-round rule: Alice Tidy was removed after
+  90 minutes in `claudeworth-medium-20261024-153313` while the household was still fetching her
+  for an interview. Until then they remain hireable at their actual map location; briefs tell
+  them to wait locally, agree where to be found, and not use `take-leave` merely to await word.
 
 ### 6.5 The away status
 
@@ -849,12 +853,23 @@ validation was run; the user will do real runs. No generated cast files were re-
   view. Bedroom existence/kind is checked, not availability or sharing; no bed is required
   by code. Acceptance replaces the temporary applicant situation with the new appointment.
 - **Leaving:** `send-away {who}` and `take-leave` are final, for unengaged candidates.
-  Otherwise a candidate leaves at the start of the third round after arrival or their last
-  conversation. All conversation participants refresh that timestamp, not just the initiator.
+  Otherwise a candidate leaves after a full 24 in-world hours since arrival or their last
+  conversation, rounded up to whole rounds (24 rounds without a clock). All conversation
+  participants refresh that timestamp, not just the initiator. Crossing midnight is not a cutoff.
+  Explicit departure remains possible before then; nearby walking/waiting does not end candidacy.
   `:people/departed` makes an agent `:away`, clears location/travel/occupation and stops turns;
   offers close, notes and history remain. Another `send-for` returns the same agent/id with
   those memories through `:people/returned`. Retired people cannot return. Hired staff are
   not subject to the visitor timeout; dismissal and outdoor lodging remain deferred.
+- **Candidate homes:** the people server's opt-in `candidate: true` generates a dedicated
+  `:candidate-home`, instead of `:lives`, from dwelling and off-map neighbourhood data. It
+  never appends the internal walking-area id. `:origin` is not repurposed. The home is kept
+  in the base/pool record, reaches the private writer and applicant's brief, and is shown
+  only to people who know the candidate. Departure uses it with explicit off-map narration;
+  legacy candidates without it leave for "home" rather than an imaginary mapped address.
+  This field is exclusively for potential hires; other visitors/couriers and authored cast
+  homes are unchanged. A future extension can opt other visitors into home generation without
+  changing `:origin`, but no map locations or home-visiting mechanics are added now.
 - **Written characters:** `spend-time` may name a known `candidate`. The tool description
   explicitly says to omit it for other activities, and an empty string is treated as absent
   (some models fill optional strings with `""`). Nonempty unknown ids are still rejected.

@@ -38,6 +38,12 @@
            "from the Black Country"
            "from a village on Dartmoor"
            "from the next parish but one"]
+ ;; Potential hires can return to these off-map neighbourhoods. These are not
+ ;; map locations; :origin still describes their personal background separately.
+ :candidate-home-areas ["in the next parish"
+                        "in a village a few miles away"
+                        "on a farm beyond the neighbouring village"
+                        "in a nearby market town"]
  :dwellings ["a cottage by the church"
              "rooms above the saddler's"
              "a tied cottage on the home farm"

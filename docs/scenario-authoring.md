@@ -1612,7 +1612,7 @@ data, so there's one source and no call.
 - There is no `:sketch` input. Old descriptions are never used to regenerate a cast;
   a successful re-roll also removes a legacy `:sketch` if one is present.
 - The basic traits come from the **people server** (`mcp-servers/people/`, babashka,
-  stateless, no model, no key). `generate_people {position count area setting seed taken-names sex ages}`
+  stateless, no model, no key). `generate_people {position count area setting seed taken-names sex ages candidate}`
   rolls identity and readings from `temperament.edn`, `faculties.edn` and `names.edn`:
   a name sharing no word with `taken-names`, requested sex (else either), age within `ages`
   (else 18–55), origin, home, five temperament levels and one faculty from each of seven groups.
@@ -1620,6 +1620,12 @@ data, so there's one source and no call.
   There are **no behavioural descriptors or circumstance templates**. Levels, sizes and
   faculty-selection distributions are unchanged; removing descriptor draws changes exact
   readings for old seeds. The engine passes age/sex defaults from the position catalogue.
+  The optional JSON/MCP `candidate` boolean opts potential hires into a separate
+  `:candidate-home` string **instead of** `:lives`: a dwelling and nearby off-map neighbourhood
+  from the server's data, never the internal `area` id. `:origin` retains its existing meaning
+  and generation. Other visitors, couriers and cast rolls do not opt in; their home handling
+  is unchanged. The candidate's home is generated once, retained in their base/pool record,
+  and passed to the private writer for consistency. It is background, not a new map location.
 - The **character writer**, still called the **polish** (`manor.mechanics.people/polish!`), returns
   `{circumstances persona manner appearance}` in one checked model call. It receives only
   setting, position, basic identity/readings and optional authored notes; legacy descriptors,
@@ -1701,7 +1707,11 @@ or promised. It does not select an existing villager.
   (otherwise it waits). The visitor is spawned through the scenario hook with role `:none`,
   own traits and a private situation naming their summoner. Their model inherits `:model`.
   Private spawn data is operator-only; a separate arrival event goes to those at the entrance
-  and the summoner. No GM-spawnable positions are added.
+  and the summoner. No GM-spawnable positions are added. Their situation tells them to remain
+  locally available while a decision is pending, agree a waiting place, and distinguish
+  walking to the village/pub from abandoning the application with `take-leave`.
+  `hiring/observe` includes `:candidate-home` only for known candidates; the applicant's own
+  situation names their home and explicitly says it is off-map, not a walking destination.
 - `engage {who position terms? bedroom?}` is final and replaces any previous offer. Anyone
   may offer a present candidate any position that is a post; no authority, sex or vacancy restriction.
   `who` is the arrived agent id, not the pool id. Walking to the candidate and interviewing
@@ -1713,8 +1723,16 @@ or promised. It does not select an existing villager.
   bed are not enforced. No wages or conditions are mechanically enforced. Both parties can
   see the agreed post later; a candidate's temporary situation becomes their appointment.
 - `send-away {who}` and the candidate's `take-leave` are final and end an unengaged visit.
-  Otherwise, departure is at the start of the third round after arrival or the last conversation
-  the candidate participated in. `:people/departed {id reason towards}` makes them `:away`,
+  Otherwise, automatic departure is after **24 in-world hours** since arrival or the last
+  conversation the candidate participated in, whichever is later. `candidate-wait-rounds`
+  rounds this up using the world's clock, so it never cuts the day short. Clockless worlds
+  use 24 rounds. Crossing midnight does not itself cause departure. Walking around, waiting
+  or working locally does not change their pool status from `:here`; they can be interviewed
+  and hired wherever they are present. Engaged staff are not timed out.
+  A candidate departs towards their `:candidate-home`, with `:off-map? true` making the narration
+  explicit about leaving the map. For legacy records without that field, it says "home"
+  off-map, not the old ungrounded `:lives` address. Recorded events are not rewritten.
+  `:people/departed {id reason towards off-map?}` makes them `:away`,
   clears location/travel/occupation and stops turns/calls; their notes and history survive,
   and everyone in the place they left remembers parting there (`:seen`).
   The offer closes and the pool entry becomes `:away`. Another `send-for` uses

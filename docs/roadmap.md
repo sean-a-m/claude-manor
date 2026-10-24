@@ -416,6 +416,11 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   and an away status. **Phases 1–4 implemented**; see the design's section 6.6 for hiring.
   Lodge's mock/offline day completes an interview and hire with conditions and a bedroom;
   tests cover privacy, pool bounds, refusal/return, departure timing, caps, failures and replay.
+  **Candidate waiting/home fix implemented:** a full 24-hour grace since arrival or latest
+  conversation (clockless worlds: 24 rounds), with briefs to wait locally while hiring is
+  pending. Potential hires get a dedicated generated off-map `:candidate-home`; no internal
+  area ids are presented as their addresses and `:origin` is unchanged. Explicit departure
+  remains possible, and courier/other visitor timing and homes are unchanged.
   **Descriptor-free generation implemented:** the server rolls basic traits/definitions only;
   the writer supplies one or two external circumstances with persona, manner and appearance.
   Raw readings stay in private prompts under **Faculties**; reputation selects readings and

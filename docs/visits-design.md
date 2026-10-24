@@ -299,7 +299,7 @@ von Visitsworth (baron-von-visitsworth)."
 - **Situation (identity):** the judge's or the world file's, set at spawn, and never
   rewritten. The exception is former candidates and couriers. Hiring and deliveries overwrite
   their situation with visit-specific text ("You have come about the cook place… You leave
-  after three rounds without a conversation"), which would be wrong for a guest. When such a
+  after a day without a conversation"), which would be wrong for a guest. When such a
   person arrives as a guest (code knows them by `hiring/for-agent` or the couriers map), one
   `:agent/updated` replaces it with a template from their record: "You are Pat Ellis, of
   Ely. You came to Claudeworth once before, about the cook's place." or "…; you carry for the

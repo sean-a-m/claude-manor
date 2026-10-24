@@ -12,6 +12,7 @@
                   :properties {:position {:type "string"}
                                :count {:type "integer" :minimum 1 :maximum generate/max-count}
                                :area {:type "string"}
+                               :candidate {:type "boolean" :description "For a potential hire: generate candidate-home outside the mapped area instead of lives; origin is unchanged."}
                                :setting {:type "string" :enum (vec (sort generate/settings))}
                                :seed {:type ["string" "integer"]}
                                :taken-names {:type "array" :items {:type "string"}}

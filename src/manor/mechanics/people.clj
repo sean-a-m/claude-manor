@@ -63,7 +63,7 @@
   Strip legacy descriptors, circumstances and prose, including from mock context.
   Definitions come from the shared data, never a prior character's interpretation."
   [record]
-  (-> (select-keys record [:name :age :sex :position :origin :lives])
+  (-> (select-keys record [:name :age :sex :position :origin :lives :candidate-home])
       (assoc :temperament (mapv (fn [{:keys [axis] :as t}]
                                  (assoc (select-keys t [:axis :level])
                                         :measures (axis-measures (keyword axis))))
@@ -130,6 +130,8 @@
        "An ordinary life is welcome: no obligatory vice, secret or dramatic misfortune. "
        "You may invent off-stage relatives and past employment, but not connections with existing named characters. "
        "Do not grant present jobs, authority, capabilities, money, items, property or new actionable world assets. "
+       "When candidate-home is supplied, it is this potential hire's home outside the mapped area, not a walking destination. "
+       "Keep it consistent; origin is their background, not a replacement home. "
        "Present lodging, other residents of this household, its rooms, and business services such as deliveries "
        "are authored elsewhere: do not invent or change them, even if they seem natural for the role. "
        "Do not invent facts about the present lives or conduct of other existing characters, including a spouse. "

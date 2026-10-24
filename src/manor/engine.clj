@@ -49,6 +49,7 @@
             [manor.mechanics.items.steward :as item-steward]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
+            [manor.mechanics.visits :as visits]
             [manor.world :as w])
   (:import (java.util.concurrent ExecutorService Future TimeUnit)))
 
@@ -318,6 +319,20 @@
 
 (defn cancel-calendar-entry! [run id]
   (operator! run #(calendar/command-events % :cancel {:id id})))
+
+(defn schedule-visit!
+  "Arrange a visit by someone in the world (see manor.mechanics.visits):
+  {:who \"mrs-bell\" :date \"1904-10-16\" :time \"15:00\" :stay \"to tea\"
+   :reason \"...\" :bedroom \"...\" :known-to [\"lord-claudeworth\"]}. The guest is
+  told at once in their calendar; :known-to (default nobody) get the host's
+  entry. The time must be at least the next round's. Throws if it can't be arranged."
+  [run spec]
+  (operator! run #(visits/operator-events % spec)))
+
+(defn cancel-visit!
+  "Cancel a visit not yet begun, with its calendar entries."
+  [run id]
+  (operator! run #(visits/operator-cancel-events % id)))
 
 (defn approve! [run req-id]
   (operator! run (fn [world]

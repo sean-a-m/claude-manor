@@ -147,6 +147,15 @@ Lady Day and Michaelmas) and seasonal observances for **1904–1905**. Edit
 there is no annual generation. The whole list is stored, but characters see only today through
 30 days ahead. These are known occasions, not automatic celebrations, days off or payments.
 
+Claudeworth runs also have visits (characters `invite` guests; see
+[the visits contract](docs/scenario-authoring.md#visits-manormechanicsvisits)), which the operator
+can arrange or cancel too:
+
+```clojure
+(schedule-visit! {:who "mrs-bell" :date "1904-10-16" :time "15:00" :stay "to tea" :known-to ["hale"]})
+(cancel-visit! "visit-1")
+```
+
 `roll-cast!` gives every character in a world file new traits from the people server
 (`mcp-servers/people/`) and persona, manner and appearance written from them, with **no old
 character descriptions as input** — only the authored `:situation`, sent as the polish's notes,

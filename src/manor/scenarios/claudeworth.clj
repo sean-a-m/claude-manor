@@ -17,7 +17,8 @@
   the public house and other places of trade (`find-allowed?`).
   An agent with a :routine in the world file (Mr Pugh) hibernates whenever
   nobody else is near: the routine says where they are and what they're doing,
-  and they make no model calls until someone comes into their area.
+  and they make no model calls until someone comes into their area, or a
+  visit they're invited to keeps them in play that day (manor.mechanics.visits).
 
     clojure -M:dev:run claudeworth --mock --test
     clojure -M:run claudeworth --test --max-cost 0.25"
@@ -32,6 +33,7 @@
             [manor.mechanics.people :as people]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
+            [manor.mechanics.visits :as visits]
             [manor.narrate :as narrate]
             [manor.scenarios.claudeworth.building :as building]
             [manor.scenarios.claudeworth.deliveries :as deliveries]
@@ -337,12 +339,13 @@
 (defn hibernate
   "Where `id`'s routine puts them now, {:activity :location}, as long as
   nobody else is in the place they're in or the place it puts them in
-  (when visiting another area: anywhere in that area); else nil. So people
+  (when visiting another area: anywhere in that area), and no visit keeps
+  them in play (an invited guest, on the day); else nil. So people
   elsewhere in the village don't wake them, nobody sees them taken off, and
   anyone arriving finds them where their routine has them."
   [world id]
   (when-let [{:keys [at doing]} (routine-now world id)]
-    (when-not (company? world id (watched world id at))
+    (when-not (or (visits/keeps-awake? world id) (company? world id (watched world id at)))
       {:activity doing :location at})))
 
 ;; ---------------------------------------------------------------------------
@@ -369,7 +372,9 @@
   (let [turn (duration (:minutes-per-round (:clock world)))
         max-queries (get-in world [:state :max-queries] 2)
         architect? (some #(contains? (:services %) :architect) (vals (get-in world [:space :locations])))]
-    (str hiring/rules "\n\nEach turn is " turn " of game time, and you take one turn-ending action per turn. "
+    (str hiring/rules
+         (when (visits/config world) (str "\n\n" visits/rules))
+         "\n\nEach turn is " turn " of game time, and you take one turn-ending action per turn. "
          "`walk` takes you at once to any place under `walkable` in your view, and doesn't end your turn: walk, then act there. Its reply shows the place, who is there and what is there, so you needn't `look` on arriving. "
          "`travel` goes to another area: use a place id from `places`, or an area name. It takes your turn; `journeys` "
          "in your view shows how long each journey takes, and a longer one leaves you travelling until you arrive. "
@@ -695,41 +700,42 @@
     (filterv #(= :quote-goods (:name %)) shop/actions)))
 
 (def scenario
-  (deliveries/install
-   (hiring/install
-    {:name :claudeworth
-     :doc "Claudeworth Manor, 1904: a family and their servants, a village architect, shops, a public house and cottage trades, living from day to day."
-     :scene scene/hooks
-     :init (comp holidays/add-to init)
-     :calendar {:lookahead-days 30}
-     :roles roles
-     :agent-brief agent-brief
-     :on-spawn positions/starting-events
-     :actions (vec (concat actions building/actions shop/actions hiring/actions))
-     :adjudicators (merge shop/adjudicators hiring/adjudicators)
-     :bridges (merge building/bridges hiring/bridges)
-     :offline-stubs (merge building/offline-stubs hiring/offline-stubs)
-     :mcp-servers (merge building/mcp-servers people/mcp-servers)
-     :systems [building/construction]
-     :items {:steward {:at "02:00" :idle-hours 4 :max-per-call 8}
-             :find-allowed? find-allowed?
-             :judge-brief judge-brief
-             :aspect-keys {:cleanliness "how clean or dirty it is" :repair "damage, wear or needed repairs"
-                           :state "its present condition, where no other key fits"
-                           :amount "how much there is of a single thing"
-                           :stock "a store's general level of supplies" :lacking "what a store has run out of"
-                           :dress "what a person is wearing, where it differs from usual"
-                           :hair "how a person's hair is done, where it differs from usual"
-                           :grime "dirt or stains on a person, where they show"}}
-     :inner {:keys {:mood "their spirits and emotions now"
-                    :body "how their body is, as only they know it"
-                    :mind "what they're preoccupied with, anticipating or dreading"}
-             :open 2}
-     :exclude-actions #{:move :work-on}
-     :speaking-actions speaking-actions
-     :hibernate hibernate
-     :reference reference
-     :observe observe
-     :mock-policy mock-policy
-     :mock-conversation mock-conversation}
-    "carriage-sweep")))
+  (visits/install
+   (deliveries/install
+    (hiring/install
+     {:name :claudeworth
+      :doc "Claudeworth Manor, 1904: a family and their servants, a village architect, shops, a public house and cottage trades, living from day to day."
+      :scene scene/hooks
+      :init (comp holidays/add-to init)
+      :calendar {:lookahead-days 30}
+      :roles roles
+      :agent-brief agent-brief
+      :on-spawn positions/starting-events
+      :actions (vec (concat actions building/actions shop/actions hiring/actions))
+      :adjudicators (merge shop/adjudicators hiring/adjudicators)
+      :bridges (merge building/bridges hiring/bridges)
+      :offline-stubs (merge building/offline-stubs hiring/offline-stubs)
+      :mcp-servers (merge building/mcp-servers people/mcp-servers)
+      :systems [building/construction]
+      :items {:steward {:at "02:00" :idle-hours 4 :max-per-call 8}
+              :find-allowed? find-allowed?
+              :judge-brief judge-brief
+              :aspect-keys {:cleanliness "how clean or dirty it is" :repair "damage, wear or needed repairs"
+                            :state "its present condition, where no other key fits"
+                            :amount "how much there is of a single thing"
+                            :stock "a store's general level of supplies" :lacking "what a store has run out of"
+                            :dress "what a person is wearing, where it differs from usual"
+                            :hair "how a person's hair is done, where it differs from usual"
+                            :grime "dirt or stains on a person, where they show"}}
+      :inner {:keys {:mood "their spirits and emotions now"
+                     :body "how their body is, as only they know it"
+                     :mind "what they're preoccupied with, anticipating or dreading"}
+              :open 2}
+      :exclude-actions #{:move :work-on}
+      :speaking-actions speaking-actions
+      :hibernate hibernate
+      :reference reference
+      :observe observe
+      :mock-policy mock-policy
+      :mock-conversation mock-conversation}
+     "carriage-sweep"))))

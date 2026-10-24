@@ -262,7 +262,8 @@
                                      (cond-> (get locs id) (seq c) (assoc :connects-to c))))
                    :routes (export-routes routes start two-way?))
       (items/enabled? world) (assoc :items (export-items world start))
-      (:calendar world) (assoc :calendar (calendar/export-entries world))
+      ;; Entries a mechanic manages (visits) belong to records that aren't exported.
+      (:calendar world) (assoc :calendar (vec (remove :managed-by (calendar/export-entries world))))
       (:agents start) (assoc :agents (export-agents world start)))))
 
 (def ^:private key-order [:id :name])

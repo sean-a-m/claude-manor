@@ -1,7 +1,8 @@
 # Visits and guests
 
-Status: **proposal, not started; all questions settled.** Written 2026-10-23 from the user's
-brief and revised the same day with their answers (section 13).
+Status: **phase 1 implemented** (guests in the world; section 16 records the implementation
+choices); phases 2 and 3 not started. Written 2026-10-23 from the user's brief and revised the
+same day with their answers (section 13).
 
 ## 1. What this adds
 
@@ -652,3 +653,53 @@ Suggested homes:
 - `engine.clj` and `dev/user.clj` for operator helpers.
 
 Update the scenario-authoring contract when it's built.
+
+## 16. Implementation notes
+
+Phase 1 is in `src/manor/mechanics/visits.clj`, with the `:managed-by` branch in
+`mechanics/calendar.clj`, the guard in Claudeworth's `hibernate`, the operator commands in
+`engine.clj` and `dev/user.clj`, and the contract in `docs/scenario-authoring.md` (Visits).
+Tests: `test/manor/visits_test.clj` on the test-owned world `test/fixtures/visits.edn`. Where
+the design left a detail open, the simplest choice consistent with it was taken:
+
+- **Away guests are refused in phase 1** ("… is not in the neighbourhood now"), as nothing can
+  bring them yet. A visit whose guest leaves before the time lapses like any no-show. Phase 2
+  replaces both with arrival at the meeting place.
+- **`who` isn't checked against who the inviter knows.** Section 4.1's checks don't list it, so
+  any existing id is accepted.
+- **Visit ids** are `visit-N`, N one more than the number of visits so far (visits are never
+  removed). The calendar entries are `visit-N-host` and `visit-N-guest`.
+- **`:by` for arranged visits** is `:gm` or `:operator`, with `:host` nil, so the GM can see
+  where a visit came from.
+- **The invitee as their own messenger** knows at once (they hold the message); the messenger's
+  lead time still sets the earliest time.
+- **Delivery** is the round the lead time ends: `:deliver` is the first round starting at or after
+  now plus the lead time, and `:arrive` the first round starting at or after the given time.
+- **The wake round** is computed once, when the visit is made, from the guest's place then (or
+  where they're travelling to): the journey is the travel to the meeting place.
+- **The reminder** is sent the first time a visit keeps a guest with a routine (a hibernator) in
+  play, whether or not they were hibernating at that moment; if they are, the tick frees them
+  (`b/free`) with it. A guest without a routine never hibernates and has no reminder.
+- **Arriving (`:here`)** also needs the guest to have been told, so someone at the house for other
+  reasons before their letter comes isn't counted as having come.
+- **Lapses and calendar entries.** A lapsed or ended visit's entries are left as they are (they
+  drop out of view after their day); a cancelled visit's are cancelled. A guest entry is never
+  added for a time already past.
+- **Calendar text** is clipped to the calendar's 600 characters (a long `stay` and `reason` can
+  exceed it with the names); the house is named by `:house` in the config, from the world file's
+  `:meta :name`.
+- **Managed entries** are refused by `calendar/command-events` for any change and can't be passed
+  `:managed-by` by anyone; only `calendar/managed-command-events` with the owner changes them.
+  World-file export leaves them out, as it leaves out `[:state :visits]`.
+- **The rules paragraph** (phase-1 wording, only `who`) is added by Claudeworth's `rules` when
+  `[:state :visit-config]` is present, so worlds reusing those rules without visits (Lodge) don't
+  get it.
+- **`:bedroom`** is checked and recorded but not yet used: phase 2 assigns it to guests from
+  elsewhere.
+- **Without `:calendar`** (the test household scenario drops it), visits still run but no entries
+  are written.
+
+Left for phase 2: `person` and the invitation judge, away agents (world-file `:away? true`, the
+son), arrival at the meeting place, the `:guest` position, `you.visit`, beds for staying guests,
+the shared `take-leave`, `away-acquaintances`, the `:seen` fix on departure, the extracted arrival
+helper, and the GM's `:new` fields.

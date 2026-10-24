@@ -1,6 +1,8 @@
 (ns manor.mechanics.calendar
   "The in-world schedule: validation, commands, lifecycle and safe projections.
-  Review acknowledges an arrangement, never performs its promised effects."
+  Review acknowledges an arrangement, never performs its promised effects.
+  An entry may be owned by a mechanic (:managed-by, engine-owned, such as
+  :visits): it is never queued for GM review, and only its owner edits it."
   (:require [clojure.string :as str]
             [malli.core :as m]
             [manor.clock :as clock]
@@ -51,44 +53,62 @@
 
 (defn- event [type data] {:type type :visible-to :gm :data data})
 
+(defn- commands
+  "`command-events` for an `owner` (nil for the GM, operator and init, or a
+  mechanic such as :visits). Only the owner of a managed entry may change it."
+  [world op args initial? owner]
+  (when-not (:calendar world) (throw (ex-info "calendar is not enabled" {})))
+  (let [id (:id args)
+        old (get-in world [:calendar :entries id])
+        fields (dissoc args :lifecycle :managed-by)
+        entry (case op
+                :add (merge {:visible-to :gm} fields)
+                :update (cond-> (merge (dissoc old :lifecycle :managed-by) fields)
+                          (:date fields) (dissoc :at)
+                          (:at fields) (dissoc :date))
+                :cancel (dissoc old :lifecycle :managed-by))
+        rescheduled? (not= (select-keys old [:date :at]) (select-keys entry [:date :at]))
+        problem (or (when (and (= op :add) old) "calendar ID is already reserved")
+                    (when (and (not= op :add) (or (nil? old) (= :cancelled (get-in old [:lifecycle :status]))))
+                      "no non-cancelled calendar entry with that ID")
+                    (when (and (not= op :add) (not= owner (:managed-by old)))
+                      (if (:managed-by old)
+                        (str "that entry is managed by " (name (:managed-by old)) "; use cancel-visit")
+                        "that entry is not a managed entry"))
+                    (when (and (not initial?) (contains? args :lifecycle)) "lifecycle is engine-owned")
+                    (when (contains? args :managed-by) "managed-by is engine-owned")
+                    (entry-problem world entry)
+                    (when (and (not initial?) (not= op :cancel) rescheduled?) (past-problem world entry))
+                    (when (and initial? (:lifecycle args) (not (m/validate Lifecycle (:lifecycle args))))
+                      "invalid persisted calendar lifecycle"))]
+    (when problem (throw (ex-info problem {:id id})))
+    (let [status (cond
+                   (= op :cancel) :cancelled
+                   (and initial? (:lifecycle args)) (get-in args [:lifecycle :status])
+                   initial? (if (and (.isBefore (review-at entry) (now world))
+                                     (not (and (:date entry) (= (date-of entry) (.toLocalDate (now world))))))
+                              :historical :pending)
+                   rescheduled? :pending
+                   :else (get-in old [:lifecycle :status] :pending))
+          revision (if (and initial? (:lifecycle args)) (get-in args [:lifecycle :revision])
+                       (inc (get-in old [:lifecycle :revision] 0)))
+          record (cond-> (assoc entry :lifecycle {:status status :revision revision})
+                   owner (assoc :managed-by owner))]
+      [(event (case op :add :calendar/added :update :calendar/updated :cancel :calendar/cancelled)
+              {:entry record})])))
+
 (defn command-events
   "Checked commands shared by init, operator and GM. Throws on invalid commands.
-  Only initialization accepts persisted lifecycle metadata from an exported map."
+  Only initialization accepts persisted lifecycle metadata from an exported map.
+  Entries managed by a mechanic are refused here: see `managed-command-events`."
   ([world op args] (command-events world op args false))
-  ([world op args initial?]
-   (when-not (:calendar world) (throw (ex-info "calendar is not enabled" {})))
-   (let [id (:id args)
-         old (get-in world [:calendar :entries id])
-         fields (dissoc args :lifecycle)
-         entry (case op
-                 :add (merge {:visible-to :gm} fields)
-                 :update (cond-> (merge (dissoc old :lifecycle) fields)
-                           (:date fields) (dissoc :at)
-                           (:at fields) (dissoc :date))
-                 :cancel (dissoc old :lifecycle))
-         rescheduled? (not= (select-keys old [:date :at]) (select-keys entry [:date :at]))
-         problem (or (when (and (= op :add) old) "calendar ID is already reserved")
-                     (when (and (not= op :add) (or (nil? old) (= :cancelled (get-in old [:lifecycle :status]))))
-                       "no non-cancelled calendar entry with that ID")
-                     (when (and (not initial?) (contains? args :lifecycle)) "lifecycle is engine-owned")
-                     (entry-problem world entry)
-                     (when (and (not initial?) (not= op :cancel) rescheduled?) (past-problem world entry))
-                     (when (and initial? (:lifecycle args) (not (m/validate Lifecycle (:lifecycle args))))
-                       "invalid persisted calendar lifecycle"))]
-     (when problem (throw (ex-info problem {:id id})))
-     (let [status (cond
-                    (= op :cancel) :cancelled
-                    (and initial? (:lifecycle args)) (get-in args [:lifecycle :status])
-                    initial? (if (and (.isBefore (review-at entry) (now world))
-                                      (not (and (:date entry) (= (date-of entry) (.toLocalDate (now world))))))
-                               :historical :pending)
-                    rescheduled? :pending
-                    :else (get-in old [:lifecycle :status] :pending))
-           revision (if (and initial? (:lifecycle args)) (get-in args [:lifecycle :revision])
-                        (inc (get-in old [:lifecycle :revision] 0)))
-           record (assoc entry :lifecycle {:status status :revision revision})]
-       [(event (case op :add :calendar/added :update :calendar/updated :cancel :calendar/cancelled)
-               {:entry record})]))))
+  ([world op args initial?] (commands world op args initial? nil)))
+
+(defn managed-command-events
+  "`command-events` for entries owned by `owner` (a keyword such as :visits),
+  which marks what it adds with :managed-by and alone may change it."
+  [world op args owner]
+  (commands world op args false owner))
 
 (defn- store-entry [world entry]
   (let [id (:id entry)]
@@ -121,6 +141,7 @@
     (let [revisions (into (sorted-map)
                           (for [[id entry] (get-in world [:calendar :entries])
                                 :when (and (= :pending (get-in entry [:lifecycle :status]))
+                                           (not (:managed-by entry))
                                            (not (.isAfter (review-at entry) (now world))))]
                             [id (get-in entry [:lifecycle :revision])]))]
       (when (seq revisions) [(event :calendar/due {:revisions revisions})]))))

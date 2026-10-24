@@ -1858,6 +1858,12 @@ through `worldfile/load-world`'s `:calendar` from a world file:
   newly spawned cast members. If an entry names one, supply that cast record before starting
   a new run from the map; otherwise initial validation rejects the missing ID. Nothing is silently
   dropped or made public. Saved **load/branch** is the full-fidelity continuation path.
+- **Managed entries.** A mechanic may own entries: `calendar/managed-command-events world op
+  args owner` adds, updates or cancels them, marking them `:managed-by owner` (engine-owned:
+  `command-events` refuses it as an argument). They're **never queued for GM review**, and the
+  GM's and operator's update/cancel refuse them ("that entry is managed by visits; use
+  cancel-visit"). Characters see them like any entry; the GM sees the marker. World-file export
+  leaves them out, as their owner's records aren't exported. Visits are the one owner (below).
 - Calendar review never credits money, spawns a visitor or guarantees an outcome. Those need
   separate supported actions. No scheduling schemas are added to work/conversation judges or
   the steward. Scenarios without `:calendar` retain their existing prompts and tools.
@@ -1870,6 +1876,74 @@ other entries are retained and normal engine validation still applies. The base 
 loads only the supplied world: worlds reusing the rules without the holiday seed, such as Lodge,
 use that base init and omit scenario `:calendar`. The catalogue is an illustrative period list,
 not an exhaustive almanac; it has no recurrence and must be extended by hand beyond 1905.
+
+### Visits (`manor.mechanics.visits`)
+
+Phase 1 of [visits-design.md](visits-design.md): guests who are **in the world** (villagers, a
+candidate still about) invited to the house for a date and time. They make their own way;
+nobody moves them. Guests from elsewhere, the invitation judge and away agents are phase 2.
+
+- **Install** with `(visits/install scenario)` after `hiring/install` (it needs the meeting
+  place). It adds `invite`, the GM's `schedule-visit` and `cancel-visit`, the `:visits/tick`
+  system (after hiring's and deliveries'), and the config in `[:state :visit-config]`. It's
+  idempotent: `claudeworth-medium` re-installs on `cw/scenario`. The scenario needs a clock, and
+  `:calendar` for the guests' and hosts' entries (without it, visits still run but nobody's
+  calendar shows them). Both Claudeworth scenarios install it, and Claudeworth's `rules` add the
+  invitation paragraph (`visits/rules`) when the config is there.
+- **Config:** `visits/default-config`, then `{:house <world file :meta :name>}`, then the
+  scenario's `:visits`, then the run option `:visits`, merged in that order (`:lead-hours` key by
+  key):
+
+  ```clojure
+  :visits {:lead-hours {:in-person 0 :messenger 1 :post 3}  ; shortest gap from sending to expected
+           :from-away-hours 24  ; phase 2
+           :wake-from "06:00"   ; a guest is kept in play from this time on the visit's day
+           :lapse-hours 3       ; ... and is no longer expected this long after the time
+           :house "Claudeworth Manor"}
+  ```
+- **The record** in `[:state :visits]`, by id (`"visit-1"`, …): `:guest` (an agent id), `:host`
+  (nil when arranged by the GM or operator), `:by` (`:in-person`, `:post`, `:messenger`, `:gm`,
+  `:operator`), `:via`, `:at` (the ISO time given), `:arrive` (its round), `:deliver` (the round the
+  guest is told), `:wake` (the round from which they're kept in play), `:stay`, `:reason`,
+  `:bedroom` (recorded only, for phase 2), `:known-to` (arranged visits), `:told?`, `:reminded?` and
+  `:status`: `:scheduled` → `:here` → `:ended`, or `:lapsed` / `:cancelled`. The GM sees it in
+  the world state.
+- **`invite {by who date time stay reason? via? bedroom?}`** is free and once a turn. Checks are
+  structural, with reasons that say what to do: the guest exists, isn't you, the GM, retired,
+  away, or someone of the household (`positions/household-member?`, "they live here"); `in-person`
+  needs them here with you; `post` needs a place with the `:post-office` service (no hours
+  check); `messenger` needs `via` here with you, anyone but yourself, the invitee included;
+  `date`/`time` parse and are at least the channel's lead time from now ("by post, the earliest
+  they can be here is Saturday 15 October, 23:00"); `bedroom`, if given, is a `:bedroom`. Its
+  reply says who is expected when. Events: `:visits/scheduled` (GM-only, the record), the
+  host's calendar entry at once, and one per channel: `:visits/invited` (in person, seen by
+  both), `:visits/posted` ("posts a letter", seen by those present, no contents) or
+  `:visits/entrusted` (the message, seen by the inviter and the messenger).
+- **Telling.** In person, or when the invitee carries their own message, the guest knows at
+  once. Otherwise at `:deliver` (now plus the lead time) the tick sends `:visits/delivered` to the
+  guest alone ("A letter comes from Lord Claudeworth: …") with their calendar entry.
+- **Calendar entries** (`<visit-id>-host`, `<visit-id>-guest`) are written from the record and
+  managed by visits: the host side goes to the inviter only, or an arranged visit's `known-to`
+  (default nobody); the guest side goes to the guest from when they're told, saying where to
+  come (the meeting place's id). Nobody else is told. The GM never reviews them.
+- **The tick**, before turns, takes visits in id order, each step on the world the previous left:
+  tell at `:deliver`; the first time a visit keeps a guest with a routine in play, free them if
+  hibernating and send a private `:visits/reminded` ("You have an engagement: Claudeworth Manor at
+  10:00 (Lord Claudeworth's invitation)."); a told guest in the meeting place's walking area
+  (`space/area`) from an hour before the time is `:here`; a `:here` guest no longer in, or heading
+  to, that area has `:ended`; a guest who hasn't come `:lapse-hours` after the time, or is retired,
+  has `:lapsed`. Status events are GM-only.
+- **Hibernation guard.** `(visits/keeps-awake? world id)` is true from `:wake` (`:wake-from` on the
+  visit's day, or the day before when the visit is earlier than `:wake-from` plus their journey to
+  the meeting place and an hour, as for a 01:00 visit), once told, until the visit arrives, and
+  all the while it's `:here`. Claudeworth's `hibernate` returns nil while it's true, so the
+  ordinary `b/free` wakes them. Once the visit ends or lapses, hibernation resumes as usual.
+- **GM and operator.** `schedule-visit {who date time stay reason? bedroom? known-to?}` and
+  `cancel-visit {id}` are GM tools (final). Operators use `engine/schedule-visit!` and
+  `engine/cancel-visit!` (REPL: `schedule-visit!`, `cancel-visit!`), queued between rounds; they
+  throw with the reason. Their only lead time is the next round, and the guest is told at once
+  (their calendar entry: "You mean to call at …"). Only a `:scheduled` visit can be cancelled; its
+  entries are cancelled with it.
 
 ### Occupation: sleep and other long activities
 
@@ -1937,7 +2011,10 @@ each other in play. Keep it narrow (Claudeworth counts the agent's place and the
 place their routine puts them, not the whole village), or one visitor wakes everyone in the area. Placing the agent where they'd be (their office in office hours)
 matters: someone woken in the wrong place doesn't know why they were woken. Moving an agent between
 areas skips the journey, so only do it when nobody is there to see (Claudeworth checks both areas).
-Waking tells the agent that someone has come near; keep that in mind for scenarios where it matters.
+Waking usually means someone has come near, but it may also come from the agent's own plans: a
+visit keeps an invited guest in play all that day (Claudeworth's guard, see Visits), with a private
+reminder of the engagement. The wake narration names nobody either way; keep that in mind for
+scenarios where it matters.
 
 ### Conversations (`manor.mechanics.conversation`)
 

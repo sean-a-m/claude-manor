@@ -1,0 +1,47 @@
+;; A small fixed world for visits tests (test/manor/visits_test.clj), on Claudeworth's
+;; mechanics: a house with its carriage sweep (the meeting place), a village with a post
+;; office, and two villagers with routines who hibernate when nobody is near.
+;; Test-owned: don't sync it with the bundled worlds.
+{:meta {:name "Claudeworth Manor"
+        :start "1904-10-15T20:00"
+        :minutes-per-round 30
+        :starting-funds 100
+        :setting "Claudeworth Manor is a modest country house beside a small village with a post office and a forge."}
+
+ :locations
+ [{:id "carriage-sweep" :name "Carriage sweep" :domain :house :kind :approach
+   :connects-to ["entrance-hall"] :desc "A gravel turning circle before the front door."}
+  {:id "entrance-hall" :name "Entrance hall" :domain :house :kind :hall
+   :connects-to ["drawing-room" "earls-bedroom" "secretarys-room"] :desc "A modest hall."}
+  {:id "drawing-room" :name "Drawing room" :domain :house :kind :sitting-room :desc "Chintz chairs."}
+  {:id "earls-bedroom" :name "Earl's bedroom" :domain :house :kind :bedroom :desc "A large bed."}
+  {:id "secretarys-room" :name "Secretary's room" :domain :house :kind :bedroom :desc "A narrow bed."}
+  {:id "village-green" :name "Village green" :domain :village :kind :green
+   :connects-to ["post-office" "forge"] :desc "A sloping green."}
+  {:id "post-office" :name "Post office" :domain :village :kind :office :hours ["08:00" "18:00"]
+   :services #{:post-office} :connects-to ["postmistress-room"] :desc "A counter and a pillar box."}
+  {:id "postmistress-room" :name "Postmistress's room" :domain :village :kind :bedroom :desc "Behind the office."}
+  {:id "forge" :name "Forge" :domain :village :kind :workshop
+   :connects-to ["blacksmiths-room"] :desc "The smithy."}
+  {:id "blacksmiths-room" :name "Blacksmith's room" :domain :village :kind :bedroom :desc "Beside the forge."}]
+
+ :routes [["carriage-sweep" "village-green" 1]]
+
+ :roles
+ {:earl {:title "Earl" :standing :family :sleeps :in-house :about "You are the Earl of Claudeworth."}
+  :secretary {:title "Private secretary" :standing :upper-servant :sleeps :in-house :about "You are the earl's secretary."}
+  :postmistress {:title "Postmistress" :standing :villager :sleeps :out :about "You keep the post office."}
+  :blacksmith {:title "Blacksmith" :standing :villager :sleeps :out :about "You keep the forge."}
+  :none {:title "None" :about "You hold no position."}
+  :gm {:about "A quiet house and village."}}
+
+ :agents
+ [{:name "Lord Claudeworth" :role :earl :location "post-office" :bedroom "earls-bedroom"}
+  {:name "Hale" :role :secretary :location "drawing-room" :bedroom "secretarys-room"}
+  {:name "Mrs Bell" :role :postmistress :location "postmistress-room" :bedroom "postmistress-room"
+   :routine [{:from "08:00" :at "post-office" :doing "attending to the post office counter"}
+             {:from "18:00" :at "postmistress-room" :doing "having supper behind the office"}
+             {:from "22:00" :at "postmistress-room" :doing "asleep"}]}
+  {:name "Carter" :role :blacksmith :location "forge" :bedroom "blacksmiths-room"
+   :routine [{:from "07:00" :at "forge" :doing "working at the forge"}
+             {:from "19:00" :at "blacksmiths-room" :doing "resting by the fire"}]}]}

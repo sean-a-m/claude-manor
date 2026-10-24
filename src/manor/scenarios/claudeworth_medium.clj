@@ -15,19 +15,21 @@
     clojure -M:run claudeworth-medium --mock --test
     clojure -M:run claudeworth-medium --test --max-cost 0.25"
   (:require [manor.mechanics.hiring :as hiring]
+            [manor.mechanics.visits :as visits]
             [manor.scenarios.claudeworth :as cw]
             [manor.scenarios.claudeworth.deliveries :as deliveries]))
 
 (def scenario
-  (deliveries/install
-   (hiring/install
-    (assoc cw/scenario
-           :name :claudeworth-medium
-           :doc "Claudeworth Manor, 1904: a baron, his family and nine servants, the village tradespeople and the abbey, with new ironstone money and a house to enlarge."
-           :defaults {:world-file "worlds/claudeworth-medium.edn"
-                      :max-cost 10.00
-                      ;; Master Claudeworth is at school: in the world file, out of the run.
-                      :leave-out ["master-claudeworth"]}
-           :mock-policy (fn [ctx] (cw/scripted-policy {} ctx))
-           :mock-conversation (constantly nil))
-    "carriage-sweep")))
+  (visits/install
+   (deliveries/install
+    (hiring/install
+     (assoc cw/scenario
+            :name :claudeworth-medium
+            :doc "Claudeworth Manor, 1904: a baron, his family and nine servants, the village tradespeople and the abbey, with new ironstone money and a house to enlarge."
+            :defaults {:world-file "worlds/claudeworth-medium.edn"
+                       :max-cost 10.00
+                       ;; Master Claudeworth is at school: in the world file, out of the run.
+                       :leave-out ["master-claudeworth"]}
+            :mock-policy (fn [ctx] (cw/scripted-policy {} ctx))
+            :mock-conversation (constantly nil))
+     "carriage-sweep"))))

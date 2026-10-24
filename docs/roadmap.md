@@ -502,6 +502,40 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
     now. If a judge decides something grave happened, it stands. Revisit only if it causes
     problems in the simulation.
 
+### B14. Visits and guests
+
+- **Why:** nobody can come to the manor except candidates and couriers. The household can't
+  have anyone to dine or to stay, and the medium household's son has no way to come home
+  (household proposal, decision 6).
+- **Design:** [visits-design.md](visits-design.md), a proposal written and revised with the
+  user's answers on 2026-10-23, not started. It covers:
+  - an `invite` action for anyone (in person, by post from the post office, or by any
+    messenger present) and a GM `schedule-visit` for secret visits, making one visit record,
+    scheduled by code with configurable lead times;
+  - an invitation judge that settles who a description means ("my father, Baron von
+    Visitsworth"): an existing person, or a new one written and spawned `:away`;
+  - away characters in world files (the son), never evicted;
+  - villagers kept awake all day when invited, coming by themselves;
+  - guests from elsewhere appearing at the meeting place, seen only there and by the host;
+  - guests leaving when they choose with `take-leave` (no timeout, no `send-away`).
+  It shares hiring's arrival and departure code but keeps separate tools. Three phases; section
+  13 records the decisions; none are open.
+- **Deferred, by the user's decision:**
+  - **Coherent comings and goings:** a railway station, a hired fly or the guest's own
+    carriage, timetabled arrivals, luggage and attendants. Until then guests from elsewhere
+    appear at the meeting place and vanish when they leave.
+  - **Replies and refusals:** an invitee who declines, proposes another day or doesn't answer.
+    Until then every invitation is accepted, whoever is invited, and anyone may invite.
+  - **A larger postal or remote communication system:** letters as items, postal transport
+    and delivery, telegrams, correspondence with people elsewhere, with invitations as one kind
+    of message.
+- **Also deferred (design section 14):**
+  - cancelling invitations in-world;
+  - invitations to places other than the manor;
+  - a `recommend`-like query for guests;
+  - postage costs;
+  - per-place travel distances for people from elsewhere.
+
 ---
 
 ## C. Known issues and small fixes

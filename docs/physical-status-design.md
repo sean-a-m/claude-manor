@@ -29,6 +29,15 @@ can't see keeps the exits and `last-seen` in their view, reasons don't list the 
 here for them, and `parted` doesn't record a sighting by or of them in `last-seen` (nor for the
 unconscious). `w/done-to` also names an `:item/taken`'s `:from-person`.
 
+The immediate act uses a final action's `:judge-job` hook, sharing the work judge rather
+than registering a separate query adjudicator. It spends the final action even if judgement
+fails. In simultaneous groups it follows existing final-action semantics: proposals run
+concurrently, then acts are checked and judged in schedule order; their result is in the
+events rather than the already-returned proposal reply. Judged physical changes follow the
+work or act event as the existing physical events, with their own stored audiences and
+interrupts; inner changes remain GM-only. Answer-list bounds allow all faculties of the
+worker and six named people, and transfers have no arbitrary item-count limit.
+
 ## 1. What this adds
 
 A first, mostly hard-coded layer of physical state on people, so the simulation can hold

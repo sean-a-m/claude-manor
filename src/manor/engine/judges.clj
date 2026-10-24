@@ -48,18 +48,22 @@
 (defn ask-judge
   "Ask the judge what `job` did to the judged `things` (see
   items/judged-things): {:summary :changes}, with :inner when the scenario
-  has inner state and it changed, or {:failure reason}. A bad
+  has inner state and it changed, :physical for changes to bodies and, for
+  an immediate act (a job with :act?), :moved, or {:failure reason}. An
+  act's recent lines are the actor's last, not those since a job began. A bad
   answer is sent back with the reason and asked once more. Each call is
   recorded in llm.edn as agent \"judge\", and its usage counts towards the
   run's cost."
   [run world job work things]
-  (let [work (assoc work :recent (prompt/scene-recent world (run/events run) job))
+  (let [work (assoc work :recent (if (:act? job)
+                                   (prompt/recent-lines world (run/events run) (:actor job))
+                                   (prompt/scene-recent world (run/events run) job)))
         request (assoc (item-judge/judge-request (:scenario run) world job work)
                        :label "judge" :defer-records? true
                        :ctx (assoc (select-keys work [:minutes :stopped-early? :luck])
                                    :role :judge :world world :job job :things things
                                    :focus (item-work/focus-things world job)))
-        {:keys [verdict] :as result} (ask-structured! run "judge" request #(item-judge/judgement % world things (get-in run [:scenario :inner])))]
+        {:keys [verdict] :as result} (ask-structured! run "judge" request #(item-judge/judgement % world things (get-in run [:scenario :inner]) job))]
     (assoc result :verdict verdict)))
 
 (defn ask-conversation-judge

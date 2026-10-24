@@ -1,12 +1,14 @@
 (ns manor.engine.resolve
   "Applying what an agent calls: `resolve!` checks an action against the
-  current world and applies its effect, and `run-query!` runs a query
-  (a bridge, an adjudication or a composed query) and its :on-result."
+  current world and applies its effect (judging it first, for one with
+  :judge-job), and `run-query!` runs a query (a bridge, an adjudication or a
+  composed query) and its :on-result."
   (:require [manor.actions :as a]
             [manor.engine.judges :as judges]
             [manor.engine.run :as run]
             [manor.io.bridge :as bridge]
             [manor.mechanics.builtins :as b]
+            [manor.mechanics.items.work :as item-work]
             [manor.prompt :as prompt]
             [manor.world :as w]))
 
@@ -28,27 +30,53 @@
     (when-let [by (:interrupted-by (w/busy @(:world run) actor))]
       (run/emit! run [(b/free @(:world run) actor by)]))))
 
+(defn- reply-text [data]
+  (if (string? data) data (prompt/->json data)))
+
+(defn- resolve-judged!
+  "Check a turn-ending action with :judge-job, have the work judge decide
+  it at once, outside the lock, and apply its :on-result. Its :reply is
+  the tool result. A failed judgement still applies, with no verdict."
+  [run actor action args keep-occupation?]
+  (if-let [reason (a/check action @(:world run) actor args)]
+    {:rejected reason}
+    (let [_ (when-not keep-occupation? (stop-interrupted! run actor action))
+          world @(:world run)
+          {:keys [job work]} ((:judge-job action) world actor args)
+          result (select-keys (judges/ask-judge run world job work (item-work/judged-things world job))
+                              [:verdict :failure :records])]
+      (locking (:world run)
+        (doseq [record! (:records result)] (record!))
+        (let [result (assoc (dissoc result :records) :job job :work work)
+              before (count @(:events run))]
+          (run/emit! run (mapv #(cond-> % (not (:actor %)) (assoc :actor actor))
+                               ((:on-result action) @(:world run) actor args result)))
+          {:ok true :world @(:world run)
+           :reply (reply-text ((:reply action) @(:world run) actor args
+                               (assoc result :events (subvec @(:events run) before))))})))))
+
 (defn resolve!
   "Check and apply an action against the current world, atomically.
   Returns {:ok true :world world-after} or {:rejected reason}. With
   `keep-occupation?` (a speaking turn in a conversation) an interrupted
-  occupation goes on: the agent still decides on their own turn."
+  occupation goes on: the agent still decides on their own turn. An action
+  with :judge-job is judged first (see `resolve-judged!`), and its result
+  has the :reply."
   ([run actor action args] (resolve! run actor action args false))
   ([run actor action args keep-occupation?]
-   (locking (:world run)
-     (let [world @(:world run)]
-       (if-let [reason (a/check action world actor args)]
-         {:rejected reason}
-         (do (when-not keep-occupation? (stop-interrupted! run actor action))
-             (let [events (action-events action @(:world run) actor args)]
-               (run/emit! run events)
-               (when (some #(= :agent/moved (:type %)) events)
-                 (when-let [hibernate (:hibernate (:scenario run))]
-                   (run/emit! run (b/wakings hibernate @(:world run))))))
-             {:ok true :world @(:world run)}))))))
-
-(defn- reply-text [data]
-  (if (string? data) data (prompt/->json data)))
+   (if (:judge-job action)
+     (resolve-judged! run actor action args keep-occupation?)
+     (locking (:world run)
+       (let [world @(:world run)]
+         (if-let [reason (a/check action world actor args)]
+           {:rejected reason}
+           (do (when-not keep-occupation? (stop-interrupted! run actor action))
+               (let [events (action-events action @(:world run) actor args)]
+                 (run/emit! run events)
+                 (when (some #(= :agent/moved (:type %)) events)
+                   (when-let [hibernate (:hibernate (:scenario run))]
+                     (run/emit! run (b/wakings hibernate @(:world run))))))
+               {:ok true :world @(:world run)})))))))
 
 (defn free-reply
   "The tool result for an accepted free action: its :reply (a string as is,

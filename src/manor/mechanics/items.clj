@@ -444,6 +444,27 @@
 (defmethod w/apply-event :item/work-ended [world {:keys [data]}]
   (update world :item-jobs dissoc (:job data)))
 
+(defn- moved
+  "Move one thing as an act's `moved` says: into someone's hands (:holder)
+  or down at a place (:place)."
+  [world {:keys [item holder place]}]
+  (touch (update-in world [:items item] #(if holder
+                                           (-> % (dissoc :place :in) (assoc :holder holder))
+                                           (-> % (dissoc :holder :in) (assoc :place place))))
+         item))
+
+;; An immediate act on people (manor.mechanics.items.actions `act-on`): its
+;; event is built in manor.mechanics.items.work, its statuses follow as their
+;; own events (manor.mechanics.physical)
+(defmethod w/apply-event :person/acted-on [world {:keys [data]}]
+  (as-> world world
+    (reduce touch world (filter #(item world %) (:with data)))
+    (reduce changed world (:changes data))
+    (reduce moved world (:moved data))))
+
+(defmethod w/perceived-by :person/acted-on [_] :sight)
+(defmethod w/done-to :person/acted-on [{:keys [data]}] (:on data))
+
 ;; The steward's and finding's events (manor.mechanics.items.steward, .find)
 (defmethod w/apply-event :items/steward-ran [world {:keys [data]}]
   (assoc world :items-steward-day (:day data)))
@@ -550,6 +571,18 @@
          (when (seq made)
            (str " Made: " (str/join "; " (for [it made] (str (:name it) (when (:in it) (str " in " (the names (:in it)))))))
                 ".")))))
+
+(defn- moved-text
+  "\"the jewel case to Will\", \"the poker put down\"."
+  [names {:keys [item holder]}]
+  (str (the names item) (if holder (str " to " (n/who names holder)) " put down")))
+
+(defmethod n/describe :person/acted-on [{:keys [actor data]} names]
+  (let [{:keys [on doing summary changes moved]} data]
+    (str (n/who names actor) " acts on " (str/join ", " (map #(n/who names %) on)) ": " doing "."
+         (when summary (str " " summary))
+         (when (seq changes) (str " (" (changes-text names changes) ")."))
+         (when (seq moved) (str " Moved: " (str/join "; " (map #(moved-text names %) moved)) ".")))))
 
 (defmethod n/describe :item/work-ended [{:keys [actor data]} names]
   (if (= :retired (:reason data))

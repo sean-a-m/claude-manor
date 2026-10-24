@@ -71,14 +71,26 @@
               death (conj (died world id (when (string? death) death))))]
     (into evs (interrupts (reduce w/apply-event world evs) [id] by))))
 
+(defn judged-events
+  "Events making the judged `changes` ([[id change] ...], see
+  `change-events`), person by person, each on the world after the ones
+  before, with interruptions by `by`."
+  [world changes by]
+  (second (reduce (fn [[world evs] [id change]]
+                    (let [more (change-events world id change by)]
+                      [(reduce w/apply-event world more) (into evs more)]))
+                  [world []] changes)))
+
 (defn problem
   "Why `change` (see `change-events`) can't be made to `id`, or nil: they
-  must be alive and taking part, each faculty's level one it allows, and
-  their impediments well formed afterwards."
-  [world id {:keys [physical impediments]}]
+  must be taking part (alive, for a status or death, while the dead may
+  have impediments), each faculty's level one it allows, and their
+  impediments well formed afterwards."
+  [world id {:keys [physical impediments] death :died}]
   (let [after (:impediments (w/agent (w/apply-event world (impediments-changed world id impediments)) id))]
     (cond
-      (not (w/active? world id)) (str "no living participant with id " id)
+      (and (or (seq physical) death) (not (w/active? world id))) (str "no living participant with id " id)
+      (not (or (w/active? world id) (w/dead? world id))) (str "no participant with id " id)
       :else
       (or (first (for [{:keys [faculty level minutes]} physical
                        :let [levels (get physical/faculties faculty)]

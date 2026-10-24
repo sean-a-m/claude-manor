@@ -11,8 +11,34 @@
             [manor.mechanics.inner :as inner]
             [manor.mechanics.items :as items]
             [manor.mechanics.items.work :as item-work]
+            [manor.mechanics.physical :as physical]
+            [manor.mechanics.physical.changes :as physical-changes]
             [manor.mechanics.space :as space]
             [manor.world :as w]))
+
+(def max-physical
+  "Enough entries to change every faculty of the worker and six named people."
+  (* (inc items/max-work-items) (count physical/faculties)))
+
+(def physical-entries
+  "The judge's answer about bodies (manor.mechanics.physical): statuses set
+  or cleared, impediments, and deaths."
+  [[:physical {:optional true}
+    [:vector {:max max-physical}
+     [:map
+      [:person :string]
+      [:faculty (into [:enum] (keys physical/faculties))]
+      [:level [:enum :normal :impeded :disabled]]
+      [:cause {:optional true} [:string {:min 1 :max physical/max-cause :json-schema/maxLength items/advised-aspect}]]
+      [:minutes {:optional true} [:int {:min 1}]]]]]
+   [:impediments {:optional true}
+    [:vector {:max max-physical} [:map [:person :string] [:key :string] [:value [:string {:max items/max-aspect :json-schema/maxLength items/advised-aspect}]]]]]
+   [:died {:optional true}
+    [:vector {:max (inc items/max-work-items)} [:map [:person :string] [:cause {:optional true} [:string {:min 1 :max physical/max-cause :json-schema/maxLength items/advised-aspect}]]]]]])
+
+(def moved-entry
+  "An act's things moved: each to a judged person's id, or \"place\"."
+  [:moved {:optional true} [:vector [:map [:item :string] [:to :string]]]])
 
 (def judge-schema
   [:map
@@ -32,26 +58,38 @@
                              [:in {:optional true} :string]]]]
    [:summary [:string {:min 1 :max items/max-summary}]]])
 
-(defn answer-schema
-  "The judge's answer: `judge-schema`, and with inner state (the scenario's
-  :inner, see manor.mechanics.inner) an `inner` list beside `changes`. The
-  steward's schema comes from it, without `made`."
-  [inner-config]
-  (if inner-config
-    (let [[m changes & more] judge-schema] (into [m changes inner/answer-entry] more))
-    judge-schema))
+(def ^:private not-in-acts
+  "What an immediate act can't do: use up, absorb or make things."
+  #{:used-up :absorbed :fates :made})
 
-(defn- judge-tool [inner-config]
+(defn answer-schema
+  "The judge's answer: `judge-schema` with `physical-entries` before the
+  summary, and with inner state (the scenario's :inner, see
+  manor.mechanics.inner) an `inner` list beside `changes`. For an
+  immediate act (`act?`), nothing used up, absorbed or made, and `moved`
+  instead. The steward's schema comes from it."
+  ([inner-config] (answer-schema inner-config false))
+  ([inner-config act?]
+   (let [[m changes & more] judge-schema
+         summary (last more)
+         more (cond->> (butlast more) act? (remove #(not-in-acts (first %))))]
+     (into [m changes] (concat (when inner-config [inner/answer-entry]) more physical-entries
+                               (when act? [moved-entry]) [summary])))))
+
+(defn- judge-tool [inner-config act?]
   {:type "function"
    :function {:name "judge"
-              :description (str "Give your judgement: each aspect the work changed (the thing's or person's id, the aspect's key, "
+              :description (str "Give your judgement: each aspect the " (if act? "act" "work") " changed (the thing's or person's id, the aspect's key, "
                                 "and its new value: a phrase of at most " items/advised-aspect " characters, or \"\" to remove it), "
                                 (when inner-config
                                   "each part of a judged person's inner state it changed (`inner`: their id, the key, and the new value, or \"\" to clear it), ")
-                                "the ids of consumable items it used up and their fates, things absorbed into stores, "
-                                "at most " items/max-made " things made or drawn from stores, "
+                                (if act?
+                                  "the statuses, impediments and deaths of judged people it caused or ended, the things it moved, "
+                                  (str "the ids of consumable items it used up and their fates, things absorbed into stores, "
+                                       "at most " items/max-made " things made or drawn from stores, "
+                                       "any statuses, impediments and deaths of judged people it caused or ended, "))
                                 "and a summary of at most " items/max-summary " characters.")
-              :parameters (mjs/transform (answer-schema inner-config))}})
+              :parameters (mjs/transform (answer-schema inner-config act?))}})
 
 (def judge-instructions
   (str "You judge the results of an activity in a simulation. Someone has spent time on work or a pastime. "
@@ -61,11 +99,11 @@
 - Most activities change little, and a pastime often changes nothing. Empty changes, used-up, absorbed and made lists are normal, successful answers. Resting in the garden need not change anything. Do not invent events to make the activity eventful, even for an unusual luck roll.
 - A store holds everything it `keeps` unless its aspects say otherwise. The listed items are notable things, not everything available.
 - You may change aspects of the place, focus, also_here, stores and the people marked `person`. Only consumables in focus or also_here may be used up. Other people and recent lines are context, not things to change.
-- A person's aspects say how they are now, where it shows and lasts beyond the activity: dress, hair, hands and face, dirt and wet, a visible injury. Never moods or feelings. Their `appearance` is how they usually look; aspects record departures from it, and an aspect that only restates it should be removed. Most work leaves the worker as they were. Change another person only when the activity was done to them. People can't be used up, absorbed or made, and nothing can be put in them.
+- A person's aspects say how they are now, where it shows and lasts beyond the activity: dress, hair, hands and face, dirt and wet. Never moods or feelings, and never hurts or hindrances, which are impediments and statuses (below). Their `appearance` is how they usually look; aspects record departures from it, and an aspect that only restates it should be removed. Most work leaves the worker as they were. Change another person only when the activity was done to them. People can't be used up, absorbed or made, and nothing can be put in them.
 - A thing's `aspects` say what's notable about its state, each under its own key: cleanliness, repair, state, amount, stock and the like. A change sets one aspect of one thing: `thing` (its id), `aspect` (the key) and `value` (a short phrase of at most " items/advised-aspect " characters saying how it is now).
 - Change only the aspects the activity affected, and leave the others alone: polishing a cabinet changes its cleanliness, not its repair. Use a key the thing already has where one fits; a new key is lower-case letters and hyphens, at most 24 characters. A thing has at most " items/max-aspects " aspects. To remove an aspect that no longer applies, give it the value \"\".
 - Leaving any thing untouched is always a valid answer. Leave out anything the work left unchanged.
-- An activity happens in one place and you cannot move things. Taking or carrying something elsewhere is not using it up: leave it where it is; the person carries things with `take` and movement actions.
+- An activity happens in one place and you cannot move things (only an immediate act can, below). Taking or carrying something elsewhere is not using it up: leave it where it is; the person carries things with `take` and movement actions.
 - When leftovers or supplies are put away into a store in scope (leftovers set in the pantry, groceries shelved), absorb them into that store: they join its stock and get a put-away fate. Adjust the store's aspects if its stock or lacking changes. Never describe a thing as moved or put away in its aspects while leaving it where it is. If something isn't put away or consumed, leave it as it is.
 - The `place` entry is the place itself: its aspects describe the room as a whole (floor, hearth, air), not the things in it, which have their own entries.
 - `Carrying` lists the notable things the worker holds. Their clothes and the everyday things work needs (a needle, a cloth, a basket) are never listed there, but they are to hand. Sometimes an activity assumes a particular notable thing that someone said they brought, handed over or set aside (a parcel, packets of goods, a letter) that is neither in the scene nor carried: only such a thing doesn't exist. Never write as if it was counted, used, moved or set out, in the summary or in aspects; do the rest of the work and say in the summary that it wasn't there. A store still holds the everyday supplies it keeps, and work may draw on them as usual.
@@ -77,6 +115,12 @@
 - `absorbed: [{thing, into}]` puts a thing from focus or also_here away in a store in scope (`into`, its id). Only unfixed, non-store things marked `consumable` or `drawn_from` can be absorbed. A container can go only with all its contents absorbed too. Do not absorb something still individually important.
 - A thing listed with `in` is inside another of the things listed. The work may or may not have touched it: leave it out if it didn't.
 - Luck is a roll from 1 to 100, and 50 is ordinary: low luck can mean mishaps (a slip, a breakage), high luck can mean it went unusually well. The roll alone does not require a change.
+- People in `people` may show `physical`, the statuses of their faculties with a cause, and `impediments`, smaller physical hurts (a cut finger, a sprained wrist); someone marked `dead` is dead. Take them into account: someone bound can't polish the silver, and a cut hand makes fine work slower. Movement impeded keeps them to a few steps nearby; disabled, they can't move. Grasp impeded makes handling things awkward; disabled, they can't pick up or hand over anything. Speech impeded, they're heard only as muffled noises; disabled, not at all. Sight or hearing disabled, they can't see or hear. Consciousness disabled is unconscious.
+- Most activities change none of these: leave `physical`, `impediments` and `died` out. A mishap on low luck may leave an impediment (a cut finger, a scald), and care given to someone may ease or clear one.
+- `physical: [{person, faculty, level, cause?, minutes?}]` sets a judged person's faculty: level `normal` clears it; movement, grasp and speech can be `impeded` or `disabled`, sight, hearing and consciousness only `disabled`. `cause` is a short phrase (\"bound hand and foot with curtain cord\"), at most " items/advised-aspect " characters. For someone knocked unconscious, `minutes` says how long until they come to; without it they stay out until someone revives them.
+- `impediments: [{person, key, value}]` sets a judged person's impediment as aspects are set: a key (hand, ankle, face), a short phrase, or \"\" to remove it. A person has at most " items/max-impediments " impediments.
+- `died: [{person, cause?}]` records that a judged person was killed. Death is final; the dead can still have aspects and impediments changed, and what they carry moved.
+- An immediate act, marked so in the activity, is something done to people at once, in a few minutes: taking hold of someone, binding or gagging them, striking or searching them, freeing or reviving them. It may set or clear any faculty, add or remove impediments, or kill, as the scene warrants, and nothing is used up, absorbed or made. It may move what the actor or the people acted on carry (their `carrying`): `moved: [{item, to}]`, with `to` a judged person's id (into their hands) or \"place\" (dropped here).
 - The summary is one or two sentences, past tense, third person, for the people present, at most " items/max-summary " characters."))
 
 (def pretty (json/object-mapper {:pretty true}))
@@ -97,12 +141,15 @@
 
 (defn- people-json
   "The scene's people as the judge sees them: judged ones with their id,
-  appearance and aspects, marked :person; others by name only. With inner
-  state (`inner-config`), everyone's is shown, and the judged people's
-  temperament, persona and situation too."
+  appearance and aspects, marked :person, and for an act what they carry;
+  others by name only; everyone with their physical statuses, impediments
+  and whether they're dead. With inner state (`inner-config`), everyone's is
+  shown, and the judged people's temperament, persona and situation too."
   [world inner-config people]
   (mapv (fn [{:keys [id person?] :as p}]
-          (cond-> (select-keys p (if person? [:id :name :appearance :aspects :doing] [:name :doing]))
+          (cond-> (select-keys p (if person?
+                                   [:id :name :appearance :aspects :physical :impediments :dead :doing :carrying]
+                                   [:name :physical :impediments :dead :doing]))
             (and inner-config person?) (merge (select-keys (w/agent world id) [:temperament :persona :situation]))
             inner-config (assoc :inner (inner/judge-view inner-config world id))
             person? (assoc :person true)))
@@ -112,7 +159,8 @@
   "The scene judge's request, including only the worker's shared recent lines
   supplied by the engine through prompt/scene-recent."
   [scenario world job {:keys [minutes stopped-early? luck recent]}]
-  (let [worker (w/agent world (:actor job))
+  (let [act? (:act? job)
+        worker (w/agent world (:actor job))
         brief (when-let [f (get-in scenario [:items :judge-brief])] (f world))
         suggested (get-in scenario [:items :aspect-keys])
         inner-config (:inner scenario)
@@ -123,7 +171,7 @@
                     :stores (mapv #(assoc (items/store-view (:place job) %) :keeps (get-in % [:store :keeps])) stores)
                     :people (people-json world inner-config people) :recent (vec (take-last 10 recent))}
         scene-json (cond-> scene-json (:reference job) (assoc :reference (:reference job)))]
-    {:tools [(judge-tool inner-config)]
+    {:tools [(judge-tool inner-config act?)]
      :messages
      [{:role "system"
        :content (str judge-instructions
@@ -135,14 +183,16 @@
       {:role "user"
        :content (str "# The activity\n\n"
                      "- Time: " (if-let [c (:clock world)] (clock/label c (:round world)) (str "round " (:round world))) "\n"
-                     "- Worker: " (:name worker) (when-not (str/blank? (:persona worker)) (str ". " (:persona worker))) "\n"
+                     (when act? "- An immediate act, a few minutes: done to the people named, judged at once\n")
+                     (if act? "- Actor: " "- Worker: ") (:name worker) (when-not (str/blank? (:persona worker)) (str ". " (:persona worker))) "\n"
                      "- Place: " (:name (space/location world (:place job)) (:place job)) "\n"
                      "- Doing: " (:doing job) "\n"
+                     (when act? (str "- On: " (str/join ", " (map #(str (:name (w/agent world %)) " (" % ")") (:people job))) "\n"))
                      "- Carrying: " (let [held (items/by-name (items/held-by world (:actor job)))]
                                       (if (seq held) (str/join ", " (map #(str (:name %) " (" (:id %) ")") held)) "nothing"))
                      "\n"
                      (when (:quick? job) "- Quick job: putting things away; no occupation or time needed\n")
-                     "- Time worked: " minutes " minutes" (if stopped-early? "; they stopped early" ", as planned") "\n"
+                     (when-not act? (str "- Time worked: " minutes " minutes" (if stopped-early? "; they stopped early" ", as planned") "\n"))
                      "- Luck: " luck "\n\n"
                      "## The scene\n```json\n"
                      (json/write-value-as-string scene-json pretty)
@@ -301,10 +351,85 @@
           (seq changes) (assoc v :inner changes)
           :else v)))
 
-(defn- verdict [world arguments things inner-config]
-  (let [{:keys [args error]} (a/decode-args {:args (answer-schema inner-config)} arguments)
+(defn physical-changes
+  "The answers about bodies in `args` (`physical`, `impediments`, `died`)
+  as [[id change] ...] for manor.mechanics.physical.changes/judged-events,
+  in the order the people first come."
+  [{:keys [physical impediments died]}]
+  (let [entries (concat (for [p physical] [(:person p) :physical (dissoc p :person)])
+                        (for [i impediments] [(:person i) :impediments (dissoc i :person)])
+                        (for [d died] [(:person d) :died (or (:cause d) true)]))]
+    (vec (for [id (distinct (map first entries))]
+           [id (reduce (fn [change [_ k v]] (if (= :died k) (assoc change k v) (update change k (fnil conj []) v)))
+                       {} (filter #(= id (first %)) entries))]))))
+
+(defn- impediments-after
+  "`id`'s impediments once `changes` ([{:key :value}]) are made."
+  [world id changes]
+  (reduce (fn [m {:keys [key value]}]
+            (if (str/blank? value) (dissoc m (a/kebab-key key)) (assoc m (a/kebab-key key) value)))
+          (or (:impediments (w/agent world id)) {}) changes))
+
+(defn- person-problem
+  "Why `change` can't be made to the judged person `id`, or nil."
+  [world id {:keys [physical impediments] death :died :as change}]
+  (let [after (impediments-after world id impediments)]
+    (cond
+      (and (w/dead? world id) (or (seq physical) death))
+      "is dead: only their aspects and impediments can change, and what they carry be moved"
+      (key-problem (map (comp a/kebab-key :key) impediments)) (key-problem (map (comp a/kebab-key :key) impediments))
+      (> (count after) items/max-impediments)
+      (str "would have " (count after) " impediments (" (str/join ", " (map name (keys after))) "); a person has at most "
+           items/max-impediments ": change one they have instead, or remove one with the value \"\"")
+      :else (physical-changes/problem world id change))))
+
+(defn physical-problem
+  "Why the judge can't make the physical `changes` ([[id change] ...], see
+  `physical-changes`), or nil: they may name only the judged people among
+  `things`, each change must be one manor.mechanics.physical.changes/problem
+  allows, the dead may only have impediments, and nobody may end up with
+  more than `items/max-impediments`."
+  [world things changes]
+  (let [judged (set (map :id (filter :person? things)))
+        strays (distinct (remove judged (map first changes)))]
+    (if (seq strays)
+      (str "you may change the physical state only of the judged people: " (str/join ", " (sort judged))
+           "; not " (str/join ", " strays))
+      (first (for [[id change] changes
+                   :let [p (person-problem world id change)]
+                   :when p]
+               (str (:name (w/agent world id)) " (" id ") " p))))))
+
+(defn- moved-problem
+  "Why an act can't move things as `moved` says, or nil: each thing once,
+  held by a judged person, to a judged person or \"place\"."
+  [world things moved]
+  (let [judged (set (map :id (filter :person? things)))
+        carried (filter #(judged (:holder %)) (items/all world))
+        bad-item (first (remove #(judged (:holder (items/item world %))) (map :item moved)))
+        bad-to (first (remove #(or (= "place" %) (judged %)) (map :to moved)))]
+    (cond
+      (not= (count moved) (count (distinct (map :item moved)))) "move each thing only once"
+      bad-item (str "you may move only what the judged people carry: " (ids-or-none carried) "; not " bad-item)
+      bad-to (str "to must be a judged person's id (" (str/join ", " (sort judged)) ") or \"place\"; not " bad-to))))
+
+(defn- with-physical
+  "`v` (a checked verdict) with the checked changes to bodies under
+  :physical (see `physical-changes`) and, for an act, the things it moves
+  under :moved (leaving out moves to whoever holds them already), or the
+  reason they won't do."
+  [v world things args act?]
+  (let [changes (physical-changes args)
+        moved (vec (remove #(= (:to %) (:holder (items/item world (:item %)))) (:moved args)))]
+    (if-let [p (or (physical-problem world things changes) (when act? (moved-problem world things (:moved args))))]
+      {:error p}
+      (cond-> v (seq changes) (assoc :physical changes) (seq moved) (assoc :moved moved)))))
+
+(defn- verdict [world arguments things inner-config act?]
+  (let [{:keys [args error]} (a/decode-args {:args (answer-schema inner-config act?)} arguments)
         place (:id (first (filter :room? things)))
-        v (when-not error (checked-verdict world args things (items/stores-for world place) false))]
+        v (when-not error (checked-verdict world args things (items/stores-for world place) false))
+        v (if (or error (:error v)) v (with-physical v world things args act?))]
     (cond error {:error error}
           (or (:error v) (nil? inner-config)) v
           :else (with-inner v inner-config world things (:inner args)))))
@@ -315,10 +440,13 @@
   each tool call, or a reminder if it made none). Only the first `judge`
   call counts. `things` are the judged things (see `judged-things`). With
   the scenario's :inner as `inner-config`, the verdict's :inner holds the
-  checked changes to the judged people's inner state."
-  ([response world things] (judgement response world things nil))
-  ([response world things inner-config]
-   (adjudication/answer "judge" response #(verdict world % things inner-config))))
+  checked changes to the judged people's inner state. The verdict's
+  :physical holds the changes to bodies (see `physical-changes`), and for
+  an immediate act (a `job` with :act?) :moved the things it moved."
+  ([response world things] (judgement response world things nil nil))
+  ([response world things inner-config] (judgement response world things inner-config nil))
+  ([response world things inner-config job]
+   (adjudication/answer "judge" response #(verdict world % things inner-config (:act? job)))))
 
 (defn- mock-put-away
   "Absorb deposited consumables whose contents can go too; clear matching
@@ -343,13 +471,17 @@
   "Focused things get cleanliness just seen to, and the people named who are
   still here a state just seen to; the worker is left alone unless named,
   and unfocused pastimes are quiet. Quick put-away jobs absorb consumables
-  and clear matching shortages."
+  and clear matching shortages. An immediate act changes nothing."
   [{:keys [world job stopped-early?]}]
   {:tool :judge
-   :args (assoc (if (:quick? job)
-                  (mock-put-away world job)
+   :args (assoc (cond
+                  (:act? job) {}
+                  (:quick? job) (mock-put-away world job)
+                  :else
                   {:changes (into (mapv (fn [t] {:thing (:id t) :aspect "cleanliness" :value "just seen to"})
                                         (item-work/focus-things world job))
                                   (for [id (item-work/judged-people world job) :when (some #{id} (:people job))]
                                     {:thing id :aspect "state" :value "just seen to"}))})
-                :summary (item-work/neutral-summary world job stopped-early?))})
+                :summary (if (:act? job)
+                           (str (:name (w/agent world (:actor job))) " acts: " (:doing job) ".")
+                           (item-work/neutral-summary world job stopped-early?)))})

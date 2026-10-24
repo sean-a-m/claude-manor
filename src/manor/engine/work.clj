@@ -20,16 +20,14 @@
 (defn- finish-job!
   "Record and apply a prepared ending in job order. Build new item ids on
   the live world, so independent jobs making identically named things agree
-  with sequential judging too. Changes to inner state follow the public
-  :item/work-done as their own GM-only events."
-  [run {:keys [job] :as work} {:keys [ended verdict failure records]}]
+  with sequential judging too. Changes to inner state and bodies follow the
+  public :item/work-done as their own events (item-work/result-events)."
+  [run {:keys [job] :as work} {:keys [ended records] :as result}]
   (doseq [record! records] (record!))
   (let [world @(:world run)]
     (run/emit! run (if ended
                      [(item-work/work-ended world job ended)]
-                     (cond-> [(item-work/work-done world job work verdict)]
-                       (seq (:inner verdict)) (into (inner/changed-events {:job (:id job)} (:inner verdict)))
-                       failure (conj (item-work/judge-failed job failure)))))))
+                     (item-work/result-events world job (item-work/work-done world job work (:verdict result)) result)))))
 
 (defn- independent-prefix
   "The longest consecutive prefix with disjoint scopes. Never move a job

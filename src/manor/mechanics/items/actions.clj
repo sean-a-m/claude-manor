@@ -1,14 +1,19 @@
 (ns manor.mechanics.items.actions
-  "Item actions, for every role but the GM: all free but timed activities.
-  `look` and `open` change nothing: they only reply."
+  "Item actions, for every role but the GM: all free but timed activities
+  and `act-on`, an immediate act on other people that the work judge
+  decides within the turn. `look` and `open` change nothing: they only
+  reply."
   (:require [clojure.string :as str]
             [manor.clock :as clock]
             [manor.mechanics.builtins :as b]
             [manor.mechanics.items :as items]
             [manor.mechanics.items.find :as item-find]
             [manor.mechanics.items.views :as item-views]
+            [manor.mechanics.items.work :as item-work]
             [manor.mechanics.physical :as physical]
+            [manor.mechanics.physical.changes :as physical-changes]
             [manor.mechanics.space :as space]
+            [manor.narrate :as n]
             [manor.world :as w]))
 
 (defn- listing
@@ -182,8 +187,9 @@
                       :quick? true :store to}})))))
 
 (defn- timed-activity
-  "One activity, with work-on's old argument spelling retained as an alias."
-  [action-name]
+  "One activity, with work-on's old argument spelling retained as an alias.
+  With `act-on?`, its doc points to `act-on` for what's done at once."
+  [action-name act-on?]
   (let [alias? (= :work-on action-name)
         activity-args (fn [args] (if alias? args (assoc args :items (:on args))))]
     {:name action-name
@@ -197,6 +203,7 @@
                "Working on a container includes its contents. "
                "What you do to someone takes effect only if they're still with you when you finish: they may walk away, "
                "or rouse you to stop you early, and then only the time you worked counts. "
+               (when act-on? "To do something to someone at once (take hold of them, untie them), use act-on instead. ")
                "You get no turns until it ends; results show when you finish.")
      :args [:map
             [(if alias? :items :on) (if alias? {} {:optional true})
@@ -207,82 +214,153 @@
      :valid? (fn [world actor args] (work-on-reason world actor (activity-args args)))
      :effect (fn [world actor args] (work-on-events world actor (activity-args args)))}))
 
+(def max-act-on
+  "How many people an act may be done to."
+  3)
+
+(def max-act-with
+  "How many things an act may use."
+  2)
+
+(defn- on-reason
+  "Why `actor` can't act on `id`, or nil: someone else here, alive or dead."
+  [world actor id]
+  (cond (= id actor) "name only other people with on, not yourself"
+        (not (or (w/active? world id) (w/dead? world id))) (str "no one has the id " id "; " (people-list world actor))
+        (not (space/together? world actor id)) (str (:name (w/agent world id)) " is not here; " (people-list world actor))))
+
+(defn- with-reason
+  "Why `actor` can't use the item `id` in an act, or nil: it must be here or carried."
+  [world actor id]
+  (let [it (items/item world id)]
+    (when-not (and it (items/reachable? world actor it))
+      (str id " is neither here nor carried by you; " (here-list world actor) "; " (carried-list world actor)))))
+
+(defn- act-on-reason [world actor {:keys [on with]}]
+  (or (when-not (w/active? world actor) "only living participants can act on people")
+      (physical/disabled-reason world actor :consciousness "act")
+      (when (nil? (space/location-of world actor)) "you can't act on people while travelling")
+      (some #(on-reason world actor %) (distinct on))
+      (some #(with-reason world actor %) (distinct with))))
+
+(defn- act-on-events
+  "The act's events, from its judgement (see manor.engine.resolve): what
+  item-work/result-events gives, then the interruption of anyone acted on
+  who is still busy (asleep, working), as with a change to their body."
+  [world actor _ {:keys [job work verdict] :as result}]
+  (let [evs (item-work/result-events world job (item-work/acted-on world job work verdict) result)]
+    (into evs (physical-changes/interrupts (reduce w/apply-event world evs) (:people job) actor))))
+
+(defn- act-on-reply
+  "The act's summary, or without one (a failed judgement) its narration."
+  [world _ _ {:keys [events]}]
+  (let [acted (first (filter #(= :person/acted-on (:type %)) events))]
+    (or (get-in acted [:data :summary]) (n/describe acted (n/names world)))))
+
+(def act-on
+  "Doing something to other people here at once: judged by the work judge
+  within the turn (manor.engine.resolve, :judge-job), it ends the turn with
+  no occupation. A scenario offers it with its :items config's :act-on?."
+  {:name :act-on
+   :kind :final
+   :doc (str "Do something to one or more people here, at once: take hold of them, stop them leaving, bind or gag them, "
+             "strike them, search them, help them up, untie them, revive them. What happens is decided at once, before anyone "
+             "else acts, and the reply says what came of it. Name the people with on (their ids, at most " max-act-on
+             ") and anything you use with with (at most " max-act-with " items here or carried). "
+             "doing reads after \"is\", e.g. \"seizing him by the collar\"; keep it to at most " items/advised-doing " characters. "
+             "For longer care of someone (dressing her hair, nursing him), use spend-time.")
+   :args [:map
+          [:on [:vector {:min 1 :max max-act-on} :string]]
+          [:with {:optional true} [:vector {:max max-act-with} :string]]
+          [:doing [:string {:min 3 :max items/max-doing :json-schema/maxLength items/advised-doing}]]]
+   :valid? act-on-reason
+   :judge-job (fn [world actor args]
+                (let [job (item-work/act-job world actor args)]
+                  {:job job :work (item-work/act-work world job)}))
+   :on-result act-on-events
+   :reply act-on-reply})
+
 (declare find-events find-reply)
 
 (defn actions
+  "The item actions, configured by a scenario's :items: `find-allowed?`
+  (fn [world actor place]) => nil or why not, and `act-on?` to offer
+  `act-on`."
   ([] (actions {}))
-  ([{:keys [find-allowed?]}]
-   [{:name :find
-     :kind :query :per-turn 1
-     :doc (str "Look for a particular thing you need to pick up or hand over, or whose presence is in doubt. "
-               "Everyday things you only use in your work need no finding: just name them in what you're doing.")
-     :args [:map [:what [:string {:min 1 :max 60}]]]
-     :available? (fn [world actor] (some? (space/location-of world actor)))
-     :valid? (fn [world actor _]
-               (if-let [place (space/location-of world actor)]
-                 (when find-allowed? (find-allowed? world actor place))
-                 "you can't find things while travelling"))
-     :adjudicate :items/find :on-result item-find/find-events :reply item-find/find-reply}
+  ([{:keys [find-allowed? act-on?]}]
+   (cond->
+    [{:name :find
+      :kind :query :per-turn 1
+      :doc (str "Look for a particular thing you need to pick up or hand over, or whose presence is in doubt. "
+                "Everyday things you only use in your work need no finding: just name them in what you're doing.")
+      :args [:map [:what [:string {:min 1 :max 60}]]]
+      :available? (fn [world actor] (some? (space/location-of world actor)))
+      :valid? (fn [world actor _]
+                (if-let [place (space/location-of world actor)]
+                  (when find-allowed? (find-allowed? world actor place))
+                  "you can't find things while travelling"))
+      :adjudicate :items/find :on-result item-find/find-events :reply item-find/find-reply}
 
-    {:name :look
-     :kind :free
-     :doc (str "Examine this place and its things closely: the room's detail, and the descriptions, aspects and owners of "
-               "the items here and what the people here carry. "
-               "Use it when you need to inspect the state of something or see it in detail; "
-               "your view already lists who is here and what items are here, so don't look routinely on arrival.")
-     :valid? (fn [world actor _]
-               (if (space/location-of world actor)
-                 (physical/sight-reason world actor "look around")
-                 "you can't look around while travelling"))
-     :reply (fn [world actor _] (item-views/look world actor))}
+     {:name :look
+      :kind :free
+      :doc (str "Examine this place and its things closely: the room's detail, and the descriptions, aspects and owners of "
+                "the items here and what the people here carry. "
+                "Use it when you need to inspect the state of something or see it in detail; "
+                "your view already lists who is here and what items are here, so don't look routinely on arrival.")
+      :valid? (fn [world actor _]
+                (if (space/location-of world actor)
+                  (physical/sight-reason world actor "look around")
+                  "you can't look around while travelling"))
+      :reply (fn [world actor _] (item-views/look world actor))}
 
-    {:name :take
-     :kind :free
-     :doc "Pick up an item in your place and carry it (use its id from `items` in your view)."
-     :args [:map [:item :string]]
-     :valid? take-reason
-     :effect (fn [world actor {id :item}]
-               (let [it (items/item world id)
-                     from (held-by-helpless world actor it)]
-                 [{:type :item/taken :data (cond-> {:item id :from-place (items/place-of world it)}
-                                             (:in it) (assoc :from-item (:in it))
-                                             from (assoc :from-person from))
-                   :visible-to (space/here world actor)}]))}
+     {:name :take
+      :kind :free
+      :doc "Pick up an item in your place and carry it (use its id from `items` in your view)."
+      :args [:map [:item :string]]
+      :valid? take-reason
+      :effect (fn [world actor {id :item}]
+                (let [it (items/item world id)
+                      from (held-by-helpless world actor it)]
+                  [{:type :item/taken :data (cond-> {:item id :from-place (items/place-of world it)}
+                                              (:in it) (assoc :from-item (:in it))
+                                              from (assoc :from-person from))
+                    :visible-to (space/here world actor)}]))}
 
-    {:name :open
-     :kind :free
-     :doc (str "Open a container here (use its id) to see what's in it, in detail. "
-               "Containers marked `closed` in your view show their contents only this way.")
-     :args [:map [:container :string]]
-     :valid? open-reason
-     :reply (fn [world _ {id :container}] (item-views/opened world (items/item world id)))}
+     {:name :open
+      :kind :free
+      :doc (str "Open a container here (use its id) to see what's in it, in detail. "
+                "Containers marked `closed` in your view show their contents only this way.")
+      :args [:map [:container :string]]
+      :valid? open-reason
+      :reply (fn [world _ {id :container}] (item-views/opened world (items/item world id)))}
 
-    {:name :put-in
-     :kind :free
-     :doc "Put an item (use its id) that you carry, or could pick up here, into a container here (its id)."
-     :args [:map [:item :string] [:container :string]]
-     :valid? put-in-reason
-     :effect put-in-events}
+     {:name :put-in
+      :kind :free
+      :doc "Put an item (use its id) that you carry, or could pick up here, into a container here (its id)."
+      :args [:map [:item :string] [:container :string]]
+      :valid? put-in-reason
+      :effect put-in-events}
 
-    {:name :put-down
-     :kind :free
-     :doc "Put down an item you carry (use its id), leaving it where you are."
-     :args [:map [:item :string]]
-     :valid? (fn [world actor {id :item}]
-               (or (carrying-reason world actor id)
-                   (when-not (space/location-of world actor) "you can't put things down while travelling")))
-     :effect (fn [world actor {id :item}]
-               [{:type :item/put-down :data {:item id :place (space/location-of world actor)}
-                 :visible-to (space/here world actor)}])}
+     {:name :put-down
+      :kind :free
+      :doc "Put down an item you carry (use its id), leaving it where you are."
+      :args [:map [:item :string]]
+      :valid? (fn [world actor {id :item}]
+                (or (carrying-reason world actor id)
+                    (when-not (space/location-of world actor) "you can't put things down while travelling")))
+      :effect (fn [world actor {id :item}]
+                [{:type :item/put-down :data {:item id :place (space/location-of world actor)}
+                  :visible-to (space/here world actor)}])}
 
-    {:name :give
-     :kind :free
-     :doc (str "Give an item you carry (use its id) to someone in the same place (use their id). "
-               "Saying you hand something over doesn't: only this does, and what you're given appears under `carrying`.")
-     :args [:map [:item :string] [:to :string]]
-     :valid? give-reason
-     :effect (fn [world actor {id :item to :to}]
-               [{:type :item/given :data {:item id :to to} :visible-to (space/here world actor)}])}
+     {:name :give
+      :kind :free
+      :doc (str "Give an item you carry (use its id) to someone in the same place (use their id). "
+                "Saying you hand something over doesn't: only this does, and what you're given appears under `carrying`.")
+      :args [:map [:item :string] [:to :string]]
+      :valid? give-reason
+      :effect (fn [world actor {id :item to :to}]
+                [{:type :item/given :data {:item id :to to} :visible-to (space/here world actor)}])}
 
-    (timed-activity :spend-time)
-    (timed-activity :work-on)]))
+     (timed-activity :spend-time act-on?)
+     (timed-activity :work-on act-on?)]
+    act-on? (conj act-on))))

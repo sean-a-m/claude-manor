@@ -3,7 +3,10 @@
   in independent batches: for each it asks the judge (manor.mechanics.items.judge
   builds the request) about the items still in reach, checks the answer, and
   emits the result."
-  (:require [manor.mechanics.items :as items]
+  (:require [manor.mechanics.inner :as inner]
+            [manor.mechanics.items :as items]
+            [manor.mechanics.physical :as physical]
+            [manor.mechanics.physical.changes :as physical-changes]
             [manor.mechanics.space :as space]
             [manor.rng :as rng]
             [manor.world :as w]))
@@ -52,22 +55,34 @@
 
 (defn judged-people
   "Ids of the people a job may change: the worker, wherever they are, then
-  the people named with `on` who are still at the job's place."
+  the people named with `on` who are still at the job's place, alive or
+  dead."
   [world {:keys [actor place people]}]
-  (vec (distinct (cons actor (filter #(and (w/active? world %) (= place (space/location-of world %))) people)))))
+  (vec (distinct (cons actor (filter #(and (or (w/active? world %) (w/dead? world %))
+                                           (= place (space/location-of world %)))
+                                     people)))))
 
 (defn person-thing
   "A person as a judged thing: their :appearance is how they usually look,
-  their :aspects how they differ from it now."
+  their :aspects how they differ from it now, with their physical statuses
+  and impediments, and dead: true if they are (manor.mechanics.physical)."
   [world id]
-  (assoc (select-keys (w/agent world id) [:id :name :appearance :aspects]) :person? true))
+  (let [a (w/agent world id)]
+    (physical/with-status (assoc (select-keys a [:id :name :appearance :aspects]) :person? true) a)))
+
+(defn- carrying
+  "What `id` holds, by id and name: for an act, whose `moved` may take it."
+  [world id]
+  (mapv #(select-keys % [:id :name]) (items/by-name (items/held-by world id))))
 
 (defn scene
   "The activity's local scene: place, named focus (including container contents),
   at most twelve other visible items, stores in scope, and people: those
-  present, with the judged people (see `judged-people`) as person things,
-  and the others by id and name."
-  [world {:keys [place] :as job}]
+  present and the dead lying here, with the judged people (see
+  `judged-people`) as person things, and the others by id and name; all
+  with their physical statuses. For an act (:act?), the judged people's
+  :carrying too."
+  [world {:keys [place act?] :as job}]
   (let [focus (focus-things world job)
         named (set (map :id focus))
         judged (set (judged-people world job))]
@@ -76,9 +91,12 @@
      :also-here (vec (take 12 (remove #(or (named (:id %)) (items/store? %)) (items/visible-at world place))))
      :stores (vec (items/stores-for world place))
      :people (mapv (fn [id]
-                     (cond-> (if (judged id) (person-thing world id) {:id id :name (:name (w/agent world id))})
-                       (w/busy world id) (assoc :doing (:activity (w/busy world id)))))
-                   (sort (into (space/present world place) judged)))}))
+                     (cond-> (if (judged id)
+                               (person-thing world id)
+                               (physical/with-status {:id id :name (:name (w/agent world id))} (w/agent world id)))
+                       (w/busy world id) (assoc :doing (:activity (w/busy world id)))
+                       (and act? (judged id)) (assoc :carrying (carrying world id))))
+                   (sort (-> (space/present world place) (into (physical/dead-at world place)) (into judged))))}))
 
 (defn judged-things
   "Everything the scene judge may change, once each: place, focus, other
@@ -166,7 +184,51 @@
              (seq made) (assoc :made made)
              (seq fetched) (assoc :fetched fetched))}))
 
+(defn act-job
+  "An immediate act (manor.mechanics.items.actions `act-on`) as the judge
+  takes a job: `actor` acts on the people `on` with the items `with`, at
+  their place, now. Its id comes from the world's event count, so it is
+  deterministic."
+  [world actor {:keys [on with doing]}]
+  {:id (str "act-" (inc (:seq world))) :act? true :actor actor :place (space/location-of world actor)
+   :items (vec (distinct with)) :people (vec (distinct on)) :doing doing :started (:round world)})
+
+(defn act-work
+  "How an act is judged: no time worked, and a luck roll as a job's."
+  [world job]
+  {:minutes 0 :stopped-early? false :luck (inc (rng/roll world [:judge (:id job)] 100))})
+
+(defn acted-on
+  "Event: the checked result of the act `job`, seen by everyone at the place
+  (and always by the people acted on, see manor.mechanics.items): its
+  summary (none if the judge failed), the aspects it changed, and the
+  things it moved, each to a judged person's hands (:holder) or put down
+  here (:place)."
+  [world {:keys [id actor place items people doing]} {:keys [luck]} verdict]
+  {:type :person/acted-on :actor actor :visible-to (into (space/here world actor) people)
+   :data (cond-> {:act id :place place :on people :doing doing :luck luck
+                  :changes (vec (:changes verdict))}
+           (:summary verdict) (assoc :summary (:summary verdict))
+           (seq items) (assoc :with items)
+           (seq (:moved verdict))
+           (assoc :moved (mapv (fn [{:keys [item to]}]
+                                 (cond-> {:item item :from (:holder (items/item world item))}
+                                   (= "place" to) (assoc :place place)
+                                   (not= "place" to) (assoc :holder to)))
+                               (:moved verdict))))})
+
 (defn judge-failed
   "Event, for the operator only: why the judge's answer about `job` wasn't used."
   [job reason]
   {:type :item/judge-failed :visible-to :system :data {:job (:id job) :reason reason}})
+
+(defn result-events
+  "The events of a judged job or act: `event` (its :item/work-done or
+  :person/acted-on), then the GM-only changes to inner state, then the
+  changes to bodies (manor.mechanics.physical.changes), with the
+  interruptions they cause by the worker, and if the judgement failed, why."
+  [world {:keys [id actor act?] :as job} event {:keys [verdict failure]}]
+  (cond-> [event]
+    (seq (:inner verdict)) (into (inner/changed-events {(if act? :act :job) id} (:inner verdict)))
+    (seq (:physical verdict)) (into (physical-changes/judged-events world (:physical verdict) actor))
+    failure (conj (judge-failed job failure))))

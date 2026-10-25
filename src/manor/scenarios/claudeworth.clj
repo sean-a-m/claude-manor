@@ -28,6 +28,7 @@
             [manor.mechanics.builtins :as b]
             [manor.mechanics.conversation :as conversation]
             [manor.mechanics.find-person :as find-person]
+            [manor.mechanics.following :as following]
             [manor.mechanics.hiring :as hiring]
             [manor.mechanics.items :as items]
             [manor.mechanics.items.views :as item-views]
@@ -173,8 +174,9 @@
                       (str (loc-name world to) " is not within walking distance of here; use travel")
                       :else (physical/movement-reason world actor 0))))
     :effect (fn [world actor {:keys [to]}]
-              [{:type :agent/moved :data {:from (space/location-of world actor) :to to}
-                :visible-to (into (space/here world actor) (space/present world to))}])
+              (following/along world actor 0
+                               [{:type :agent/moved :data {:from (space/location-of world actor) :to to}
+                                 :visible-to (into (space/here world actor) (space/present world to))}]))
     :reply (fn [world actor _] (arrival world actor))}
 
    {:name :call
@@ -216,11 +218,12 @@
               (let [here (space/location-of world actor)
                     dest (destination world actor to)
                     d (space/distance world here dest)]
-                (if (<= d 1)
-                  [{:type :agent/moved :data {:from here :to dest}
-                    :visible-to (into (space/here world actor) (space/present world dest))}]
-                  [{:type :agent/departed :data {:from here :to dest :arrives (+ (:round world) d)}
-                    :visible-to (space/here world actor)}])))}
+                (following/along world actor d
+                                 (if (<= d 1)
+                                   [{:type :agent/moved :data {:from here :to dest}
+                                     :visible-to (into (space/here world actor) (space/present world dest))}]
+                                   [{:type :agent/departed :data {:from here :to dest :arrives (+ (:round world) d)}
+                                     :visible-to (space/here world actor)}]))))}
 
    {:name :sleep
     :doc (str "Go to sleep in a bedroom until a time of day, e.g. \"07:00\" (at most " max-sleep-hours
@@ -310,7 +313,8 @@
     (cond-> (-> (merge-with merge (building/observe world id) (shop/observe world id))
                 (update :you assoc :bedroom (bedroom-of world id))
                 (assoc :hiring (hiring/observe world id))
-                (visits/add-to-view world id))
+                (visits/add-to-view world id)
+                (following/add-to-view world id))
       (or (positions/household-member? world id) (visits/from-elsewhere? world id))
       (assoc-in [:household :bedrooms] (house-bedrooms world))
       hours (update :here merge {:open (str/join "-" hours) :open-now? (open-now? world hours)})
@@ -406,6 +410,7 @@
          "`call` is heard everywhere within walking distance, so you can summon someone instead of searching the house room by room: name them with `to`, and if they're busy but awake they may stop to answer. "
          "Calling out is loud, and it's rude to shout through the house without good reason: call only for someone out of earshot whom you need, never instead of `say` or `converse` with people where you are; whether it's proper for you to call someone at all depends on who you both are. "
          "`find-person` finds someone within walking distance from a description in your own words and says where they are, so you can walk straight there; `last-seen` in your view says where you last saw each person. "
+         "To go somewhere with someone, the one coming along uses `follow`: from then on they go wherever the other walks or travels, at once, until they `follow-stop` or go somewhere themselves (`following` and `followed-by` under `you` in your view say who). Going off alone, you leave behind anyone who hasn't followed you: when you want someone to come with you, ask them in `converse` first, where they can follow you before you go. If you're busy when the person you follow goes, you stop what you're doing to go too, so `follow-stop` when you mean to stay behind. "
          "`converse` doesn't count against speaking once a turn: you can start one conversation a turn as well. "
          "To talk something over with people here, `converse` draws up to " conversation/max-others " of them into a conversation within your turn: "
          "you each speak in turn, up to " conversation/passes " times, so nobody waits a turn for each answer, and then you carry on with your turn. "
@@ -732,6 +737,13 @@
   (when-not (shop/service-reason world speaker)
     (filterv #(= :quote-goods (:name %)) shop/actions)))
 
+(defn- speaking-actions-and-following
+  "`speaking-actions`, after `follow` and `follow-stop`: anyone can start or
+  stop following someone while they talk, so agreeing to come along takes
+  them along."
+  [world speaker conv]
+  (into following/actions (speaking-actions world speaker conv)))
+
 (def scenario
   (visits/install
    (deliveries/install
@@ -744,7 +756,7 @@
       :roles roles
       :agent-brief agent-brief
       :on-spawn positions/starting-events
-      :actions (vec (concat actions [find-person/action] building/actions shop/actions hiring/actions))
+      :actions (vec (concat actions [find-person/action] following/actions building/actions shop/actions hiring/actions))
       :adjudicators (merge shop/adjudicators hiring/adjudicators find-person/adjudicators)
       :bridges (merge building/bridges hiring/bridges)
       :offline-stubs (merge building/offline-stubs hiring/offline-stubs)
@@ -766,7 +778,7 @@
                      :mind "what they're preoccupied with, anticipating or dreading"}
               :open 2}
       :exclude-actions #{:move :work-on}
-      :speaking-actions speaking-actions
+      :speaking-actions speaking-actions-and-following
       :hibernate hibernate
       :reference reference
       :observe observe

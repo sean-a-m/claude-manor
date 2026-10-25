@@ -120,6 +120,7 @@ src/manor/
                    guests from elsewhere (away agents, arrival at the meeting place, take-leave, you.visit)
     find_person.clj find-person: a judge picks whom a seeker means among the people in walking distance, the engine
                    rolls, and the reply says where they are
+    following.clj  follow and follow-stop: followers go along on the walks and journeys of the person they follow
     visits/        judge.clj: the invitation judge (who invite's `person` means: existing, new or impossible)
   io/            everything that leaves the process
     llm.clj        LLM protocol; OpenRouter (JDK HTTP) and Mock (scenario policy) implementations

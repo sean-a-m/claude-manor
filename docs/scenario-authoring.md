@@ -776,6 +776,27 @@ the reply names the person, their place id and what they're doing ("walk to gall
 and no one meant, both reply "You look about for <who> but don't find them.", so a miss gives
 nothing away. The mock finds someone listed whose id, name or surname `who` contains.
 
+**Following** (`manor.mechanics.following`, used by Claudeworth): add `following/actions` to your
+actions and, so people can follow from a conversation, to your `:speaking-actions`; wrap the
+events of each action that moves its actor with `(following/along world actor travel events)`
+(`travel` the journey's rounds, 0 for a walk); and call `(following/add-to-view view world id)`
+from `:observe`. `follow {who}` (free, once a turn) needs `who` active and in the same place, not
+already followed by the actor, not following the actor directly or through others, and the actor
+able to move; it records `:agent/following {:leader id}` (seen by everyone here; the reducer sets
+`:following` on the agent), after a `:agent/stopped-following` if they followed someone else.
+`follow-stop` (free, offered only while following) records `:agent/stopped-following {:leader
+:reason :chose}`. `along` puts `:agent/stopped-following` (`:own-way`) before the move when the
+mover was following someone, and after their `:agent/moved` or `:agent/departed` adds, for each
+follower and their followers in turn, the same event with the follower as actor and `:with` the
+person they went with (narrated "Hale goes with Lord Claudeworth from ..."), preceded by
+`:agent/freed` (`:by` the leader) for one who was busy: their job stops and is judged on the
+time done. A follower who isn't in the place the mover leaves gets `:stopped-following`
+(`:apart`, seen only by them); one asleep, hibernating, travelling or whose movement can't make
+the journey (`physical/movement-reason`) is left behind (`:left-behind`, seen by everyone there),
+and so are their followers. The view gets `you.following {:id :name}` while they're together and
+`you.followed-by [{:id :name}]` for followers here. Moves made by the engine (hibernation, GM or
+operator placing, arrivals) take nobody along.
+
 **Aspects of a place** (with items, see the next section): a location may have `:aspects`, the
 same keyed phrases as an item's (`{:cleanliness "swept" :hearth "a fire laid"}`, at most 4,
 values 1-200 characters, 80 advised), about the room as a whole: its floor, hearth and air, never the things in

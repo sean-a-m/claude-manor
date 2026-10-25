@@ -62,11 +62,18 @@
   (str (who names actor) (when-let [at (:at data)] (str " (" (place names at) ")"))
        " says: \"" (:text data) "\"" (muffled data)))
 
+(defn- with-whom
+  "\" with Emily\" for someone who goes along with the person they follow
+  (:with, see manor.mechanics.following), else \"\"."
+  [names data]
+  (if-let [leader (:with data)] (str " with " (who names leader)) ""))
+
 (defmethod describe :agent/moved [{:keys [actor data]} names]
-  (str (who names actor) " goes from " (place names (:from data)) " to " (place names (:to data)) "."))
+  (str (who names actor) " goes" (with-whom names data) " from " (place names (:from data))
+       " to " (place names (:to data)) "."))
 
 (defmethod describe :agent/departed [{:keys [actor data]} names]
-  (str (who names actor) " leaves " (place names (:from data)) " for " (place names (:to data))
+  (str (who names actor) " leaves " (place names (:from data)) (with-whom names data) " for " (place names (:to data))
        " (arriving " (at names (:arrives data)) ")."))
 
 (defmethod describe :agent/occupied [{:keys [actor data]} names]

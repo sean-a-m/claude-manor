@@ -213,7 +213,8 @@
    {:name :say
     :kind :free :per-turn 1 :limit-key :speech
     :doc (str "Say something out loud to everyone in the same place: a few sentences, at most "
-              speech-limit " characters. Shares its limit with whisper.")
+              speech-limit " characters. Others can answer only on their own turns, after yours ends, so for a "
+              "question you need answered now use converse instead, not say as well. Shares its limit with whisper.")
     :args [:map [:text speech]]
     :available? (fn [world actor] (physical/can? world actor :speech))
     :valid? (fn [world actor _] (physical/speech-reason world actor))
@@ -225,7 +226,8 @@
    {:name :whisper
     :kind :free :per-turn 1 :limit-key :speech
     :doc (str "Say something privately to one other participant in the same place (use their id): "
-              "a few sentences, at most " speech-limit " characters. Shares its limit with say.")
+              "a few sentences, at most " speech-limit " characters. They can answer only on their own turn, after "
+              "yours ends. Shares its limit with say.")
     :args [:map [:to :string] [:text speech]]
     :available? (fn [world actor] (physical/can? world actor :speech))
     :valid? (fn [world actor {:keys [to]}]

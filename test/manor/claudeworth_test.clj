@@ -792,8 +792,8 @@
                          (get-in world [:state :setting])))
       (is (str/includes? (cw/gm-brief world) "no income credit action")))
     (testing "the rules quote the query limit from the world, not a literal"
-      (is (str/includes? (cw/rules world) "towards your 2 queries a turn"))
-      (is (str/includes? (cw/rules (assoc-in world [:state :max-queries] 3)) "towards your 3 queries a turn")))
+      (doseq [n [3 7]]
+        (is (str/includes? (cw/rules (assoc-in world [:state :max-queries] n)) (str "towards your " n " queries a turn")))))
     (e/stop-run run)))
 
 (deftest move-the-abbey

@@ -436,6 +436,23 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   recruit or recommend established villagers. New candidates may still live locally, and
   characters may describe knowing them through local acquaintances; `recommend` supplies
   their actual names and details before anyone is named or promised.
+- **Recommending in conversations: done.** In `runs/claudeworth-medium-20261025-134639` the
+  people asked for a kitchen girl (Mrs Dobbins, Briggs) were asked in conversations, where they
+  had no `recommend`, so they made up "young Jenny at the labourer's cottage" and "my niece in
+  Norfolk". Claudeworth's speaking turns now offer `recommend` (to someone in the conversation),
+  and the hiring rules are steps for each side: looking for staff, being asked, looking out on
+  another's behalf, bringing, engaging, waiting.
+- **Hiring as an errand (proposed):** in that run the Claudeworths asked Hollis to "send her
+  up" while they were away. `send-for` could take an optional person to ask for, who gets a
+  calendar entry for the arrival at the meeting place, so a go-between can send someone up and
+  the household expects them.
+- **Candidates by letter (proposed, lower priority):** let `invite` carry an optional position
+  applied for, so a letter to "my niece in Norfolk" brings a real candidate through the
+  invitation judge. It overlaps with `send-for`.
+- **Making invented people real (if invention persists):** the conversation judge could report a
+  named outsider put forward for a post, and the engine would create that candidate under the
+  given name. Needs the people server to accept a name; a stated home on the map clashes with
+  the candidate's off-map home.
 
 ### B12. Person aspects
 

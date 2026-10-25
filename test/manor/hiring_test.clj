@@ -613,3 +613,44 @@
           (is (= dead (w/apply-event dead {:type :people/departed :data {:id id}})))))
       (replay! run)
       (finally (e/stop-run run)))))
+
+(deftest recommending-in-a-conversation
+  (testing "anyone may recommend on their line, but only to someone in the conversation"
+    (let [run (start)]
+      (try
+        (let [world (e/world run)
+              conv {:members ["employer" "recommender"]}
+              recommend (first (claudeworth/speaking-actions world "recommender" conv))]
+          (is (= [:recommend] (mapv :name (claudeworth/speaking-actions world "recommender" conv))))
+          (is (nil? (a/check recommend world "recommender" {:position "housemaid" :for "employer"})))
+          (is (= "recommend to someone in this conversation"
+                 (a/check recommend world "recommender" {:position "housemaid" :for "bystander"}))))
+        (finally (e/stop-run run)))))
+  (testing "asked in a conversation, the recommender answers with a real candidate, who can then be sent for"
+    (let [policy (fn [{:keys [world agent-id used]}]
+                   (cond
+                     (and (= "employer" agent-id) (= 1 (:round world)) (not (some #{"converse"} used)))
+                     {:tool :converse :args {:with ["recommender"] :text "Do you know of a housemaid?"}}
+                     (and (= "employer" agent-id) (= 2 (:round world)))
+                     {:tool :send-for :args {:candidate (:id (first-person world))}}
+                     :else {:tool :pass}))
+          conversation (fn [{:keys [agent-id used]}]
+                         (cond
+                           (not= "recommender" agent-id) {:tool :end-conversation}
+                           (some #{"recommend"} used) {:tool :reply :args {:text "I know just the girl."}}
+                           :else {:tool :recommend :args {:position "housemaid" :for "employer"}}))
+          run (start {:mock-policy policy :mock-conversation conversation
+                      :speaking-actions claudeworth/speaking-actions} {})]
+      (try
+        (rounds! run 3)
+        (let [evs (e/events run)
+              started (:id (first (filter #(= :conversation/started (:type %)) evs)))
+              ended (:id (first (filter #(= :conversation/ended (:type %)) evs)))
+              recommended (first (filter #(= :people/recommended (:type %)) evs))]
+          (is (< started (:id recommended) ended) "recommended during the conversation")
+          (is (= #{"employer" "recommender"} (:visible-to recommended)))
+          (is (= 1 (count (filter #(= :people/sent-for (:type %)) evs))))
+          (is (= :here (:status (first-person (e/world run)))))
+          (is (not-any? #(= :action/forfeited (:type %)) evs)))
+        (replay! run)
+        (finally (e/stop-run run))))))

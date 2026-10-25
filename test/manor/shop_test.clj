@@ -586,24 +586,25 @@
       (let [calls (filter #(and (= "clerk" (:agent %)) (:conversation %)) (store/read-llm (:dir run)))
             prompt (:content (second (:messages (first calls))))]
         (is (= 4 (count calls)) "an invalid action, query, rejected second query, then reply")
-        (is (= ["reply" "stay-silent" "leave" "note" "check-counter" "quote-goods"] (:tools (first calls))))
+        (is (= ["reply" "stay-silent" "leave" "note" "check-counter" "recommend" "quote-goods"] (:tools (first calls))))
         (is (= "error: there is no tool called buy" (get-in (first calls) [:replies 0 :content])))
         (is (str/starts-with? (get-in (nth calls 2) [:replies 0 :content]) "error: query limit reached"))
         (is (str/includes? (get-in (nth calls 2) [:replies 1 :content]) "This is your last call"))
-        (is (str/includes? prompt "You may first use `check-counter`, `quote-goods` before your line."))
+        (is (str/includes? prompt "You may first use `check-counter`, `recommend`, `quote-goods` before your line."))
         (is (str/includes? prompt "Then finish this speaking turn with exactly ONE"))
         (is (= 1 (count (filter #(= "adjudicator/shop/appraise" (:agent %)) (store/read-llm (:dir run))))))
         (is (= 1 (count (filter #(= :claudeworth/bought (:type %)) (e/events run))))))
       (finally (e/stop-run run)))))
 
-(deftest only-serving-clerks-get-speaking-queries
-  (let [run (start)]
+(deftest only-serving-clerks-get-quote-goods
+  (let [run (start)
+        quote-goods? (fn [world speaker] (some #(= :quote-goods (:name %)) (cw/speaking-actions world speaker {})))]
     (try
       (let [world (e/world run)]
-        (is (= [:quote-goods] (mapv :name (cw/speaking-actions world "clerk" {}))))
-        (is (empty? (cw/speaking-actions world "customer" {})))
-        (is (empty? (cw/speaking-actions (assoc-in world [:agents "clerk" :location] "back-room") "clerk" {})))
-        (is (empty? (cw/speaking-actions (assoc-in world [:clock :start] "1904-10-15T20:00") "clerk" {}))))
+        (is (= [:recommend :quote-goods] (mapv :name (cw/speaking-actions world "clerk" {}))))
+        (is (= [:recommend] (mapv :name (cw/speaking-actions world "customer" {}))))
+        (is (not (quote-goods? (assoc-in world [:agents "clerk" :location] "back-room") "clerk")))
+        (is (not (quote-goods? (assoc-in world [:clock :start] "1904-10-15T20:00") "clerk"))))
       (finally (e/stop-run run)))))
 
 (deftest speaking-queries-preserve-occupations

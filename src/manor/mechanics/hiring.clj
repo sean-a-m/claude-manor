@@ -399,7 +399,10 @@
 (def text-arg [:string {:min 1 :max 1000}])
 (def actions
   [{:name :recommend :kind :query :roles :all
-    :doc "Recommend one candidate for a position to someone else here (for: their id, not your own). This finds a candidate from the hiring pool or creates one that you know, but it can't be an established figure living around the village, so do not promise to recommend someone already working in the village. Privately learn what you know of the candidate, then speak in your own words. Both of you learn how to send-for them."
+    :doc (str "Recommend one candidate for a position to someone else here (for: their id, not your own). "
+              "Use it whenever someone asks whether you know anyone for a post, on your turn or on your line in a conversation, before you answer: "
+              "never make up a name instead. This finds a candidate from the hiring pool or creates one that you know, but it can't be an established figure living around the village, so do not promise to recommend someone already working in the village. "
+              "Privately learn what you know of the candidate, then speak of them in your own words. Both of you learn how to send-for them.")
     :args [:map [:position :string] [:for :string]] :valid? recommend-reason
     :query-fn recommend! :on-result recommendation-events
     :reply (fn [_ _ _ {:keys [events]}]
@@ -501,9 +504,17 @@
                                 {:name :people/visits :tick (fn [world _] (tick scenario world))})))))
 
 (defn- rules-text
-  "Hiring's rules, with `arrivals` saying who may arrive."
+  "Hiring's rules, step by step for each side, with `arrivals` saying who may
+  arrive."
   [arrivals]
-  (str "To find staff, ask someone for a recommendation; they must use recommend with a position id and your id in for. Do not try to recruit or recommend established characters already living or working in your village. This does not exclude a new candidate who lives locally but is not present yet as a character. You may describe knowing a possible candidate through local acquaintances, but use recommend to learn the candidate's name and details before naming or promising anyone. The recommendation gives a candidate id: use send-for to bring them to meeting-place next round. Interview by converse, then engage with who (their agent id), position, terms and optionally bedroom. The candidate may accept-place with conditions, decline-place and haggle, or take-leave. Send-away ends an unengaged visit. An unengaged candidate remains available for a full 24 hours after arrival or their latest conversation (24 rounds without a game clock), unless explicitly sent away or they choose to abandon the application with take-leave. They may wait at the house, in the village or at the pub: agree where to find them, and do not send them out of the mapped area merely to await a decision. A candidate-home is off-map background, not a place to walk to; while their status is here, their actual map location is where to meet them. Once away, use send-for to bring them back. " arrivals " Outdoor servants' lodging and dismissal of hired staff are possible."))
+  (str "New staff are found only through `recommend`: nobody can be hired until it has made them real.\n"
+       "- Looking for staff: ask someone who might know of a candidate (a servant, a shopkeeper, a neighbour), in `converse`. They answer with `recommend`, and you both learn the candidate's name, id and what they know of them.\n"
+       "- Asked whether you know anyone for a post: use `recommend` there and then, on your turn or on your line in a conversation before you speak, with the position id and the asker's id in `for`; then tell them of the candidate in your own words. Until `recommend` names someone, your character knows of nobody suitable: never make up a name, a relation (\"my niece\") or where a candidate lives. Do not recruit or recommend established characters already living or working in your village; a new candidate who lives locally but is not yet present as a character is fine. You may describe knowing the candidate through local acquaintances.\n"
+       "- Asked to look out for someone on another's behalf: ask around in `converse` and have whoever knows someone `recommend` them to you. Then `send-for` them when someone of the household can meet them, and tell the household who is coming.\n"
+       "- Bringing a candidate: anyone who knows a candidate's id can `send-for` them; they arrive at the meeting place (`hiring.meeting-place`) next round, and that is where to meet them. " arrivals " A letter or message of your own brings no candidate.\n"
+       "- Interview and engage: interview by `converse`, then `engage` with who (their agent id), position, terms and optionally bedroom. The candidate may `accept-place` with conditions, `decline-place` and haggle, or `take-leave`. `send-away` ends an unengaged visit.\n"
+       "- Waiting: an unengaged candidate remains available for a full 24 hours after arrival or their latest conversation (24 rounds without a game clock), unless explicitly sent away or they choose to abandon the application with `take-leave`. They may wait at the house, in the village or at the pub: agree where to find them, and do not send them out of the mapped area merely to await a decision. A candidate-home is off-map background, not a place to walk to; while their status is here, their actual map location is where to meet them. Once away, use `send-for` to bring them back.\n"
+       "Outdoor servants' lodging and dismissal of hired staff are possible."))
 
 (def rules (rules-text "Nobody new arrives except through send-for."))
 

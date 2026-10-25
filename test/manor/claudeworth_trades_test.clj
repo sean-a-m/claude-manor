@@ -59,12 +59,12 @@
                       request (shop/request awake id args)
                       data (json/read-value (get-in request [:messages 1 :content]) json/keyword-keys-object-mapper)]
                   (is (nil? (shop/quote-reason awake id args)))
-                  (is (= [:quote-goods] (map :name (cw/speaking-actions awake id {}))))
+                  (is (= [:recommend :quote-goods] (map :name (cw/speaking-actions awake id {}))))
                   (is (= (:store-profile (space/location awake place)) (get-in data [:store :store-profile])))
                   (is (nil? (:household data)))
                   (is (nil? (:agents data))))
                 (do
-                  (is (empty? (cw/speaking-actions awake id {})))
+                  (is (= [:recommend] (map :name (cw/speaking-actions awake id {}))))
                   (is (seq (:services (space/location awake place)))
                       "service workrooms are places of trade")
                   (is (nil? (cw/find-allowed? awake (:id customer) place)) "find works everywhere by default")

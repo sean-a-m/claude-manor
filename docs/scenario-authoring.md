@@ -332,7 +332,9 @@ response creates a buyer-bound quote for each line of a request (`quote-goods {f
 up to 10 lines in one appraisal and one query; its `:reply` tells the clerk each quote id or
 refusal). At an open counter, Claudeworth offers `quote-goods` in the clerk's speaking turn:
 a customer can `converse`, the clerk checks the list then replies with prices, and the customer
-gets the quote ids in the conversation summary and can `buy` in that same turn.
+gets the quote ids in the conversation summary and can `buy` in that same turn. Anyone's speaking
+turn also offers `recommend`, to someone in that conversation, so whoever is asked for a candidate
+can answer with a real one on their line instead of making up a name.
 `buy {quote-ids}` remains turn-ending and separately debits money for up to 10 quotes at once, checked as a
 whole, and creates for each quote one portable item, a parcel of the whole quantity, with two aspects: `:amount`, the amount
 bought ("20 × 1 lb"), where work can later say what's left, and `:state`, the appraiser's
@@ -1902,6 +1904,7 @@ or promised. It does not select an existing villager.
 
 - `recommend {position for}`: one query, one candidate. Both parties must be present
   and distinct; self-recommendation is rejected with directions to ask someone else.
+  Claudeworth also offers it on a speaking turn, where `for` must be in the conversation.
   Reuse a pooled/away person seeking that position in the same walking area, else generate
   one through the people server. The raw record is kept in `[:state :pool]`, never in a
   character's observation. The pool limit is 40, FIFO among pooled/away records not owned

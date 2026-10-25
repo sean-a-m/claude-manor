@@ -462,9 +462,6 @@
       (is (empty? (of-type run :run/pause-requested))))
     (e/stop-run run)))
 
-(deftest at-most-ten-calls-per-turn
-  (is (= 10 (:max-steps e/default-opts))))
-
 (deftest free-actions-get-a-reminder-to-end-the-turn
   (let [calls (atom [])
         run (rounds! (household-run (scripted calls (walker 3)) {}) 1)

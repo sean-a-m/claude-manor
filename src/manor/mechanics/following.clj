@@ -25,9 +25,12 @@
 ;; Accessors
 
 (defn leader
-  "The id of the person `id` follows, or nil."
+  "The id of the person `id` follows, or nil. Following holds only between
+  the living and present: once either has died or gone (retired, away), it
+  no longer counts, though the record stays on the agent."
   [world id]
-  (get-in world [:agents id :following]))
+  (let [l (get-in world [:agents id :following])]
+    (when (and l (w/active? world id) (w/active? world l)) l)))
 
 (defn followers
   "Ids of the active people following `id`, in spawn order."

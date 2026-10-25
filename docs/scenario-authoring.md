@@ -794,7 +794,9 @@ time done. A follower who isn't in the place the mover leaves gets `:stopped-fol
 (`:apart`, seen only by them); one asleep, hibernating, travelling or whose movement can't make
 the journey (`physical/movement-reason`) is left behind (`:left-behind`, seen by everyone there),
 and so are their followers. The view gets `you.following {:id :name}` while they're together and
-`you.followed-by [{:id :name}]` for followers here. Moves made by the engine (hibernation, GM or
+`you.followed-by [{:id :name}]` for followers here. Following counts only while both are active:
+once either dies, retires or goes away, `following/leader` is nil (the record stays on the agent),
+so the dead are never taken along and nobody follows a corpse. Moves made by the engine (hibernation, GM or
 operator placing, arrivals) take nobody along.
 
 **Aspects of a place** (with items, see the next section): a location may have `:aspects`, the

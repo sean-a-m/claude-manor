@@ -156,6 +156,41 @@
       (is (replays? run))
       (finally (e/stop-run run)))))
 
+(deftest the-dead-and-the-helpless
+  (let [run (start)]
+    (try
+      (act! run "hale" "follow" {:who "lord-claudeworth"})
+      (testing "an unconscious follower is left behind"
+        @(e/afflict! run "hale" {:faculty :consciousness :level :disabled :minutes 60})
+        (act! run "lord-claudeworth" "walk" {:to "study"})
+        (is (= "dining-room" (where run "hale")))
+        (is (= :left-behind (get-in (last (of-type run :agent/stopped-following)) [:data :reason]))))
+      (testing "so is a bound one"
+        @(e/place! run "lady-claudeworth" "study")
+        (act! run "lady-claudeworth" "follow" {:who "lord-claudeworth"})
+        @(e/afflict! run "lady-claudeworth" {:faculty :movement :level :disabled :cause "bound hand and foot"})
+        (act! run "lord-claudeworth" "walk" {:to "dining-room"})
+        (is (= "study" (where run "lady-claudeworth"))))
+      (testing "a dead follower stays where they died, and no longer follows anyone"
+        @(e/afflict! run "lady-claudeworth" {:faculty :movement :level :normal})
+        @(e/place! run "lady-claudeworth" "dining-room")
+        (act! run "lady-claudeworth" "follow" {:who "lord-claudeworth"})
+        @(e/afflict! run "lady-claudeworth" {:died "a fall"})
+        (act! run "lord-claudeworth" "walk" {:to "study"})
+        (is (= "dining-room" (where run "lady-claudeworth")))
+        (is (nil? (following/leader (e/world run) "lady-claudeworth")))
+        (is (empty? (following/followers (e/world run) "lord-claudeworth"))))
+      (testing "following a dead leader doesn't count: not in the view, and no follow-stop"
+        @(e/place! run "hale" "study")
+        @(e/afflict! run "hale" {:faculty :consciousness :level :normal})
+        (act! run "hale" "follow" {:who "lord-claudeworth"})
+        @(e/afflict! run "lord-claudeworth" {:died "a stroke"})
+        (is (nil? (following/leader (e/world run) "hale")))
+        (is (nil? (get-in (prompt/agent-view (:scenario run) (e/world run) "hale") [:you :following])))
+        (is (= "you aren't following anyone" (:rejected (act! run "hale" "follow-stop" {})))))
+      (is (replays? run))
+      (finally (e/stop-run run)))))
+
 (defn- come-along
   "A policy: the earl asks Hale to come to the study, then walks there; in
   the conversation Hale follows him and answers; other turns pass."

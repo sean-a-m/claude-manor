@@ -760,6 +760,22 @@ Helpers for your actions and views:
 | `(space/last-seen world id)` | where `id` last saw each active person not with them, most recent first |
 | `(space/away-acquaintances world id)` | the same, for each person `id` has met who is away now |
 
+**Finding people** (`manor.mechanics.find-person`, used by Claudeworth): add
+`find-person/action` to your actions and `find-person/adjudicators` to your `:adjudicators`.
+`find-person {who}` is a `:query` (counts against `:max-queries`, once per turn), offered
+wherever the agent has a place. `who` (1-80 characters) describes the person in the seeker's own
+words. The `:people/find-person` judge sees the seeker's name, position, nature, situation,
+place, last 15 notes and last ten narrated lines, and `people`: everyone in the seeker's
+`space/area` but them, the dead included, with only what anyone about could see (id, name,
+position, form of address, appearance, place and what they're doing). It answers `person` (a
+listed id) with a likelihood (certain, likely, even, unlikely, impossible), or `nobody`; code
+checks only that shape and that the id is listed. The engine rolls `[:find-person seq]` against
+the odds (as `find` does) and records `:people/sought`, visible only to the seeker, with the
+outcome, the roll and, when found, the place `:at`. It has no reducer and moves no one. Found,
+the reply names the person, their place id and what they're doing ("walk to gallery"); missed,
+and no one meant, both reply "You look about for <who> but don't find them.", so a miss gives
+nothing away. The mock finds someone listed whose id, name or surname `who` contains.
+
 **Aspects of a place** (with items, see the next section): a location may have `:aspects`, the
 same keyed phrases as an item's (`{:cleanliness "swept" :hearth "a fire laid"}`, at most 4,
 values 1-200 characters, 80 advised), about the room as a whole: its floor, hearth and air, never the things in

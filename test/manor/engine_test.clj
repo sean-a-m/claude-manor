@@ -533,7 +533,7 @@
   (let [run (rounds! (household-run (scripted (atom []) chatterbox) {}) 2)
         logged (filter #(= "lord-claudeworth" (:agent %)) (store/read-llm (:dir run)))
         replies (map (comp :content first :replies) logged)
-        spent "rejected: you can use call or say or whisper only once per turn; take your turn-ending action now, and use them again next turn"]
+        spent "rejected: you can use say or whisper only once per turn; take your turn-ending action now, and use them again next turn"]
     (testing "a rejected whisper doesn't use up the turn's speech; a second say or whisper is refused"
       (is (= ["rejected: no active participant with id nobody" "ok" spent spent "done"] (take 5 replies))))
     (testing "he spoke once a round, kept his turns, and whispered nothing"

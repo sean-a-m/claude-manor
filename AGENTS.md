@@ -118,6 +118,8 @@ src/manor/
                    filter emit! applies; physical/changes.clj makes its events and the interrupts they cause
     visits.clj     visits: invite, GM/operator visits, the tick, calendar entries it manages, keeps-awake?,
                    guests from elsewhere (away agents, arrival at the meeting place, take-leave, you.visit)
+    find_person.clj find-person: a judge picks whom a seeker means among the people in walking distance, the engine
+                   rolls, and the reply says where they are
     visits/        judge.clj: the invitation judge (who invite's `person` means: existing, new or impossible)
   io/            everything that leaves the process
     llm.clj        LLM protocol; OpenRouter (JDK HTTP) and Mock (scenario policy) implementations

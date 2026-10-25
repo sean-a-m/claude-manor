@@ -27,6 +27,7 @@
             [manor.io.worldfile :as worldfile]
             [manor.mechanics.builtins :as b]
             [manor.mechanics.conversation :as conversation]
+            [manor.mechanics.find-person :as find-person]
             [manor.mechanics.hiring :as hiring]
             [manor.mechanics.items :as items]
             [manor.mechanics.items.views :as item-views]
@@ -46,6 +47,7 @@
 
 (def max-sleep-hours 12)
 (def max-call 300)
+(def max-calls 5)
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers
@@ -176,10 +178,12 @@
     :reply (fn [world actor _] (arrival world actor))}
 
    {:name :call
-    :kind :free :per-turn 1 :limit-key :speech
+    :kind :free :per-turn max-calls
     :doc (str "Call out, so that everyone within walking distance (the whole house, say) hears you wherever they are: "
               "a short call, at most " max-call " characters. Name someone with to (their id) to call for them; "
-              "if they hear you and are busy, but not asleep, they may stop to answer. Shares its limit with say and whisper.")
+              "if they hear you and are busy, but not asleep, they may stop to answer. Only the person in to is called: "
+              "naming someone in the text doesn't call them. Shouting through the house is rude without good reason: "
+              "call only for someone out of earshot whom you need, and use say or converse for people with you.")
     :args [:map [:text [:string {:min 1 :max max-call}]] [:to {:optional true} :string]]
     :available? (fn [world actor] (physical/can? world actor :speech))
     :valid? (fn [world actor {:keys [to]}]
@@ -398,8 +402,10 @@
          "`travel` goes to another area: use a place id from `places`, or an area name. It takes your turn; `journeys` "
          "in your view shows how long each journey takes, and a longer one leaves you travelling until you arrive. "
          "You're only heard by people in the same place (`say`: a few sentences, at most " b/speech-limit
-         " characters); `whisper` is private. `call` is heard everywhere within walking distance, so you can summon someone instead of searching the house room by room; whether it's proper for you to call someone depends on who you both are. `last-seen` in your view says where you last saw each person. "
-         "You can speak once a turn, with `say`, `whisper` or `call`, and it doesn't end your turn: speak, then take your action. "
+         " characters); `whisper` is private. You can speak once a turn, with `say` or `whisper`, and it doesn't end your turn: speak, then take your action. "
+         "`call` is heard everywhere within walking distance, so you can summon someone instead of searching the house room by room: name them with `to`, and if they're busy but awake they may stop to answer. "
+         "Calling out is loud, and it's rude to shout through the house without good reason: call only for someone out of earshot whom you need, never instead of `say` or `converse` with people where you are; whether it's proper for you to call someone at all depends on who you both are. "
+         "`find-person` finds someone within walking distance from a description in your own words and says where they are, so you can walk straight there; `last-seen` in your view says where you last saw each person. "
          "`converse` doesn't count against speaking once a turn: you can start one conversation a turn as well. "
          "To talk something over with people here, `converse` draws up to " conversation/max-others " of them into a conversation within your turn: "
          "you each speak in turn, up to " conversation/passes " times, so nobody waits a turn for each answer, and then you carry on with your turn. "
@@ -428,7 +434,7 @@
                 (str/join ", " (map :size (get-in world [:state :architect-prices :sizes]))) ". Only the architect draws plans (`draw-plans`), and only for a client who is with him at his office while it is open; if he is out, wait for him or come back. Any character can `commission` a plan they hold, but should judge whether they have the social authority to do so. `show-plans` shares plans with everyone present, anywhere. "
                 "Plans are a special case: they are not things, so they are never carried, given, fetched, copied, lost or searched for. Once plans are drawn, the architect and the client both hold them, and anyone they are shown to holds them too; `plans` in your view lists the plans you hold, and those are all you need. "))
          (if architect? "A reference lookup, the price list, each draft, each `quote-goods`" "Each `quote-goods`")
-         " (however many goods it lists), `recommend` and `find` all count towards your " max-queries " queries a turn, even if asked for at once; once you reach " max-queries ", take your action and query again next turn. "
+         " (however many goods it lists), `recommend`, `find` and `find-person` all count towards your " max-queries " queries a turn, even if asked for at once; once you reach " max-queries ", take your action and query again next turn. "
          (when architect?
            (str "Only one room is built at a time: `commission` is refused while a room is being built (see `building` for the work in hand and when it finishes), so the next room must wait until the present one is finished. "
                 "Commissioning pays from the household; the room appears at the completion time in `building`. The architect earns "
@@ -738,8 +744,8 @@
       :roles roles
       :agent-brief agent-brief
       :on-spawn positions/starting-events
-      :actions (vec (concat actions building/actions shop/actions hiring/actions))
-      :adjudicators (merge shop/adjudicators hiring/adjudicators)
+      :actions (vec (concat actions [find-person/action] building/actions shop/actions hiring/actions))
+      :adjudicators (merge shop/adjudicators hiring/adjudicators find-person/adjudicators)
       :bridges (merge building/bridges hiring/bridges)
       :offline-stubs (merge building/offline-stubs hiring/offline-stubs)
       :mcp-servers (merge building/mcp-servers people/mcp-servers)

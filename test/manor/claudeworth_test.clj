@@ -401,9 +401,10 @@
         world (assoc (e/world run) :round 1)              ; 08:00, everyone in their bedrooms; Pugh at the office
         busy (w/apply-event world (b/occupy world "hale" "copying letters" 5))
         call (action run :call)]
-    (testing "free, and it shares the one utterance a turn with say and whisper"
+    (testing "free, five times a turn, with its own limit apart from say and whisper"
       (is (= :free (a/kind call)))
-      (is (= :speech (a/limit-key call))))
+      (is (= 5 (:per-turn call)))
+      (is (= :call (a/limit-key call))))
     (testing "everyone within walking distance hears it, wherever they are; not the village"
       (let [[_ [e]] (perform run world "lord-claudeworth" :call {:text "Is anyone about?"})]
         (is (= #{"lord-claudeworth" "lady-claudeworth" "hale"} (:visible-to e)))
@@ -427,7 +428,8 @@
     (testing "the rules explain it, and last-seen"
       (is (str/includes? (cw/rules world) "`call` is heard everywhere within walking distance"))
       (is (str/includes? (cw/rules world) "`last-seen` in your view"))
-      (is (str/includes? (cw/rules world) "with `say`, `whisper` or `call`")))
+      (is (str/includes? (cw/rules world) "You can speak once a turn, with `say` or `whisper`"))
+      (is (str/includes? (cw/rules world) "it's rude to shout through the house without good reason")))
     (e/stop-run run)))
 
 (deftest sleeping-pastimes-and-rousing

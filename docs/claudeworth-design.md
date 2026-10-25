@@ -851,3 +851,13 @@ Decisions for items (done):
     work unchanged; the bed is a household item. Terms and folding the bed away are social
     instructions, not new wage or furniture mechanics. The generic bundled-world checks cover
     every resident's accessible bedroom and ability to sleep there, as well as mock/replay.
+47. **Calling and finding people.** Done. In `runs/claudeworth-medium-20261024-165712` four
+    people spent rounds 16-17 walking the house for Ellen Stubbs, who was blackleading in the
+    gallery, and every `call` that might have fetched her was refused by the once-a-turn speech
+    limit it shared with `say`. `call` now has its own limit of five a turn, and its doc and the
+    rules say that only the person in `to` is called and that shouting through the house without
+    good reason is rude, so it isn't used instead of `say` or `converse`. The new `find-person
+    {who}` (a query, once a turn, `manor.mechanics.find-person`) takes a description in the
+    seeker's own words; a narrow judge, built like the find judge, picks who is meant from
+    everyone in the seeker's walking area and rates the odds, the engine rolls, and the reply says
+    where they are so the seeker can walk there. It moves no one and tells the person nothing.

@@ -595,6 +595,20 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   - dragging people;
   - combat resolution beyond the judge.
 
+### B16. Following: done
+
+- **Why:** someone told "follow me" couldn't. Turns run one after another, so by the time they
+  acted the other had gone, and they chased each other round the house (Emily and Dorothy Smith
+  in `runs/claudeworth-medium-20261024-235343`, 19 Dec 09:00-10:00).
+- **Built:** `follow {who}` and `follow-stop`, free, also offered in conversations' speaking
+  turns, so someone asked to come along can follow in the same line. Followers go with the
+  person they follow on every `walk` and `travel`, at once and within that person's turn; a
+  busy follower stops their work to go, and one who can't (asleep, unable to move, no longer
+  with them) is left behind and stops following. Contract under Locations in
+  `scenario-authoring.md` (`manor.mechanics.following`). Mock-tested only so far.
+- **Not done:** the village scenario's `move` doesn't take followers along; a real-model check
+  of whether agents use it when asked to come along.
+
 ---
 
 ## C. Known issues and small fixes

@@ -109,8 +109,8 @@
       (let [calls (filter :conversation (store/read-llm (:dir run)))]
         (is (= 6 (count calls)))
         (is (= {:pass :last-word} (select-keys (:conversation (last calls)) [:pass])))
-        (is (= #{"reply" "end-conversation" "note"} (set (:tools (last calls)))))
-        (is (= #{"reply" "stay-silent" "leave" "note"} (set (:tools (first calls))))))
+        (is (= #{"reply" "end-conversation" "note" "follow"} (set (:tools (last calls)))))
+        (is (= #{"reply" "stay-silent" "leave" "note" "follow"} (set (:tools (first calls))))))
       (let [text (transcript/render (:dir run))]
         (is (re-find #"\*\*hale\*\* _\(conv-\d+, pass 2\)_ reply" text))
         (is (re-find #"\*\*lord-claudeworth\*\* _\(conv-\d+, last word\)_ reply" text))))

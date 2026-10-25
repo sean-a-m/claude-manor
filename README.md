@@ -179,7 +179,16 @@ and viewport across updates. Claudeworth also shows construction ghosts, funds, 
 Room positions stay fixed within their floor panel; growing panels can shift the outer picture.
 
 The original control panel remains at `/panel`, including `?as=<agent-id>` feed filtering and the
-human act form. **The scene and inspectors are omniscient operator views**, including private
+human act form. When a human-controlled seat is waiting, choose an action/tool to see its
+instructions and schema-generated fields: required/optional labels, constrained numbers,
+choice menus, text, and lists (one entry per line). Blank optional fields are omitted. Complex
+values have a JSON field with their schema; **Advanced: JSON arguments** lets you supply the
+whole argument object instead. Live updates preserve drafts and focus until you send an action.
+Engine results appear above the form; free actions and queries keep the turn open, while a final
+action ends it. The tool list refreshes after each call. Use **See their view** for visible IDs;
+the form does not guess IDs from parameter names. Commands still use normal engine validation.
+
+**The scene and inspectors are omniscient operator views**, including private
 inner state, closed-container contents and recorded reasoning. They are not what agents see.
 `/agent/<id>` remains the unchanged agent view. Rendering makes no model calls and changes no
 simulation state; a scenario without locations still has controls, inspectors and the feed.

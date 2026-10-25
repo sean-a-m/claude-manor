@@ -370,6 +370,12 @@ shared-wall doors, encoded agent links and retained-panel live-feed behaviour.
 - Automatic scene layout is implemented at `/` (domains, floors and domainless components);
   `/panel` retains its original grid/circle map. Dense-graph connector/tooltip polish and manual
   legibility checks remain, rather than a promise that all graphs can share walls.
+- **Done:** schema-generated human-seat action forms at `/panel`, with tool instructions,
+  required/optional fields, numeric bounds, enums/booleans, text and string lists, plus JSON for
+  complex values and an advanced whole-object editor. Drafts/focus survive live refreshes; engine
+  replies and stale-form errors are visible. Fixed submission to the wrong URL (the `action`
+  dropdown shadowed the form URL), and human tool availability now refreshes after each call.
+  Mock/offline engine/HTTP tests and actual Chromium commands cover free/query/final actions.
 - Showing a human player their own view inline, not only via the agent page link.
 
 ### B9. Snapshots

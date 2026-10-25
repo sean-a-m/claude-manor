@@ -47,11 +47,14 @@
   "A human holds this seat: wait for `act!` input. Free and query actions
   are applied and the wait continues; a turn-ending action finishes."
   [run agent-id {:keys [role max-finals commit]}]
-  (let [by-name (a/by-name (turn-actions run @(:world run) agent-id {:role role}))
-        call-opts {:commit commit :max-finals max-finals :max-queries (:max-queries (:opts run))}]
+  (let [call-opts {:commit commit :max-finals max-finals :max-queries (:max-queries (:opts run))}]
     (loop [st {:finals [] :queries 0 :used []} feedback nil]
-      (let [p (promise)]
-        (reset! (:input run) {:agent agent-id :promise p :tools (sort (keys by-name)) :feedback feedback})
+      (let [actions (turn-actions run @(:world run) agent-id {:role role})
+            by-name (a/by-name actions)
+            p (promise)]
+        (reset! (:input run) {:agent agent-id :promise p :request-id (str (random-uuid))
+                             :tools (sort (keys by-name)) :tool-specs (mapv a/->tool actions)
+                             :feedback feedback})
         (run/set-status! run assoc :state :awaiting-human :awaiting agent-id)
         (let [{:keys [action args]} @p
               st' (turn/handle-call run agent-id by-name call-opts (assoc st :replies [])

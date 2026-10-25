@@ -15,6 +15,7 @@
             [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
             [manor.prompt :as prompt]
+            [manor.tools.human-input :as human-input]
             [manor.tools.scene :as scene]
             [manor.tools.scene-inspect :as inspect]
             [manor.world :as w]
@@ -63,7 +64,15 @@ button.alt{background:#444} input,select,textarea{background:#111;color:#ddd;bor
 #feed li{padding:2px 4px;border-bottom:1px solid #262a33} .vis{color:#888;font-size:11px}
 .private{background:#2a2536} .gm{background:#23302a} .system{color:#777}
 pre{white-space:pre-wrap;font-size:12px;background:#111;padding:8px;border-radius:4px;max-height:60vh;overflow:auto}
-form.inline{display:inline}")]]
+form.inline{display:inline}
+.human-tool,.human-fields{border:0;padding:0;margin:8px 0;min-width:0}
+.human-tool[hidden]{display:none}
+.human-field{margin:10px 0}.human-field label,#human-action>label{display:block;margin-bottom:3px}
+.human-field textarea,.human-advanced textarea{box-sizing:border-box;width:100%;resize:vertical}
+.human-description,.human-feedback{white-space:pre-wrap;overflow-wrap:anywhere}
+.human-help{font-size:12px;color:#aaa;margin:5px 0}.human-advanced{margin:10px 0}
+.human-error,#panel-client-error{color:#f88;white-space:pre-wrap}
+button:disabled{opacity:.5;cursor:default}")]]
                 [:body body]]))})
 
 (defn- vis-label [v]
@@ -233,16 +242,7 @@ form.inline{display:inline}")]]
         [:input {:name "n" :size 3 :placeholder "∞"}] " " [:button "Auto"]] " "
        (cmd-button "pause" "Pause" nil "alt")]]
 
-     (when input
-       [:section {:style "outline:2px solid #fc8"}
-        [:h2 "Waiting for " (:agent input)]
-        (when-let [fb (:feedback input)] [:div "last result: " fb])
-        [:form {:method "post" :action "/cmd/act" :onsubmit "return send(this)"}
-         [:input {:type "hidden" :name "agent" :value (:agent input)}]
-         [:select {:name "action"} (for [t (:tools input)] [:option t])] " "
-         [:input {:name "args" :size 30 :placeholder "{\"grain\": 3}"}] " "
-         [:button "Act"]]
-        [:div [:a {:href (str "/agent/" (:agent input)) :target "_blank"} "see their view"]]])
+     (when input (human-input/fragment input))
      (when (and (not input) last-human-feedback)
        [:section [:div "last human action: " last-human-feedback]])
 
@@ -295,15 +295,6 @@ form.inline{display:inline}")]]
 ;; ---------------------------------------------------------------------------
 ;; Pages
 
-(def ^:private client-js "
-let timer=null;
-function refresh(){clearTimeout(timer);timer=setTimeout(()=>fetch('/partial/status').then(r=>r.text()).then(t=>document.getElementById('status').innerHTML=t),150);}
-function send(f){fetch(f.action,{method:'POST',body:new URLSearchParams(new FormData(f))}).then(refresh);return false;}
-const es=new EventSource('/stream'+location.search);
-es.addEventListener('ev',m=>{const ul=document.getElementById('feed');ul.insertAdjacentHTML('afterbegin',m.data);refresh();});
-es.addEventListener('status',refresh);
-")
-
 (defn- panel-page [run req]
   (let [world (e/world run)
         v (viewer req)
@@ -320,10 +311,11 @@ es.addEventListener('status',refresh);
              (for [ag (w/agents-in-order world) :when (not= :gm (:role ag))]
                [:option {:value (:id ag) :selected (= v (:id ag))} (:id ag)])]]]
           [:main
-           [:div#status (h/raw (status-fragment run))]
+           [:div [:div#panel-client-error {:role "alert"}]
+            [:div#status (h/raw (status-fragment run))]]
            [:section [:h2 "Events" (when (string? v) (str " visible to " v))]
             [:ul#feed (for [ev (feed-events run (if (= v "gm") :gm v) 300)] (event-li ev names))]]]
-          [:script (h/raw client-js)])))
+          [:script {:src "/static/panel.js" :defer true}])))
 
 (defn- scene-fragments
   ([run] (scene-fragments run nil))
@@ -361,12 +353,13 @@ es.addEventListener('status',refresh);
             [:ul#feed (h/raw (:feed fragments))]]]
           [:script {:src "/static/scene.js" :defer true}])))
 
-(def ^:private scene-assets
-  {"/static/scene.js" ["manor/scene.js" "text/javascript; charset=utf-8"]
+(def ^:private static-assets
+  {"/static/panel.js" ["manor/panel.js" "text/javascript; charset=utf-8"]
+   "/static/scene.js" ["manor/scene.js" "text/javascript; charset=utf-8"]
    "/static/scene.css" ["manor/scene.css" "text/css; charset=utf-8"]})
 
 (defn- asset-response [uri]
-  (let [[path content-type] (get scene-assets uri)]
+  (let [[path content-type] (get static-assets uri)]
     {:status 200 :headers {"Content-Type" content-type}
      :body (slurp (io/resource path))}))
 
@@ -411,22 +404,36 @@ es.addEventListener('status',refresh);
 ;; ---------------------------------------------------------------------------
 ;; Commands and streaming
 
+(defn- human-command
+  "Reject stale browser forms before delivering to the engine. Legacy JSON
+  clients without a request id still use the same act! endpoint."
+  [run p]
+  (let [input @(:input run)]
+    (if (and (:request-id p) (not= (:request-id p) (:request-id input)))
+      {:status 409 :body "This turn has changed. Refresh the panel before sending an action."}
+      (let [result (e/act! run (:agent p) (:action p) (if (str/blank? (:args p)) {} (:args p)))]
+        (if-let [error (:error result)]
+          {:status 409 :body error}
+          {:status 204})))))
+
 (defn- command [run cmd p]
-  (case cmd
-    "step" (e/step! run)
-    "auto" (e/auto! run (some-> (:n p) str/trim not-empty parse-long))
-    "pause" (e/pause! run)
-    "approve" (e/approve! run (:req p))
-    "deny" (e/deny! run (:req p))
-    "announce" (when-not (str/blank? (:text p)) (e/announce! run (:text p)))
-    "spawn" (when-not (str/blank? (:name p))
-              (e/spawn! run (cond-> {:role (keyword (:role p)) :name (:name p)
-                                     :controller (keyword (or (:controller p) "llm"))}
-                              (not (str/blank? (:persona p))) (assoc :persona (:persona p))
-                              (not (str/blank? (:model p))) (assoc :model (:model p)))))
-    "act" (e/act! run (:agent p) (:action p) (if (str/blank? (:args p)) {} (:args p)))
-    nil)
-  {:status 204})
+  (if (= cmd "act")
+    (human-command run p)
+    (do
+      (case cmd
+        "step" (e/step! run)
+        "auto" (e/auto! run (some-> (:n p) str/trim not-empty parse-long))
+        "pause" (e/pause! run)
+        "approve" (e/approve! run (:req p))
+        "deny" (e/deny! run (:req p))
+        "announce" (when-not (str/blank? (:text p)) (e/announce! run (:text p)))
+        "spawn" (when-not (str/blank? (:name p))
+                  (e/spawn! run (cond-> {:role (keyword (:role p)) :name (:name p)
+                                        :controller (keyword (or (:controller p) "llm"))}
+                                 (not (str/blank? (:persona p))) (assoc :persona (:persona p))
+                                 (not (str/blank? (:model p))) (assoc :model (:model p)))))
+        nil)
+      {:status 204})))
 
 (defn- sse-message [kind data]
   (str "event: " kind "\ndata: " (str/replace data "\n" "\ndata: ") "\n\n"))
@@ -480,7 +487,7 @@ es.addEventListener('status',refresh);
                                                  (scene-fragments run (when (and (#{"agent" "place" "item"} kind) id)
                                                                         {:kind kind :id id}))))}
       (str/starts-with? uri "/partial/inspect/") (inspect-response run uri)
-      (contains? scene-assets uri) (asset-response uri)
+      (contains? static-assets uri) (asset-response uri)
       (= uri "/partial/status") {:status 200 :headers {"Content-Type" "text/html; charset=utf-8"}
                                  :body (status-fragment run)}
       (= uri "/stream") (stream run req)

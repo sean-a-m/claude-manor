@@ -63,7 +63,7 @@
    :gm-model nil                    ; defaults to :model
    :judge-model nil                 ; narrow adjudicators (work and scenario queries); defaults to :model
    :gm :llm                         ; who fills the GM seat: :llm, :human or :off
-   :reasoning {:effort "low"}
+   :reasoning {:effort "none"}
    :tool-choice "auto"              ; or "required"; DeepSeek's own endpoint rejects "required" with reasoning on
    :max-tokens 16000                 ; includes reasoning tokens
    :max-steps 20                    ; model calls per agent turn (a cost guard, not game time)

@@ -89,6 +89,8 @@
   (let [run (fixture "gm")]
     (with-redefs-fn {#'web/current-run (atom run)}
       (fn []
-        (let [panel (:body (#'web/handler {:uri "/panel" :request-method :get}))]
-          (is (str/includes? panel "ul.insertAdjacentHTML('afterbegin',m.data);refresh();"))
-          (is (not (str/includes? panel "ul.children.length>300"))))))))
+        (let [panel (:body (#'web/handler {:uri "/panel" :request-method :get}))
+              script (:body (#'web/handler {:uri "/static/panel.js" :request-method :get}))]
+          (is (str/includes? panel "src=\"/static/panel.js\""))
+          (is (str/includes? script "document.getElementById('feed').insertAdjacentHTML('afterbegin', message.data);\n  refresh();"))
+          (is (not (str/includes? script "children.length"))))))))

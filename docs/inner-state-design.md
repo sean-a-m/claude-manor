@@ -219,8 +219,8 @@ Defaults proposed where nothing was decided, to confirm when the build starts:
   person per verdict, so the transcript reads by person.
 - **Views:** `prompt/agent-view` adds `:you :inner`. It's in the volatile end of the request,
   so the cached prefix is unchanged. Inner state never goes in `space/person`, `people-here`,
-  `look`, or any other agent's request. The default GM view's agents include it; the panel's
-  roster and the transcript show it.
+  `look`, or any other agent's request. The default GM view's agents include it; each person's
+  panel page (`/agent/<id>`) and the transcript show it.
 - **Privacy is enforced by where inner state is put,** not by checking text. The one leak path
   is a judge's *public* summary (the work judge's summary is read by everyone present), which
   the instructions address (5.2) and transcript review checks.

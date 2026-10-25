@@ -974,8 +974,8 @@ things in it as habits ("usually in a print frock and apron").
   the judge).
 - **Who sees them:** everyone present, every turn: `:aspects` beside `:appearance` on each of
   `:location :people-here` and on `look`'s people, and the person's own under `:you :aspects`;
-  each is left out when there are none. The default GM view's agents have them, and the panel's
-  roster shows them. The system prompt is unchanged ("What people see:" stays the appearance).
+  each is left out when there are none. The default GM view's agents have them, and each person's
+  panel page (`/agent/<id>`) shows them. The system prompt is unchanged ("What people see:" stays the appearance).
   Other adjudicators (shop quotes, hiring interviews) don't see them.
 - **Overnight:** the nightly steward, when the scenario has one, removes from people asleep the
   aspects that wouldn't last the night, and never sets one (see The nightly steward), even in a
@@ -1518,7 +1518,7 @@ reads it. Opt in with a scenario `:inner` entry:
   Anything left out starts empty, and so do people made during a run. The exported `map.edn`
   writes the live `:inner` back to the file's agents.
 - **Who sees it:** the person, under `:you :inner` in their view (only entries with a value),
-  and the GM (the default GM view's agents), the operator (the panel's roster) and the judges.
+  and the GM (the default GM view's agents), the operator (each person's panel page, `/agent/<id>`) and the judges.
   Never `people-here`, `look`, or any other agent's request. Privacy comes from where it's put,
   not from checking text.
 - **What changes it:** the work judge, the conversation judge and the nightly steward (below,

@@ -54,7 +54,8 @@
                  [:style (h/raw "
 body{font:14px/1.4 system-ui,sans-serif;margin:0;background:#16181d;color:#ddd}
 a{color:#8cf} header{padding:8px 14px;background:#20232b;display:flex;gap:16px;align-items:center}
-main{display:grid;grid-template-columns:420px 1fr;gap:14px;padding:14px}
+main{display:grid;grid-template-columns:420px 1fr;gap:14px;padding:14px} main>*{min-width:0}
+.scroll-x{overflow-x:auto} button.small{padding:1px 6px;font-size:12px;white-space:nowrap}
 section{background:#20232b;border-radius:6px;padding:10px;margin-bottom:12px}
 h2{font-size:13px;text-transform:uppercase;color:#999;margin:0 0 8px}
 table{border-collapse:collapse;width:100%} td,th{padding:3px 6px;text-align:left;border-bottom:1px solid #2c3039}
@@ -219,6 +220,29 @@ button:disabled{opacity:.5;cursor:default}")]]
    (for [[k v] fields] [:input {:type "hidden" :name (name k) :value v}])
    [:button {:class cls} label]])
 
+(defn- controller-switch
+  "A button handing `ag`'s seat to the other controller, for seats held by
+  a model or a human. `onsubmit` is the page's script for posting it."
+  [ag onsubmit]
+  (when (#{:llm :human} (:controller ag))
+    (let [to (if (= :human (:controller ag)) "llm" "human")]
+      [:form.inline {:method "post" :action "/cmd/controller" :onsubmit onsubmit}
+       [:input {:type "hidden" :name "agent" :value (:id ag)}]
+       [:input {:type "hidden" :name "to" :value to}]
+       [:button.alt.small (str "→ " to)]])))
+
+(defn- whereabouts
+  "Where `ag` is or is going, or their status when they aren't active, plus
+  what keeps them busy."
+  [ag]
+  (list (cond (not= :active (:status ag)) (name (:status ag))
+              (:travel ag) (str "→ " (get-in ag [:travel :to]))
+              :else (or (:location ag) ""))
+        (when-let [b (:busy ag)] [:div.vis (:activity b)])))
+
+(defn- keyed-phrases [m]
+  (str/join "; " (for [[k v] m] (str (name k) ": " v))))
+
 (defn- status-fragment [run]
   (let [world (e/world run)
         {:keys [state mode remaining acting awaiting pause-reasons error last-human-feedback]} (e/status run)
@@ -248,25 +272,17 @@ button:disabled{opacity:.5;cursor:default}")]]
 
      [:section
       [:h2 "Roster"]
-      [:table
-       [:tr [:th "id"] [:th "role"] [:th "status"] [:th "where"] [:th "aspects"] [:th "inner"] [:th "controller / model"] [:th "cost"]]
-       (for [ag (w/agents-in-order world)
-             :let [u (get-in world [:usage (:id ag)])]]
-         [:tr
-          [:td [:a {:href (str "/agent/" (:id ag))} (:id ag)]]
-          [:td (name (:role ag))]
-          [:td (name (:status ag))]
-          [:td (cond (:travel ag) (str "→ " (get-in ag [:travel :to]))
-                     (:location ag) (:location ag)
-                     :else "")
-           (when-let [b (:busy ag)] [:span.vis " (" (:activity b) ")"])]
-          [:td.vis (str/join "; " (for [[k v] (:aspects ag)] (str (name k) ": " v)))]
-          [:td.vis (str/join "; " (for [[k v] (:inner ag)] (str (name k) ": " v)))]
-          [:td (name (:controller ag)) " " [:span.vis (or (:model ag) "")]
-           (when (#{:llm :human} (:controller ag))
-             (let [to (if (= :human (:controller ag)) "llm" "human")]
-               (list " " (cmd-button "controller" (str "→ " to) {:agent (:id ag) :to to} "alt"))))]
-          [:td (if u (format "$%.4f" (double (:cost u))) "")]])]]
+      ;; Narrow columns only; aspects, inner state and model are on each agent's page.
+      [:div.scroll-x
+       [:table
+        [:tr [:th "who"] [:th "where"] [:th "controller"] [:th "cost"]]
+        (for [ag (w/agents-in-order world)
+              :let [u (get-in world [:usage (:id ag)])]]
+          [:tr
+           [:td [:a {:href (str "/agent/" (:id ag))} (:id ag)] [:div.vis (name (:role ag))]]
+           [:td (whereabouts ag)]
+           [:td [:div (name (:controller ag))] (controller-switch ag "return send(this)")]
+           [:td (if u (format "$%.4f" (double (:cost u))) "")]])]]]
 
      (when (space/enabled? world)
        [:section [:h2 "Map"] (map-svg world)])
@@ -376,6 +392,17 @@ button:disabled{opacity:.5;cursor:default}")]]
             [:header [:a {:href "/panel"} "back"] [:b (:name ag)] [:span (name (:role ag))]]
             [:main {:style "grid-template-columns:1fr 1fr"}
              [:div
+              [:section [:h2 "Seat"]
+               [:table
+                [:tr [:th "role"] [:td (name (:role ag))]]
+                [:tr [:th "where"] [:td (whereabouts ag)]]
+                [:tr [:th "controller"]
+                 [:td (name (:controller ag)) " "
+                  (controller-switch ag "fetch(this.action,{method:'POST',body:new URLSearchParams(new FormData(this))}).then(()=>location.reload());return false")]]
+                [:tr [:th "model"] [:td (or (:model ag) (str "run default (" (get (:opts run) (if (= :gm (:role ag)) :gm-model :model)) ")"))]]
+                (when (seq (:aspects ag)) [:tr [:th "aspects"] [:td (keyed-phrases (:aspects ag))]])
+                (when (seq (:inner ag)) [:tr [:th "inner"] [:td (keyed-phrases (:inner ag))]])]
+               [:div.vis "A switch lands between rounds; a seat waiting for your input stays yours until you end its turn."]]
               [:section [:h2 "Their view of the world"]
                [:pre (if (= :gm (:role ag))
                        "The GM sees the full world state."

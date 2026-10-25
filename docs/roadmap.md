@@ -377,6 +377,8 @@ shared-wall doors, encoded agent links and retained-panel live-feed behaviour.
   dropdown shadowed the form URL), and human tool availability now refreshes after each call.
   Mock/offline engine/HTTP tests and actual Chromium commands cover free/query/final actions.
 - **Done:** a roster button switches a seat between `:llm` and `:human` mid-run (`e/update-agent!`).
+  The roster was cut to four narrow columns so it fits the panel's 420px column; aspects, inner
+  state and model moved to a Seat section on `/agent/<id>`, which has the switch too.
 - Releasing a seat that's already waiting for human input straight back to the model: the switch
   queues behind the blocked round, so today the human must end that turn first.
 - Showing a human player their own view inline, not only via the agent page link.

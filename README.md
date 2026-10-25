@@ -188,9 +188,12 @@ Engine results appear above the form; free actions and queries keep the turn ope
 action ends it. The tool list refreshes after each call. Use **See their view** for visible IDs;
 the form does not guess IDs from parameter names. Commands still use normal engine validation.
 
-The roster's **→ human** / **→ llm** button switches a seat between a model and you during a run
-(an `:agent/updated` operator event, visible to the GM). It lands between rounds; a seat already
-waiting for your input stays yours until you take a turn-ending action.
+The roster is kept narrow (who, where, controller, cost); each person's page at `/agent/<id>` has
+their seat (role, controller, model, aspects, inner state), view, notes, tools and last model call.
+The **→ human** / **→ llm** button, in the roster and on that page, switches a seat between a
+model and you during a run (an `:agent/updated` operator event, visible to the GM). It lands
+between rounds; a seat already waiting for your input stays yours until you take a turn-ending
+action.
 
 **The scene and inspectors are omniscient operator views**, including private
 inner state, closed-container contents and recorded reasoning. They are not what agents see.

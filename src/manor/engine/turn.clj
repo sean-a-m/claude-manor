@@ -6,6 +6,7 @@
             [manor.actions :as a]
             [manor.engine.models :as models]
             [manor.engine.resolve :as resolve]
+            [manor.engine.run :as run]
             [manor.prompt :as prompt]))
 
 (defn- limit-reached
@@ -85,6 +86,31 @@
                   (cond-> st
                     (or (= "done" name) (>= (count (:finals st)) max-finals))
                     (assoc :done? true)))))))))))
+
+(defn human-calls
+  "A human seat's turn or speaking turn: wait for `act!` input and handle
+  each as a tool call, its reply shown as feedback, until a turn-ending
+  action finishes it. `actions-fn` (fn []) gives the tools for each wait;
+  `context` (text, or nil) heads the panel's form. Returns the turn state."
+  [run agent-id actions-fn call-opts context]
+  (loop [st {:finals [] :queries 0 :used []} feedback nil]
+    (let [actions (actions-fn)
+          by-name (a/by-name actions)
+          p (promise)]
+      (reset! (:input run) {:agent agent-id :promise p :request-id (str (random-uuid))
+                           :tools (sort (keys by-name)) :tool-specs (mapv a/->tool actions)
+                           :feedback feedback :context context})
+      (run/set-status! run assoc :state :awaiting-human :awaiting agent-id)
+      (let [{:keys [action args]} @p
+            st' (handle-call run agent-id by-name call-opts (assoc st :replies [])
+                             {:id "human" :name action :arguments args})
+            fb (:content (last (:replies st')))
+            st' (dissoc st' :replies)]
+        (if (:done? st')
+          (do (reset! (:input run) nil)
+              (run/set-status! run assoc :state :running :awaiting nil :last-human-feedback fb)
+              st')
+          (recur st' fb))))))
 
 (def ^:private early-reminder-at
   "Calls into a turn, with no turn-ending action yet, after which an agent is

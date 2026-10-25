@@ -13,12 +13,10 @@
 
 (defn- turn-actions
   "The actions `agent-id` has on this turn. A conversation isn't offered
-  in a simultaneous group, where the others are in their own turns, nor to
-  a human seat."
+  in a simultaneous group, where the others are in their own turns."
   [run world agent-id {:keys [role simultaneous?]}]
   (cond->> (a/available (a/for-role (:actions run) role (positions/capabilities world agent-id)) world agent-id)
-    (or simultaneous? (= :human (:controller (w/agent world agent-id))))
-    (remove #(= :converse (a/kind %)))))
+    simultaneous? (remove #(= :converse (a/kind %)))))
 
 (defn- activate-llm [run snapshot agent-id {:keys [role reasons calendar-due max-finals commit] :as turn}]
   (let [{:keys [scenario opts]} run
@@ -45,27 +43,14 @@
 
 (defn- activate-human
   "A human holds this seat: wait for `act!` input. Free and query actions
-  are applied and the wait continues; a turn-ending action finishes."
-  [run agent-id {:keys [role max-finals commit]}]
-  (let [call-opts {:commit commit :max-finals max-finals :max-queries (:max-queries (:opts run))}]
-    (loop [st {:finals [] :queries 0 :used []} feedback nil]
-      (let [actions (turn-actions run @(:world run) agent-id {:role role})
-            by-name (a/by-name actions)
-            p (promise)]
-        (reset! (:input run) {:agent agent-id :promise p :request-id (str (random-uuid))
-                             :tools (sort (keys by-name)) :tool-specs (mapv a/->tool actions)
-                             :feedback feedback})
-        (run/set-status! run assoc :state :awaiting-human :awaiting agent-id)
-        (let [{:keys [action args]} @p
-              st' (turn/handle-call run agent-id by-name call-opts (assoc st :replies [])
-                                    {:id "human" :name action :arguments args})
-              fb (:content (last (:replies st')))
-              st' (dissoc st' :replies)]
-          (if (:done? st')
-            (do (reset! (:input run) nil)
-                (run/set-status! run assoc :state :running :awaiting nil :last-human-feedback fb)
-                st')
-            (recur st' fb)))))))
+  are applied and the wait continues (a conversation runs its lines, the
+  human's included, before it does); a turn-ending action finishes."
+  [run agent-id {:keys [max-finals commit] :as turn}]
+  (turn/human-calls run agent-id
+                    #(turn-actions run @(:world run) agent-id turn)
+                    {:commit commit :max-finals max-finals :max-queries (:max-queries (:opts run))
+                     :converse (fn [action args] (talk/run-conversation! run agent-id action args))}
+                    nil))
 
 (defn activate
   "One agent's turn. Never throws: failures forfeit the turn and ask the

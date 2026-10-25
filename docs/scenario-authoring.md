@@ -477,7 +477,7 @@ it isn't an event, so anything that must be remembered or replayed belongs in `:
 | `note` | all | free | private note, shown to the agent every round (last 15); told 400 characters, accepts 500 |
 | `say` | all | free | heard by everyone in the same place (everyone, without locations); told 1000 characters, accepts 1500; once per turn, shared with `whisper` (`:limit-key :speech`) |
 | `whisper` | all | free | private to one agent; requires being together if both have locations; same limits, and shares `say`'s once per turn |
-| `converse` | all | converse (free) | draws up to 3 people here into a conversation within the turn (see Conversations); once per turn and per round; not offered in a simultaneous group or to a human seat |
+| `converse` | all | converse (free) | draws up to 3 people here into a conversation within the turn (see Conversations); once per turn and per round; not offered in a simultaneous group |
 | `pray` | all | free | a private, diegetic way to reach the GM: its `:gm/requested` event fills the GM's inbox and triggers the GM this round |
 | `move` | all | final | follow a route (see Locations); only offered when the agent has a location |
 | `look`, `take`, `put-down`, `give` | all | free | only when the scenario has `:items` (see Items) |
@@ -2449,7 +2449,7 @@ on with it. It uses nobody else's turn either.
 
 - **Who:** up to 3 others in the initiator's place (`with`, a list of ids; a single id string is
   accepted), or, with `with` left out, everyone here who can talk, if that's at most 3. Not
-  people asleep (`b/asleep?`), hibernating, travelling, elsewhere, or in a human seat. Someone
+  people asleep (`b/asleep?`), hibernating, travelling or elsewhere. Someone
   busy but awake can talk, and the conversation doesn't touch their occupation: no interrupt, and
   their work ends when it was going to. An interrupted member stays interrupted and decides on
   their own turn. `manor.mechanics.conversation/check` gives the reasons.
@@ -2498,8 +2498,13 @@ on with it. It uses nobody else's turn either.
 - **Judged afterwards** in a scenario with inner state: once it has ended (and wasn't cut
   short), the conversation judge may change its members' inner state, before the initiator's
   summary is returned. Nobody is told. See Inner state.
-- It isn't offered in a simultaneous group, where the others are in their own turns, or to a human
-  seat. Leave it out with `:exclude-actions #{:converse}`.
+- **Human seats** take part like anyone else. A human's speaking turn waits for panel input
+  (`act!`) with the same tools, its form headed by which line it is, who else is in it and what
+  they've heard of it so far; it has no call limit and ends only with a speaking tool. A human
+  initiator's `converse` runs inside their own turn, which carries on when it ends. A model's
+  conversation that draws a human in waits at each of their lines, as a human turn does.
+- It isn't offered in a simultaneous group, where the others are in their own turns. Leave it
+  out with `:exclude-actions #{:converse}`.
 
 ### Turn order: `:schedule`
 

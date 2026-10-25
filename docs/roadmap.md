@@ -379,6 +379,8 @@ shared-wall doors, encoded agent links and retained-panel live-feed behaviour.
 - **Done:** a roster button switches a seat between `:llm` and `:human` mid-run (`e/update-agent!`).
   The roster was cut to four narrow columns so it fits the panel's 420px column; aspects, inner
   state and model moved to a Seat section on `/agent/<id>`, which has the switch too.
+- **Done:** human seats converse: they can start a conversation and be drawn into one, and each
+  of their lines waits for panel input, headed by the line, the others in it and what's been said.
 - Releasing a seat that's already waiting for human input straight back to the model: the switch
   queues behind the blocked round, so today the human must end that turn first.
 - Showing a human player their own view inline, not only via the agent page link.

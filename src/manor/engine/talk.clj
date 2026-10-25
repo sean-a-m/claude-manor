@@ -37,6 +37,34 @@
     (str "This is your last call for this line. Answer now with "
          (turn/or-list (map (comp name :name) (filter a/ends-turn? actions))) ".")))
 
+(defn- during
+  "The events of conversation `id` after it started, up to its end."
+  [run id]
+  (->> @(:events run)
+       (drop-while #(not (and (= :conversation/started (:type %))
+                              (= id (get-in % [:data :conversation])))))
+       rest
+       (take-while #(not (and (= :conversation/ended (:type %))
+                              (= id (get-in % [:data :conversation])))))))
+
+(defn- heard
+  "The events of conversation `id` so far that `viewer` saw."
+  [run id viewer]
+  (->> (during run id)
+       (filter #(w/visible-to? % viewer))
+       (remove #(or (= :llm/usage (:type %)) (= :system (:visible-to %))))))
+
+(defn- human-context
+  "The heading of a human speaker's form: whose conversation, which line,
+  and what they've heard of it so far."
+  [run conv speaker {:keys [pass final? in]}]
+  (let [world @(:world run)
+        names (narrate/names world)
+        others (remove #{speaker} in)]
+    (str "Your " (if final? "last word" (str "line (pass " pass " of " conversation/passes ")"))
+         " in the conversation with " (str/join ", " (map #(narrate/who names %) others))
+         ". So far:\n" (str/join "\n" (map #(narrate/describe % names) (heard run (:id conv) speaker))))))
+
 (defn- speaking-turn!
   "One member's turn to speak in conversation `conv`. `turn` is {:pass
   :final? :in} (see manor.prompt/conversation-messages). Returns :spoke,
@@ -55,21 +83,24 @@
         initiator? (= speaker (:initiator conv))]
     (run/set-status! run update :acting conj speaker)
     (try
-      (let [st (turn/run-calls run speaker
-                               {:model (or (:model (w/agent world speaker)) (:model opts))
-                                :messages (prompt/conversation-messages scenario world @(:events run) speaker opts conv
-                                                                        (assoc turn :extra-actions extra-actions))
-                                :actions actions
-                                :max-steps max-steps
-                                :call-opts {:commit (fn [action args] (resolve/resolve! run speaker action args true))
-                                            :max-finals 1 :max-queries (if query? 1 0) :keep-occupation? true
-                                       ;; models often write the line as plain text, not as a reply
-                                            :text-as (when (physical/can? world speaker :speech) "reply")}
-                                :remind (partial speaking-reminder max-steps)
-                                :ctx {:role (:role (w/agent world speaker))
-                                      :conversation (assoc (select-keys conv [:id :initiator :members])
-                                                           :pass (:pass turn) :final? (boolean (:final? turn)))}
-                                :log {:conversation {:id (:id conv) :pass (if (:final? turn) :last-word (:pass turn))}}})
+      (let [call-opts {:commit (fn [action args] (resolve/resolve! run speaker action args true))
+                       :max-finals 1 :max-queries (if query? 1 0) :keep-occupation? true}
+            st (if (= :human (:controller (w/agent world speaker)))
+                 (turn/human-calls run speaker (constantly actions) call-opts
+                                   (human-context run conv speaker turn))
+                 (turn/run-calls run speaker
+                                 {:model (or (:model (w/agent world speaker)) (:model opts))
+                                  :messages (prompt/conversation-messages scenario world @(:events run) speaker opts conv
+                                                                          (assoc turn :extra-actions extra-actions))
+                                  :actions actions
+                                  :max-steps max-steps
+                                  ;; models often write the line as plain text, not as a reply
+                                  :call-opts (assoc call-opts :text-as (when (physical/can? world speaker :speech) "reply"))
+                                  :remind (partial speaking-reminder max-steps)
+                                  :ctx {:role (:role (w/agent world speaker))
+                                        :conversation (assoc (select-keys conv [:id :initiator :members])
+                                                             :pass (:pass turn) :final? (boolean (:final? turn)))}
+                                  :log {:conversation {:id (:id conv) :pass (if (:final? turn) :last-word (:pass turn))}}}))
             outcome (conversation/outcome (some-> (first (:finals st)) :action :name name))]
         (cond
           (and initiator? (= :silent outcome)) :ended
@@ -112,16 +143,6 @@
             :everyone-left
             (recur pass (subvec queue 1) in' (or answered? (and (not= speaker initiator) (= :spoke outcome))))))))))
 
-(defn- during
-  "The events of conversation `id` after it started, up to its end."
-  [run id]
-  (->> @(:events run)
-       (drop-while #(not (and (= :conversation/started (:type %))
-                              (= id (get-in % [:data :conversation])))))
-       rest
-       (take-while #(not (and (= :conversation/ended (:type %))
-                              (= id (get-in % [:data :conversation])))))))
-
 (defn- judge!
   "With inner state in the scenario, ask the conversation judge how `conv`
   left its members and record its verdict; a failure changes nothing. Not
@@ -146,9 +167,7 @@
   ending, and (`handed` 0) that nothing changed hands."
   [run {:keys [id initiator]} ending handed]
   (let [names (narrate/names @(:world run))
-        lines (->> (during run id)
-                   (filter #(w/visible-to? % initiator))
-                   (remove #(or (= :llm/usage (:type %)) (= :system (:visible-to %)))))]
+        lines (heard run id initiator)]
     (str "The conversation is over: " (conversation/endings ending) ".\n"
          (str/join "\n" (map #(narrate/describe % names) lines))
          (when (= 0 handed) (str "\n" conversation/nothing-handed " " how-to-hand-over))

@@ -71,19 +71,23 @@
       [:details [:summary "Argument schema"] [:pre (json/write-value-as-string parameters)]]]]))
 
 (defn fragment
-  "The current wait, keyed by its request id so SSE refreshes can retain drafts."
-  [{:keys [agent request-id feedback tool-specs]}]
-  (let [tools (sort-by :name (map :function tool-specs))]
+  "The current wait, keyed by its request id so SSE refreshes can retain drafts.
+  `reply` is selected first when it's offered (a conversation line)."
+  [{:keys [agent request-id feedback tool-specs context]}]
+  (let [tools (sort-by :name (map :function tool-specs))
+        names (set (map :name tools))
+        selected (if (names "reply") "reply" (:name (first tools)))]
     [:section#human-turn {:data-request-id request-id :style "outline:2px solid #fc8"}
      [:h2 "Waiting for " agent]
+     (when context [:div.human-description {:style "margin-bottom:8px"} context])
      (when feedback [:div.human-feedback {:role "status"} "Last result: " feedback])
      [:form#human-action {:method "post" :action "/cmd/act" :onsubmit "return sendHuman(this)"}
       [:input {:type "hidden" :name "agent" :value agent}]
       [:input {:type "hidden" :name "request-id" :value request-id}]
       [:label {:for "human-tool"} "Action / tool"]
       [:select#human-tool {:name "action" :onchange "humanMode(this.form)"}
-       (for [{:keys [name]} tools] [:option {:value name} name])]
-      (map-indexed (fn [i tool] (tool-fields tool (zero? i))) tools)
+       (for [{:keys [name]} tools] [:option {:value name :selected (= name selected)} name])]
+      (for [tool tools] (tool-fields tool (= (:name tool) selected)))
       [:div.human-error {:role "alert"}]
       [:button {:type "submit"} "Send action"]]
      [:div.human-help "Free actions and queries keep your turn open; a turn-ending action finishes it. "

@@ -249,7 +249,7 @@
         _ @(e/spawn! run {:role :secretary :name "Clerk" :location "dining-room"})
         world (e/world run)
         check #(conversation/check %1 "lord-claudeworth" {:with %2})]
-    (testing "named people must be here, awake, in play and not a human seat"
+    (testing "named people must be here, awake and in play"
       (is (nil? (check world ["lady-claudeworth" "hale"])))
       (is (= "you can't converse with yourself" (check world ["lord-claudeworth"])))
       (is (= "no one has the id nobody" (check world ["nobody"])))
@@ -267,7 +267,7 @@
       (let [hib (w/apply-event world (b/hibernate world "hale" "dozing in a chair"))]
         (is (= "Hale is dozing in a chair and not free to talk" (check hib ["hale"]))))
       (let [human (w/apply-event world {:type :agent/updated :data {:id "hale" :changes {:controller :human}}})]
-        (is (= "Hale can't be drawn into a conversation" (check human ["hale"])))))
+        (is (nil? (check human ["hale"])) "a human seat can be drawn in")))
     (testing "leaving out with means everyone here who can talk, if there are no more than 3"
       (is (= ["lord-claudeworth" "lady-claudeworth" "hale" "clerk"] (conversation/members world "lord-claudeworth" nil)))
       (is (nil? (check world nil)))
@@ -361,18 +361,68 @@
       (is (str/starts-with? (:content (first (:replies (second earl)))) "rejected: you can use converse only once per turn"))
       (e/stop-run run))))
 
-(deftest not-offered-in-a-simultaneous-group-or-to-a-human
+(deftest not-offered-in-a-simultaneous-group
   (let [run (e/start-run :prize {:llm :mock :test? true :run-id (test-id "prize")})]
     (round! run)
     (let [calls (remove #(= "gm" (:agent %)) (store/read-llm (:dir run)))]
       (is (seq calls))
       (is (not-any? #(some #{"converse"} (:tools %)) calls)))
-    (e/stop-run run))
-  (let [run (household (constantly {:tool :pass}))]
-    @(e/update-agent! run "hale" {:controller :human})
-    (e/step! run)
-    (is (= :awaiting-human (e/wait-idle run 60000)))
-    (is (not (some #{"converse"} (:tools (deref (:input run))))))
-    (e/act! run "hale" :pass {})
-    (is (= :idle (e/wait-idle run 60000)))
     (e/stop-run run)))
+
+(defn- await-input
+  "The human input the run waits for next, once it differs from `previous`."
+  [run previous]
+  (let [deadline (+ (System/currentTimeMillis) 10000)]
+    (loop []
+      (let [input @(:input run)]
+        (cond
+          (and input (not= (:request-id previous) (:request-id input))) input
+          (< (System/currentTimeMillis) deadline) (do (Thread/sleep 10) (recur))
+          :else (throw (ex-info "no new human input" {:previous previous})))))))
+
+(defn- act-and-await!
+  "Send `action` for the waiting human seat and return the next wait."
+  [run action args]
+  (let [input @(:input run)]
+    (is (= :sent (e/act! run (:agent input) action args)))
+    (await-input run input)))
+
+(deftest a-human-seat-converses
+  (testing "a human starts a conversation, and each of their lines waits for input"
+    (let [run (household (earl-opens {} chatty))
+          _ @(e/update-agent! run "lord-claudeworth" {:controller :human})
+          _ (e/step! run)
+          turn (await-input run nil)
+          _ (is (some #{"converse"} (:tools turn)))
+          line (act-and-await! run :converse {:with ["hale"] :text "A word, Hale."})]
+      (is (every? (set (:tools line)) ["end-conversation" "note" "reply"]))
+      (is (not-any? #{"converse" "pass"} (:tools line)) "only the line's tools")
+      (is (str/includes? (:context line) "line (pass 2 of 2) in the conversation with Hale"))
+      (is (str/includes? (:context line) "hale 1") "it shows what's been said")
+      (let [turn (act-and-await! run :end-conversation {})]
+        (is (nil? (:context turn)) "back to the ordinary turn")
+        (is (str/starts-with? (:feedback turn) "The conversation is over"))
+        (e/act! run "lord-claudeworth" :pass {}))
+      (is (= :idle (e/wait-idle run 60000)))
+      (is (= [["lord-claudeworth" "A word, Hale."] ["hale" "hale 1"]] (lines run)))
+      (is (= :ended (ending run)))
+      (e/stop-run run)))
+  (testing "a model draws a human seat into its conversation"
+    (let [run (household (earl-opens {:with ["hale"]} chatty))
+          _ @(e/update-agent! run "hale" {:controller :human})
+          _ (e/step! run)
+          line (await-input run nil)]
+      (is (= "hale" (:agent line)))
+      (is (every? (set (:tools line)) ["leave" "note" "reply" "stay-silent"]))
+      (is (str/includes? (:context line) "line (pass 1 of 2) in the conversation with Lord Claudeworth"))
+      (let [line2 (act-and-await! run :reply {:text "Yes, my lord."})]
+        (is (= "hale" (:agent line2)))
+        (is (str/includes? (:context line2) "pass 2 of 2"))
+        (let [turn (act-and-await! run :leave {})]
+          (is (nil? (:context turn)) "Hale's own turn comes later in the round")
+          (e/act! run "hale" :pass {})))
+      (is (= :idle (e/wait-idle run 60000)))
+      (is (= [["lord-claudeworth" "Shall we build?"] ["hale" "Yes, my lord."]
+              ["lord-claudeworth" "lord-claudeworth 2"]]
+             (lines run)))
+      (e/stop-run run))))

@@ -52,8 +52,7 @@
           (physical/unconscious? world id) (str (who world id) " is unconscious")
           (not (physical/can? world id :hearing)) (physical/hearing-reason world id)
           (and (:hibernating? busy) (not (:interrupted-by busy)))
-          (str (who world id) " is " (:activity busy) " and not free to talk")
-          (= :human (:controller a)) (str (who world id) " can't be drawn into a conversation"))))
+          (str (who world id) " is " (:activity busy) " and not free to talk"))))
 
 (defn- others-here
   "Everyone else here, in spawn order."

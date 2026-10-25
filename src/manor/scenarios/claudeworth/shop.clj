@@ -256,6 +256,9 @@
               "the shop's courier takes those up at the time given, so you don't make them up, pack or carry them; "
               "quote a whole shopping list in one call. Each line gets its own offer (a quote-id) or refusal, announced at the counter. "
               "At your counter you can use this on your speaking turn in a conversation, before your line; then tell the customer the prices in your reply. "
+              "Quote before you promise goods or give a price: there is no fixed catalogue, no bargaining and no credit. "
+              "The customer accepts with buy; goods are handed over then, and nothing is set aside for later collection. "
+              "A delivery line is paid in full when bought, with no bill to send after. "
               "This does not charge the customer.")
     :args [:map [:for :string]
            [:goods [:vector {:min 1 :max max-lines}

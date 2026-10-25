@@ -2,7 +2,7 @@
 ;; A template: nothing writes to it. Runs keep a copy (world-start.edn) and
 ;; export their live map (map.edn) in this format. See docs/claudeworth-design.md.
 {:meta {:name "Claudeworth Manor"
-        :start "1904-10-15T08:00"
+        :start "1904-12-21T08:00"
         :minutes-per-round 30
         :starting-funds 2900 ; whole pounds here; runtime money is old pence
         :architect-prices "architect/prices-1904.edn" ; the architect's sizes and prices
@@ -122,10 +122,10 @@
    :desc "A narrow attic room under the Crown's eaves, with an iron bedstead, a chest of drawers and a small square window over the yard."}
   {:id "post-office" :name "Post office" :domain :village :kind :office :hours ["08:00" "18:00"]
    :services #{:general-store :post-office}
-   :store-profile "A small village sub-post office in rural England, 1904. Edward VII postage stamps, stamped postcards, envelopes, writing paper and other modest postal stationery, sold as portable goods at the counter. These examples describe the stock, not an exhaustive inventory. No sale of postal orders, savings deposits or telegraph services through this goods counter; no money transfers or mechanically dispatched letters or parcels."
+   :store-profile "A small village sub-post office. Edward VII postage stamps, stamped postcards, envelopes, writing paper and other modest postal stationery."
    :connects-to ["postmistress-room"]
    :desc "Mrs Bell keeps the sub-post office in the front room of a brick cottage. A red pillar box stands by the door, and a glazed counter separates callers from the sorting shelves."
-   :detail "A portrait of Edward VII hangs above the counter. Pigeonholes line the back wall, with printed postal notices and a clock beside them. There is no telegraph instrument here; telegram enquiries must go to the town office."}
+   :detail "A portrait of Edward VII hangs above the counter. Pigeonholes line the back wall, with printed postal notices and a clock beside them."}
   {:id "postmistress-room" :name "Postmistress's room" :domain :village :kind :bedroom
    :desc "Mrs Bell's quiet bedroom behind the post office, with a small grate and a curtained window onto the garden."}
   {:id "forge" :name "Blacksmith's forge" :domain :village :kind :workshop :hours ["07:00" "18:00"]
@@ -196,10 +196,8 @@
   :draper {:workplace ["drapers-shop"]}
   :barmaid {:workplace ["public-house"]}
   :guestmaster {:workplace ["abbey-guest-house"]}
-  :publican {:workplace ["public-house"]
-             :about "You keep a village public house: serve drink and simple cold refreshments, keep the taproom in order and hear the village's news. A barmaid who lives in serves at the bar with you; there are no guest rooms. Use quote-goods for the customer's whole list of food or drink before giving prices, including on a speaking turn in conversation; let them accept with buy. Sell only portable refreshments within the house's trade, handed over when bought, with no credit or bargaining. Do not quote room hire, table service or future bills."}
-  :postmistress {:workplace ["post-office"]
-                 :about "You keep a village sub-post office, selling stamps and postal stationery at the counter and answering postal enquiries. Use quote-goods for the customer's whole list of goods before giving prices, including on a speaking turn in conversation; let them accept with buy. Sell only the goods in the office's store profile, handed over when bought, with no credit or bargaining. Mail transport, postal orders, savings transactions and telegrams are not enacted here: do not claim to dispatch or deliver messages or transfer money. There is no telegraph instrument in this office."}
+  :publican {:workplace ["public-house"]}
+  :postmistress {:workplace ["post-office"]}
   :blacksmith {:workplace ["forge"]}
   :chimney-sweep {:workplace ["sweeps-cottage"]}
   :barber {:workplace ["barbers-cottage"]}
@@ -359,7 +357,7 @@
              {:from "22:00" :at "public-house" :doing "clearing the taproom after closing"}
              {:from "22:30" :at "barmaids-room" :doing "asleep"}]}
   {:name "Mrs Bell" :sex :female :role :postmistress :location "post-office" :bedroom "postmistress-room"
-   :situation "You keep the sub-post office in your cottage on Claudeworth's green. The town office, not yours, has the telegraph."
+   :situation "You keep the sub-post office in your cottage on Claudeworth's green."
    :persona "You keep the counter at Claudeworth post office in a dry, level way that strangers take for coldness until they say something foolish and see the corner of your mouth go. Company tires you and you have never pretended otherwise; babies and other people's arrangements leave you quite unmoved, though you will hear a complaint through to the end without fuss. What you do enjoy is the ludicrous — a pompous letter, a tangled explanation at the hatch, the vicar's umbrella — and you turn such things over again on the walk home. Nothing much rattles you: a late mail, a wrong address, a queue at nine o'clock, all get the same voice and the same order. You have small vanity, own your errors plainly, and are a hopeless judge of how much paper or twine a parcel will want; directions, though, you never need to ask for."
    :manner "You meet a stranger with a flat, assessing look over the counter, say only what the business needs, and do not smile first — but you are watching closely for whatever is ridiculous in them."
    :temperament {:openness :average :conscientiousness :average :extraversion :low :agreeableness :low :neuroticism :low}

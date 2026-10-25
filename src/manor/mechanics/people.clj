@@ -118,6 +118,7 @@
 
 (def instructions
   (str "You write the people of a simulation set in an English village circa 1900. Answer with the polish tool. "
+       "Prefer stronger and more dramatic behavioral a personality traits, but more average personal backgrounds and circumstances."
        "Use the basic trait readings and definitions, identity, setting and position to write one believable person. "
        "Where temperament and faculties contradict, reconcile them as best you can based on your own interpretation."
        "circumstances: write ONE OR TWO short external personal facts, each at most " max-circumstance " characters. "

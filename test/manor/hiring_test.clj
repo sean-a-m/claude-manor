@@ -7,6 +7,7 @@
             [manor.io.llm :as llm]
             [manor.io.store :as store]
             [manor.mechanics.builtins :as b]
+            [manor.mechanics.calendar :as calendar]
             [manor.mechanics.conversation :as conversation]
             [manor.mechanics.hiring :as h]
             [manor.mechanics.items.actions :as item-actions]
@@ -15,6 +16,7 @@
             [manor.mechanics.people :as people]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
+            [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as claudeworth]
             [manor.world :as w]))
@@ -237,7 +239,8 @@
                    (cond
                      (not (some #{"walk"} used)) {:tool :walk :args {:to "gate"}}
                      (not (some #{"converse"} used)) {:tool :converse :args {:with [id] :text "Shall we agree the terms?"}}
-                     :else {:tool :engage :args {:who id :position "housemaid" :terms "Twelve pounds." :bedroom "room"}})
+                     (not (some #{"engage"} used)) {:tool :engage :args {:who id :position "housemaid" :terms "Twelve pounds." :bedroom "room"}}
+                     :else {:tool :pass})
                    (and (= id agent-id) (get-in world [:state :place-offers id]))
                    {:tool :accept-place :args {:conditions "Sunday afternoons free."}}
                    :else (policy ctx))))
@@ -255,7 +258,7 @@
                                          (= :housemaid (get-in % [:data :position])))
                                     (and (= :people/candidate-updated (:type %))
                                          (= :engaged (get-in % [:data :changes :status])))) events)]
-        (is (= 3 (count interview)))
+        (is (= 4 (count interview)))
         (is (not (contains? (first tools) "engage")) "the candidate is elsewhere at turn start")
         (is (contains? (second tools) "engage") "walking makes engage available")
         (is (= (:tool-digests (second interview)) (:tool-digests (nth interview 2 nil)))
@@ -263,13 +266,13 @@
         (is (= (:tool-digests (first interview))
                (take (count (:tools (first interview))) (:tool-digests (second interview))))
             "newly available tools leave the existing cacheable prefix unchanged")
-        (is (= ["walk" "converse" "engage"]
+        (is (= ["walk" "converse" "engage" "pass"]
                (mapv #(get-in % [:response :tool_calls 0 :function :name])
                      (filter #(and (= "employer" (:agent %)) (= 3 (:round %)) (nil? (:conversation %)))
                              (store/read-llm (:dir run))))))
         (is (= [:people/offered :people/post-changed :people/candidate-updated] (mapv :type milestones)))
         (is (every? #(= 3 (:round %)) milestones))
-        (is (= ["accept-place"]
+        (is (= ["accept-place" "pass"]
                (mapv #(get-in % [:response :tool_calls 0 :function :name])
                      (filter #(and (= id (:agent %)) (= 3 (:round %)) (nil? (:conversation %)))
                              (store/read-llm (:dir run))))))
@@ -290,7 +293,7 @@
                     (fn [{:keys [world agent-id used] :as ctx}]
                       (let [id (:agent-id (first-person world))]
                         (cond
-                          (and (= "employer" agent-id) (= 3 (:round world)))
+                          (and (= "employer" agent-id) (= 3 (:round world)) (not (some #{"engage"} used)))
                           {:tool :engage :args {:who id :position "housemaid"}}
                           (and (= id agent-id) (not (some #{"decline-place"} used)))
                           {:tool :decline-place :args {}}
@@ -452,7 +455,8 @@
                    (cond
                      (not (some #{"walk"} used)) {:tool :walk :args {:to "room"}}
                      (not (some #{"converse"} used)) {:tool :converse :args {:with [id] :text "At last, shall we settle the terms?"}}
-                     :else {:tool :engage :args {:who id :position "housemaid"}})
+                     (not (some #{"engage"} used)) {:tool :engage :args {:who id :position "housemaid"}}
+                     :else {:tool :pass})
                    (and (= id agent-id) (get-in world [:state :place-offers id]))
                    {:tool :accept-place :args {}}
                    :else (policy ctx))))
@@ -621,7 +625,7 @@
         (let [world (e/world run)
               conv {:members ["employer" "recommender"]}
               recommend (first (claudeworth/speaking-actions world "recommender" conv))]
-          (is (= [:recommend] (mapv :name (claudeworth/speaking-actions world "recommender" conv))))
+          (is (= [:recommend :engage :accept-place :decline-place] (mapv :name (claudeworth/speaking-actions world "recommender" conv))))
           (is (nil? (a/check recommend world "recommender" {:position "housemaid" :for "employer"})))
           (is (= "recommend to someone in this conversation"
                  (a/check recommend world "recommender" {:position "housemaid" :for "bystander"}))))
@@ -654,3 +658,93 @@
           (is (not-any? #(= :action/forfeited (:type %)) evs)))
         (replay! run)
         (finally (e/stop-run run))))))
+
+(deftest leaving-with-a-return-time
+  (let [init (:init (scenario))
+        run (start {:init (fn [opts] (assoc (init opts) :clock {:start "1904-10-15T08:00" :minutes-per-round 30}))
+                    :calendar {:lookahead-days 30}} {})
+        leave (action :take-leave)
+        back {:return-date "1904-10-15" :return-time "11:00"}]
+    (try
+      (rounds! run 3)
+      (let [world (e/world run)
+            p (first-person world)
+            id (:agent-id p)]
+        (testing "a return time is checked"
+          (doseq [[args reason] [[{:return-date "1904-10-15"} "give both return-date and return-time, or neither"]
+                                 [{:return-date "15 October" :return-time "11:00"} "give return-date like \"1904-10-21\" and return-time like \"07:00\""]
+                                 [{:return-date "1904-10-15" :return-time "08:30"} "the return time must be later than now"]
+                                 [{:return-date "1904-10-30" :return-time "08:00"} "say you'll be back within 7 days"]]]
+            (is (= reason (a/check leave world id args)))))
+        (let [events ((:effect leave) world id back)
+              left (reduce w/apply-event world events)
+              departed (first (filter #(= :people/departed (:type %)) events))]
+          (testing "they go, and are expected back at the meeting place"
+            (is (= :away (:status (w/agent left id))))
+            (is (= {:status :returning :arrival 7 :return-at "1904-10-15T11:00"}
+                   (select-keys (h/candidate left (:id p)) [:status :arrival :return-at])))
+            (is (str/ends-with? (n/describe departed (n/names left))
+                                "meaning to be back at Gate on Saturday 15 October at 11:00.")))
+          (testing "their calendar and the calendars of those who know them say so"
+            (is (str/includes? (calendar/character-section left id) "You mean to come back to the Gate (gate) about the housemaid place."))
+            (doseq [knower ["employer" "recommender"]]
+              (is (str/includes? (calendar/character-section left knower)
+                                 (str (:name p) " (" id ") means to come back to the Gate (gate) about the housemaid place."))))
+            (is (not (str/includes? (calendar/character-section left "bystander") "come back"))))
+          (testing "sending for them sooner brings them next round and clears the entries"
+            (let [sent (effect left "employer" :send-for {:candidate (:id p)})]
+              (is (= :sent-for (:status (h/candidate sent (:id p)))))
+              (is (not (str/includes? (calendar/character-section sent id) "come back")))
+              (is (not (str/includes? (calendar/character-section sent "employer") "come back")))))
+          (e/emit! run events)))
+      (rounds! run 3)
+      (is (= :away (:status (w/agent (e/world run) (:agent-id (first-person (e/world run)))))) "not before 11:00")
+      (rounds! run 1)
+      (let [world (e/world run)
+            p (first-person world)
+            id (:agent-id p)]
+        (testing "at 11:00 they are back, a candidate again"
+          (is (= 7 (:round world)))
+          (is (= {:status :here :arrived 7} (select-keys p [:status :arrived])))
+          (is (nil? (:return-at p)))
+          (is (= "gate" (space/location-of world id)))
+          (is (str/starts-with? (:situation (w/agent world id)) "You have come back about the housemaid place"))
+          (is (nil? (h/engage-reason world "employer" {:who id :position "housemaid"})))))
+      (replay! run)
+      (finally (e/stop-run run)))))
+
+(deftest striking-the-bargain-in-a-conversation
+  (let [policy (fn [{:keys [world agent-id used] :as ctx}]
+                 (let [id (:agent-id (first-person world))]
+                   (if (and (= "employer" agent-id) (= 3 (:round world)) (not (some #{"converse"} used)))
+                     {:tool :converse :args {:with [id] :text "Will you take the place?"}}
+                     (policy ctx))))
+        conversation (fn [{:keys [world agent-id used]}]
+                       (let [p (first-person world)
+                             id (:agent-id p)]
+                         (cond
+                           (and (= "employer" agent-id) (= :here (:status p)) (not (some #{"engage"} used)))
+                           {:tool :engage :args {:who id :position "housemaid" :terms "Twelve pounds."}}
+                           (and (= id agent-id) (get-in world [:state :place-offers id]))
+                           {:tool :accept-place :args {:conditions "Sundays free."}}
+                           :else {:tool :reply :args {:text "Very good."}})))
+        run (start {:mock-policy policy :mock-conversation conversation
+                    :speaking-actions claudeworth/speaking-actions} {})]
+    (try
+      (rounds! run 3)
+      (let [world (e/world run)
+            p (first-person world)
+            id (:agent-id p)
+            evs (e/events run)
+            started (:id (first (filter #(= :conversation/started (:type %)) evs)))
+            ended (:id (first (filter #(= :conversation/ended (:type %)) evs)))
+            within? #(< started (:id %) ended)]
+        (testing "the offer is made and accepted on lines of the conversation"
+          (is (within? (first (filter #(= :people/offered (:type %)) evs))))
+          (is (within? (first (filter #(and (= :people/post-changed (:type %)) (= :housemaid (get-in % [:data :position]))) evs)))))
+        (is (= :engaged (:status p)))
+        (is (= :housemaid (:role (w/agent world id))))
+        (is (= "Sundays free." (get-in world [:state :posts id :conditions])))
+        (is (not-any? #(#{:action/forfeited :run/pause-requested} (:type %)) evs)))
+      (replay! run)
+      (finally (e/stop-run run)))))

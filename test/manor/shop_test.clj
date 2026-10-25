@@ -601,8 +601,8 @@
         quote-goods? (fn [world speaker] (some #(= :quote-goods (:name %)) (cw/speaking-actions world speaker {})))]
     (try
       (let [world (e/world run)]
-        (is (= [:recommend :quote-goods] (mapv :name (cw/speaking-actions world "clerk" {}))))
-        (is (= [:recommend] (mapv :name (cw/speaking-actions world "customer" {}))))
+        (is (quote-goods? world "clerk"))
+        (is (not (quote-goods? world "customer")))
         (is (not (quote-goods? (assoc-in world [:agents "clerk" :location] "back-room") "clerk")))
         (is (not (quote-goods? (assoc-in world [:clock :start] "1904-10-15T20:00") "clerk"))))
       (finally (e/stop-run run)))))

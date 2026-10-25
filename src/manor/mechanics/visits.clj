@@ -27,7 +27,7 @@
             [manor.mechanics.visits.judge :as judge]
             [manor.narrate :as n]
             [manor.world :as w])
-  (:import (java.time Duration LocalDate LocalDateTime LocalTime)
+  (:import (java.time LocalDate LocalDateTime LocalTime)
            (java.time.format DateTimeFormatter)
            (java.util Locale)))
 
@@ -81,11 +81,9 @@
   [world id]
   (boolean (some #(and (= id (:guest %)) (= :here (:status %)) (:from-away? %)) (vals (visits world)))))
 
-(defn round-of
-  "The first round starting at or after `t`."
-  [clock ^LocalDateTime t]
-  (let [minutes (.toMinutes (Duration/between (LocalDateTime/parse (:start clock)) t))]
-    (max 1 (inc (long (Math/ceil (/ minutes (double (:minutes-per-round clock)))))))))
+(def round-of
+  "The first round starting at or after a time (manor.clock/round-of)."
+  clock/round-of)
 
 (defn- rounds-for-hours [world hours] (clock/rounds-for (:clock world) (* 60 hours)))
 
@@ -182,17 +180,18 @@
 
 (defn- host-entry [world v]
   (entry-events world v :host (host-audience v)
-                (with-reason (str (agent-name world (:guest v)) " (" (:guest v) ") is expected at " (house world)
-                                  (if (:host v) ", invited by you: " ": ") (:stay v) ".")
+                (with-reason (str (agent-name world (:guest v)) " (" (:guest v) ") "
+                                  (if (:returning? v) "is coming back to " "is expected at ") (house world)
+                                  (if (and (:host v) (not (:returning? v))) ", invited by you: " ": ") (:stay v) ".")
                   v)))
 
 (defn- guest-entry [world v]
   (let [place (meeting-place world)
         where (str (house world) ", at the " (:name (space/location world place) place) " (" place ")")]
     (entry-events world v :guest #{(:guest v)}
-                  (with-reason (if (:host v)
-                                 (str "You are expected at " where ", invited by " (agent-name world (:host v)) ": " (:stay v) ".")
-                                 (str "You mean to call at " where ": " (:stay v) "."))
+                  (with-reason (cond (:returning? v) (str "You mean to come back to " where ": " (:stay v) ".")
+                                     (:host v) (str "You are expected at " where ", invited by " (agent-name world (:host v)) ": " (:stay v) ".")
+                                     :else (str "You mean to call at " where ": " (:stay v) "."))
                     v))))
 
 (defn- cancelled-entries [world v]
@@ -213,14 +212,14 @@
   now: the host's at once, and the guest's if they're told now (`:deliver`
   is this round)."
   [world {:keys [guest at deliver known-to by via] :as spec}]
-  (let [v (cond-> (merge (select-keys spec [:guest :host :by :via :stay :reason :bedroom])
+  (let [v (cond-> (merge (select-keys spec [:guest :host :by :via :stay :reason :bedroom :returning?])
                          {:id (str "visit-" (inc (count (visits world))))
                           :at (str at) :arrive (round-of (:clock world) at) :deliver deliver
                           :wake (wake-round world guest at) :status :scheduled
                           ;; Someone away hears of it only if they come back before it's due.
                           :told? (and (<= deliver (:round world)) (w/active? world guest)
                                        (or (not (from-elsewhere? world guest))
-                                           (= :in-person by) (= guest via)))})
+                                           (= :in-person by) (= guest via) (= :returning by)))})
             (seq known-to) (assoc :known-to (set known-to)))
         scheduled {:type :visits/scheduled :visible-to :gm :data v}
         world' (w/apply-event world scheduled)]
@@ -265,9 +264,11 @@
        (when (:host data) (str " (" (n/who names (:host data)) "'s invitation)")) "."))
 (defmethod n/describe :visits/scheduled [{:keys [data]} names]
   (str "Visit " (:id data) ": " (n/who names (:guest data)) " is expected at " (:at data)
-       (if (:host data)
+       (cond
+         (:returning? data) ", coming back as they said when they left"
+         (:host data)
          (str ", invited by " (n/who names (:host data)) " (" (name (:by data)) ")")
-         (if (= :authored (:by data)) ", from the world file" (str ", arranged by the " (name (:by data)))))
+         :else (if (= :authored (:by data)) ", from the world file" (str ", arranged by the " (name (:by data)))))
        ": " (:stay data) "."))
 (defmethod n/describe :visits/arrived [{:keys [data]} names]
   (let [{:keys [guest at known-as visitor?]} data]
@@ -685,17 +686,33 @@
             (not (contains? (house-area world) (space/location-of world actor)))
             (str "take your leave from " (house world) ": go back there first"))))
 
+(defn- return-visit-events
+  "A guest from elsewhere leaving with a return time (hiring/return-at):
+  a new visit, from their newest one here, for when they come back. They
+  know of it, so their calendar has it, and so does the host's."
+  [world actor args]
+  (when-let [at (hiring/return-at args)]
+    (let [v (newest-here world actor)]
+      (scheduled-events world (cond-> {:guest actor :host (:host v) :at at :deliver (:round world)
+                                       :by :returning :stay (:stay v) :returning? true
+                                       :reason "Coming back, as they said when they left."}
+                                (:known-to v) (assoc :known-to (:known-to v)))))))
+
 (defn- leave-events
-  "A guest from elsewhere goes home, towards where they live, and their visits here end."
-  [world actor]
-  (into [{:type :people/departed :visible-to (space/here world actor)
-          :data {:id actor :reason "takes leave"
-                 :towards (or (:lives (w/agent world actor))
-                              (:candidate-home (hiring/for-agent world actor))
-                              (:lives (hiring/for-agent world actor)) "elsewhere")}}]
-        (for [v (map #(visit world %) (ordered-ids world))
-              :when (and (= actor (:guest v)) (= :here (:status v)))]
-          (status-event :visits/ended v))))
+  "A guest from elsewhere goes home, towards where they live, and their
+  visits here end; with a return time, a visit for their return begins."
+  [world actor args]
+  (let [at (hiring/return-at args)]
+    (into (vec (return-visit-events world actor args))
+          (cons {:type :people/departed :visible-to (space/here world actor)
+                 :data (cond-> {:id actor :reason "takes leave"
+                                :towards (or (:lives (w/agent world actor))
+                                             (:candidate-home (hiring/for-agent world actor))
+                                             (:lives (hiring/for-agent world actor)) "elsewhere")}
+                         at (assoc :returns {:at (meeting-place world) :when (hiring/when-label at)}))}
+                (for [v (map #(visit world %) (ordered-ids world))
+                      :when (and (= actor (:guest v)) (= :here (:status v)))]
+                  (status-event :visits/ended v))))))
 
 (defn take-leave
   "One `take-leave` for whatever brought someone: hiring's own for a
@@ -705,12 +722,14 @@
   (let [candidate? (fn [world actor] (boolean (and candidate-leave ((:available? candidate-leave) world actor))))]
     {:name :take-leave :kind :final :roles :all
      :available? (fn [world actor] (or (candidate? world actor) (from-elsewhere? world actor)))
-     :doc "Leave: a candidate ends an unengaged visit, and a guest from elsewhere goes home. You can return if sent for or invited again."
-     :args [:map]
+     :doc hiring/take-leave-doc
+     :args hiring/return-args
      :valid? (fn [world actor args]
-               (if (candidate? world actor) ((:valid? candidate-leave) world actor args) (leave-reason world actor)))
+               (if (candidate? world actor)
+                 ((:valid? candidate-leave) world actor args)
+                 (or (leave-reason world actor) (hiring/return-reason world args))))
      :effect (fn [world actor args]
-               (if (candidate? world actor) ((:effect candidate-leave) world actor args) (leave-events world actor)))}))
+               (if (candidate? world actor) ((:effect candidate-leave) world actor args) (leave-events world actor args)))}))
 
 ;; ---------------------------------------------------------------------------
 ;; Views
@@ -860,7 +879,7 @@
 
 (def rules
   "The rules paragraph, from the design's section 9."
-  "Anyone may `invite` someone to the house for a date and time: in person (they're here with you), by post (at a post office) or by messenger (anyone here who will carry it, even the person invited). Name them with `who` if you know their id: anyone you know, including people you've met who are away now (`away-acquaintances` in your view). Otherwise say who they are in `person`, in your own words. If you know their name, always give it in `person`, with how they stand to you (\"my father, Sir Henry Vane\", not \"my father\"): the more exactly you say who they are, the surer it is that the right person comes. Someone who lives nearby makes their own way to the house at that time; someone from further off arrives at the meeting place (`hiring.meeting-place`). A guest from elsewhere stays as long as seems right and goes with `take-leave`; while staying, they see the house's bedrooms under `household.bedrooms`, to choose one if the invitation named none. If you're invited, your calendar says when and where to be expected.")
+  "Anyone may `invite` someone to the house for a date and time: in person (they're here with you), by post (at a post office) or by messenger (anyone here who will carry it, even the person invited). Name them with `who` if you know their id: anyone you know, including people you've met who are away now (`away-acquaintances` in your view). Otherwise say who they are in `person`, in your own words. If you know their name, always give it in `person`, with how they stand to you (\"my father, Sir Henry Vane\", not \"my father\"): the more exactly you say who they are, the surer it is that the right person comes. Someone who lives nearby makes their own way to the house at that time; someone from further off arrives at the meeting place (`hiring.meeting-place`). A guest from elsewhere stays as long as seems right and goes with `take-leave`, which can give a return-date and return-time to come back then; while staying, they see the house's bedrooms under `household.bedrooms`, to choose one if the invitation named none. If you're invited, your calendar says when and where to be expected.")
 
 (defn- merged
   "Configs merged in order, the :lead-hours map key by key."

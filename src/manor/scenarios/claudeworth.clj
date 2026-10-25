@@ -754,22 +754,27 @@
 
 ;; ---------------------------------------------------------------------------
 
-(defn- recommend-in-conversation
-  "`recommend` for a line in `conv`, to someone in it, so whoever is asked
-  for a candidate can answer with a real one there and then."
-  [{:keys [members]}]
-  (-> (first (filter #(= :recommend (:name %)) hiring/actions))
-      (update :valid? (fn [valid?]
-                        (fn [world actor args]
-                          (or (when-not (some #{(:for args)} members)
-                                "recommend to someone in this conversation")
-                              (valid? world actor args)))))))
+(defn- hiring-action [action-name] (first (filter #(= action-name (:name %)) hiring/actions)))
+
+(defn- to-a-member
+  "Hiring's `action-name` for a line in a conversation, with the person its
+  argument `k` names limited to the conversation's `members`: `refusal` otherwise."
+  [action-name k refusal members]
+  (update (hiring-action action-name) :valid?
+          (fn [valid?]
+            (fn [world actor args]
+              (or (when-not (some #{(get args k)} members) refusal)
+                  (valid? world actor args))))))
 
 (defn speaking-actions
-  "Anyone can recommend a candidate to someone in the conversation, and an
-  open counter's clerk can check goods, before answering."
-  [world speaker conv]
-  (cond-> [(recommend-in-conversation conv)]
+  "Tools for a line, before speaking: anyone can recommend a candidate to
+  someone in the conversation, offer a candidate in it a place, or accept or
+  decline a place offered; an open counter's clerk can check goods."
+  [world speaker {:keys [members]}]
+  (cond-> [(to-a-member :recommend :for "recommend to someone in this conversation" members)
+           (to-a-member :engage :who "offer a place to someone in this conversation" members)
+           (hiring-action :accept-place)
+           (hiring-action :decline-place)]
     (not (shop/service-reason world speaker))
     (into (filter #(= :quote-goods (:name %)) shop/actions))))
 

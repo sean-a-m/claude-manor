@@ -694,6 +694,35 @@
           (is (= [:ended :ended] (map #(:status (visits/visit left %)) ["visit-1" "visit-2"])))))
       (finally (e/stop-run run)))))
 
+(deftest a-guest-from-elsewhere-who-means-to-come-back
+  (let [run (start {} {})
+        world (e/world run)
+        world (reduce w/apply-event world (visits/operator-events world {:who "captain-hart" :date "1904-10-15" :time "21:00" :stay "a week"}))
+        world (assoc world :round (:arrive (visits/visit world "visit-1")))
+        here (reduce w/apply-event world (visits/tick (:scenario run) world))]
+    (try
+      (is (= :here (status here "visit-1")))
+      (is (= "the return time must be later than now"
+             (check run here "captain-hart" :take-leave {:return-date "1904-10-15" :return-time "20:00"})))
+      (let [events (effect run here "captain-hart" :take-leave {:return-date "1904-10-17" :return-time "15:00"})
+            left (reduce w/apply-event here events)
+            v (visits/visit left "visit-2")]
+        (testing "he goes, his visit ends, and a visit for his return is made, known to him"
+          (is (= :ended (status left "visit-1")))
+          (is (= :away (:status (w/agent left "captain-hart"))))
+          (is (= {:status :scheduled :returning? true :told? true :at "1904-10-17T15:00"}
+                 (select-keys v [:status :returning? :told? :at])))
+          (is (str/includes? (n/describe (first (filter #(= :people/departed (:type %)) events)) (n/names left))
+                             "meaning to be back at Carriage sweep on Monday 17 October at 15:00"))
+          (is (str/includes? (calendar/character-section (assoc left :round (:round left)) "captain-hart")
+                             "You mean to come back to")))
+        (testing "he arrives then at the meeting place"
+          (let [due (assoc left :round (:arrive v))
+                after (reduce w/apply-event due (visits/tick (:scenario run) due))]
+            (is (= :here (status after "visit-2")))
+            (is (= "carriage-sweep" (space/location-of after "captain-hart"))))))
+      (finally (e/stop-run run)))))
+
 (deftest guest-is-not-a-post
   (let [run (start {} {})
         world (assoc-in (e/world run) [:agents "hale" :location] "post-office")

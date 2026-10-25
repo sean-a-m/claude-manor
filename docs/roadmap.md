@@ -442,6 +442,13 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   Norfolk". Claudeworth's speaking turns now offer `recommend` (to someone in the conversation),
   and the hiring rules are steps for each side: looking for staff, being asked, looking out on
   another's behalf, bringing, engaging, waiting.
+- **Leaving with a return time; bargains struck in conversation: done.** In
+  `runs/claudeworth-medium-20261025-145921` Levi Baker, agreed with but never engaged, took leave
+  to fetch his things meaning to be back at six, and as an away agent he never could. `take-leave`
+  now takes an optional `return-date` and `return-time`: a candidate comes back to the meeting
+  place then (status `:returning`), a guest from elsewhere through a new visit, with calendar
+  entries for them and those expecting them. `engage`, `accept-place` and `decline-place` are free
+  and offered on speaking turns, and the hiring rules say talk engages nobody.
 - **Hiring as an errand (proposed):** in that run the Claudeworths asked Hollis to "send her
   up" while they were away. `send-for` could take an optional person to ask for, who gets a
   calendar entry for the arrival at the meeting place, so a go-between can send someone up and

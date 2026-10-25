@@ -233,7 +233,8 @@ then refresh availability and capabilities from the live world between model ste
 next call. Calls in one response still use the tools that response was offered, with current
 `:valid?` checks before effects. Refreshing never resets query/free limits, the step budget or
 turn completion. Reminders name the refreshed turn-ending tools. Speaking turns keep their
-separate, restricted line tools; `engage` is used after `converse` returns, not inside a line.
+separate, restricted line tools; Claudeworth's include `engage`, `accept-place` and `decline-place`
+(see Hiring), so a bargain can be struck on the lines where it's agreed.
 Tool ordering remains stable, with conditional tools last so the unconditional prefix stays
 cacheable; a change in availability still changes the conditional tail.
 
@@ -1930,17 +1931,28 @@ or promised. It does not select an existing villager.
   walking to the village/pub from abandoning the application with `take-leave`.
   `hiring/observe` includes `:candidate-home` only for known candidates; the applicant's own
   situation names their home and explicitly says it is off-map, not a walking destination.
-- `engage {who position terms? bedroom?}` is final and replaces any previous offer. Anyone
+- `engage {who position terms? bedroom?}` is free (it doesn't end the turn) and replaces any previous offer. Anyone
   may offer a present candidate any position that is a post; no authority, sex or vacancy restriction.
   `who` is the arrived agent id, not the pool id. Walking to the candidate and interviewing
   with `converse` makes `engage` available on the next model step of the same turn.
-  `accept-place {conditions?}` is final;
-  `decline-place {reason?}` is free. Discuss a new offer to haggle. Acceptance changes role/post,
+  `accept-place {conditions?}` and `decline-place {reason?}` are free too. Discuss a new offer to haggle.
+  Claudeworth also offers all three on speaking turns (`engage` only to someone in the
+  conversation), so the offer and the answer can be made as the bargain is agreed; the hiring
+  rules tell characters that saying they'll take someone on engages nobody. Acceptance changes role/post,
   marks the pool entry engaged, records employer, terms and conditions, and optionally assigns
   the named bedroom. A bedroom must exist and be a bedroom, but occupancy and the need for a
   bed are not enforced. No wages or conditions are mechanically enforced. Both parties can
   see the agreed post later; a candidate's temporary situation becomes their appointment.
 - `send-away {who}` and the candidate's `take-leave` are final and end an unengaged visit.
+  `take-leave {return-date? return-time?}` may say when the candidate will be back, both or
+  neither, later than now and within `hiring/max-return-days` (7), and only in a world with a
+  clock. They go home off-map as usual, and the pool entry becomes `:returning` with its
+  `:arrival` round and `:return-at`; the tick brings them to the meeting place then, through the
+  same arrival as `send-for` (their situation says they've come back as they said), and the
+  24-hour wait starts again. The departure narration says when they mean to be back. With a
+  `:calendar`, hiring adds managed entries (owner `:hiring`, ids `hiring-<candidate>-return-…`):
+  one for the candidate and one for everyone who knows them and their summoner. `send-for` still
+  works on a returning candidate, bringing them next round and cancelling those entries.
   Otherwise, automatic departure is after **24 in-world hours** since arrival or the last
   conversation the candidate participated in, whichever is later. `candidate-wait-rounds`
   rounds this up using the world's clock, so it never cuts the day short. Clockless worlds
@@ -2137,9 +2149,11 @@ through `worldfile/load-world`'s `:calendar` from a world file:
   `command-events` refuses it as an argument). They're **never queued for GM review**, and the
   GM's and operator's update/cancel refuse them ("that entry is managed by visits", followed by
   the owner's hint). Characters see them like any entry; the GM sees the marker. World-file export
-  leaves them out, as their owner's records aren't exported. Visits are the one owner (below).
+  leaves them out, as their owner's records aren't exported. Visits (below) and hiring (a
+  candidate's return, see Hiring) are the owners.
 - **Owners name themselves** in the scenario's `:calendar` config, under `:managed`:
-  `{:visits {:id-prefix "visit-" :hint "use cancel-visit"}}` (`visits/install` adds its own). It's
+  `{:visits {:id-prefix "visit-" :hint "use cancel-visit"}}` (`visits/install` adds its own, and
+  `hiring/install` adds `:hiring` with the prefix `hiring-`). It's
   recorded in `:calendar/initialized`. Nobody but the owner may add an entry whose id starts with
   its `:id-prefix` ("calendar IDs starting "visit-" are kept for visits; choose another ID"), so an
   owner's ids never clash with a GM's or operator's entry; the `:hint` ends the refusal of an edit.
@@ -2296,8 +2310,11 @@ invitation judge, which matches someone in the world or writes someone new.
 - **`take-leave`** (final) is shared: for a candidate here it is hiring's, unchanged; for a guest
   from elsewhere, anywhere in the house's area, it emits `:people/departed` towards where they
   live (their `:lives`) and ends their `:here` visits. They're away again and can be invited
-  again, coming back as the same agent with their memories. There's no `send-away` for guests;
-  hiring's stays candidates-only.
+  again, coming back as the same agent with their memories. With `return-date` and
+  `return-time` (checked by `hiring/return-reason`), a new visit is scheduled from their newest
+  one here: same host, `:by :returning`, `:returning? true`, told at once, with calendar entries
+  for both sides; they arrive at the meeting place then like any away guest. There's no
+  `send-away` for guests; hiring's stays candidates-only.
 - **Away agents** come from two places, and only pool records are ever evicted, so neither is:
   world-file characters with `:away? true` (see World files), and **someone new**, made from the
   fields `visits/new-person-keys` (`name sex age from known-as situation`). `(write-new-person world

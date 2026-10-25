@@ -40,6 +40,12 @@
   ^LocalDateTime [{:keys [start minutes-per-round]} round]
   (.plusMinutes (LocalDateTime/parse start) (* minutes-per-round (dec (max 1 round)))))
 
+(defn round-of
+  "The first round starting at or after the time `t`."
+  [clock ^LocalDateTime t]
+  (let [minutes (.toMinutes (Duration/between (LocalDateTime/parse (:start clock)) t))]
+    (max 1 (inc (long (Math/ceil (/ minutes (double (:minutes-per-round clock)))))))))
+
 (defn label
   "\"Saturday 15 October 1904, 09:30\""
   [clock round]

@@ -4,13 +4,17 @@
   (:require [clojure.string :as str]
             [manor.clock :as clock]
             [manor.mechanics.builtins :as b]
+            [manor.mechanics.calendar :as calendar]
             [manor.mechanics.items.actions :as item-actions]
             [manor.mechanics.people :as people]
             [manor.mechanics.physical :as physical]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.narrate :as n]
-            [manor.world :as w]))
+            [manor.world :as w])
+  (:import (java.time LocalDate LocalDateTime LocalTime)
+           (java.time.format DateTimeFormatter)
+           (java.util Locale)))
 
 (def pool-limit 40)
 (def candidate-wait-hours 24)
@@ -253,16 +257,23 @@
   (let [p (get (pool world) candidate)]
     (cond
       (not (contains? (:known-to p) actor)) "you have no current recommendation for that candidate"
-      (not (#{:pooled :away} (:status p))) "that candidate has already been summoned or engaged"
+      (not (#{:pooled :away :returning} (:status p))) "that candidate has already been summoned or engaged"
       (#{:retired :dead} (:status (w/agent world (:agent-id p)))) "that person cannot return"
       (w/active? world (:agent-id p)) "that person is about already (a guest, perhaps); speak to them"
       (not (room-for-arrival? world)) "there is no room for another active person"
       (nil? (space/location world (get-in world [:state :meeting-place]))) "this world has no meeting place")))
 
-(defn sent-for [world actor {:keys [candidate]}]
-  [(changed candidate {:status :sent-for :arrival (inc (:round world)) :summoner actor})
-   {:type :people/sent-for :visible-to #{actor} :data {:name (:name (get (pool world) candidate))
-                                                       :at (get-in world [:state :meeting-place])}}])
+(declare return-entries-cancelled)
+
+(defn sent-for
+  "`actor` sends for `candidate`, who comes next round, sooner than any
+  return they planned (whose calendar entries are cancelled)."
+  [world actor {:keys [candidate]}]
+  (into [(changed candidate {:status :sent-for :arrival (inc (:round world)) :summoner actor
+                             :return-at nil :return-entries nil})
+         {:type :people/sent-for :visible-to #{actor} :data {:name (:name (get (pool world) candidate))
+                                                             :at (get-in world [:state :meeting-place])}}]
+        (return-entries-cancelled world (get (pool world) candidate))))
 (defmethod n/describe :people/sent-for [{:keys [data]} names]
   (str "Word is sent to " (:name data) "; they are expected next round at " (n/place names (:at data)) "."))
 
@@ -274,7 +285,9 @@
       p (conj (changed (:id p) {:status :away :seen? true})))))
 (defmethod n/describe :people/departed [{:keys [data]} names]
   (str (n/who names (:id data)) " leaves towards " (:towards data)
-       (when (:off-map? data) " (outside the mapped area)") ": " (:reason data) "."))
+       (when (:off-map? data) " (outside the mapped area)") ": " (:reason data)
+       (when-let [back (:returns data)] (str ", meaning to be back at " (n/place names (:at back)) " on " (:when back)))
+       "."))
 (defmethod n/describe :people/returned [{:keys [data]} names]
   (str (n/who names (:id data)) " returns to " (n/place names (:at data)) "."))
 
@@ -306,12 +319,16 @@
 
 (defn- arrival-events [scenario world p]
   (let [at (get-in world [:state :meeting-place])
-        situation (str "You have come about the " (str/join ", " (map name (:seeks p)))
-                       " place, sent for by " (:name (w/agent world (:summoner p)))
+        situation (str (if (= :returning (:status p))
+                         (str "You have come back about the " (str/join ", " (map name (:seeks p)))
+                              " place, as you said you would when you left (" (:name (w/agent world (:summoner p))) " first sent for you)")
+                         (str "You have come about the " (str/join ", " (map name (:seeks p)))
+                              " place, sent for by " (:name (w/agent world (:summoner p)))))
                        ". Talk over the terms; you may refuse, haggle, accept-place, or take-leave. "
                        "Remain locally available while a decision is pending: wait at the house, in the village or at the pub, "
                        "and tell the interviewer where you will be. Walking there does not end your application. "
-                       "Use take-leave only when you mean to abandon the application and leave the mapped area, not to wait nearby. "
+                       "Use take-leave only when you mean to leave the area completely, not to wait nearby: you are gone until someone sends for you, "
+                       "unless you give take-leave a return-date and return-time for when to come back again."
                        (if (:clock world)
                          "You leave automatically only after a full 24 hours without a conversation involving you. "
                          "You leave automatically only after 24 rounds without a conversation involving you. ")
@@ -325,7 +342,7 @@
         audience (conj (space/present world at) id (:summoner p))]
     (vec (concat
           events
-          [(changed (:id p) {:status :here :agent-id id :arrived (:round world)})
+          [(changed (:id p) {:status :here :agent-id id :arrived (:round world) :return-at nil :return-entries nil})
            {:type :people/arrived :visible-to audience :data {:id id :at at :name (:name p)}}]))))
 (defmethod n/describe :people/arrived [{:keys [data]} names]
   (str (:name data) " (" (:id data) ") arrives at " (n/place names (:at data)) " to talk about a place."))
@@ -337,7 +354,7 @@
    (reduce
     (fn [[world events] p]
       (let [evs (cond
-                  (and (= :sent-for (:status p)) (<= (:arrival p) (:round world)) (room-for-arrival? world)
+                  (and (#{:sent-for :returning} (:status p)) (<= (:arrival p) (:round world)) (room-for-arrival? world)
                        (or (nil? (:agent-id p)) (can-arrive? world (:agent-id p))))
                   (arrival-events scenario world p)
                   (and (= :here (:status p)) (w/active? world (:agent-id p))
@@ -397,6 +414,104 @@
   (str (n/who names actor) " declines the place" (when (:reason data) (str ": " (:reason data))) "."))
 
 (def text-arg [:string {:min 1 :max 1000}])
+
+;; ---------------------------------------------------------------------------
+;; Leaving with a return time
+
+(def max-return-days
+  "How far ahead someone taking leave may say they'll be back."
+  7)
+
+(def return-args
+  "`take-leave`'s optional return time, both or neither."
+  [:map [:return-date {:optional true} :string] [:return-time {:optional true} :string]])
+
+(def take-leave-doc
+  (str "Leave the mapped area: a candidate ends an unengaged visit, and a guest from elsewhere goes home. "
+       "Once gone you have no turns until you come back. To come back at a set time (to fetch your things and return, say), "
+       "give return-date like \"1904-10-21\" and return-time like \"07:00\", within " max-return-days " days: "
+       "you arrive at the meeting place then, and those expecting you are told. Without them, you return only if sent for or invited again."))
+
+(defn return-at
+  "The time someone taking leave gave for coming back, or nil."
+  ^LocalDateTime [{:keys [return-date return-time]}]
+  (try (LocalDateTime/of (LocalDate/parse (str return-date)) (LocalTime/parse (str return-time)))
+       (catch Exception _ nil)))
+
+(defn return-reason
+  "Why `take-leave` can't have this return time, or nil when it has none or
+  a good one. Shared with visits' `take-leave`."
+  [world {:keys [return-date return-time] :as args}]
+  (when (or return-date return-time)
+    (let [at (return-at args)]
+      (cond (not (:clock world)) "there is no clock here to come back by; leave without a return time"
+            (not (and return-date return-time)) "give both return-date and return-time, or neither"
+            (nil? at) "give return-date like \"1904-10-21\" and return-time like \"07:00\""
+            (not (.isAfter at (clock/time-of (:clock world) (:round world)))) "the return time must be later than now"
+            (.isAfter at (.plusDays (clock/time-of (:clock world) (:round world)) max-return-days))
+            (str "say you'll be back within " max-return-days " days")))))
+
+(def ^:private when-format (DateTimeFormatter/ofPattern "EEEE d MMMM 'at' HH:mm" Locale/ENGLISH))
+
+(defn when-label
+  "\"Tuesday 20 December at 06:00\" for `at`."
+  [^LocalDateTime at]
+  (.format at when-format))
+
+(def calendar-owner
+  "How hiring owns the calendar entries of a candidate's return (see
+  manor.mechanics.calendar)."
+  {:id-prefix "hiring-" :hint "it is kept by the candidate's return"})
+
+(defn- return-entries
+  "Calendar entries for candidate `p` coming back to the meeting place at
+  `at`: their own, and one for everyone who knows them. [ids events]."
+  [world p ^LocalDateTime at]
+  (if-not (:calendar world)
+    [[] []]
+    (let [place (get-in world [:state :meeting-place])
+          where (str (:name (space/location world place) place) " (" place ")")
+          about (str "about the " (str/join ", " (map name (:seeks p))) " place")
+          id (:agent-id p)
+          stem (str "hiring-" (:id p) "-return-" (:round world))
+          household (->> (conj (:known-to p) (:summoner p))
+                         (remove #(or (nil? %) (= id %) (not (w/active? world %)) (= :gm (:role (w/agent world %)))))
+                         set)
+          specs (cond-> [[(str stem "-own") #{id} (str "You mean to come back to the " where " " about ".")]]
+                  (seq household)
+                  (conj [(str stem "-known") household (str (:name p) " (" id ") means to come back to the " where " " about ".")]))]
+      [(mapv first specs)
+       (vec (mapcat (fn [[entry-id audience text]]
+                      (calendar/managed-command-events world :add {:id entry-id :at (str at) :visible-to audience
+                                                                   :description text}
+                                                       :hiring))
+                    specs))])))
+
+(defn- return-entries-cancelled [world p]
+  (for [id (:return-entries p)
+        :let [entry (get-in world [:calendar :entries id])]
+        :when (and entry (not= :cancelled (get-in entry [:lifecycle :status])))
+        e (calendar/managed-command-events world :cancel {:id id} :hiring)]
+    e))
+
+(defn leave-with-return
+  "A candidate takes leave: gone, as `departure`, or with a return time,
+  coming back to the meeting place then (status :returning), with calendar
+  entries for them and those who know them."
+  [world actor args]
+  (let [p (for-agent world actor)
+        at (return-at args)]
+    (if-not at
+      (departure world actor "takes leave")
+      (let [[ids entries] (return-entries world p at)
+            place (get-in world [:state :meeting-place])]
+        (vec (concat
+              (map #(cond-> % (= :people/departed (:type %))
+                      (assoc-in [:data :returns] {:at place :when (when-label at)}))
+                   (departure world actor "takes leave"))
+              [(changed (:id p) {:status :returning :arrival (clock/round-of (:clock world) at)
+                                 :return-at (str at) :return-entries ids})]
+              entries))))))
 (def actions
   [{:name :recommend :kind :query :roles :all
     :doc (str "Recommend one candidate for a position to someone else here (for: their id, not your own). "
@@ -410,25 +525,30 @@
                (str/join "\n" (map #(n/describe % {}) (filter #(#{:people/recommended :people/reputation-known} (:type %)) events)))
                "No recommendation was made: the people or candidate pool are no longer ready."))}
    {:name :send-for :kind :final :roles :all
-    :available? (fn [world actor] (boolean (some #(and (contains? (:known-to %) actor) (#{:pooled :away} (:status %))) (vals (pool world)))))
+    :available? (fn [world actor] (boolean (some #(and (contains? (:known-to %) actor) (#{:pooled :away :returning} (:status %))) (vals (pool world)))))
     :doc "Send for a candidate you know by candidate id. They arrive at the meeting place next round; meet and converse there."
     :args [:map [:candidate :string]] :valid? send-for-reason :effect sent-for}
-   {:name :engage :kind :final :roles :all
+   {:name :engage :kind :free :roles :all
     :available? (fn [world actor] (boolean (some #(and (not= actor (:agent-id %)) (nil? (present-candidate-reason world actor (:agent-id %)))) (vals (pool world)))))
-    :doc "Offer a present candidate a position, optional free-text terms and bedroom id. A new offer replaces the old. They must accept; terms and conditions are recorded, not enforced. Living-in staff need a bed, but sharing is your decision."
+    :doc (str "Offer a present candidate a position, optional free-text terms and bedroom id. A new offer replaces the old. They must accept; terms and conditions are recorded, not enforced. Living-in staff need a bed, but sharing is your decision. "
+              "Saying you'll take someone on offers nothing: this does. You can use it on your line in a conversation with them, before you speak.")
     :args [:map [:who :string] [:position :string] [:terms {:optional true} text-arg] [:bedroom {:optional true} :string]]
     :valid? engage-reason
     :effect (fn [world actor args]
               [{:type :people/offered :visible-to #{actor (:who args)}
                 :data (assoc args :position (keyword (:position args)) :employer actor
-                             :household (or (get-in world [:state :posts actor :household]) positions/household))}])}
-   {:name :accept-place :kind :final :roles :all
+                             :household (or (get-in world [:state :posts actor :household]) positions/household))}])
+    :reply (fn [world _ {:keys [who position]}]
+             (str "You have offered " (:name (w/agent world who)) " the " position " place. They answer with accept-place or decline-place."))}
+   {:name :accept-place :kind :free :roles :all
     :available? (fn [world actor] (some? (get-in world [:state :place-offers actor])))
-    :doc "Accept the place offered to you, with any conditions in free text. These are recorded, not enforced."
-    :args [:map [:conditions {:optional true} text-arg]] :valid? offer-reason :effect accept}
+    :doc "Accept the place offered to you, with any conditions in free text. These are recorded, not enforced. You can use it on your line in a conversation, before you speak."
+    :args [:map [:conditions {:optional true} text-arg]] :valid? offer-reason :effect accept
+    :reply (fn [world actor _]
+             (str "You have taken the place: you are now the " (str/lower-case (:title (positions/position world actor) "")) "."))}
    {:name :decline-place :kind :free :roles :all
     :available? (fn [world actor] (some? (get-in world [:state :place-offers actor])))
-    :doc "Decline your current offer. Discuss another offer or take-leave."
+    :doc "Decline your current offer. Discuss another offer or take-leave. You can use it on your line in a conversation, before you speak."
     :args [:map [:reason {:optional true} text-arg]] :valid? offer-reason
     :effect (fn [world actor args]
               [{:type :people/declined :visible-to #{actor (get-in world [:state :place-offers actor :employer])} :data args}
@@ -441,9 +561,10 @@
     :effect (fn [world _ {:keys [who]}] (departure world who "sent away"))}
    {:name :take-leave :kind :final :roles :all
     :available? (fn [world actor] (= :here (:status (for-agent world actor))))
-    :doc "Leave an unengaged visit; you can return if sent for again."
-    :args [:map] :valid? (fn [world actor _] (departure-reason world actor actor))
-    :effect (fn [world actor _] (departure world actor "takes leave"))}])
+    :doc take-leave-doc
+    :args return-args
+    :valid? (fn [world actor args] (or (departure-reason world actor actor) (return-reason world args)))
+    :effect leave-with-return}])
 
 (defn reference
   "What everyone may need and that rarely changes: the meeting place and the
@@ -458,7 +579,7 @@
   "Only known candidates and the viewer's reputations/agreements, never raw
   records. The meeting place and positions are in `reference`."
   [world id]
-  {:candidates (mapv #(select-keys % [:id :name :seeks :status :agent-id :candidate-home])
+  {:candidates (mapv #(select-keys % [:id :name :seeks :status :agent-id :candidate-home :return-at])
                      (filter #(contains? (:known-to %) id) (ordered world)))
    :reputations (get-in world [:state :reputations id] {})
    :place-offers (filterv (fn [offer] (or (= id (:who offer)) (= id (:employer offer))))
@@ -491,6 +612,7 @@
   [scenario meeting-place]
   (let [init (:init scenario)]
     (-> scenario
+        (cond-> (:calendar scenario) (assoc-in [:calendar :managed :hiring] calendar-owner))
         (assoc :meeting-place meeting-place
                :init (fn [opts]
                        (update (init opts) :state merge
@@ -512,8 +634,10 @@
        "- Asked whether you know anyone for a post: use `recommend` there and then, on your turn or on your line in a conversation before you speak, with the position id and the asker's id in `for`; then tell them of the candidate in your own words. Until `recommend` names someone, your character knows of nobody suitable: never make up a name, a relation (\"my niece\") or where a candidate lives. Do not recruit or recommend established characters already living or working in your village; a new candidate who lives locally but is not yet present as a character is fine. You may describe knowing the candidate through local acquaintances.\n"
        "- Asked to look out for someone on another's behalf: ask around in `converse` and have whoever knows someone `recommend` them to you. Then `send-for` them when someone of the household can meet them, and tell the household who is coming.\n"
        "- Bringing a candidate: anyone who knows a candidate's id can `send-for` them; they arrive at the meeting place (`hiring.meeting-place`) next round, and that is where to meet them. " arrivals " A letter or message of your own brings no candidate.\n"
-       "- Interview and engage: interview by `converse`, then `engage` with who (their agent id), position, terms and optionally bedroom. The candidate may `accept-place` with conditions, `decline-place` and haggle, or `take-leave`. `send-away` ends an unengaged visit.\n"
-       "- Waiting: an unengaged candidate remains available for a full 24 hours after arrival or their latest conversation (24 rounds without a game clock), unless explicitly sent away or they choose to abandon the application with `take-leave`. They may wait at the house, in the village or at the pub: agree where to find them, and do not send them out of the mapped area merely to await a decision. A candidate-home is off-map background, not a place to walk to; while their status is here, their actual map location is where to meet them. Once away, use `send-for` to bring them back.\n"
+       "- Interview and engage: interview by `converse`, then `engage` with who (their agent id), position, terms and optionally bedroom. The candidate may `accept-place` with conditions, `decline-place` and haggle, or `take-leave`. `send-away` ends an unengaged visit. "
+       "Saying you'll take someone on engages nobody until you use `engage` to make the offer, and only the other person using `accept-place` settles the offer. Neither ends your turn, and both can be used in a conversation, so the bargain can be struck as it's agreed.\n"
+       "- Waiting: an unengaged candidate remains available for a full 24 hours after arrival or their latest conversation (24 rounds without a game clock), unless explicitly sent away or they choose to abandon the application with `take-leave`. They may wait at the house, in the village or at the pub: agree where to find them, and do not send them out of the mapped area merely to await a decision. A candidate-home is off-map background, not a place to walk to; while their status is here, their actual map location is where to meet them.\n"
+       "- Leaving and coming back: `take-leave` takes a candidate out of the mapped area, with no turns until they come back. A candidate who means to come back (to fetch their things, say) gives `take-leave` a return-date and return-time, and arrives at the meeting place then; those who know them see it in their calendar. Without a return time they come back only if sent for. `send-for` brings an away candidate back sooner.\n"
        "Outdoor servants' lodging and dismissal of hired staff are possible."))
 
 (def rules (rules-text "Nobody new arrives except through send-for."))

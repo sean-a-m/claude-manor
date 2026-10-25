@@ -1,10 +1,11 @@
 (ns manor.llm-test
-  "The OpenRouter response parser. A character's private thoughts are kept
+  "The OpenRouter response parser and bounded HTTP retries. Private thoughts are kept
   for the record (llm.edn, the transcript) and never put in the message the
   engine sends back."
   (:require [clojure.test :refer [deftest is testing]]
             [jsonista.core :as json]
-            [manor.io.llm :as llm]))
+            [manor.io.llm :as llm]
+            [manor.io.http :as http]))
 
 (def ^:private body
   (json/write-value-as-string
@@ -68,3 +69,90 @@
     (is (= w w2) "identical definitions give identical digests")
     (is (not= (:hash w) (:hash s)))
     (is (not= (:hash w) (:hash (first (llm/tool-digests [(assoc-in walk [:function :description] "Stroll.")])))))))
+
+(def ^:private provider-400
+  ;; The Baidu error reported from a conversation: generic upstream invalid_argument.
+  {:status 400
+   :body (json/write-value-as-string
+          {:error {:message "Provider returned error" :code 400
+                   :metadata {:raw "{\"error\":{\"code\":\"invalid_argument\",\"message\":\"Invalid Argument\",\"type\":\"invalid_request_error\"},\"id\":\"as-f32b757vqi\"}"
+                              :provider_name "Baidu" :is_byok false
+                              :provider_error_code "invalid_argument"}}})})
+
+(defn- complete-sequence
+  "Exercise the real client with scripted HTTP responses and no network or sleeps.
+  Reuse the last response if retries outnumber the script."
+  [responses]
+  (let [requests (atom [])
+        waits (atom [])
+        outcome (with-redefs [http/request (fn [request]
+                                            (let [i (count @requests)
+                                                  response (nth responses (min i (dec (count responses))))]
+                                              (swap! requests conj request)
+                                              (if (instance? Exception response)
+                                                (throw response)
+                                                response)))
+                             llm/sleep! #(swap! waits conj %)]
+                  (try
+                    {:response (llm/complete (llm/->OpenRouter "test-key" "https://unused.invalid" 1000)
+                                             {:model "test-model"
+                                              :messages [{:role "user" :content "Speak."}]
+                                              :tools [{:type "function"
+                                                       :function {:name "reply" :parameters {:type "object"}}}]})}
+                    (catch clojure.lang.ExceptionInfo e {:error e})))]
+    (assoc outcome :requests @requests :waits @waits)))
+
+(deftest provider-400-retries-the-same-request-with-backoff
+  (let [{:keys [response error requests waits]}
+        (complete-sequence [provider-400 provider-400 {:status 200 :body body}])]
+    (is (nil? error))
+    (is (= "Very well." (:content response)))
+    (is (= 3 (count requests)))
+    (is (apply = requests) "resend the same prompt and tools, without applying any actions")
+    (is (= [2000 4000] waits))))
+
+(deftest persistent-provider-400-stops-after-three-attempts
+  (let [{:keys [error requests waits]} (complete-sequence [provider-400])]
+    (is (= 3 (count requests)))
+    (is (= [2000 4000] waits))
+    (is (= {:status 400 :attempts 3} (ex-data error)))
+    (is (.contains (ex-message error) "failed after 3 attempts: HTTP 400"))
+    (is (.contains (ex-message error) "Baidu"))))
+
+(deftest request-errors-still-fail-immediately
+  (doseq [response [{:status 400 :body (json/write-value-as-string
+                                      {:error {:code 400 :message "Invalid request"}})}
+                    {:status 400 :body "not JSON"}
+                    {:status 400 :body nil}
+                    {:status 401 :body "Unauthorized"}
+                    {:status 402 :body "Insufficient credits"}
+                    {:status 403 :body (:body provider-400)}]]
+    (testing (pr-str response)
+      (let [{:keys [error requests waits]} (complete-sequence [response])]
+        (is (= {:status (:status response) :attempts 1} (ex-data error)))
+        (is (= 1 (count requests)))
+        (is (empty? waits))))))
+
+(deftest existing-transient-errors-still-retry
+  (doseq [failure [{:status 429 :body "Rate limited"}
+                   {:status 500 :body "Internal error"}
+                   {:status 503 :body "Unavailable"}
+                   (java.io.IOException. "Connection reset")]]
+    (testing (str failure)
+      (let [{:keys [response error requests waits]}
+            (complete-sequence [failure {:status 200 :body body}])]
+        (is (nil? error))
+        (is (= "Very well." (:content response)))
+        (is (= 2 (count requests)))
+        (is (= [2000] waits)))
+      (let [{:keys [error requests waits]} (complete-sequence [failure])]
+        (is (= 3 (count requests)))
+        (is (= [2000 4000] waits))
+        (is (= 3 (:attempts (ex-data error))))))))
+
+(deftest successful-request-needs-no-retry
+  (let [{:keys [response error requests waits]} (complete-sequence [{:status 200 :body body}])]
+    (is (nil? error))
+    (is (= "Very well." (:content response)))
+    (is (= 1 (count requests)))
+    (is (empty? waits))))

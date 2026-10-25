@@ -267,6 +267,12 @@ pi --session 01a12968-b2b6-7261-b605-398d6a6b43df| `:find-everywhere?` | `true` 
 | `:reasoning` / `:max-tokens` | `{:effort "low"}` / 4000 | passed to OpenRouter |
 | `:mcp-servers` | | per-server overrides, e.g. `{:pi {:env {"PI_MCP_TOOLS" "read"}}}` |
 
+OpenRouter calls retry network errors, HTTP 429/5xx, and HTTP 400 responses that carry
+OpenRouter's upstream-provider metadata (`error.metadata.provider_name`). Each call gets at
+most three attempts, with 2- then 4-second waits, resending the same request. Other HTTP 4xx
+errors fail immediately. An exhausted conversation call still ends the conversation with an
+error and requests a run pause; its error message includes the number of attempts.
+
 ## Tests
 
 ```sh

@@ -83,8 +83,23 @@
                :chars (count s)}))
           tools)))
 
-(defn- retryable? [{:keys [status]}]
-  (or (nil? status) (= status 429) (>= status 500)))
+(defn- provider-error?
+  "OpenRouter identifies upstream rejections in structured error metadata.
+  These can be transient even when the provider reports HTTP 400."
+  [body]
+  (try
+    (some? (get-in (json/read-value body json/keyword-keys-object-mapper)
+                   [:error :metadata :provider_name]))
+    (catch Exception _ false)))
+
+(defn- retryable? [{:keys [status body]}]
+  (or (nil? status) (= status 429) (>= status 500)
+      (and (= status 400) (provider-error? body))))
+
+(defn- sleep!
+  "Wait between HTTP attempts; separate so offline tests needn't sleep."
+  [ms]
+  (Thread/sleep ms))
 
 (defrecord OpenRouter [key base-url timeout-ms]
   LLM
@@ -110,11 +125,12 @@
           (cond
             (and (= status 200) body) (parse-response body)
             (and (retryable? resp) (< attempt 3))
-            (do (Thread/sleep (* 2000 attempt)) (recur (inc attempt)))
-            :else (throw (ex-info (str "OpenRouter request failed: "
+            (do (sleep! (* 2000 attempt)) (recur (inc attempt)))
+            :else (throw (ex-info (str "OpenRouter request failed after " attempt
+                                       (if (= attempt 1) " attempt: " " attempts: ")
                                        (or (some-> error ex-message)
                                            (str "HTTP " status " " (some-> body (subs 0 (min 300 (count body)))))))
-                                  {:status status}))))))))
+                                  {:status status :attempts attempt}))))))))
 
 (defn openrouter []
   (let [key (api-key)]

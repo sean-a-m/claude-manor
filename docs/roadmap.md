@@ -764,3 +764,12 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
     silently ignore everything after the first. Before, a missing or stray bracket dropped
     `:items` and `:agents` from a file that still looked as though it loaded. `worldfile_test`
     covers both a trailing map and a stray bracket.
+
+17. **Provider HTTP 400s no longer pause on the first failure.** Done: OpenRouter responses
+    with `error.metadata.provider_name` now use the existing bounded retry policy (three
+    attempts, 2- then 4-second waits), alongside network errors, 429 and 5xx. Plain request
+    validation 400s and other 4xx still fail immediately. This covers the reported Baidu
+    `invalid_argument` response without trying to interpret provider prose. Exhaustion still
+    follows the existing error/pause path, now with the attempt count in the error. Offline
+    HTTP-stub tests cover recovery, unchanged requests, exhaustion and non-retryable errors;
+    no paid calls were needed.

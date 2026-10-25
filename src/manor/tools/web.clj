@@ -262,7 +262,10 @@ button:disabled{opacity:.5;cursor:default}")]]
            (when-let [b (:busy ag)] [:span.vis " (" (:activity b) ")"])]
           [:td.vis (str/join "; " (for [[k v] (:aspects ag)] (str (name k) ": " v)))]
           [:td.vis (str/join "; " (for [[k v] (:inner ag)] (str (name k) ": " v)))]
-          [:td (name (:controller ag)) " " [:span.vis (or (:model ag) "")]]
+          [:td (name (:controller ag)) " " [:span.vis (or (:model ag) "")]
+           (when (#{:llm :human} (:controller ag))
+             (let [to (if (= :human (:controller ag)) "llm" "human")]
+               (list " " (cmd-button "controller" (str "→ " to) {:agent (:id ag) :to to} "alt"))))]
           [:td (if u (format "$%.4f" (double (:cost u))) "")]])]]
 
      (when (space/enabled? world)
@@ -426,6 +429,8 @@ button:disabled{opacity:.5;cursor:default}")]]
         "pause" (e/pause! run)
         "approve" (e/approve! run (:req p))
         "deny" (e/deny! run (:req p))
+        "controller" (when (#{"llm" "human"} (:to p))
+                       (e/update-agent! run (:agent p) {:controller (keyword (:to p))}))
         "announce" (when-not (str/blank? (:text p)) (e/announce! run (:text p)))
         "spawn" (when-not (str/blank? (:name p))
                   (e/spawn! run (cond-> {:role (keyword (:role p)) :name (:name p)

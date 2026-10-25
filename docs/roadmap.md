@@ -376,6 +376,9 @@ shared-wall doors, encoded agent links and retained-panel live-feed behaviour.
   replies and stale-form errors are visible. Fixed submission to the wrong URL (the `action`
   dropdown shadowed the form URL), and human tool availability now refreshes after each call.
   Mock/offline engine/HTTP tests and actual Chromium commands cover free/query/final actions.
+- **Done:** a roster button switches a seat between `:llm` and `:human` mid-run (`e/update-agent!`).
+- Releasing a seat that's already waiting for human input straight back to the model: the switch
+  queues behind the blocked round, so today the human must end that turn first.
 - Showing a human player their own view inline, not only via the agent page link.
 
 ### B9. Snapshots

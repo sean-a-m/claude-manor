@@ -31,12 +31,12 @@
    :desc "A mahogany table for ten, with the family portraits looking down on it and the sideboard behind the baron's chair."}
   {:id "library" :name "Library" :domain :house :floor :ground :kind :study
    :aspects {:cleanliness "dust on the skirting boards" :state "air close with stale pipe smoke"}
-   :desc "The baron's business room: a leather-topped desk, the estate ledgers and the quarry papers, with a window on the drive."
+   :desc "The baron's business room, where the estate's affairs and the quarry's are done, with a window on the drive."
    :detail "Shelves of county histories and bound agricultural reports nobody reads, and the estate map pinned above the grate with the quarry land shaded in. From the desk you can see every caller come up the drive."}
   {:id "morning-room" :name "Morning room" :domain :house :floor :ground :kind :sitting-room
    :aspects {:cleanliness "tidy, with dust on the window ledge" :state "hearth cold"}
    :desc "The baroness's own room: a writing desk, a work basket by the fire and a window over the rose beds. Her letters and the household books are kept here."
-   :detail "A low ceiling and a good light. On the desk stand the household account book, a pot of pens and a photograph of three sisters on a lawn."}
+   :detail "A low ceiling and a good light, and a view of the rose beds from the desk."}
   {:id "back-passage" :name "Back passage" :domain :house :floor :ground :kind :passage
    :aspects {:cleanliness "boards swept"}
    :connects-to ["kitchen" "scullery" "pantry" "butlers-pantry" "boot-room" "back-stairs"]
@@ -53,14 +53,14 @@
    :aspects {:cleanliness "floor swept" :state "cool and dry"}
    :desc "A cool dry larder with slate shelves, a meat safe and a window shaded from the sun. The household's provisions are kept here, and the cook keeps the key."}
   {:id "butlers-pantry" :name "Butler's pantry" :domain :house :floor :ground :kind :pantry
-   :aspects {:cleanliness "polished" :state "plate locked in the safe"}
+   :aspects {:cleanliness "floor swept, sink wiped"}
    :connects-to ["butlers-room"]
    :desc "Mr Merrick's own room: a table for silver and glass, a sink, and the safe where the plate is kept. A small inner room opens off it, where he sleeps within call of the front door."}
   {:id "butlers-room" :name "Butler's room" :domain :house :floor :ground :kind :bedroom
    :aspects {:cleanliness "swept, with dust under the bed"}
    :desc "A narrow room off the butler's pantry with an iron bed, a washstand and a chest. The butler-valet sleeps here, with the plate on the other side of the wall and the front door beyond that."}
   {:id "boot-room" :name "Boot-and-lamp room" :domain :house :floor :ground :kind :room
-   :aspects {:cleanliness "mud on the flags" :state "lamps trimmed and filled"}
+   :aspects {:cleanliness "mud on the flags" :state "air smelling of paraffin and blacking"}
    :desc "A lean-to at the end of the back passage where boots, knives and lamps are cleaned and coals and wood are kept for the fires."}
   {:id "back-stairs" :name "Back stairs" :domain :house :floor :ground :kind :stair
    :aspects {:cleanliness "dust along the treads"}
@@ -81,33 +81,33 @@
    :desc "A large room with a heavy four-poster, a tall wardrobe and a window over the park. There is no bath in the house: water is carried up in cans and poured into a hip bath before the fire."
    :detail "The bed curtains are old but sound, and the carpet is worn in a path from the bed to the window. A shelf of estate and railway reports stands by the bed, and the baron reads them at night when the accounts worry him."}
   {:id "barons-dressing-room" :name "Baron's dressing room" :domain :house :floor :first :kind :room
-   :aspects {:cleanliness "brushes and razors in order"}
+   :aspects {:cleanliness "swept and dusted"}
    :desc "A small room between the bedroom and the gallery, with a press for the baron's clothes and a stand for his razors, where he dresses and is shaved."}
   {:id "baroness-bedroom" :name "Baroness's bedroom" :domain :house :floor :first :kind :bedroom
    :aspects {:cleanliness "tidy, with dust on the window ledge" :state "hearth cold"}
    :desc "A bright room with a dressing table, a day bed and a window over the garden, next door to her daughter's room."}
   {:id "daughters-room" :name "Daughter's room" :domain :house :floor :first :kind :bedroom
-   :aspects {:cleanliness "tidy, the bed made"}
+   :aspects {:cleanliness "tidy"}
    :desc "A young lady's room beside her mother's: a white bed, a writing table, a chest of drawers and a shelf of novels and fashion papers."}
   {:id "sons-room" :name "Son's room" :domain :house :floor :first :kind :bedroom
-   :aspects {:cleanliness "aired and swept, nobody in it"}
-   :desc "A boy's room under the eaves, with a narrow bed, a press and a shelf of schoolbooks. Master Claudeworth is away at school and the room is kept aired for the holidays."}
+   :aspects {:cleanliness "aired and swept"}
+   :desc "A boy's room under the eaves, with a narrow bed, a press and a shelf of schoolbooks. Master Claudeworth is at school in term, and the room is kept aired for the holidays."}
   {:id "guest-bedroom" :name "Guest bedroom" :domain :house :floor :first :kind :bedroom
-   :aspects {:cleanliness "dusted, bed aired"}
+   :aspects {:cleanliness "dusted"}
    :desc "The one spare room: a brass bed, a washstand and a print of the abbey over the fireplace. The baroness's sisters are put here when they come, and there is nowhere else to put anybody."}
   {:id "linen-room" :name "Linen room" :domain :house :floor :first :kind :room
-   :aspects {:cleanliness "shelves wiped" :state "press stocked with the household's linen"}
+   :aspects {:cleanliness "shelves wiped" :state "dry and airy"}
    :desc "A dry room at the end of the gallery, with shelves for sheets, towels and the family's spare blankets, and the linen press against the wall."}
   {:id "attic-landing" :name "Attic landing" :domain :house :floor :attic :kind :landing
    :aspects {:cleanliness "boards swept"}
    :connects-to ["cooks-room" "ladys-maids-room" "housemaids-room" "kitchen-maids-room" "box-room"]
    :desc "A narrow passage under the slates at the top of the back stairs, the servants' doors opening off it and a skylight over the stairwell."
-   :detail "The boards are bare and the roof slopes so that a tall person must stoop at the ends. A candle is kept on the sill of the skylight for whoever comes up last."}
+   :detail "The boards are bare and the roof slopes so that a tall person must stoop at the ends."}
   {:id "cooks-room" :name "Cook's room" :domain :house :floor :attic :kind :bedroom
    :aspects {:cleanliness "neatly kept, washstand wiped"}
-   :desc "Mrs Thorne's room: an iron bed, a washstand and a chair by the skylight, with a chest for her things and a shelf for her brother's letters from Grimsby."}
+   :desc "Mrs Thorne's room: an iron bed, a washstand and a chair by the skylight, with a chest for her things and a shelf for her letters from home."}
   {:id "ladys-maids-room" :name "Lady's maid's room" :domain :house :floor :attic :kind :bedroom
-   :aspects {:cleanliness "swept, sewing things in order"}
+   :aspects {:cleanliness "swept and tidy"}
    :desc "Miss Nash's room, with a bed, a chest of drawers and a table by the window for her sewing, mending and the baroness's ribbons."}
   {:id "housemaids-room" :name "Housemaids' room" :domain :house :floor :attic :kind :bedroom
    :aspects {:cleanliness "swept, with dust beneath the chests"}
@@ -117,7 +117,7 @@
    :desc "A slip of a room under the eaves with one narrow bed, a chest and a peg for an apron."}
   {:id "box-room" :name "Box room" :domain :house :floor :attic :kind :room
    :aspects {:cleanliness "dust on the stored boxes"}
-   :desc "The attic lumber room: travelling trunks, spare bedding, the Christmas decorations and a disused rocking horse, with the tin hip bath propped against the wall. It is the obvious place to make another servant's bedroom when the beds are wanted."}
+   :desc "The attic lumber room under the slope of the roof, where the house puts away whatever it is not using. It is the obvious place to make another servant's bedroom when the beds are wanted."}
   ;; ------------------------------------------------ outside: the yard, stables and garden
   {:id "stable-yard" :name "Stable yard" :domain :house :floor :outside :kind :yard
    :aspects {:cleanliness "straw and muck by the stable door"}
@@ -127,22 +127,22 @@
    :aspects {:cleanliness "straw swept to the walls"}
    :desc "Three stalls and a loose box, with the two horses and the pony in work, and hay and straw kept in the loft above."}
   {:id "coach-house" :name "Coach house" :domain :house :floor :ground :kind :coach-house
-   :aspects {:cleanliness "floor swept, harness on its pegs"}
+   :aspects {:cleanliness "floor swept"}
    :connects-to ["coachmans-lodgings"]
    :desc "The coach house, where the brougham and the dog-cart stand, with the coachman's rooms over the top and the smell of harness and linseed oil through both."}
   {:id "coachmans-lodgings" :name "Coachman's lodgings" :domain :house :floor :first :kind :bedroom
    :aspects {:cleanliness "swept, fire laid"}
-   :desc "Mr Ridley's rooms over the coach house: a bed-sitting room with a good fire, a table, and a window over the yard where he can see who comes and goes."}
+   :desc "Mr Ridley's rooms over the coach house: a bed-sitting room with a good grate and a window over the yard where he can see who comes and goes."}
   {:id "kitchen-garden" :name "Kitchen garden" :domain :house :floor :outside :kind :garden
    :aspects {:cleanliness "paths raked, beds in order"}
    :connects-to ["glasshouse" "gardeners-cottage"]
    :desc "A walled garden of beds and fruit trees behind the stables, with a glasshouse against the south wall and the gardener's cottage at the gate."}
   {:id "glasshouse" :name "Glasshouse" :domain :house :floor :ground :kind :glasshouse
-   :aspects {:cleanliness "glass wiped, pots watered"}
+   :aspects {:cleanliness "glass wiped, floor swept"}
    :desc "A lean-to glasshouse on the south wall, with a vine, a peach tree and pots of cuttings for the house."}
   {:id "gardeners-cottage" :name "Gardener's cottage" :domain :house :floor :ground :kind :bedroom
-   :aspects {:cleanliness "kitchen scrubbed, bed aired"}
-   :desc "Mr Durrant's cottage at the garden gate: a kitchen and a bedroom under the tiles, with his boots by the door and seed catalogues on the dresser."}
+   :aspects {:cleanliness "kitchen scrubbed, rooms aired"}
+   :desc "Mr Durrant's cottage at the garden gate: a kitchen and a bedroom under the tiles, with a boot-scraper by the door and the garden through the window."}
 
 ;; ------------------------------------------------ Claudeworth village
   ;; ------------------------------------------------ Claudeworth village
@@ -349,35 +349,305 @@
  ;; things in the world; :holder and an agent :owner are agent names (see manor.mechanics.items).
  ;; A :container holds things :in it: :open shows them to the room, :closed only to `open`.
  :items
- [{:id "stags-head" :name "Stag's head" :place "entrance-hall" :owner "household" :fixed? true :aspects {:cleanliness "dusty" :repair "one glass eye loose"} :desc "A mounted twelve-pointer above the fireplace, shot by the second baron."}
+ [;; ------------------------------------------------ the house, room by room
+  ;; carriage sweep
+  {:id "mounting-block" :name "Mounting block" :place "carriage-sweep" :owner "household" :fixed? true :aspects {:cleanliness "green with moss on the north side"} :desc "Three worn stone steps beside the front door, for getting up onto a horse without a groom to give a leg up."}
+  {:id "front-boot-scraper" :name "Boot scraper" :place "carriage-sweep" :owner "household" :fixed? true :desc "An iron scraper let into the step by the front door, with a curled bar for the mud of the drive."}
+  {:id "porch-lantern" :name "Porch lantern" :place "carriage-sweep" :owner "household" :fixed? true :aspects {:state "unlit"} :desc "A square iron lantern on a bracket over the front door, lit with an oil lamp when callers are expected after dark."}
+  {:id "front-door-bell" :name "Front-door bell" :place "carriage-sweep" :owner "household" :fixed? true :desc "A brass bell-pull beside the front door, its wire running inside to a bell on the kitchen board."}
+  {:id "stone-urns" :name "Stone urns" :place "carriage-sweep" :owner "household" :fixed? true :aspects {:state "planted with box, a little ragged"} :desc "A pair of Georgian stone urns on plinths either side of the front steps."}
+  ;; entrance hall
+  {:id "stags-head" :name "Stag's head" :place "entrance-hall" :owner "household" :fixed? true :aspects {:cleanliness "dusty" :repair "one glass eye loose"} :desc "A mounted twelve-pointer above the fireplace, shot by the second baron."}
   {:id "longcase-clock" :name "Longcase clock" :place "entrance-hall" :owner "household" :fixed? true :aspects {:repair "gains a little every week"} :desc "A tall oak clock with a brass face, striking the hours in the hall."}
+  {:id "hall-table" :name "Hall table" :place "entrance-hall" :owner "household" :fixed? true :aspects {:cleanliness "polished"} :desc "A heavy oak side table against the panelling, where callers' cards, parcels and the post are put down."}
+  {:id "card-salver" :name "Card salver" :place "entrance-hall" :owner "household" :aspects {:cleanliness "a little tarnished"} :desc "A small silver-plated salver on which visiting cards are carried to the family, or left for them."}
+  {:id "letter-box" :name "Letter box" :place "entrance-hall" :owner "household" :fixed? true :container :closed :desc "A mahogany box with a brass slot and a hinged lid, where the household's letters are put to wait for the post."}
+  {:id "stick-stand" :name "Stick stand" :place "entrance-hall" :owner "household" :fixed? true :desc "A cast-iron stand by the door with a drip tray, for the family's walking sticks and umbrellas."}
+  {:id "dinner-gong" :name "Dinner gong" :place "entrance-hall" :owner "household" :fixed? true :desc "A brass gong hung in a carved oak frame, with a padded beater, sounded to call the family to dress and to dinner."}
+  {:id "hall-barometer" :name "Barometer" :place "entrance-hall" :owner "household" :fixed? true :aspects {:state "pointing to change"} :desc "A banjo barometer in a mahogany case beside the clock, tapped every morning by the baron on his way through."}
+  ;; drawing room
   {:id "piano" :name "Piano" :place "drawing-room" :owner "household" :fixed? true :aspects {:repair "a little out of tune"} :desc "An upright rosewood piano with brass candle sconces, played by the young lady of the house."}
   {:id "china-cabinet" :name "China cabinet" :place "drawing-room" :owner "household" :fixed? true :container :open :aspects {:cleanliness "dusty, the glass smeared"} :desc "A glass-fronted walnut cabinet on slender legs, for the family's porcelain."}
   {:id "meissen-shepherdess" :name "Meissen shepherdess" :in "china-cabinet" :owner "household" :aspects {:cleanliness "dusty"} :desc "A porcelain shepherdess in a flowered gown, with a crook and a lamb at her feet."}
   {:id "meissen-pug" :name "Meissen pug" :in "china-cabinet" :owner "household" :aspects {:cleanliness "dusty"} :desc "A porcelain pug in a gilt collar with a bell, its ears painted black."}
+  {:id "chintz-sofa" :name "Chintz sofa" :place "drawing-room" :owner "household" :fixed? true :aspects {:repair "the springs gone at one end"} :desc "A deep sofa covered in faded rose chintz, drawn up to the fire."}
+  {:id "drawing-room-chairs" :name "Drawing-room chairs" :place "drawing-room" :owner "household" :fixed? true :desc "Half a dozen chintz armchairs and two good walnut chairs kept for visitors, set about the room in groups for talk."}
+  {:id "card-table" :name "Card table" :place "drawing-room" :owner "household" :fixed? true :desc "A folding rosewood card table with a green baize top, opened out for whist after dinner."}
+  {:id "tea-table" :name "Tea table" :place "drawing-room" :owner "household" :fixed? true :desc "A low round table with a tilting top, where the tea tray is set down in the afternoon."}
+  {:id "music-canterbury" :name "Music canterbury" :place "drawing-room" :owner "household" :fixed? true :desc "A slatted mahogany rack beside the piano, stuffed with sheet music: songs, hymn tunes, waltzes and pieces set by an old governess."}
+  {:id "ormolu-clock" :name "Ormolu clock" :place "drawing-room" :owner "household" :fixed? true :aspects {:state "stopped at twenty past four"} :desc "A French gilt clock under a glass dome on the marble chimneypiece, with a shepherd and shepherdess on top."}
+  {:id "drawing-room-fire-screen" :name "Fire screen" :place "drawing-room" :owner "household" :desc "A pole screen with a panel of Berlin woolwork roses, moved about to keep the fire off ladies' faces."}
+  ;; dining room
   {:id "family-portrait" :name "Family portrait" :place "dining-room" :owner "household" :fixed? true :aspects {:repair "darkened with old varnish"} :desc "A gloomy full-length portrait of the first baron in a powdered wig, in a heavy gilt frame, hung facing the table."}
   {:id "sideboard" :name "Sideboard" :place "dining-room" :owner "household" :fixed? true :container :closed :aspects {:cleanliness "polished" :repair "a ring mark on the top"} :desc "A long mahogany sideboard with cupboards below for the table linen."}
   {:id "table-linen" :name "Table linen" :in "sideboard" :owner "household" :aspects {:state "starched and folded"} :desc "Damask tablecloths and napkins woven with the Claudeworth arms."}
+  {:id "dining-table" :name "Dining table" :place "dining-room" :owner "household" :fixed? true :aspects {:cleanliness "polished" :state "bare"} :desc "A mahogany table on pillar feet that seats ten with both leaves in, and six without."}
+  {:id "dining-chairs" :name "Dining chairs" :place "dining-room" :owner "household" :fixed? true :aspects {:repair "one chair loose in the back"} :desc "Ten mahogany chairs with leather seats, and two carvers with arms for the heads of the table."}
+  {:id "wine-cooler" :name "Wine cooler" :place "dining-room" :owner "household" :fixed? true :container :closed :desc "A brass-bound mahogany cellaret shaped like a sarcophagus, standing under the sideboard, lined with lead for ice."}
+  {:id "dumb-waiter" :name "Dumb waiter" :place "dining-room" :owner "household" :desc "A mahogany stand of three revolving tiers, set by the table with cheese and dessert so that the family can help themselves when the servants have gone."}
+  {:id "service-screen" :name "Service screen" :place "dining-room" :owner "household" :fixed? true :desc "A tall leather screen of four folds, standing before the door to the back of the house so that the family need not see it opened."}
+  {:id "plate-warmer" :name "Plate warmer" :place "dining-room" :owner "household" :desc "A japanned tin cupboard on legs, open at the back, set before the fire to warm the plates for dinner."}
+  ;; library
   {:id "estate-ledgers" :name "Estate ledgers" :place "library" :owner "household" :aspects {:state "in good order"} :desc "Three tall ledgers bound in green leather: rents, farm accounts and the household's own spending."}
   {:id "quarry-lease" :name "Quarry lease" :place "library" :owner "household" :aspects {:state "signed and sealed, with the schedule of royalties"} :desc "The lease of the ironstone under the west fields to the iron company, for sixty years, with the minimum rent and the royalty per ton written out in a clerk's hand."}
   {:id "estate-map" :name "Estate map" :place "library" :owner "household" :fixed? true :aspects {:state "mounted on linen, the quarry land shaded in pencil"} :desc "A linen-backed map of the estate above the fireplace, its fields marked with their tenants' names."}
+  {:id "barons-desk" :name "Baron's desk" :place "library" :owner "household" :fixed? true :container :closed :aspects {:state "papers stacked at one end"} :desc "A partners' desk with a tooled leather top and lockable drawers on both sides, set in the window on the drive."}
+  {:id "library-bookcases" :name "Library bookcases" :place "library" :owner "household" :fixed? true :aspects {:cleanliness "dust along the tops"} :desc "Glazed oak bookcases on three walls: county histories, sermons, bound agricultural reports, Scott and Trollope in sets, and old Army Lists."}
+  {:id "library-armchair" :name "Leather armchair" :place "library" :owner "household" :fixed? true :aspects {:repair "the leather cracked on one arm"} :desc "A deep buttoned armchair by the grate, the baron's own, with a reading slope that swings across it."}
+  {:id "library-globe" :name "Library globe" :place "library" :owner "household" :fixed? true :desc "A terrestrial globe on a mahogany stand, old enough to show Africa mostly blank."}
+  {:id "library-steps" :name "Library steps" :place "library" :owner "household" :desc "A set of folding mahogany steps for the top shelves, that closes up into a stool."}
+  {:id "spirit-tantalus" :name "Tantalus" :place "library" :owner "household" :aspects {:state "locked, the decanters half full"} :desc "An oak stand with a locking brass bar over three cut-glass decanters of whisky, brandy and sherry."}
+  {:id "gun-cabinet" :name "Gun cabinet" :place "library" :owner "household" :fixed? true :container :closed :desc "A glass-fronted oak cabinet in the corner by the door, with racks for guns and a drawer for cartridges and cleaning things."}
+  {:id "pair-of-shotguns" :name "Pair of shotguns" :in "gun-cabinet" :owner "household" :aspects {:state "cleaned and oiled, unloaded"} :desc "A pair of twelve-bore hammer guns by a London maker, bought by the baron's uncle for the pheasants."}
+  ;; morning room
   {:id "household-account-book" :name "Household account book" :place "morning-room" :owner "household" :aspects {:state "half full, in the baroness's hand"} :desc "A stout account book in which the baroness sets down what the house spends, week by week."}
+  {:id "escritoire" :name "Escritoire" :place "morning-room" :owner "household" :fixed? true :container :closed :desc "The baroness's walnut writing desk with a fall front and pigeonholes, where her letters, bills and the household books are kept."}
+  {:id "presentation-estimates" :name "Presentation estimates" :in "escritoire" :owner "household" :aspects {:state "folded twice, in the baron's hand"} :desc "Two sheets of figures for Miss Claudeworth's presentation next spring: gowns, a London house for the Season, carriages and a ball."}
+  {:id "work-basket" :name "Work basket" :place "morning-room" :owner "household" :desc "A wicker basket on legs, lined with quilted silk, holding the baroness's needlework, silks and scissors."}
+  {:id "embroidery-frame" :name "Embroidery frame" :place "morning-room" :owner "household" :aspects {:state "a cushion cover half worked"} :desc "A rosewood frame on a stand, set by the window for the light."}
+  {:id "morning-room-sofa" :name "Morning-room sofa" :place "morning-room" :owner "household" :fixed? true :desc "A small button-backed sofa in green rep, where the baroness sees the cook in the mornings."}
+  {:id "fern-stand" :name "Fern stand" :place "morning-room" :owner "household" :fixed? true :aspects {:state "the ferns a little dry"} :desc "A tall wire jardinière in the window, holding pots of maidenhair from the glasshouse."}
+  {:id "sisters-photograph" :name "Photograph of three sisters" :place "morning-room" :owner "Lady Claudeworth" :desc "A photograph in a silver frame of three young women on a lawn in the north, the baroness the youngest of them."}
+  ;; back passage
+  {:id "housemaids-cupboard" :name "Housemaid's cupboard" :place "back-passage" :owner "household" :fixed? true :container :closed :store {:keeps "brushes, dusters, polish, blacklead and soap" :serves ["drawing-room" "dining-room" "library" "morning-room" "gallery" "entrance-hall"]} :aspects {:stock "well stocked with cleaning things"}
+   :desc "A narrow deal cupboard by the baize door, for the housemaids' brushes, brooms and polish."}
+  {:id "housemaids-box" :name "Housemaid's box" :place "back-passage" :owner "household" :desc "A wooden carrying box with a handle, holding blacklead, brushes, emery paper and cloths, taken from grate to grate in the mornings."}
+  {:id "carpet-sweeper" :name "Carpet sweeper" :place "back-passage" :owner "household" :aspects {:repair "one brush worn down"} :desc "A Bissell carpet sweeper with a long handle, lately bought, which saves taking up the drawing-room carpet."}
+  {:id "turks-head-brush" :name "Turk's-head brush" :place "back-passage" :owner "household" :desc "A round brush on a very long pole, hanging on two hooks, for cobwebs on the cornices and ceilings."}
+  {:id "step-ladder" :name "Step-ladder" :place "back-passage" :owner "household" :desc "A deal step-ladder, propped by the cupboard, for curtains, high shelves and the picture rails."}
+  {:id "servants-pegs" :name "Servants' pegs" :place "back-passage" :owner "household" :fixed? true :desc "A row of pegs along the passage wall for the servants' outdoor coats, shawls and hats."}
+  {:id "fire-buckets" :name "Fire buckets" :place "back-passage" :owner "household" :fixed? true :aspects {:state "filled with water"} :desc "Four leather fire buckets painted with the Claudeworth crest, hanging in a row by the back door."}
+  ;; kitchen
   {:id "kitchen-range" :name "Kitchen range" :place "kitchen" :owner "household" :fixed? true :aspects {:state "cold and unlit"} :desc "A black cast-iron range with two ovens and a boiler."}
   {:id "kitchen-dresser" :name "Kitchen dresser" :place "kitchen" :owner "household" :fixed? true :container :open :store {:keeps "pans, tins, cloths, crockery and kitchen tools"} :aspects {:stock "well stocked with the usual kitchen ware" :cleanliness "scrubbed"} :desc "A tall deal dresser with copper pans above a broad worktop, and a long scrubbed table drawn up to it."}
+  {:id "kitchen-table" :name "Kitchen table" :place "kitchen" :owner "household" :fixed? true :aspects {:cleanliness "scrubbed white"} :desc "A long deal table with a bench along each side, where the cook works and the staff take their meals."}
+  {:id "bell-board" :name "Bell board" :place "kitchen" :owner "household" :fixed? true :desc "A row of bells on curled springs over the kitchen door, each labelled with its room: drawing room, dining room, library, morning room, front door and the bedrooms."}
+  {:id "bottle-jack" :name "Bottle jack and screen" :place "kitchen" :owner "household" :aspects {:repair "the clockwork needs oiling"} :desc "A brass clockwork jack that hangs before the range and turns a joint on its hook, with a tin roasting screen behind it to throw back the heat and a dripping pan beneath."}
+  {:id "cooks-chair" :name "Cook's chair" :place "kitchen" :owner "household" :fixed? true :desc "A Windsor armchair with a patchwork cushion, drawn up beside the range."}
+  {:id "kitchen-mortar" :name "Marble mortar" :place "kitchen" :owner "household" :desc "A heavy marble mortar on a wooden stand, with a pestle of lignum vitae, for pounding spices, forcemeat and almonds."}
+  {:id "kitchen-scales" :name "Kitchen scales" :place "kitchen" :owner "household" :desc "Cast-iron balance scales with a brass pan and a set of brass weights from two pounds down to a quarter ounce."}
+  {:id "stockpot" :name "Stockpot" :place "kitchen" :owner "household" :aspects {:state "empty and scoured"} :desc "A great copper stockpot with a tap near its foot, kept at the back of the range for the household's stock."}
+  ;; scullery
+  {:id "scullery-sink" :name "Stone sink" :place "scullery" :owner "household" :fixed? true :aspects {:cleanliness "greasy, in need of scouring"} :desc "A deep, shallow-lipped stone sink under the window, with a wooden draining board beside it."}
+  {:id "scullery-pump" :name "Scullery pump" :place "scullery" :owner "household" :fixed? true :aspects {:repair "the handle squeaks"} :desc "A cast-iron hand pump at the end of the sink, drawing from the well under the yard; the house has no other water laid on."}
+  {:id "scullery-copper" :name "Scullery copper" :place "scullery" :owner "household" :fixed? true :aspects {:state "cold"} :desc "A copper boiler set in brickwork in the corner, with a fire-hole beneath, for hot water and for boiling puddings and cloths."}
+  {:id "plate-rack" :name "Plate rack" :place "scullery" :owner "household" :fixed? true :desc "A wooden rack on the wall over the draining board, where the washed plates stand to drip."}
+  {:id "washing-up-tubs" :name "Washing-up tubs" :place "scullery" :owner "household" :desc "Two wooden tubs, one for washing and one for rinsing, set in the sink or on the floor."}
+  {:id "vegetable-bins" :name "Vegetable bins" :place "scullery" :owner "household" :fixed? true :aspects {:state "half full of potatoes and roots"} :desc "Deal bins under the window for potatoes, onions and roots brought in from the garden."}
+  {:id "chopping-block" :name "Chopping block" :place "scullery" :owner "household" :fixed? true :desc "A round elm block on three legs, scored all over by cleavers, for jointing and for chopping suet and bones."}
+  ;; pantry
   {:id "pantry-shelves" :name "Pantry shelves" :place "pantry" :owner "household" :fixed? true :container :open :store {:keeps "dry goods, preserves, condiments, butter and cheese" :serves ["kitchen"]} :aspects {:stock "well stocked with the household's staples" :lacking "sugar"}
-   :desc "Slate shelves along the pantry wall, ready for jars, packets and crocks, with the meat safe standing in the coolest corner."}
+   :desc "Slate shelves along the pantry wall, ready for jars, packets and crocks."}
+  {:id "meat-safe" :name "Meat safe" :place "pantry" :owner "household" :fixed? true :container :closed :aspects {:state "empty, the gauze clean"} :desc "A wooden cupboard with fine perforated zinc sides, standing in the coolest corner to keep flies off the meat."}
+  {:id "flour-bin" :name "Flour bin" :place "pantry" :owner "household" :fixed? true :aspects {:amount "about half a sack"} :desc "A deal bin with a sloping lid and a scoop, holding flour by the sack."}
+  {:id "bread-crock" :name "Bread crock" :place "pantry" :owner "household" :fixed? true :desc "A big glazed earthenware crock with a wooden lid, where the loaves are kept."}
+  {:id "salting-trough" :name "Salting trough" :place "pantry" :owner "household" :fixed? true :aspects {:state "empty"} :desc "A lead-lined trough on a low stand for salting bacon and beef."}
+  {:id "game-hooks" :name "Game hooks" :place "pantry" :owner "household" :fixed? true :desc "An iron rail under the ceiling with a row of hooks, for hanging game and poultry until they are fit to cook."}
+  {:id "egg-crock" :name "Egg crock" :place "pantry" :owner "household" :aspects {:amount "four dozen eggs in waterglass"} :desc "A stoneware crock of eggs put down in waterglass in the summer, to see the house through the winter."}
+  ;; butler's pantry
   {:id "plate-safe" :name "Plate safe" :place "butlers-pantry" :owner "household" :fixed? true :container :closed :store {:keeps "silver, plate, the tea service and the best cutlery" :serves ["dining-room"]} :aspects {:stock "the household's plate, counted and locked"}
    :desc "A strong oak cupboard with a lock, where Mr Merrick keeps the silver, the plate basket and the best cutlery."}
   {:id "silver-candlesticks" :name "Silver candlesticks" :in "plate-safe" :owner "household" :aspects {:cleanliness "tarnished"} :desc "A pair of Georgian silver candlesticks with fluted columns."}
   {:id "canteen-of-cutlery" :name "Canteen of cutlery" :in "plate-safe" :owner "household" :aspects {:amount "a complete set" :cleanliness "the forks tarnished"} :desc "An oak case of silver cutlery for twelve, each piece in its own green baize slot."}
-  {:id "linen-press" :name "Linen press" :place "linen-room" :owner "household" :fixed? true :container :closed :store {:keeps "sheets, pillowcases, towels, table linen and blankets"} :aspects {:stock "well stocked with clean, folded linen"}
-   :desc "A tall oak press on the further wall, with shelves for the household linen and a drawer of lavender bags."}
-  {:id "housemaids-cupboard" :name "Housemaid's cupboard" :place "back-passage" :owner "household" :fixed? true :container :closed :store {:keeps "brushes, dusters, polish, blacklead and soap" :serves ["drawing-room" "dining-room" "library" "morning-room" "gallery" "entrance-hall"]} :aspects {:stock "well stocked with cleaning things"}
-   :desc "A narrow deal cupboard by the baize door, for the housemaids' brushes, brooms and polish."}
+  {:id "wine-cupboard" :name "Wine cupboard" :place "butlers-pantry" :owner "household" :fixed? true :container :closed :store {:keeps "the house's wine: claret, port, sherry, hock and a little champagne" :serves ["dining-room"]} :aspects {:stock "modest, the port low"}
+   :desc "A locked cupboard of racked bins along the inner wall, the house having no cellar worth the name; Mr Merrick keeps the key."}
+  {:id "silver-table" :name "Silver table" :place "butlers-pantry" :owner "household" :fixed? true :desc "A table covered in green baize, where the silver is cleaned with plate powder and rouge and the lamps' glasses are polished."}
+  {:id "butlers-sink" :name "Butler's sink" :place "butlers-pantry" :owner "household" :fixed? true :desc "A wooden sink lined with lead, soft enough not to chip the glass or scratch the silver washed in it."}
+  {:id "glass-cupboard" :name "Glass cupboard" :place "butlers-pantry" :owner "household" :fixed? true :aspects {:cleanliness "the decanters want a rinse"} :desc "A glazed cupboard of wine glasses, tumblers, finger bowls and decanters, arranged by size."}
+  {:id "cellar-book" :name "Cellar book" :place "butlers-pantry" :owner "household" :aspects {:state "written up to Saturday"} :desc "A ruled book in which Mr Merrick enters every bottle that comes into the house and every bottle that goes up to the dining room."}
+  {:id "key-board" :name "Key board" :place "butlers-pantry" :owner "household" :fixed? true :desc "A board of labelled hooks inside the pantry door, holding the house's keys, except those of the plate safe and the wine, which Mr Merrick carries."}
+  ;; butler's room
+  {:id "butlers-bed" :name "Iron bed" :place "butlers-room" :owner "household" :fixed? true :desc "A narrow iron bedstead with a horsehair mattress and a grey blanket."}
+  {:id "butlers-washstand" :name "Washstand" :place "butlers-room" :owner "household" :fixed? true :desc "A deal washstand with a white jug and basin, and a shaving glass on a nail above it."}
+  {:id "butlers-chest" :name "Chest" :place "butlers-room" :owner "Mr Merrick" :fixed? true :desc "A painted pine chest that has followed Mr Merrick from place to place, with his initials on the lid."}
+  {:id "butlers-chair" :name "Rush chair" :place "butlers-room" :owner "household" :fixed? true :desc "A plain rush-seated chair by the bed, where his coat is laid out at night."}
+  {:id "butlers-alarum" :name "Alarum clock" :place "butlers-room" :owner "Mr Merrick" :aspects {:state "set for six"} :desc "A tin alarum clock with two bells on top, loud enough to be heard through the wall."}
+  ;; boot-and-lamp room
   {:id "boot-and-lamp-stores" :name "Boot-and-lamp stores" :place "boot-room" :owner "household" :fixed? true :container :closed :store {:keeps "blacking, boot brushes, lamp oil, wicks, chimneys, spills and kindling"} :aspects {:stock "enough for the boots and the lamps for a month"}
    :desc "Shelves and a bench along the boot-room wall, with the blacking tins, the lamp tray and the box of spills."}
-  {:id "hip-bath" :name "Hip bath" :place "box-room" :owner "household" :aspects {:cleanliness "dry, with a little dust in it"} :desc "A tin hip bath, propped against the wall between the trunks and carried down to whatever bedroom wants it."}
-  {:id "the-brougham" :name "The brougham" :place "coach-house" :owner "household" :fixed? true :aspects {:cleanliness "polished" :repair "a little out of trim"} :desc "A black brougham on its springs, with a folding step and a rug folded on the seat; the dog-cart stands behind it."}
+  {:id "coal-bunker" :name "Coal bunker" :place "boot-room" :owner "household" :fixed? true :store {:keeps "coal, coke and split logs for the fires and the range"} :aspects {:stock "well filled before Christmas"}
+   :desc "A brick bunker with a wooden front, filled from the yard through a hatch, with the log pile stacked beside it."}
+  {:id "knife-machine" :name "Knife machine" :place "boot-room" :owner "household" :fixed? true :aspects {:repair "the leathers worn"} :desc "A Kent's rotary knife cleaner: a wooden drum on legs with slots for the knives and a handle to turn, charged with emery powder."}
+  {:id "boot-rack" :name "Boot rack" :place "boot-room" :owner "household" :fixed? true :desc "A slatted rack along the wall, with the family's boots and shoes set on it to be cleaned, and a boot-tree for each pair of the baron's."}
+  {:id "coal-scuttles" :name "Coal scuttles" :place "boot-room" :owner "household" :desc "Three japanned coal boxes with brass handles, filled here and carried up to the family's rooms."}
+  {:id "hatchet-and-block" :name "Hatchet and block" :place "boot-room" :owner "household" :desc "A short hatchet and a scarred block by the log pile, for splitting kindling."}
+  {:id "boot-jack" :name "Boot-jack" :place "boot-room" :owner "household" :desc "A cast-iron boot-jack in the shape of a beetle, for drawing off riding boots."}
+  ;; back stairs
+  {:id "stair-candle-box" :name "Candle box" :place "back-stairs" :owner "household" :fixed? true :aspects {:amount "a dozen candles"} :desc "A tin box nailed to the newel at the foot of the back stairs, holding the servants' candles."}
+  {:id "chamber-candlesticks" :name "Chamber candlesticks" :place "back-stairs" :owner "household" :desc "A tray of brass chamber candlesticks with snuffers, taken up at bedtime."}
+  {:id "hot-water-cans" :name "Hot-water cans" :place "back-stairs" :owner "household" :desc "Four brass-bound copper cans with lids, for carrying hot water up to the bedrooms in the morning and for a bath."}
+  {:id "slop-pails" :name "Slop pails" :place "back-stairs" :owner "household" :desc "Two lidded enamel pails for emptying the washstands and chamber pots, kept at the foot of the stairs."}
+  {:id "back-stair-drugget" :name "Stair drugget" :place "back-stairs" :owner "household" :fixed? true :aspects {:repair "worn through on the bottom tread"} :desc "A strip of coarse brown drugget tacked down the middle of the treads."}
+  ;; staircase
+  {:id "half-landing-lamp" :name "Half-landing lamp" :place "staircase" :owner "household" :fixed? true :aspects {:state "unlit"} :desc "A brass oil lamp with an opal shade in a bracket on the half-landing, the one light left burning on the stairs at night."}
+  {:id "stair-carpet" :name "Stair carpet" :place "staircase" :owner "household" :fixed? true :aspects {:cleanliness "dusty" :repair "one brass rod loose"} :desc "A red Turkey runner held down with brass stair rods."}
+  {:id "landing-window-seat" :name "Window seat" :place "staircase" :owner "household" :fixed? true :desc "A cushioned seat in the tall window on the half-landing, looking over the park."}
+  {:id "marble-bust" :name "Marble bust" :place "staircase" :owner "household" :fixed? true :desc "A bust of the younger Pitt on a pedestal at the turn of the stair, bought by an admiring Claudeworth."}
+  {:id "hunting-prints" :name "Hunting prints" :place "staircase" :owner "household" :fixed? true :desc "A set of six coloured prints of the Quorn going up the stair wall, in maple frames."}
+  ;; gallery
+  {:id "water-closet" :name "Water-closet" :place "gallery" :owner "household" :fixed? true :aspects {:repair "the cistern slow to fill"} :desc "The house's one water-closet, in a narrow room off the landing: a mahogany seat over a blue-and-white pan, with a pull-chain and a cistern above."}
+  {:id "jacobean-coffer" :name "Jacobean coffer" :place "gallery" :owner "household" :fixed? true :container :closed :desc "A carved oak chest from the old house, older than anything else on the floor, standing under the portraits."}
+  {:id "second-baron-portrait" :name "Portrait of the second baron" :place "gallery" :owner "household" :fixed? true :desc "The second baron in hunting dress with a gun and two pointers, the best painting in the house and the one that shot the stag in the hall."}
+  {:id "gallery-settle" :name "Gallery settle" :place "gallery" :owner "household" :fixed? true :desc "A high-backed oak settle halfway along the landing."}
+  {:id "gallery-lamp" :name "Gallery lamp" :place "gallery" :owner "household" :fixed? true :aspects {:state "unlit"} :desc "A brass wall lamp by the linen-room end of the landing."}
+  {:id "pot-pourri-bowl" :name "Pot-pourri bowl" :place "gallery" :owner "household" :aspects {:state "faded, the scent nearly gone"} :desc "A lidded Chinese bowl of dried rose petals and lavender on the window sill."}
+  ;; baron's bedroom
+  {:id "four-poster" :name "Four-poster bed" :place "barons-bedroom" :owner "household" :fixed? true :aspects {:state "unmade"} :desc "A heavy carved four-poster with old crimson hangings and a feather bed, too big for the room."}
+  {:id "barons-wardrobe" :name "Tall wardrobe" :place "barons-bedroom" :owner "household" :fixed? true :desc "A mahogany wardrobe with a long glass in the door and a cornice that nearly touches the ceiling."}
+  {:id "barons-washstand" :name "Marble washstand" :place "barons-bedroom" :owner "household" :fixed? true :desc "A washstand with a marble top and a tiled back, with a jug, basin and soap dish in blue willow pattern."}
+  {:id "barons-armchair" :name "Fireside chair" :place "barons-bedroom" :owner "household" :fixed? true :desc "A wing armchair by the fire, with a small table for the reports beside it."}
+  {:id "barons-commode" :name "Night commode" :place "barons-bedroom" :owner "household" :fixed? true :desc "A mahogany night cupboard by the bed, the chamber pot inside it."}
+  {:id "reading-lamp" :name "Reading lamp" :place "barons-bedroom" :owner "household" :aspects {:state "trimmed and filled"} :desc "A brass oil lamp with a green glass shade, moved between the bedside and the fireside table."}
+  ;; baron's dressing room
+  {:id "barons-clothes-press" :name "Clothes press" :place "barons-dressing-room" :owner "household" :fixed? true :container :closed :store {:keeps "the baron's suits, coats, evening dress, shirts, collars, ties and linen"} :aspects {:stock "full, the evening coat a little tight"}
+   :desc "A mahogany press with sliding trays above and drawers below, for the baron's clothes."}
+  {:id "shaving-stand" :name "Shaving stand" :place "barons-dressing-room" :owner "household" :fixed? true :desc "A tall stand with an adjustable glass, a bowl and a drawer of razors, brushes and strop."}
+  {:id "cheval-glass" :name "Cheval glass" :place "barons-dressing-room" :owner "household" :desc "A full-length looking-glass that swings in a mahogany frame."}
+  {:id "valet-stand" :name "Clothes horse" :place "barons-dressing-room" :owner "household" :desc "A wooden stand with a shaped top for the coat and a rail for the trousers, where the next day's clothes are laid out."}
+  {:id "dressing-room-boot-cupboard" :name "Boot cupboard" :place "barons-dressing-room" :owner "household" :fixed? true :desc "A low cupboard with shelves for the baron's boots and shoes on their trees."}
+  {:id "dressing-chair" :name "Dressing chair" :place "barons-dressing-room" :owner "household" :fixed? true :desc "A plain chair with arms by the window, where the baron sits to be shaved."}
+  ;; baroness's bedroom
+  {:id "baroness-bed" :name "Half-tester bed" :place "baroness-bedroom" :owner "household" :fixed? true :aspects {:state "unmade"} :desc "A half-tester bed with chintz hangings at the head and a white counterpane."}
+  {:id "dressing-table" :name "Dressing table" :place "baroness-bedroom" :owner "household" :fixed? true :desc "A kidney-shaped dressing table in muslin skirts with a triple glass, set in the window for the light, laid with silver-backed brushes."}
+  {:id "jewel-case" :name "Jewel case" :place "baroness-bedroom" :owner "Lady Claudeworth" :container :closed :desc "A Morocco leather case with a brass lock and trays lined with velvet."}
+  {:id "pearl-necklace" :name "Pearl necklace" :in "jewel-case" :owner "Lady Claudeworth" :desc "A single row of graduated pearls with a diamond clasp, the baron's wedding present."}
+  {:id "baroness-wardrobe" :name "Baroness's wardrobe" :place "baroness-bedroom" :owner "household" :fixed? true :container :closed :store {:keeps "the baroness's gowns, mantles, hats, gloves, shoes and linen"} :aspects {:stock "full, the evening gowns three seasons old"}
+   :desc "A wide double wardrobe of satinwood, with hanging space on one side and trays on the other."}
+  {:id "day-bed" :name "Day bed" :place "baroness-bedroom" :owner "household" :fixed? true :desc "A chaise longue covered in rose damask by the fire, with a rug folded over its foot."}
+  {:id "baroness-washstand" :name "Washstand" :place "baroness-bedroom" :owner "household" :fixed? true :desc "A painted washstand with a flowered jug and basin and a towel rail at the side."}
+  ;; daughter's room
+  {:id "daughters-bed" :name "White bed" :place "daughters-room" :owner "household" :fixed? true :aspects {:state "made"} :desc "A white-painted iron bed with brass knobs and a muslin coverlet."}
+  {:id "writing-table" :name "Writing table" :place "daughters-room" :owner "household" :fixed? true :container :closed :desc "A small walnut writing table with a drawer, set under the window."}
+  {:id "daughters-wardrobe" :name "Wardrobe" :place "daughters-room" :owner "household" :fixed? true :container :closed :store {:keeps "Miss Claudeworth's dresses, coats, hats, boots and linen"} :aspects {:stock "full, though nothing fit for a London Season"}
+   :desc "A white-painted wardrobe with a chest of drawers built into its lower half."}
+  {:id "novel-shelf" :name "Bookshelf" :place "daughters-room" :owner "household" :fixed? true :desc "A hanging shelf of novels, schoolroom French, fashion papers and the Girl's Own Annual."}
+  {:id "dolls-house" :name "Dolls' house" :place "daughters-room" :owner "Miss Claudeworth" :fixed? true :aspects {:cleanliness "dusty"} :desc "A tall painted dolls' house from her nursery days, its front opening on four rooms and a kitchen."}
+  {:id "watercolour-box" :name "Watercolour box" :place "daughters-room" :owner "Miss Claudeworth" :desc "A japanned box of Winsor & Newton cakes with brushes and a water bottle, and a block of paper."}
+  {:id "daughters-washstand" :name "Washstand" :place "daughters-room" :owner "household" :fixed? true :desc "A white washstand with a jug and basin painted with forget-me-nots."}
+  ;; son's room
+  {:id "sons-bed" :name "Narrow bed" :place "sons-room" :owner "household" :fixed? true :desc "A narrow iron bed under the slope of the eaves, with a plaid rug on it."}
+  {:id "sons-press" :name "Press" :place "sons-room" :owner "household" :fixed? true :container :closed :desc "A deal press for a boy's clothes, with a drawer that sticks."}
+  {:id "cricket-bat" :name "Cricket bat" :place "sons-room" :owner "Master Claudeworth" :aspects {:repair "the handle bound with twine"} :desc "A boy's size bat, much oiled, propped in the corner."}
+  {:id "birds-egg-cabinet" :name "Birds'-egg cabinet" :place "sons-room" :owner "Master Claudeworth" :fixed? true :desc "A small cabinet of shallow drawers lined with cotton wool, each egg labelled in a careful hand with the bird and the place."}
+  {:id "toy-steam-engine" :name "Toy steam engine" :place "sons-room" :owner "Master Claudeworth" :aspects {:repair "the safety valve stiff"} :desc "A German brass and tin stationary engine with a spirit burner and a flywheel, which really runs."}
+  {:id "sons-washstand" :name "Washstand" :place "sons-room" :owner "household" :fixed? true :desc "A plain deal washstand with an enamel jug and basin."}
+  ;; guest bedroom
+  {:id "guest-bed" :name "Brass bed" :place "guest-bedroom" :owner "household" :fixed? true :aspects {:state "aired, the sheets off"} :desc "A brass bedstead with a good hair mattress and a patchwork quilt."}
+  {:id "guest-washstand" :name "Washstand" :place "guest-bedroom" :owner "household" :fixed? true :desc "A mahogany washstand with a marble top and a green jug and basin."}
+  {:id "abbey-print" :name "Print of the abbey" :place "guest-bedroom" :owner "household" :fixed? true :desc "A steel engraving of Hollin Abbey in its ruinous days, before the monks came back, over the fireplace."}
+  {:id "guest-wardrobe" :name "Guest wardrobe" :place "guest-bedroom" :owner "household" :fixed? true :container :closed :desc "A plain oak wardrobe kept empty for visitors' things, with lavender bags hung inside."}
+  {:id "luggage-stool" :name "Luggage stool" :place "guest-bedroom" :owner "household" :desc "A folding stool with webbing straps, for a trunk to stand on while it is unpacked."}
+  {:id "guest-easy-chair" :name "Easy chair" :place "guest-bedroom" :owner "household" :fixed? true :desc "A low easy chair by the fire, re-covered in cretonne."}
+  ;; linen room
+  {:id "linen-press" :name "Linen press" :place "linen-room" :owner "household" :fixed? true :container :closed :store {:keeps "sheets, pillowcases, towels, table linen and blankets"} :aspects {:stock "well stocked with clean, folded linen"}
+   :desc "A tall oak press on the further wall, with shelves for the household linen and a drawer of lavender bags."}
+  {:id "ironing-table" :name "Ironing table" :place "linen-room" :owner "household" :fixed? true :desc "A long deal table padded with an old blanket and a sheet, for ironing and folding."}
+  {:id "airing-stove" :name "Linen-room stove" :place "linen-room" :owner "household" :fixed? true :aspects {:state "cold"} :desc "A small iron stove with a flat top, for keeping the room dry and heating the irons."}
+  {:id "flat-irons" :name "Flat irons" :place "linen-room" :owner "household" :desc "Four flat irons of different weights on an iron stand, with a holder of padded cloth."}
+  {:id "airing-horse" :name "Airing horse" :place "linen-room" :owner "household" :desc "A folding wooden clothes horse, opened out before the stove to air the linen."}
+  {:id "sewing-machine" :name "Sewing machine" :place "linen-room" :owner "household" :fixed? true :desc "A Singer treadle sewing machine on an iron stand, with a hooded wooden cover, for sheets, curtains and plain sewing."}
+  {:id "linen-book" :name "Linen book" :place "linen-room" :owner "household" :aspects {:state "last counted at Michaelmas"} :desc "A book listing every sheet, towel and cloth in the house, with its mark and when it was last turned or mended."}
+  ;; attic landing
+  {:id "skylight-candlestick" :name "Tin candlestick" :place "attic-landing" :owner "household" :desc "A tin candlestick with a ring handle, kept on the sill of the skylight for whoever comes up last."}
+  {:id "attic-sand-bucket" :name "Sand bucket" :place "attic-landing" :owner "household" :fixed? true :desc "A red-painted bucket of sand at the head of the stairs, against fire from the servants' candles."}
+  {:id "attic-bell" :name "Attic bell" :place "attic-landing" :owner "household" :fixed? true :desc "A bell on a spring over the stair head, on a wire from the kitchen, rung to wake the servants or call one down."}
+  {:id "linen-hamper" :name "Linen hamper" :place "attic-landing" :owner "household" :container :closed :desc "A lidded wicker hamper for the servants' soiled linen, carried down on washing day."}
+  {:id "attic-pegs" :name "Pegs" :place "attic-landing" :owner "household" :fixed? true :desc "A row of pegs along the passage for the maids' print dresses and Sunday cloaks."}
+  ;; cook's room
+  {:id "cooks-bed" :name "Iron bed" :place "cooks-room" :owner "household" :fixed? true :desc "An iron bedstead with a feather bolster and a crocheted counterpane of her own making."}
+  {:id "cooks-washstand" :name "Washstand" :place "cooks-room" :owner "household" :fixed? true :desc "A deal washstand with a brown jug and basin and a cake of yellow soap."}
+  {:id "cooks-room-chair" :name "Chair" :place "cooks-room" :owner "household" :fixed? true :desc "A Windsor chair with a cushion, set by the skylight where the light is best for reading."}
+  {:id "cooks-chest" :name "Chest" :place "cooks-room" :owner "Mrs Thorne" :fixed? true :desc "A black tin trunk with brass corners and her name painted on the lid, which has come with her from every place."}
+  {:id "cooks-receipt-book" :name "Receipt book" :place "cooks-room" :owner "Mrs Thorne" :aspects {:state "thick with pasted-in cuttings"} :desc "Mrs Thorne's own receipt book in a marbled cover, written up over twenty years in two hands, hers and an older cook's."}
+  {:id "cooks-alarum" :name "Alarum clock" :place "cooks-room" :owner "Mrs Thorne" :aspects {:state "set for half past five"} :desc "A tin alarum clock that rings a single loud bell."}
+  ;; lady's maid's room
+  {:id "ladys-maid-bed" :name "Iron bed" :place "ladys-maids-room" :owner "household" :fixed? true :desc "A narrow iron bed with a white honeycomb counterpane."}
+  {:id "ladys-maid-chest" :name "Chest of drawers" :place "ladys-maids-room" :owner "household" :fixed? true :desc "A painted chest of drawers with a looking-glass standing on it."}
+  {:id "sewing-table" :name "Sewing table" :place "ladys-maids-room" :owner "household" :fixed? true :desc "A deal table by the window with a pincushion screwed to its edge, for mending, trimming and the baroness's ribbons."}
+  {:id "dress-stand" :name "Dress stand" :place "ladys-maids-room" :owner "household" :desc "A padded dressmaker's form on a turned stand, set to the baroness's measure, for altering and pressing her gowns."}
+  {:id "nash-workbox" :name "Workbox" :place "ladys-maids-room" :owner "Miss Nash" :desc "A rosewood workbox with a tray of reels, needles, a silver thimble and a darning mushroom."}
+  {:id "curling-tongs" :name "Curling tongs and spirit lamp" :place "ladys-maids-room" :owner "household" :desc "Steel curling and crimping tongs with a small brass spirit lamp to heat them, for doing the baroness's hair."}
+  ;; housemaids' room
+  {:id "housemaids-bedsteads" :name "Iron bedsteads" :place "housemaids-room" :owner "household" :fixed? true :desc "Two narrow iron bedsteads with grey blankets, a yard apart."}
+  {:id "housemaids-chests" :name "Chests" :place "housemaids-room" :owner "household" :fixed? true :desc "Two painted deal chests, one at the foot of each bed, for the maids' clothes and things."}
+  {:id "housemaids-washstand" :name "Washstand" :place "housemaids-room" :owner "household" :fixed? true :desc "A deal washstand with one jug and basin between the two of them."}
+  {:id "housemaids-glass" :name "Looking-glass" :place "housemaids-room" :owner "household" :fixed? true :desc "A small looking-glass on a nail by the window, a little spotted."}
+  {:id "housemaids-text" :name "Framed text" :place "housemaids-room" :owner "household" :fixed? true :desc "A worked text in a black frame over the beds: THOU GOD SEEST ME."}
+  {:id "housemaids-chair" :name "Rush chair" :place "housemaids-room" :owner "household" :fixed? true :desc "One rush-seated chair, shared."}
+  ;; kitchen maid's room
+  {:id "kitchen-maids-bed" :name "Narrow bed" :place "kitchen-maids-room" :owner "household" :fixed? true :desc "A narrow iron bed squeezed under the eaves, with a thin flock mattress."}
+  {:id "kitchen-maids-chest" :name "Chest" :place "kitchen-maids-room" :owner "household" :fixed? true :desc "A small deal chest at the bed's foot, which serves for a seat as well."}
+  {:id "kitchen-maids-washstand" :name "Washstand" :place "kitchen-maids-room" :owner "household" :fixed? true :desc "A corner washstand with a chipped enamel basin and jug."}
+  {:id "kitchen-maids-candlestick" :name "Candlestick" :place "kitchen-maids-room" :owner "household" :desc "An enamel candlestick with a stub of candle, on the chest."}
+  {:id "kitchen-maids-rug" :name "Rag rug" :place "kitchen-maids-room" :owner "household" :fixed? true :desc "A rag rug beside the bed, the only thing between the boards and bare feet."}
+  {:id "apron-peg" :name "Apron peg" :place "kitchen-maids-room" :owner "household" :fixed? true :desc "A wooden peg behind the door, for an apron and a print dress."}
+  ;; box room
+  {:id "hip-bath" :name "Hip bath" :place "box-room" :owner "household" :aspects {:cleanliness "dry, with a little dust in it"} :desc "A tin hip bath, painted brown outside and cream within, light enough for two maids to carry to whatever bedroom wants it."}
+  {:id "travelling-trunks" :name "Travelling trunks" :place "box-room" :owner "household" :container :closed :aspects {:cleanliness "dusty"} :desc "A stack of the family's leather and canvas trunks and hat boxes, labelled from old journeys to London, Harrogate and Dieppe."}
+  {:id "spare-bedding" :name "Spare bedding" :place "box-room" :owner "household" :fixed? true :store {:keeps "spare mattresses, bolsters, pillows, old blankets and counterpanes"} :aspects {:stock "two mattresses and a heap of old blankets"}
+   :desc "Rolled mattresses and bundles of bedding stacked on boards against the damp."}
+  {:id "spare-bedstead" :name "Spare bedstead" :place "box-room" :owner "household" :aspects {:state "taken apart, the pieces tied together"} :desc "A plain iron bedstead in pieces, head, foot and side irons, enough to make up a servant's bed when one is wanted."}
+  {:id "christmas-decorations" :name "Box of Christmas decorations" :place "box-room" :owner "household" :container :closed :desc "A tea chest of paper chains, glass baubles, candle clips for the tree, a tinsel star and the crib figures, put away each Twelfth Night."}
+  {:id "rocking-horse" :name "Rocking horse" :place "box-room" :owner "household" :aspects {:repair "the mane half gone"} :desc "A dapple-grey rocking horse on bow rockers, outgrown by both children."}
+  ;; ------------------------------------------------ outside: the yard, stables and garden
+  ;; stable yard
+  {:id "yard-pump" :name "Yard pump" :place "stable-yard" :owner "household" :fixed? true :aspects {:repair "the handle stiff in frost"} :desc "A tall iron pump on the well in the middle of the yard, the house's water."}
+  {:id "horse-trough" :name "Horse trough" :place "stable-yard" :owner "household" :fixed? true :aspects {:state "full, a skin of ice at the edges"} :desc "A long stone trough beneath the pump."}
+  {:id "muck-heap" :name "Muck heap" :place "stable-yard" :owner "household" :fixed? true :desc "A walled bay by the lane gate where the stable muck is stacked to rot for the garden."}
+  {:id "rain-butt" :name "Rain butt" :place "stable-yard" :owner "household" :fixed? true :desc "A tarred barrel under the coach-house downpipe, its soft water saved for washing the carriage and the maids' hair."}
+  {:id "yard-broom" :name "Yard broom" :place "stable-yard" :owner "household" :desc "A stiff besom of birch twigs for the cobbles."}
+  {:id "stable-clock" :name "Stable clock" :place "stable-yard" :owner "household" :fixed? true :aspects {:repair "five minutes slow"} :desc "A clock in a little cupola over the coach-house arch, wound on Sundays, that the outdoor men keep their hours by."}
+  ;; stables
+  {:id "corn-bin" :name "Corn bin" :place "stables" :owner "household" :fixed? true :container :closed :store {:keeps "oats, bran, chaff, linseed and horse salt"} :aspects {:stock "enough oats for a fortnight"}
+   :desc "A long wooden bin with three compartments and a lid, by the door, with a measure hung inside."}
+  {:id "mangers" :name "Mangers and hay racks" :place "stables" :owner "household" :fixed? true :desc "An iron manger and a hay rack over it at the head of each stall and in the loose box."}
+  {:id "grooming-box" :name "Grooming box" :place "stables" :owner "household" :desc "A wooden box of body brushes, dandy brushes, curry combs, hoof picks, wisps and sponges."}
+  {:id "stable-buckets" :name "Stable buckets" :place "stables" :owner "household" :desc "Three wooden water buckets bound with iron, one to a stall."}
+  {:id "stable-fork" :name "Stable fork" :place "stables" :owner "household" :desc "A two-tined fork and a shovel for mucking out, leaning by the loose box."}
+  {:id "stable-lantern" :name "Stable lantern" :place "stables" :owner "household" :aspects {:state "unlit"} :desc "A tin lantern with horn panes, hung on a nail by the door for the evening feed."}
+  {:id "loft-ladder" :name "Loft ladder" :place "stables" :owner "household" :fixed? true :desc "A wooden ladder fixed up to a trap into the hay loft."}
+  ;; coach house
+  {:id "the-brougham" :name "The brougham" :place "coach-house" :owner "household" :fixed? true :aspects {:cleanliness "polished" :repair "a little out of trim"} :desc "A black brougham on its springs, with a folding step and the Claudeworth arms small on the door panels."}
+  {:id "dog-cart" :name "Dog-cart" :place "coach-house" :owner "household" :fixed? true :aspects {:cleanliness "mud on the wheels"} :desc "A high two-wheeled dog-cart with seats back to back, for the pony or one of the horses, used for the station and for errands."}
+  {:id "harness-rack" :name "Harness rack" :place "coach-house" :owner "household" :fixed? true :store {:keeps "harness, collars, bridles, saddles, saddle soap, neatsfoot oil and polish"} :aspects {:stock "all the harness on its pegs"}
+   :desc "Pegs and saddle brackets along the inner wall, with a cupboard of soap and oils beneath."}
+  {:id "carriage-lamps" :name "Carriage lamps" :place "coach-house" :owner "household" :desc "A pair of silver-plated carriage lamps with candle tubes, unshipped from the brougham when it is put away."}
+  {:id "carriage-rugs" :name "Carriage rugs" :place "coach-house" :owner "household" :desc "Two fur-lined carriage rugs and a footwarmer, folded on a shelf away from the damp."}
+  {:id "carriage-whip" :name "Carriage whip" :place "coach-house" :owner "household" :desc "A holly-stocked driving whip with a long thong, kept in a rack by the brougham."}
+  {:id "carriage-jack" :name "Carriage jack" :place "coach-house" :owner "household" :desc "An iron screw jack for lifting a wheel clear to grease the axle, with the grease pot beside it."}
+  ;; coachman's lodgings
+  {:id "coachmans-bed" :name "Bed" :place "coachmans-lodgings" :owner "household" :fixed? true :desc "A double bedstead in the corner of the room, made up for two though one usually sleeps in it."}
+  {:id "coachmans-table" :name "Table" :place "coachmans-lodgings" :owner "household" :fixed? true :desc "A deal table in the window over the yard, with two chairs."}
+  {:id "coachmans-armchair" :name "Armchair" :place "coachmans-lodgings" :owner "household" :fixed? true :desc "A sagging leather armchair from the house, drawn up to the grate."}
+  {:id "coachmans-grate" :name "Grate" :place "coachmans-lodgings" :owner "household" :fixed? true :aspects {:state "fire laid"} :desc "A small cottage grate with a hob, the warmest fire on the place."}
+  {:id "coachmans-kettle" :name "Kettle" :place "coachmans-lodgings" :owner "Mr Ridley" :desc "A black iron kettle, kept on the hob."}
+  {:id "coachmans-livery" :name "Coachman's livery" :place "coachmans-lodgings" :owner "household" :aspects {:cleanliness "brushed"} :desc "A long dark-blue coat with brass buttons and a caped collar, a hat with a cockade and white breeches, hung on the back of the door."}
+  ;; kitchen garden
+  {:id "tool-shed" :name "Tool shed" :place "kitchen-garden" :owner "household" :fixed? true :container :closed :store {:keeps "spades, forks, hoes, rakes, dibbers, trowels, shears, twine, bast, sacks and seed"} :aspects {:stock "the usual garden tools, the seed low"}
+   :desc "A brick lean-to against the north wall with racks for tools and drawers for seed."}
+  {:id "wheelbarrow" :name "Wheelbarrow" :place "kitchen-garden" :owner "household" :aspects {:repair "the wheel squeaks"} :desc "A heavy wooden barrow with an iron-shod wheel."}
+  {:id "lawn-mower" :name "Lawn mower" :place "kitchen-garden" :owner "household" :aspects {:state "put away for the winter, blades oiled"} :desc "A Ransomes push mower with a grass box, for the lawn in front of the drawing room."}
+  {:id "garden-roller" :name "Garden roller" :place "kitchen-garden" :owner "household" :desc "A cast-iron roller in two drums with a long handle, for the lawn and the gravel walks."}
+  {:id "cold-frames" :name "Cold frames" :place "kitchen-garden" :owner "household" :fixed? true :aspects {:state "lettuces and parsley under the lights"} :desc "A row of brick frames with sliding glass lights against the south wall."}
+  {:id "rhubarb-forcers" :name "Rhubarb forcers" :place "kitchen-garden" :owner "household" :fixed? true :desc "Tall terracotta pots with lids, set over the rhubarb crowns to blanch early sticks."}
+  {:id "orchard-ladder" :name "Orchard ladder" :place "kitchen-garden" :owner "household" :desc "A long ladder that tapers to a point at the top, for getting into the fruit trees."}
+  ;; glasshouse
+  {:id "glasshouse-vine" :name "Black Hamburg vine" :place "glasshouse" :owner "household" :fixed? true :aspects {:state "pruned back for the winter"} :desc "An old vine planted outside the wall and led in under it, trained along the roof."}
+  {:id "peach-tree" :name "Peach tree" :place "glasshouse" :owner "household" :fixed? true :aspects {:state "bare, tied in to the wires"} :desc "A fan-trained peach against the back wall of the glasshouse."}
+  {:id "potting-bench" :name "Potting bench" :place "glasshouse" :owner "household" :fixed? true :store {:keeps "pots, seed pans, potting soil, sand, leaf mould, labels, raffia and canes"} :aspects {:stock "plenty of pots, the potting soil low"}
+   :desc "A wide bench at the end of the glasshouse with bins for soil and sand beneath it."}
+  {:id "glasshouse-staging" :name "Staging" :place "glasshouse" :owner "household" :fixed? true :aspects {:state "cyclamen, ferns and pelargonium cuttings"} :desc "Slatted shelves in two tiers along the front, holding the pot plants for the house."}
+  {:id "glasshouse-stove" :name "Glasshouse stove" :place "glasshouse" :owner "household" :fixed? true :aspects {:state "banked low"} :desc "A small coke stove in a pit at the end, heating the hot-water pipes that run under the staging; it must be seen to every night in a frost."}
+  {:id "watering-can" :name "Watering can" :place "glasshouse" :owner "household" :desc "A long-spouted galvanised can with a brass rose."}
+  {:id "garden-syringe" :name "Garden syringe" :place "glasshouse" :owner "household" :desc "A brass syringe for spraying the vine and the plants against red spider."}
+  ;; gardener's cottage
+  {:id "cottage-range" :name "Cottage range" :place "gardeners-cottage" :owner "household" :fixed? true :aspects {:state "banked"} :desc "A small black range in the kitchen with one oven, for cooking and warmth."}
+  {:id "cottage-dresser" :name "Dresser" :place "gardeners-cottage" :owner "household" :fixed? true :desc "A plain dresser with a few plates on its rack and seed catalogues stacked on the shelf."}
+  {:id "cottage-table" :name "Table" :place "gardeners-cottage" :owner "household" :fixed? true :desc "A scrubbed table and two chairs in the middle of the kitchen."}
+  {:id "durrants-bed" :name "Bed" :place "gardeners-cottage" :owner "household" :fixed? true :desc "An iron bed in the room under the tiles, with a patchwork quilt."}
+  {:id "durrants-chair" :name "Windsor chair" :place "gardeners-cottage" :owner "household" :fixed? true :desc "A Windsor armchair beside the range, its arms worn pale."}
+  {:id "planting-book" :name "Garden book" :place "gardeners-cottage" :owner "Mr Durrant" :aspects {:state "written up to last week"} :desc "Mr Durrant's notebook of sowings, plantings, frosts and crops, kept every year he has been head gardener."}
+  ;; ------------------------------------------------ the village and the abbey
   {:id "butchers-counter" :name "Butcher's counter" :place "butchers-shop" :owner "Hobbs" :fixed? true :aspects {:cleanliness "scrubbed"} :desc "A stout wooden counter where Mr Hobbs cuts and weighs meat for his customers."}
   {:id "butchers-day-book" :name "Butcher's day book" :place "butchers-shop" :owner "Hobbs" :aspects {:state "in daily use"} :desc "A ruled, cloth-bound book kept behind the counter, with Mr Hobbs's record of customers' purchases and accounts."}
   {:id "general-store-counter" :name "General store counter" :place "general-store" :owner "Briggs" :fixed? true :aspects {:repair "worn smooth by use"} :desc "The long wooden counter over which Mr Briggs sells groceries, candles and household necessities."}

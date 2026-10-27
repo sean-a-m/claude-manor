@@ -268,7 +268,8 @@ household account" and "the figures written plain". Fixes (branch `courier-refer
   in round 1, and written (appearance and polish, two model calls) only when the shop first has
   an order due. The name is shown only at the shop (`here.orders-sent-up-by`) and in `orders`
   (`sent-up-by`), so the shopkeeper sees all day who takes his orders up, at the cost of one
-  line. A shop that never delivers costs nothing more.
+  line. A shop that never delivers costs nothing more. (The hand-over below took the name off
+  the shop's view again: it read as if the courier were at hand.)
 - **Couriers hibernate while nobody else is at the delivery place,** through a one-entry
   routine and Claudeworth's existing hibernation, including the round they arrive. They wake
   when someone comes out. In the mock day Briggs's carrier made one model call.
@@ -395,7 +396,10 @@ Start after `character-generation` is merged; phases 1 and 2 don't touch people 
 
 ## Hand-over: goods left at the shop and `send-up` (2026-10-26)
 
-**Status:** designed, not built. The user agreed the design on 2026-10-26.
+**Status:** built, phases 1–4, on branch `shop-hand-over`; mock-checked, no real run yet. The
+user agreed the design on 2026-10-26. The contract is in `docs/scenario-authoring.md` (the shop
+and deliveries part of Internal adjudication queries, Items' `:waiting`, The nightly steward);
+what differs from the design below is under "As built" at the end.
 
 ### Why
 
@@ -514,3 +518,37 @@ Each ends with `clojure -M:test` passing and a commit, on branch `shop-hand-over
    replay. Extend the Claudeworth mock day: a counter purchase left and sent up.
 4. **Docs and check.** `docs/scenario-authoring.md` (shop section, item marker, steward),
    `docs/roadmap.md`, this section's status; a mock day and its transcript.
+
+### As built
+
+As designed, except:
+
+- **The keeper-held rule applies only at the shop:** goods held by the keeper show as waiting
+  only while the keeper is at `:at` (`items/waiting?`), so a clerk who walks off with them
+  doesn't take the marker round the village. The marker isn't dropped then; it shows again if
+  they come back holding the goods, and goes once they're put down or given away elsewhere.
+- **Clearing** also happens when work moves a thing (`moved`), and drops the marker from
+  everything inside a moved container too.
+- **Order ids** of goods sent up are `order-<item-id>` (`deliveries/sent-up-id`), not fresh
+  numbers; no tool takes them, as before. The parcel that arrives gets a new item id
+  (`tin-of-silver-polish-2`), since a gone item's id is never given out again.
+- **Removal** uses a new `items/remove-items` (fate "sent up by the shop's courier"), and
+  `send-up` refuses goods with something in them ("take what's in … out first").
+- **Orders from goods sent up** keep the item's owner, and have no `:unit`/`:qty`: views and
+  narration take the amount from the `:amount` aspect (`deliveries/order-amount`).
+- **World files** may give `:waiting` with names for `:for` and `:keeper`; the exported map
+  leaves it out.
+- **The mock day:** Mr Hale's 12:30 buys with `:hand-over "leave"`, and a new mock marker,
+  `:ask-send-up {:item}`, says the line asking for the goods to be sent up; the scripted clerk
+  sends up, within an hour, any waiting goods whose buyer's day asks for that at any time. In
+  the mock Hale's request is said just before the purchase, in the same turn.
+
+The mock check (a whole small-world day): Hale buys at 12:30 and leaves the polish ("Hale buys
+tin of silver polish (one) for 1s 6d at the General store, and leaves the goods there to be
+collected or sent up."), Briggs sees it `waiting-for` Hale and sends it up on his turn ("Briggs
+sends up tin of silver polish (one) for Hale from the General store, to be delivered at the
+Carriage sweep by 13:30."), both see it under `orders`, it arrives at 13:30 with the aspects it
+had at the shop, the flour ordered for delivery still arrives at 14:30 and Nellie puts it away,
+and the steward at 02:00 leaves everything. Measure in a short real run, with the user's
+go-ahead, whether clerks use `send-up` and how many waiting goods are never collected or sent
+(see Not addressed).

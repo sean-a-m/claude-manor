@@ -17,14 +17,14 @@
 
  "ward"
  {"08:30" [[:recommend {:position "housemaid" :for "mrs-ashby"}]
-            [:quote-goods {:for "mrs-bell" :goods [{:item "packet of tea" :qty 1}]}]
+            [:quote-goods {:for "mrs-bell" :goods [{:item "packet of tea" :amount "1"}]}]
             [:say {:text "I know a girl who is seeking a housemaid's place. Send word and meet her at your gate."}]]}
 
  "mrs-bell"
  {"08:00" [[:look {}]
            [:spend-time {:on ["kitchen-range"] :doing "lighting the range and preparing breakfast" :hours 0.5}]]
   "08:30" [[:walk {:to "general-store"}]
-           [:request-goods {:item "packet of tea" :qty 1}]]
+           [:request-goods {:item "packet of tea" :amount "1"}]]
   "09:00" [[:accept-offer {:item "packet of tea"}]]
   "09:30" [[:walk {:to "kitchen"}]
            [:put-in {:item "packet-of-tea" :container "provisions-cupboard"}]

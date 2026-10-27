@@ -328,10 +328,16 @@ separately from character `:mock-policy`; supply a responder for every task used
 
 Claudeworth's `manor.scenarios.claudeworth.shop` is an example. Every appraisal receives the actual
 location's `:store-profile` (required, non-blank, at most 2000 characters), name/description,
-setting/date and goods/quantity. It refuses unsuitable stock before pricing. The checked
+setting/date and goods/amount. It refuses unsuitable stock before pricing. The checked
 response creates a buyer-bound quote for each line of a request (`quote-goods {for goods}` takes
-up to 10 lines in one appraisal and one query; its `:reply` tells the clerk each quote id or
-refusal). At an open counter, Claudeworth offers `quote-goods` in the clerk's speaking turn:
+up to 10 lines `{item amount deliver?}` in one appraisal and one query; its `:reply` tells the clerk each quote id or
+refusal). `amount` is free text, at most 40 characters, the amount as the customer put it ("a stone",
+"2 lb", "3"); the appraiser sees `{item amount}` and gives back, for an available line, `qty` (a
+whole number, 1 to 20) and `unit` that express it, a stone of sugar as 14 × `1 lb` or 1 × `1 stone`,
+counted goods as one named piece (`1 knife`), with `unit-price-pence` for one unit. A missing or
+out-of-range `qty` gets the checked-answer correction. The quote's price is `qty` × the unit price,
+and the quote, purchase, order and `:amount` aspect all read as `qty` × `unit`, so the clerk can
+compare what was quoted with what was asked. At an open counter, Claudeworth offers `quote-goods` in the clerk's speaking turn:
 a customer can `converse`, the clerk checks the list then replies with prices, and the customer
 gets the quote ids and can `buy` on their next line, before speaking (a speaking-turn tool for a
 customer with unspent quotes at that shop), or later in that same turn. Anyone's speaking

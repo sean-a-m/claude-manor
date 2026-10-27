@@ -255,7 +255,7 @@ with `say`; he uses `quote-goods {for goods}`, where `goods` lists up to 10 line
 (a whole shopping list; `amount` is free text, "a stone", "3", and the appraiser turns it into a count of units, decision 48). One narrow engine-run adjudicator call checks, line by line, whether
 this kind of store in rural England in 1904 could plausibly stock each request, then prices it
 in old pence (decision 41). Its prompt includes the actual store's `:store-profile`, name/description,
-setting/date and goods/quantity, not the full world or household wealth.
+setting/date and goods/amount, not the full world or household wealth.
 
 Each checked offer or refusal is announced to people at the counter. A quote fixes buyer, clerk,
 shop, quantity, item details and price. The customer accepts with `buy {quote-ids hand-over}`, up to 10
@@ -864,7 +864,7 @@ Decisions for items (done):
     seeker's own words; a narrow judge, built like the find judge, picks who is meant from
     everyone in the seeker's walking area and rates the odds, the engine rolls, and the reply says
     where they are so the seeker can walk there. It moves no one and tells the person nothing.
-48. **Amounts in quotes.** Designed 2026-10-27, not yet built. The clerk's `quote-goods` line was
+48. **Amounts in quotes.** Done 2026-10-27. The clerk's `quote-goods` line was
     `{item qty}`, and the appraiser chose the unit afterwards, so `qty` counted units nobody had
     chosen yet. Models read it as "one order of what was asked": in
     `old-test-runs/shop-hand-over-first-check` Bessie asked for "a stone of your best lump" and
@@ -884,3 +884,8 @@ Decisions for items (done):
     - The `buy` doc: buy once the quotes show the goods and amounts you asked for; if one is wrong,
       ask the shopkeeper to quote again. (Bessie bought while Briggs was still asking how much moist
       sugar she wanted.)
+    - Built as designed (`shop.clj`): an available line without a `qty`, or with one out of range,
+      gets the checked-answer correction and fails neutrally like any bad appraisal; `quote-goods`
+      also refuses a blank `amount` before any model call. Mock days write `:request-goods` lines
+      with `:amount "1"`, and the free mock appraiser reads a plain-number amount as the `qty` (any
+      other amount is one unit), so the scripted days keep their quantities.

@@ -442,7 +442,7 @@ it's settled. The seller decides what is sent up; the buyer decides whether to t
    `:waiting {:for buyer :keeper clerk :at shop :since round}`. `look`, `take`, `give`,
    `put-in` and work work on them as on any item.
    - **Shown as waiting** only while the goods are at the shop: the outermost thing lies at
-     `:at`, or is held by the keeper. In `location.here.items` such an item gets
+     `:at`, or is held by the keeper while the keeper is there. In `location.here.items` such an item gets
      `"waiting-for": "Mrs Thorne"`; the shop's rules say goods waiting for someone are paid for,
      to be sent up or handed over.
    - **Cleared** by the reducers when someone other than the keeper takes the item, or it's

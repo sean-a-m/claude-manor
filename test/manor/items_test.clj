@@ -248,9 +248,11 @@
         (is (= ["goose"] (map :id (items/waiting-for packed "ben"))))
         (is (= [{:id "goose" :name "Goose" :waiting-for "Ben"}]
                (:contents (first (filter #(= "hamper" (:id %)) (here-items packed "ben"))))))
-        (testing "and the keeper carrying it elsewhere doesn't clear it, but putting it down or in there does"
+        (testing "the keeper carrying it elsewhere hides it but keeps the marker; putting it down or in there clears it"
           (let [away (at held "ada" "porch")]
-            (is (items/waiting? away (items/item away "goose")))
+            (is (not (items/waiting? away (items/item away "goose"))))
+            (is (empty? (items/waiting-for away "ben")))
+            (is (marked? away "goose"))
             (is (not (marked? (ev away :item/put-down "ada" {:item "goose" :place "porch"}) "goose")))
             (is (not (marked? (ev away :item/put-in "ada" {:item "goose" :into "crate"}) "goose")))))
         (testing "given to someone other than the keeper clears it; to the keeper keeps it"

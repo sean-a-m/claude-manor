@@ -246,11 +246,12 @@
 (defn waiting?
   "Is `it` shown as waiting for someone: has it a :waiting marker, and does
   it (or the container it's in) lie at the marker's :at, or is it held by
-  the :keeper?"
+  the :keeper while they're there?"
   [world it]
   (boolean (when-let [{:keys [at keeper]} (:waiting it)]
              (let [o (outermost world it)]
-               (or (= at (:place o)) (= keeper (:holder o)))))))
+               (or (= at (:place o))
+                   (and (= keeper (:holder o)) (= at (space/location-of world keeper))))))))
 
 (defn waiting-for
   "The items shown as waiting for `agent-id` (see `waiting?`), in id order."

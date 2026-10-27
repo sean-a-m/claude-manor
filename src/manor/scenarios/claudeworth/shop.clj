@@ -1,7 +1,8 @@
 (ns manor.scenarios.claudeworth.shop
   "Claudeworth's general store: a clerk obtains checked offers; customers
   accept them. A line may be quoted for delivery at a shop that sends goods
-  out (manor.scenarios.claudeworth.deliveries). No catalogue, bulk counters, or
+  out (manor.scenarios.claudeworth.deliveries), and there the clerk can send
+  up goods left waiting at the shop. No catalogue, bulk counters, or
   model-owned money."
   (:require [clojure.string :as str]
             [jsonista.core :as json]
@@ -283,6 +284,48 @@
   (let [here (space/location-of world buyer)]
     (filter #(and (= buyer (:buyer %)) (= here (:location %))) (vals (get-in world [:state :quotes])))))
 
+(defn- not-waiting-here
+  "Why the item `id` can't be sent up from `shop`, or nil: it must be shown
+  as waiting there (see items/waiting?), with nothing in it."
+  [world shop id]
+  (let [it (items/item world id)]
+    (cond
+      (not (and it (= shop (get-in it [:waiting :at])) (items/waiting? world it)))
+      (str id " isn't waiting at this shop; send up only goods marked waiting-for someone in your view")
+      (seq (items/contents world id)) (str "take what's in " id " out first"))))
+
+(defn send-up-reason
+  "Why `clerk` can't send up the goods `ids`, or nil: they serve at an open
+  shop that sends goods out, and each is waiting there, named once."
+  [world clerk {ids :items}]
+  (let [loc (space/location world (space/location-of world clerk))]
+    (or (service-reason world clerk)
+        (when-not (deliveries/delivers? loc)
+          (str "the " (:name loc) " doesn't send goods out; hand them over when they're collected"))
+        (when-not (apply distinct? ids) "give each item once")
+        (first (keep #(not-waiting-here world (:id loc) %) ids)))))
+
+(defn send-up-events
+  "The goods become orders, due within `within-hours` (deliveries/sent-up)."
+  [world clerk {ids :items :keys [within-hours]}]
+  [(deliveries/sent-up world clerk ids within-hours)])
+
+(defn- send-up-reply
+  "What the clerk is told: the goods are with the courier, and when and
+  where they'll be delivered."
+  [world _ {ids :items}]
+  (let [o (get (deliveries/orders world) (deliveries/sent-up-id (first ids)))]
+    (str "Sent up: the goods are with the shop's courier now, to be delivered at the "
+         (:name (space/location world (:to o))) " by " (clock/short-label (:clock world) (:due o) (:round world))
+         " (see orders in your view). There is nothing for you to pack or carry.")))
+
+(defn waiting-here
+  "The goods shown as waiting at the shop where `clerk` is (see
+  items/waiting?), in id order."
+  [world clerk]
+  (let [here (space/location-of world clerk)]
+    (items/items-where world #(and (= here (get-in % [:waiting :at])) (items/waiting? world %)))))
+
 (def actions
   [{:name :quote-goods :kind :query :roles :all :needs :shop-clerk
     :doc (str "Check whether this store can sell requested portable goods and quote firm prices to a customer here. "
@@ -293,7 +336,8 @@
               "At your counter you can use this on your speaking turn in a conversation, before your line; then tell the customer the prices in your reply. "
               "Quote before you promise goods or give a price: there is no fixed catalogue, no bargaining and no credit. "
               "The customer accepts with buy, and chooses then whether to take the goods away or leave them at your shop, paid for; "
-              "goods left at your shop are shown in your view as waiting-for the customer: give them to whoever collects them. "
+              "goods left at your shop are shown in your view as waiting-for the customer: give them to whoever collects them, "
+              "or, if your shop sends goods out, send them up with send-up. "
               "A delivery line is paid in full when bought, with no bill to send after. "
               "This does not charge the customer.")
     :args [:map [:for :string]
@@ -309,7 +353,16 @@
               "Talk to the shopkeeper with converse: they quote on their line, and you can buy on your line in the conversation, before you speak. There is no fixed catalogue.")
     :args [:map [:quote-ids [:vector {:min 1 :max max-lines} :string]]
            [:hand-over [:enum "take" "leave"]]]
-    :valid? buy-reason :effect buy-events :reply buy-reply}])
+    :valid? buy-reason :effect buy-events :reply buy-reply}
+   {:name :send-up :kind :free :roles :all :needs :shop-clerk
+    :doc (str "Send goods left waiting at your shop (marked waiting-for someone in your view) up to the customer's house, "
+              "when they want them sent up rather than collected: items is their ids, up to " max-lines ". "
+              "Your shop's courier takes them; within-hours is when they arrive, 1 to " deliveries/send-up-max-hours ". "
+              "They are paid for already, and there is nothing for you to pack or carry. "
+              "At your counter you can use this on your speaking turn in a conversation, before your line.")
+    :args [:map [:items [:vector {:min 1 :max max-lines} :string]]
+           [:within-hours [:int {:min 1 :max deliveries/send-up-max-hours}]]]
+    :valid? send-up-reason :effect send-up-events :reply send-up-reply}])
 
 (defn waiting-at-shops
   "The goods `id` bought and left at shops, still waiting for them there
@@ -333,7 +386,8 @@
       (seq waiting) (assoc :waiting-at-shops waiting)
       (contains? (:services loc) :general-store)
       (assoc :here (cond-> {:service (str "Ask the shopkeeper for portable goods and a quote; accept with buy. "
-                                          "Goods marked waiting-for someone are paid for and kept here for them until collected.")
+                                          "Goods marked waiting-for someone are paid for and kept here for them until collected"
+                                          (if (deliveries/delivers? loc) ", or sent up by the shopkeeper with send-up." "."))
                             :store-profile (:store-profile loc)}
                      (deliveries/delivers? loc) (assoc :delivery-profile (:delivery-profile loc)))))))
 
@@ -341,8 +395,18 @@
 ;; engine nor the real clerk sees them; test fixtures own their own scripts.
 ;; :request-goods takes one line {:item :qty :deliver?} or a list {:goods [...]};
 ;; :accept-offer takes {:item} or {:items [...]}, and an optional :hand-over
-;; ("take" unless it says "leave").
+;; ("take" unless it says "leave"); :ask-send-up {:item} asks for goods left
+;; at the shop to be sent up, which the clerk does on their next turn.
 (defn- request-lines [args] (or (:goods args) [args]))
+
+(defn- asked-to-send-up
+  "The ids of goods waiting at `clerk`'s shop whose buyer's day asks, at any
+  time, for them to be sent up."
+  [day world clerk]
+  (vec (for [it (waiting-here world clerk)
+             :when (some (fn [[tool args]] (and (= :ask-send-up tool) (= (:name it) (:item args))))
+                         (apply concat (vals (get day (get-in it [:waiting :for])))))]
+         (:id it))))
 
 (defn scripted-clerk [day time world clerk used]
   (let [requests (for [customer (sort-by :id (w/active-agents world))
@@ -350,8 +414,13 @@
                        :when (and (= tool :request-goods)
                                   (nil? (quote-reason world clerk {:for (:id customer)})))]
                    {:for (:id customer) :goods (vec (request-lines args))})
-        args (nth (vec requests) (count (filter #{"quote-goods"} used)) nil)]
-    (if args {:tool :quote-goods :args args} {:tool :pass})))
+        args (nth (vec requests) (count (filter #{"quote-goods"} used)) nil)
+        sends (asked-to-send-up day world clerk)]
+    (cond
+      args {:tool :quote-goods :args args}
+      (and (seq sends) (nil? (send-up-reason world clerk {:items sends})))
+      {:tool :send-up :args {:items sends :within-hours 1}}
+      :else {:tool :pass})))
 
 (defn scripted-customer [world buyer tool args]
   (case tool
@@ -363,6 +432,7 @@
                         ids (vec (keep (fn [item] (:id (first (filter #(and (= buyer (:buyer %)) (= item (:item %))) quotes))))
                                        (or (:items args) [(:item args)])))]
                     (if (seq ids) [:buy {:quote-ids ids :hand-over (:hand-over args "take")}] [:pass {}]))
+    :ask-send-up [:say {:text (str "Would you send the " (:item args) " up to the house, please?")}]
     [tool args]))
 
 (defn problems [{:keys [locations] :as wf}]

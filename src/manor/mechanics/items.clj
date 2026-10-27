@@ -451,6 +451,13 @@
                              :fate (if into (str "put away in the " (:name (item world into))) fate)}))))
           world (concat used absorbed)))
 
+(defn remove-items
+  "The world without the items `ids`, each recorded under :items-gone with
+  `fate` (\"sent up by the shop's courier\"), so older lines still read its
+  name. For reducers: the items must have nothing in them."
+  [world ids fate]
+  (remove-things world (for [id ids] {:item id :name (:name (item world id)) :fate fate}) []))
+
 (defn- set-aspect
   "The thing at `path` with aspect `k` set to `to`, or removed if `to` is
   nil; a thing with no aspects left has no :aspects."

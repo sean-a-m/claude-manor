@@ -153,6 +153,15 @@
             pastimes (filter #(and (= :item/work-done (:type %))
                                    (empty? (:items (begun (get-in % [:data :job]))))) events)]
         (is (= 48 (:round world)))
+        (testing "goods left at the shop are sent up by the shopkeeper and arrive at the carriage sweep"
+          (let [sent (filter #(= :deliveries/sent-up (:type %)) events)
+                ids (set (map :id (mapcat (comp :orders :data) sent)))]
+            (is (seq sent))
+            (is (some #(= "leave" (get-in % [:data :hand-over])) (filter #(= :claudeworth/bought (:type %)) events)))
+            (is (every? #(contains? (:items-gone world) %) (mapcat #(map :item-id (get-in % [:data :orders])) sent)))
+            (is (every? (set (mapcat (comp :orders :data) (filter #(= :deliveries/arrived (:type %)) events))) ids))
+            (is (every? (set (keep :order-id (items/items-where world #(= "carriage-sweep" (:place %))))) ids)
+                "and lies at the carriage sweep")))
         (is (seq pastimes))
         (is (every? #(every? empty? ((juxt :changes :used-up :made) (:data %))) pastimes))
         (is (not-any? #(#{:action/forfeited :item/judge-failed :items/steward-failed :adjudication/failed} (:type %)) events))

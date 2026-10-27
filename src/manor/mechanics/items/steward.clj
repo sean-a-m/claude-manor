@@ -122,6 +122,7 @@
 (def steward-instructions
   (str "You are the simulation's nightly steward. Decide the fates of only the listed idle candidates, calling `steward`.
 - Empty answers are normal. Leave anything still individually important.
+- A candidate marked `waiting` is goods waiting for someone, paid for and to be collected or sent up: leave it unless it has plainly been forgotten for days.
 - For each candidate, you may absorb it into a listed store in scope (`absorbed: [{thing, into}]`), use it up (`used-up: [id]`, with a short fate in `fates: {id: phrase}`), change its aspects (`changes: [{thing, aspect, value}]`), or leave it.
 - Absorb a container only with all its contents absorbed too; use one up only with all its contents used up too. Otherwise leave it.
 - Change only candidates, never the place or stores. Aspect keys are lower-case letters and hyphens, at most 24 characters; values are 1–" items/advised-aspect " characters, or empty to remove. Keep at most four aspects per thing.
@@ -159,6 +160,19 @@
   [world round]
   (if-let [c (:clock world)] (clock/short-label c round (:round world)) (str "round " round)))
 
+(defn- candidates-json
+  "The candidates as the judge sees them (item-judge/judged-json), each
+  shown as waiting (see items/waiting?) with whom for and since when:
+  \"for Mrs Thorne since Mon 11:00\"."
+  [world candidates]
+  (mapv (fn [json it]
+          (let [{who :for :keys [since]} (:waiting it)]
+            (cond-> json
+              (items/waiting? world it)
+              (assoc :waiting (str "for " (or (:name (w/agent world who)) who) " since " (at-label world since))))))
+        (item-judge/judged-json candidates)
+        candidates))
+
 (defn- night-json
   "How a sleeper spends the night, for the steward: when they went to sleep
   and will wake, or for someone hibernating, what their routine has them
@@ -194,7 +208,7 @@
                                            {:place (select-keys (space/location world place) [:id :name :desc :aspects])
                                             :stores (mapv #(assoc (items/store-view place %) :keeps (get-in % [:store :keeps]))
                                                           (items/stores-for world place))
-                                            :candidates (item-judge/judged-json candidates)
+                                            :candidates (candidates-json world candidates)
                                             :sleepers (mapv #(sleeper-json world inner-config %) sleepers)
                                             :hindered (mapv #(cond-> (select-keys % [:id :name :appearance :physical :impediments])
                                                                (:physical %) (assoc :physical (physical/judge-view world (:id %))))

@@ -372,7 +372,7 @@ map; places, journeys and opening hours reach agents through their view.
 | `sleep {until}` | all | final | in a bedroom |
 | `rouse {who}` | all | free | same room, target occupied |
 | `quote-goods {for goods}` | shopkeeper | query | general-store service, customer present, open hours; up to 10 lines |
-| `buy {quote-ids}` | all | final | original store, buyer and clerk present, open hours; up to 10 quotes |
+| `buy {quote-ids hand-over}` | all | free | original store, buyer and clerk present, open hours; up to 10 quotes; take or leave at the shop; also on a line in a conversation |
 | `consult-references {query}` | all | query | architect's office |
 | `draw-plans {...}` | architect, or a client when no architect is present | query | architect's office, open hours |
 | `show-plans {plan-id}` | all | free | anywhere; shares a plan you can see with the room |

@@ -174,7 +174,10 @@
 
 (defmethod n/describe :claudeworth/bought [{:keys [actor data]} names]
   (str (n/who names actor) " buys " (:item data) " (" (amount (:qty data) (:unit data)) ") for "
-       (money/display (:price data)) " at the " (n/place names (:location data)) ", and takes the goods away."))
+       (money/display (:price data)) " at the " (n/place names (:location data))
+       (if (= "leave" (:hand-over data))
+         ", and leaves the goods there to be collected or sent up."
+         ", and takes the goods away.")))
 
 (defn offer-events
   "An offer or a refusal for each requested line. A quote's id is the
@@ -225,28 +228,60 @@
                   (str (if (next quote-ids) "these cost " "this costs ") (money/display total)
                        "; the household has " (money/display funds)))))))
 
+(defn- parcel
+  "The item a counter quote's goods make: owned by the household, its
+  :amount aspect the amount bought (where work can later say what's left)
+  and its :state the appraised condition. Taken, it's in the buyer's hands;
+  left, it lies at the shop, waiting for the buyer and kept by the clerk."
+  [world buyer quote hand-over]
+  (cond-> {:name (:item quote) :desc (:desc quote) :owner "household"
+           :aspects {:amount (amount (:qty quote) (:unit quote)) :state (:condition quote)}}
+    (= "take" hand-over) (assoc :holder buyer)
+    (= "leave" hand-over) (assoc :place (:location quote)
+                                 :waiting {:for buyer :keeper (:clerk quote) :at (:location quote) :since (:round world)})
+    (:consumable quote) (assoc :consumable? true)))
+
 (defn buy-events
-  "For each quote, the purchase and one parcel of its goods for the buyer:
-  the parcel's :amount aspect is the amount bought, where work can later say
-  what's left, and its :state the appraised condition. A delivery quote
-  becomes an order instead, paid now and delivered later."
-  [world buyer {:keys [quote-ids]}]
+  "For each quote, the purchase and one parcel of its goods (see `parcel`),
+  taken by the buyer or left at the shop as `hand-over` says. A delivery
+  quote becomes an order instead, paid now and delivered later, whatever
+  `hand-over` says."
+  [world buyer {:keys [quote-ids hand-over]}]
   (let [audience (space/here world buyer)]
     (second
      (reduce (fn [[world evs] quote-id]
                (let [quote (get-in world [:state :quotes quote-id])
-                     bought (amount (:qty quote) (:unit quote))
-                     item (cond-> {:name (:item quote) :desc (:desc quote) :aspects {:amount bought :state (:condition quote)}
-                                   :holder buyer :owner "household"}
-                            (:consumable quote) (assoc :consumable? true))
                      new (if (:deliver quote)
                            [(deliveries/ordered world buyer quote-id quote audience)]
                            [{:type :claudeworth/bought :visible-to audience
-                             :data (assoc (select-keys quote [:location :item :unit :qty :price]) :quote-id quote-id)}
-                            (items/added world item audience :amount bought)])]
+                             :data (assoc (select-keys quote [:location :item :unit :qty :price])
+                                          :quote-id quote-id :hand-over hand-over)}
+                            (items/added world (parcel world buyer quote hand-over) audience
+                                         :amount (amount (:qty quote) (:unit quote)))])]
                  [(reduce w/apply-event world new) (into evs new)]))
              [world []]
              quote-ids))))
+
+(defn- buy-reply
+  "What the buyer is told, from the world after buying: where the counter
+  goods are now, by `hand-over`, and whether any were ordered for delivery
+  (the quotes that became orders)."
+  [world _ {:keys [quote-ids hand-over]}]
+  (let [ordered (count (filter (comp (set quote-ids) :quote-id) (vals (deliveries/orders world))))]
+    (str "Paid: "
+         (str/join "; " (cond-> []
+                          (< ordered (count quote-ids))
+                          (conj (if (= "leave" hand-over)
+                                  "the goods are left at the shop for you (waiting-at-shops in your view)"
+                                  "the goods are in your hands (carrying in your view)"))
+                          (pos? ordered) (conj "goods for delivery are under orders in your view")))
+         ".")))
+
+(defn quotes-here
+  "The unspent quotes made for `buyer` at the shop where they are."
+  [world buyer]
+  (let [here (space/location-of world buyer)]
+    (filter #(and (= buyer (:buyer %)) (= here (:location %))) (vals (get-in world [:state :quotes])))))
 
 (def actions
   [{:name :quote-goods :kind :query :roles :all :needs :shop-clerk
@@ -257,7 +292,8 @@
               "quote a whole shopping list in one call. Each line gets its own offer (a quote-id) or refusal, announced at the counter. "
               "At your counter you can use this on your speaking turn in a conversation, before your line; then tell the customer the prices in your reply. "
               "Quote before you promise goods or give a price: there is no fixed catalogue, no bargaining and no credit. "
-              "The customer accepts with buy; goods are handed over then, and nothing is set aside for later collection. "
+              "The customer accepts with buy, and chooses then whether to take the goods away or leave them at your shop, paid for; "
+              "goods left at your shop are shown in your view as waiting-for the customer: give them to whoever collects them. "
               "A delivery line is paid in full when bought, with no bill to send after. "
               "This does not charge the customer.")
     :args [:map [:for :string]
@@ -265,13 +301,24 @@
                     [:map [:item (text-schema 120)] [:qty [:int {:min 1 :max max-quantity}]]
                      [:deliver {:optional true} :boolean]]]]]
     :valid? quote-reason :adjudicate :shop/appraise :on-result offer-events :reply offers-reply}
-   {:name :buy :kind :final :roles :all
+   {:name :buy :kind :free :roles :all
     :doc (str "Accept unspent quotes made for you, using quote-ids from offers: up to " max-lines " at once, so buy a whole list together. "
-              "You and the shopkeeper must be at that store during its opening hours. Pays the exact quoted prices from household funds and hands you the portable items, one parcel per quote; "
-              "a quote for delivery becomes an order instead, delivered at the time it gives (see orders in your view). "
-              "Talk to the shopkeeper with converse; they can quote during it, and you can buy as soon as it ends. There is no fixed catalogue.")
-    :args [:map [:quote-ids [:vector {:min 1 :max max-lines} :string]]]
-    :valid? buy-reason :effect buy-events}])
+              "You and the shopkeeper must be at that store during its opening hours. Pays the exact quoted prices from household funds, one parcel per quote. "
+              "hand-over: take carries the goods away with you now; leave keeps them at the shop, paid for, to be collected or sent up by the shop (see waiting-at-shops in your view). "
+              "A quote for delivery becomes an order instead, whatever hand-over says, delivered at the time it gives (see orders in your view). "
+              "Talk to the shopkeeper with converse: they quote on their line, and you can buy on your line in the conversation, before you speak. There is no fixed catalogue.")
+    :args [:map [:quote-ids [:vector {:min 1 :max max-lines} :string]]
+           [:hand-over [:enum "take" "leave"]]]
+    :valid? buy-reason :effect buy-events :reply buy-reply}])
+
+(defn waiting-at-shops
+  "The goods `id` bought and left at shops, still waiting for them there
+  (see items/waiting-for): each item's name, amount and shop, as `orders`
+  gives places."
+  [world id]
+  (vec (for [it (items/waiting-for world id)]
+         (cond-> {:item (:name it) :at (get-in it [:waiting :at])}
+           (get-in it [:aspects :amount]) (assoc :amount (get-in it [:aspects :amount]))))))
 
 (defn observe [world id]
   (let [loc (space/location world (space/location-of world id))
@@ -279,19 +326,22 @@
                      :when (or (= id (:buyer quote)) (= id (:clerk quote)))]
                  (assoc (select-keys quote [:id :buyer :clerk :location :item :unit :qty :deliver])
                         :price (money/display (:price quote))))
-        orders (deliveries/observe world id)]
+        orders (deliveries/observe world id)
+        waiting (waiting-at-shops world id)]
     (cond-> {:offers (vec offers)}
       (seq orders) (assoc :orders orders)
+      (seq waiting) (assoc :waiting-at-shops waiting)
       (contains? (:services loc) :general-store)
-      (assoc :here (cond-> {:service "Ask the shopkeeper for portable goods and a quote; accept with buy."
+      (assoc :here (cond-> {:service (str "Ask the shopkeeper for portable goods and a quote; accept with buy. "
+                                          "Goods marked waiting-for someone are paid for and kept here for them until collected.")
                             :store-profile (:store-profile loc)}
-                     (deliveries/delivers? loc) (assoc :delivery-profile (:delivery-profile loc))
-                     (deliveries/courier-line world (:id loc)) (assoc :orders-sent-up-by (deliveries/courier-line world (:id loc))))))))
+                     (deliveries/delivers? loc) (assoc :delivery-profile (:delivery-profile loc)))))))
 
 ;; Mock choreography markers are translated into real tools here. Neither the
 ;; engine nor the real clerk sees them; test fixtures own their own scripts.
 ;; :request-goods takes one line {:item :qty :deliver?} or a list {:goods [...]};
-;; :accept-offer takes {:item} or {:items [...]}.
+;; :accept-offer takes {:item} or {:items [...]}, and an optional :hand-over
+;; ("take" unless it says "leave").
 (defn- request-lines [args] (or (:goods args) [args]))
 
 (defn scripted-clerk [day time world clerk used]
@@ -312,7 +362,7 @@
     :accept-offer (let [quotes (sort-by :id (vals (get-in world [:state :quotes])))
                         ids (vec (keep (fn [item] (:id (first (filter #(and (= buyer (:buyer %)) (= item (:item %))) quotes))))
                                        (or (:items args) [(:item args)])))]
-                    (if (seq ids) [:buy {:quote-ids ids}] [:pass {}]))
+                    (if (seq ids) [:buy {:quote-ids ids :hand-over (:hand-over args "take")}] [:pass {}]))
     [tool args]))
 
 (defn problems [{:keys [locations] :as wf}]

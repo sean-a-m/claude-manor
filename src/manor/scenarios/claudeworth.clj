@@ -455,7 +455,7 @@
                             physical/rules)
                    (section "Money and shopping"
                             (if architect? "Purchases and commissions" "Purchases")
-                            " are paid from the household account (`household` in your view). There is no engine-enforced spending restriction by role: whether you should spend depends on your station, instructions and relationships. At an open shop, ask the shopkeeper with `converse` for portable goods and quantities; there is no fixed catalogue. The shopkeeper checks availability and quotes firm prices, a whole shopping list in one `quote-goods`. Accept offers made for you with `buy {quote-ids}`, from `offers` in your view: one `buy` can take the whole list. Payment is separate from asking; no bargaining or bulk counters. A shop that sends goods out can quote a line for delivery, for goods too large or too many to carry away: it's paid for when you buy, and the shop's errand boy or carrier leaves it at the delivery place when due (`orders` in your view), with nothing more for the shopkeeper or you to do. Everything bought is paid in full from the household account there and then: there are no tradesmen's bills, reckonings or accounts to settle later. Prices are old sterling: £1 = 20 shillings = 240 pence (12d = 1s).")
+                            " are paid from the household account (`household` in your view). There is no engine-enforced spending restriction by role: whether you should spend depends on your station, instructions and relationships. At an open shop, ask the shopkeeper with `converse` for portable goods and quantities; there is no fixed catalogue. The shopkeeper checks availability and quotes firm prices, a whole shopping list in one `quote-goods`. Accept offers made for you with `buy {quote-ids, hand-over}`, from `offers` in your view: one `buy` can take the whole list, and you can buy on your line in the conversation as soon as they're quoted. With hand-over `take` you carry the goods away; with `leave` they stay at the shop, paid for, to be collected or sent up (`waiting-at-shops` in your view), and the shopkeeper sees them marked as waiting for you. Payment is separate from asking; no bargaining or bulk counters. A shop that sends goods out can quote a line for delivery, for goods too large or too many to carry away: it's paid for when you buy, and the shop's errand boy or carrier leaves it at the delivery place when due (`orders` in your view), with nothing more for the shopkeeper or you to do. Everything bought is paid in full from the household account there and then: there are no tradesmen's bills, reckonings or accounts to settle later. Prices are old sterling: £1 = 20 shillings = 240 pence (12d = 1s).")
                    (when architect?
                      (section "Building"
                               "Building is arranged at the architect's office while it is open, not at the house: talk at home is for deciding what you want. "
@@ -769,14 +769,17 @@
 (defn speaking-actions
   "Tools for a line, before speaking: anyone can recommend a candidate to
   someone in the conversation, offer a candidate in it a place, or accept or
-  decline a place offered; an open counter's clerk can check goods."
+  decline a place offered; an open counter's clerk can check goods, and a
+  customer with quotes made for them at this shop can buy."
   [world speaker {:keys [members]}]
   (cond-> [(to-a-member :recommend :for "recommend to someone in this conversation" members)
            (to-a-member :engage :who "offer a place to someone in this conversation" members)
            (hiring-action :accept-place)
            (hiring-action :decline-place)]
     (not (shop/service-reason world speaker))
-    (into (filter #(= :quote-goods (:name %)) shop/actions))))
+    (into (filter #(= :quote-goods (:name %)) shop/actions))
+    (seq (shop/quotes-here world speaker))
+    (into (filter #(= :buy (:name %)) shop/actions))))
 
 (defn- speaking-actions-and-following
   "`speaking-actions`, after `follow` and `follow-stop`: anyone can start or

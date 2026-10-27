@@ -47,7 +47,7 @@
     (and (= "clerk" agent-id) (#{1 8} (:round world)) (not (some #{"quote-goods"} used)))
     {:tool :quote-goods :args shopping}
     (and (= "customer" agent-id) (#{2 9} (:round world)) (seq (get-in world [:state :quotes])))
-    {:tool :buy :args {:quote-ids (vec (sort (keys (get-in world [:state :quotes]))))}}
+    {:tool :buy :args {:quote-ids (vec (sort (keys (get-in world [:state :quotes])))) :hand-over "take"}}
     :else {:tool :pass}))
 
 (def errand-boy {:title "Errand boy" :ages [13 18] :sex :male :about "You carry goods out for a tradesman."})
@@ -150,6 +150,24 @@
         (is (= world (w/replay (store/read-events (:dir run)))))
         (is (not-any? #(re-find #"^(error:|rejected:)" (:content % ""))
                       (mapcat :replies (store/read-llm (:dir run))))))
+      (finally (e/stop-run run)))))
+
+(deftest a-delivery-quote-is-ordered-whatever-the-hand-over
+  (let [leave (fn [{:keys [world agent-id] :as ctx}]
+                (if (and (= "customer" agent-id) (= 2 (:round world)) (seq (get-in world [:state :quotes])))
+                  {:tool :buy :args {:quote-ids (vec (sort (keys (get-in world [:state :quotes])))) :hand-over "leave"}}
+                  (policy ctx)))
+        run (start {:delivery-profile delivery-profile} {:mock-policy leave})]
+    (try
+      (rounds! run 2)
+      (let [world (e/world run)]
+        (is (= ["side of mutton"] (map :item (vals (deliveries/orders world)))))
+        (is (= [["tea" "counter"]] (map (juxt :name :place) (items/items-where world :waiting))))
+        (is (= ["tea"] (map :item (:waiting-at-shops (shop/observe world "customer")))))
+        (is (= (- 600 150) (get-in world [:state :household :funds])))
+        (is (some #{"Paid: the goods are left at the shop for you (waiting-at-shops in your view); goods for delivery are under orders in your view."}
+                  (map :content (mapcat :replies (filter #(= "customer" (:agent %)) (store/read-llm (:dir run)))))))
+        (is (= world (w/replay (store/read-events (:dir run))))))
       (finally (e/stop-run run)))))
 
 (deftest a-shop-without-a-delivery-profile-refuses-deliver-lines
@@ -347,9 +365,9 @@
             line "Pat Ellis 0, the Counter's errand boy"]
         (is (= line (deliveries/courier-line world "counter")))
         (is (nil? (w/agent world "pat-ellis-0")) "named, but not yet an agent")
-        (is (= line (get-in (shop/observe world "clerk") [:here :orders-sent-up-by])))
         (is (= [line] (map :sent-up-by (:orders (shop/observe world "customer")))))
-        (is (nil? (get-in (shop/observe world "butler") [:here :orders-sent-up-by])) "only shown at the shop")
+        (is (= [line] (map :sent-up-by (:orders (shop/observe world "clerk")))))
+        (is (not (contains? (:here (shop/observe world "clerk")) :orders-sent-up-by)) "named only on orders, not at the counter")
         (is (not-any? #(str/starts-with? (:agent %) "adjudicator/people") (store/read-llm (:dir run)))
             "no model call until a delivery is due"))
       (finally (e/stop-run run)))))

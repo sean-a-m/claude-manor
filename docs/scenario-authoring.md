@@ -333,11 +333,14 @@ response creates a buyer-bound quote for each line of a request (`quote-goods {f
 up to 10 lines in one appraisal and one query; its `:reply` tells the clerk each quote id or
 refusal). At an open counter, Claudeworth offers `quote-goods` in the clerk's speaking turn:
 a customer can `converse`, the clerk checks the list then replies with prices, and the customer
-gets the quote ids in the conversation summary and can `buy` in that same turn. Anyone's speaking
+gets the quote ids and can `buy` on their next line, before speaking (a speaking-turn tool for a
+customer with unspent quotes at that shop), or later in that same turn. Anyone's speaking
 turn also offers `recommend`, to someone in that conversation, so whoever is asked for a candidate
 can answer with a real one on their line instead of making up a name.
-`buy {quote-ids}` remains turn-ending and separately debits money for up to 10 quotes at once, checked as a
-whole, and creates for each quote one portable item, a parcel of the whole quantity, with two aspects: `:amount`, the amount
+`buy {quote-ids hand-over}` is free (it doesn't end the turn) and separately debits money for up to 10 quotes at once, checked as a
+whole, and creates for each quote one portable item, a parcel of the whole quantity, in the buyer's hands (`hand-over`
+"take") or left at the shop with a `:waiting` marker for the buyer, kept by the clerk ("leave"; the buyer's view lists it
+under `waiting-at-shops`), with two aspects: `:amount`, the amount
 bought ("20 × 1 lb"), where work can later say what's left, and `:state`, the appraiser's
 `condition` ("fresh, dry"). It is `:consumable?` when the appraiser says the goods are used up in
 use (food, fuel, soap; not tools or crockery). The appraiser's `unit` (at most 30 characters) is
@@ -387,9 +390,9 @@ Each delivering shop has one **courier**, under `[:state :couriers shop-id]` (`{
 :position :agent-id :arrived}`; not in hiring's pool), using the location's `:courier` position
 (default `:errand-boy`; the scenario checks it's in the positions table). The system's
 `:compose` names every delivering shop's courier in round 1 with `hiring/person-record` (the
-people server only, no model call), so the shop can say who sends orders up: at the shop,
-`here.orders-sent-up-by` reads "Stephen Dobbs, the General store's carrier", and each entry in
-`orders` has the same line as `sent-up-by`. That is the courier's only presence in prompts
+people server only, no model call), so the shop can say who sends orders up: each entry in
+`orders` has `sent-up-by`, "Stephen Dobbs, the General store's carrier" (the shop's own view
+doesn't name him, so he isn't taken to be at hand). That is the courier's only presence in prompts
 until they first deliver. The first time a shop's order is due, compose writes the person
 (`hiring/write-person`: appearance and polish) and the courier is spawned at the delivery place
 with `hiring/spawn-spec`, its spawn `:system` because it holds a private persona, a post naming

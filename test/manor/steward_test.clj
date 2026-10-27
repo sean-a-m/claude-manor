@@ -110,6 +110,33 @@
             (is (not (str/includes? user "carried"))))))
       (finally (e/stop-run run)))))
 
+(deftest steward-sees-waiting-goods
+  (let [run (start)]
+    (try
+      (e/emit! run (items/init-events
+                    (into supplies
+                          [{:id "goose" :name "Goose" :desc "A goose." :place "hall" :consumable? true
+                            :waiting {:for "ben" :keeper "ada" :at "hall" :since 1}}
+                           {:id "fowl" :name "Fowl" :desc "A fowl." :place "hall" :consumable? true
+                            :waiting {:for "ben" :keeper "ada" :at "porch" :since 1}}])))
+      (at-round! run 13)
+      (let [world (e/world run)
+            candidates (get (item-steward/steward-candidates world config) "hall")
+            request (item-steward/steward-request world "hall" candidates)
+            user (get-in request [:messages 1 :content])
+            scene (json/read-value (subs user (+ (str/index-of user "```json") 7) (str/last-index-of user "```"))
+                                   json/keyword-keys-object-mapper)
+            by-id (into {} (map (juxt :id identity)) (:candidates scene))]
+        (testing "waiting goods stay candidates, marked with whom for and since when"
+          (is (contains? by-id "goose"))
+          (is (= "for Ben since Sat 20:00" (:waiting (by-id "goose")))))
+        (testing "only while shown as waiting, and never on other candidates"
+          (is (contains? by-id "fowl"))
+          (is (not-any? :waiting (vals (dissoc by-id "goose")))))
+        (testing "the instructions say to leave them unless plainly forgotten"
+          (is (str/includes? (get-in request [:messages 0 :content]) "`waiting`"))))
+      (finally (e/stop-run run)))))
+
 (deftest steward-runs-once-per-night-and-replays
   (let [run (start)]
     (try

@@ -58,10 +58,17 @@
 
 (defn- carrying-names [world id] (mapv :name (items/by-name (items/held-by world id))))
 
+(defn- here-item
+  "An item here as the view lists it: its id and name, and whom it's
+  waiting for while it's shown as waiting (see items/waiting?)."
+  [world it]
+  (cond-> (select-keys it [:id :name])
+    (items/waiting? world it) (assoc :waiting-for (owner-name world (get-in it [:waiting :for])))))
+
 (defn add-to-view
   "The item parts of an agent's view: what they carry (with its aspects),
   the items in their place (names only, with what's in open containers and
-  closed ones marked), and what the people here carry. The agent's own
+  closed ones marked, and whom goods are waiting for), and what the people here carry. The agent's own
   :carrying is always there, empty when they hold nothing, so a claim to have
   handed them something can be checked against it; the rest is left out
   when empty."
@@ -72,7 +79,7 @@
         stores (items/stores-for world here)]
     (cond-> (assoc-in view [:you :carrying] (mapv #(select-keys % [:id :name :aspects]) carried))
       (seq stores) (assoc-in [:location :here :stores] (mapv #(items/store-view here %) stores))
-      (seq lying) (assoc-in [:location :here :items] (mapv #(as-seen world (fn [it] (select-keys it [:id :name])) %) lying))
+      (seq lying) (assoc-in [:location :here :items] (mapv #(as-seen world (partial here-item world) %) lying))
       (get-in view [:location :people-here])
       (update-in [:location :people-here]
                  (fn [people]

@@ -333,15 +333,24 @@ response creates a buyer-bound quote for each line of a request (`quote-goods {f
 up to 10 lines in one appraisal and one query; its `:reply` tells the clerk each quote id or
 refusal). At an open counter, Claudeworth offers `quote-goods` in the clerk's speaking turn:
 a customer can `converse`, the clerk checks the list then replies with prices, and the customer
-gets the quote ids in the conversation summary and can `buy` in that same turn. Anyone's speaking
+gets the quote ids and can `buy` on their next line, before speaking (a speaking-turn tool for a
+customer with unspent quotes at that shop), or later in that same turn. Anyone's speaking
 turn also offers `recommend`, to someone in that conversation, so whoever is asked for a candidate
 can answer with a real one on their line instead of making up a name.
-`buy {quote-ids}` remains turn-ending and separately debits money for up to 10 quotes at once, checked as a
-whole, and creates for each quote one portable item, a parcel of the whole quantity, with two aspects: `:amount`, the amount
+`buy {quote-ids hand-over}` is free (it doesn't end the turn) and separately debits money for up to 10 quotes at once, checked as a
+whole, and creates for each counter quote one portable item owned by the household, a parcel of the whole quantity, with two aspects: `:amount`, the amount
 bought ("20 × 1 lb"), where work can later say what's left, and `:state`, the appraiser's
 `condition` ("fresh, dry"). It is `:consumable?` when the appraiser says the goods are used up in
 use (food, fuel, soap; not tools or crockery). The appraiser's `unit` (at most 30 characters) is
-short so the amount fits an aspect; its `condition` is at most 80. No fixed inventory, bulk counters or bargaining; delivery is below. Amounts are integer
+short so the amount fits an aspect; its `condition` is at most 80. `hand-over` is required:
+"take" puts the parcels in the buyer's hands ("Hale buys … at the General store, and takes the
+goods away."); "leave" puts them at the shop, paid for, with a `:waiting` marker for the buyer kept
+by the clerk (see Items), "… and leaves the goods there to be collected or sent up." Leaving works
+at every shop: someone collects the goods, or the clerk hands them over with `give`, or at a
+delivering shop sends them up (below). Only the buyer's view lists them, under `waiting-at-shops
+[{item amount at}]` (left out when empty); at the shop `location.here.items` marks each
+`waiting-for` the buyer, and `here.service` says such goods are paid for and kept until collected
+(or sent up). `buy`'s reply says where the goods are now. No fixed inventory, bulk counters or bargaining; delivery is below. Amounts are integer
 old pence; world-file starting funds and architect bridge prices remain authored in pounds.
 All Claudeworth characters can buy and commission from the shared household account and
 see its balance. There is no spender-role allowlist: authority to spend is a social decision
@@ -365,18 +374,38 @@ implied. Each resident has a bedroom and routine just like the existing shopkeep
 sends goods out when its location has a `:delivery-profile`: at most 400 characters, describing
 its delivery scope in general terms, never a list of goods (so it doesn't suggest purchases).
 A `quote-goods` line may set `deliver true`; at a shop without a profile such a call is refused
-before any model call. The appraiser sees the delivery profile and which lines are for delivery,
+before any model call. A delivery quote is for goods too large or too many to carry away (smaller goods bought at the
+counter can be left and sent up, below). The appraiser sees the delivery profile and which lines are for delivery,
 judges those against it (larger quantities and goods too big to carry are fine when it covers
 them) and gives each available one `lead-hours` (1–120); a delivery line without it gets the
 usual correction. The quote records `:deliver {:lead-hours :to}`, where `:to` is the delivery
 place, hiring's `:meeting-place`. `buy` takes counter and delivery quotes together: a delivery
-quote emits `:deliveries/ordered`, which pays at once and keeps the order under
+quote, whatever `hand-over` says, emits `:deliveries/ordered`, which pays at once and keeps the order under
 `[:state :orders]`, due at `deliveries/due-round` (at least next round, moved to the shop's next
 opening time when it falls outside its `:hours`). The buyer and the clerk see it under `orders`
 in their view. The order's id is the engine's alone: no tool takes it, so neither the view nor
 the `:deliveries/ordered` narration shows it (characters shown "order-312" took it up as a
-reference number in their talk). The `deliveries/arrivals` system, at round start, adds each due order's parcel
-at the delivery place (owner household, `:amount` and `:state` aspects, `:consumable?`, and
+reference number in their talk).
+
+**`send-up {items within-hours}`** is the clerk's free tool, at an open shop with a delivery
+profile, for goods bought and left there when the customer wants them sent up rather than
+collected. `items` (up to 10, each once) must be shown as waiting at this shop, with nothing in
+them; `within-hours` is 1 to `deliveries/send-up-max-hours` (3, kept low for now), fitted to
+opening hours by `due-round`. There's no appraisal and no payment: the goods are paid for. Its
+`:deliveries/sent-up` event, seen by everyone at the shop, removes the items
+(`items/remove-items`, fate "sent up by the shop's courier") and adds an order for each, id
+`order-<item-id>`, for the person it waited for, carrying the item's name, description, aspects,
+owner and consumability: "Briggs sends up tin of silver polish (one) for Hale from the General
+store, to be delivered at the Carriage sweep by 13:30." The clerk's reply says the
+courier has the goods, when they'll arrive, and that there is nothing to pack or carry. At a
+shop without a profile it's refused ("… doesn't send goods out; hand them over when they're
+collected"). Claudeworth's `speaking-actions` offers `send-up` on a line to the clerk of an open
+delivering shop with goods waiting there, as it offers `buy` to a customer with unspent quotes
+at the shop, so "he'll have it up within the hour" can be done as it's said.
+
+The `deliveries/arrivals` system, at round start, adds each due order's parcel
+at the delivery place (owner household, the quote's `:amount` and `:state` aspects, or for goods
+sent up the item's own owner and aspects under a new id, as the old one is never given out again; `:consumable?`, and
 `:order-id`) and emits `:deliveries/arrived`, heard by everyone within walking distance of that
 place. Install it with `deliveries/install`, after `hiring/install` (it uses the meeting place,
 the people bridges and adjudicators, and the agent cap). Claudeworth's general store,
@@ -387,9 +416,9 @@ Each delivering shop has one **courier**, under `[:state :couriers shop-id]` (`{
 :position :agent-id :arrived}`; not in hiring's pool), using the location's `:courier` position
 (default `:errand-boy`; the scenario checks it's in the positions table). The system's
 `:compose` names every delivering shop's courier in round 1 with `hiring/person-record` (the
-people server only, no model call), so the shop can say who sends orders up: at the shop,
-`here.orders-sent-up-by` reads "Stephen Dobbs, the General store's carrier", and each entry in
-`orders` has the same line as `sent-up-by`. That is the courier's only presence in prompts
+people server only, no model call), so the shop can say who sends orders up: each entry in
+`orders` has `sent-up-by`, "Stephen Dobbs, the General store's carrier" (the shop's own view
+doesn't name him, so he isn't taken to be at hand). That is the courier's only presence in prompts
 until they first deliver. The first time a shop's order is due, compose writes the person
 (`hiring/write-person`: appearance and polish) and the courier is spawned at the delivery place
 with `hiring/spawn-spec`, its spawn `:system` because it holds a private persona, a post naming
@@ -836,6 +865,7 @@ An item:
  :owner "household"         ; optional: an agent id or any label; shown, not enforced
  :fixed? true               ; optional: furniture, can't be taken
  :consumable? true          ; optional: food, fuel, soap: work may use it up (see Work and the judge)
+ ;; :waiting {:for "hale" :keeper "briggs" :at "general-store" :since 12}  ; optional: goods kept for someone
  :container :open}          ; optional: it holds things (see Containers)
 ```
 
@@ -868,6 +898,17 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
 - **`:order-id`** marks goods delivered for an order (`manor.scenarios.claudeworth.deliveries`). The nightly
   steward never draws them as candidates, wherever they've been taken; work can still use
   them up. The exported map retains it.
+- **`:waiting {:for :keeper :at :since}`** marks goods kept for someone: whom they're for and
+  who keeps them (agent ids), the location where they wait and the round they were left
+  (Claudeworth's `buy` with hand-over "leave"). They're **shown as waiting** (`items/waiting?`)
+  only while they're there: the outermost thing lies at `:at`, or the keeper holds it while at
+  `:at`. Only then does the view mark them `waiting-for` and the steward see `waiting`; away
+  from the shop the marker means nothing. The `:item/taken`, `:item/given`, `:item/put-down` and
+  `:item/put-in` reducers, and work's `moved`, drop it from the item and everything in it once it
+  no longer shows as waiting: taken by or given to someone other than the keeper, put down or put in
+  something away from `:at`. Picked up, packed or put down by the keeper at the shop, it stays
+  waiting. A world file gives `:for` and `:keeper` as names; the exported map leaves the marker
+  out, as it does `:touched`.
 - **Starting items** come from `:init` (`:items`, a vector, holders and owners as ids), or from a
   world file's `:items` (see World files). The engine checks them and adds each with an
   `:item/added` event, visible to the GM, after the agents are spawned.
@@ -887,6 +928,8 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
   | `(items/reachable? world agent-id item)` | does it (or what it's in) lie where they are, or do they hold it? |
   | `(items/visible-at world loc)` | what someone there can see: items lying there and what's in open containers |
   | `(items/items-where world pred)` | items matching a predicate |
+  | `(items/waiting? world item)` | is it shown as waiting for someone (see `:waiting`)? |
+  | `(items/waiting-for world agent-id)` | the items shown as waiting for them, in id order |
   | `(items/enabled? world)` | does the world have items? |
   | `(items/jobs world)`, `(items/job world id)` | work in progress, by `:due` then id; one job |
 
@@ -895,7 +938,9 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
   item's keys without `:id`, and invalid ones throw. `(items/added world fields visible-to
   :amount "20 × 1 lb")` adds the amount to the event, read after the name. `(items/added-events
   world [fields ...] visible-to)` makes several, each with its own id. Don't build item maps or
-  events by hand.
+  events by hand. A scenario reducer that takes items out of the world (goods sent up) uses
+  `(items/remove-items world ids fate)`: each is recorded under `:items-gone` with `fate`; they
+  must have nothing in them.
 - **Events** (reducers in `manor.mechanics.items`; narration looks up the item's name):
 
   | Event | Data | Visible to | Reads |
@@ -933,7 +978,8 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
   - `put-down {item}`: you carry it; it's left where you are.
   - `give {item to}`: you carry it, and `to` is someone else here.
 - **Views:** the engine adds to every agent's view `:you :carrying [{:id :name :aspects}]`,
-  `:location :here :items [{:id :name}]` (names only; containers as in Containers) and
+  `:location :here :items [{:id :name}]` (names only; containers as in Containers; goods shown
+  as waiting add `waiting-for`, the person's name) and
   `:carrying ["Umbrella" ...]` on each of `:people-here`. The agent's own `:carrying` is always
   there, `[]` when they hold nothing, so a character told "here, take these" can see whether
   anything was handed over; the others are left out when empty. The default GM view gets
@@ -1411,7 +1457,10 @@ world, even with no candidates; replay reproduces the once-per-day decision.
 Code selects absorbable items not carried or inside closed containers, without an `:order-id`, untouched for at least
 `idle-hours` of game time. Starting items age from the clock start. Candidates are grouped by
 place (place-id order), oldest `:touched` first, id breaking ties, at most `max-per-call` per
-place; excess waits for another night. The steward also sees **sleepers**
+place; excess waits for another night. Goods with a `:waiting` marker stay candidates like any
+other: no code keeps them out. While shown as waiting, a candidate's JSON has `waiting: "for
+Hale since Wed 12:30"`, and one instruction line says such goods are paid for, to be collected
+or sent up, and are left unless plainly forgotten for days. The steward also sees **sleepers**
 (`item-steward/steward-sleepers`): active people whose `:busy` has `:asleep?` or
 `:hibernating?` (a routine keeping them out of play, such as Claudeworth's villagers), and who
 haven't been roused, each at their location. Without inner state only those who have aspects,
@@ -1719,8 +1768,8 @@ in `:init`:
   household's son, at school).
 - `:visits` (optional) are **authored visits**, made when a fresh run starts (see Visits): each
   names its guest in `:who` and its `:known-to` by **character id**, as calendar audiences do.
-- `:items` (optional) lists items as in Items, one per line, with `:holder` and an agent `:owner`
-  given by agent **name**, as `:agents` does; loading turns those into ids (other owners, such as
+- `:items` (optional) lists items as in Items, one per line, with `:holder`, an agent `:owner`
+  and a `:waiting` marker's `:for` and `:keeper` given by agent **name**, as `:agents` does; loading turns those into ids (other owners, such as
   `"household"`, are kept). Each item is checked: its fields and lengths, a unique id, exactly one
   of `:place` (a location of the file) and `:holder` (an agent of the file). A scenario that leaves
   out one of the file's agents should leave out the items that agent holds (Claudeworth's

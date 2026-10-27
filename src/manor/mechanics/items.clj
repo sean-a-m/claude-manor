@@ -18,6 +18,8 @@
                               ;; :drawn-from \"pantry\" ; optional: a non-consumable drawn from stock
                               :container :open        ; optional: holds things; :open shows them to
                                                       ;   the room, :closed only to `open`
+                              ;; :waiting {:for \"thorne\" :keeper \"garland\" :at \"poulterer\" :since 12}
+                              ;;   optional: goods kept for someone; see `waiting?`
                               :touched 12}}           ; set by the reducers: the round it was last
                                                       ;   taken, put down or in, given or changed
     :items-gone {\"beef-stock\" {:name \"Beef stock\" :place \"kitchen\"
@@ -28,6 +30,11 @@
   is added, so worlds without items are unchanged. Used-up items keep their
   names under :items-gone, so older lines still read, and their ids are never
   given out again.
+
+  Goods left at a shop for someone are ordinary items with a :waiting
+  marker: who they're for, who keeps them, where and since when. They're
+  shown as waiting only while they're there (see `waiting?`); the reducers
+  drop the marker once they're taken, given, put down or packed away from it.
 
   Timed activities (`spend-time`, with `work-on` as an alias; clock required) are jobs:
     :item-jobs {\"job-41\" {:id \"job-41\" :actor \"hale\" :items [\"china-cabinet\"]
@@ -144,6 +151,11 @@
    [:candidate-id {:optional true} :string]
    [:order-id {:optional true} :string]
    [:container {:optional true} [:enum :open :closed]]
+   [:waiting {:optional true} [:map {:closed true}
+                               [:for :string]
+                               [:keeper :string]
+                               [:at :string]
+                               [:since :int]]]
    [:store {:optional true} [:map {:closed true}
                              [:keeps [:string {:min 1 :max 200}]]
                              [:serves {:optional true} [:vector :string]]]]])
@@ -231,6 +243,21 @@
   [world it]
   (:place (outermost world it)))
 
+(defn waiting?
+  "Is `it` shown as waiting for someone: has it a :waiting marker, and does
+  it (or the container it's in) lie at the marker's :at, or is it held by
+  the :keeper while they're there?"
+  [world it]
+  (boolean (when-let [{:keys [at keeper]} (:waiting it)]
+             (let [o (outermost world it)]
+               (or (= at (:place o))
+                   (and (= keeper (:holder o)) (= at (space/location-of world keeper))))))))
+
+(defn waiting-for
+  "The items shown as waiting for `agent-id` (see `waiting?`), in id order."
+  [world agent-id]
+  (items-where world #(and (= agent-id (get-in % [:waiting :for])) (waiting? world %))))
+
 (defn reachable?
   "Can `actor` get at `it`: does it (or the container it's in) lie where they
   are, or do they hold it?"
@@ -288,6 +315,12 @@
                     (str where "store serves unknown location " (pr-str place)))
                   (when (and (:holder it) (not (contains? holders (:holder it))))
                     [(str where "unknown holder " (pr-str (:holder it)))])
+                  (when-let [{:keys [at] :as waiting} (:waiting it)]
+                    (concat
+                     (for [k [:for :keeper] :when (not (contains? holders (k waiting)))]
+                       (str where "waiting " (name k) " unknown person " (pr-str (k waiting))))
+                     (when-not (contains? places at)
+                       [(str where "waiting at unknown location " (pr-str at))])))
                   (when (and (:in it) (nil? box))
                     [(str where "unknown container " (pr-str (:in it)))])
                   (when (and box (not (:container box)))
@@ -349,24 +382,40 @@
   [world id]
   (assoc-in world [:items id :touched] (:round world)))
 
+(defn- settle-waiting
+  "The world with the :waiting marker dropped from the item `id`, and from
+  everything inside it, that no longer shows as waiting where it's been
+  moved (see `waiting?`): taken or given to someone other than the keeper,
+  or put down or in something away from the shop."
+  [world id]
+  (reduce (fn [world it]
+            (cond-> world
+              (and (:waiting it) (not (waiting? world it))) (update-in [:items (:id it)] dissoc :waiting)))
+          world
+          (cons (item world id) (within world id))))
+
 (defmethod w/apply-event :item/taken [world {:keys [actor data]}]
   (-> world
       (update-in [:items (:item data)] #(-> % (dissoc :place :in) (assoc :holder actor)))
+      (settle-waiting (:item data))
       (touch (:item data))))
 
 (defmethod w/apply-event :item/put-down [world {:keys [data]}]
   (-> world
       (update-in [:items (:item data)] #(-> % (dissoc :holder :in) (assoc :place (:place data))))
+      (settle-waiting (:item data))
       (touch (:item data))))
 
 (defmethod w/apply-event :item/put-in [world {:keys [data]}]
   (-> world
       (update-in [:items (:item data)] #(-> % (dissoc :place :holder) (assoc :in (:into data))))
+      (settle-waiting (:item data))
       (touch (:item data))))
 
 (defmethod w/apply-event :item/given [world {:keys [data]}]
   (-> world
       (assoc-in [:items (:item data) :holder] (:to data))
+      (settle-waiting (:item data))
       (touch (:item data))))
 
 (doseq [t [:item/taken :item/put-down :item/put-in :item/given :item/found :item/not-found]]
@@ -401,6 +450,13 @@
                              :round (:round world)
                              :fate (if into (str "put away in the " (:name (item world into))) fate)}))))
           world (concat used absorbed)))
+
+(defn remove-items
+  "The world without the items `ids`, each recorded under :items-gone with
+  `fate` (\"sent up by the shop's courier\"), so older lines still read its
+  name. For reducers: the items must have nothing in them."
+  [world ids fate]
+  (remove-things world (for [id ids] {:item id :name (:name (item world id)) :fate fate}) []))
 
 (defn- set-aspect
   "The thing at `path` with aspect `k` set to `to`, or removed if `to` is
@@ -451,10 +507,12 @@
   "Move one thing as an act's `moved` says: into someone's hands (:holder)
   or down at a place (:place)."
   [world {:keys [item holder place]}]
-  (touch (update-in world [:items item] #(if holder
-                                           (-> % (dissoc :place :in) (assoc :holder holder))
-                                           (-> % (dissoc :holder :in) (assoc :place place))))
-         item))
+  (-> world
+      (update-in [:items item] #(if holder
+                                  (-> % (dissoc :place :in) (assoc :holder holder))
+                                  (-> % (dissoc :holder :in) (assoc :place place))))
+      (settle-waiting item)
+      (touch item)))
 
 ;; An immediate act on people (manor.mechanics.items.actions `act-on`): its
 ;; event is built in manor.mechanics.items.work, its statuses follow as their

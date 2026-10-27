@@ -32,7 +32,7 @@
     (and (= "clerk" agent-id) (= 1 (:round world)) (not (some #{"quote-goods"} used)))
     {:tool :quote-goods :args purchase}
     (and (= "customer" agent-id) (= 2 (:round world)) (seq (get-in world [:state :quotes])))
-    {:tool :buy :args {:quote-ids [(:id (first (vals (get-in world [:state :quotes]))))]}}
+    {:tool :buy :args {:quote-ids [(:id (first (vals (get-in world [:state :quotes]))))] :hand-over "take"}}
     :else {:tool :pass}))
 
 (defn scenario [cast]
@@ -197,7 +197,7 @@
     (and (= "clerk" agent-id) (= 1 (:round world)) (not (some #{"quote-goods"} used)))
     {:tool :quote-goods :args shopping-list}
     (and (= "customer" agent-id) (= 2 (:round world)) (seq (get-in world [:state :quotes])))
-    {:tool :buy :args {:quote-ids (vec (sort (keys (get-in world [:state :quotes]))))}}
+    {:tool :buy :args {:quote-ids (vec (sort (keys (get-in world [:state :quotes])))) :hand-over "take"}}
     :else {:tool :pass}))
 
 (deftest a-whole-list-is-quoted-and-bought-at-once
@@ -260,7 +260,7 @@
                              (shop/offer-events world "clerk" {:for "customer" :goods [{:item (:item result) :qty qty}]}
                                                 {:lines [result]})))
         evs (map #(assoc % :actor "customer")
-                 (shop/buy-events offered "customer" {:quote-ids [(:id (first (vals (get-in offered [:state :quotes]))))]}))]
+                 (shop/buy-events offered "customer" {:quote-ids [(:id (first (vals (get-in offered [:state :quotes]))))] :hand-over "take"}))]
     [(reduce w/apply-event offered evs) evs]))
 
 (deftest a-purchase-is-one-parcel
@@ -292,6 +292,58 @@
           (is (= {:amount (str "20 × " (apply str (repeat shop/max-unit "u"))) :state (apply str (repeat items/max-aspect "c"))}
                  (:aspects it)))))
       (finally (e/stop-run run)))))
+
+(defn- buy-policy
+  "The clerk quotes in round 1; the customer buys in round 2 with `hand-over`."
+  [hand-over]
+  (fn [{:keys [world agent-id used]}]
+    (cond
+      (and (= "clerk" agent-id) (= 1 (:round world)) (not (some #{"quote-goods"} used)))
+      {:tool :quote-goods :args purchase}
+      (and (= "customer" agent-id) (= 2 (:round world)) (seq (get-in world [:state :quotes])))
+      {:tool :buy :args {:quote-ids (vec (keys (get-in world [:state :quotes]))) :hand-over hand-over}}
+      :else {:tool :pass})))
+
+(deftest goods-left-at-the-shop-wait-for-the-buyer
+  (let [run (start {:policy (buy-policy "leave")})]
+    (try
+      (rounds! run 2)
+      (let [world (e/world run)
+            [it] (items/items-where world :waiting)
+            [bought] (filter #(= :claudeworth/bought (:type %)) (e/events run))
+            replies (map :content (mapcat :replies (filter #(= "customer" (:agent %)) (store/read-llm (:dir run)))))]
+        (testing "paid for, the quote spent, and the goods left at the counter for the customer"
+          (is (= 594 (get-in world [:state :household :funds])))
+          (is (empty? (get-in world [:state :quotes])))
+          (is (empty? (items/held-by world "customer")))
+          (is (= {:name "packet of needles" :place "counter" :owner "household"
+                  :aspects {:amount "2 × a paper packet of ten needles" :state "new"}
+                  :waiting {:for "customer" :keeper "clerk" :at "counter" :since 2}}
+                 (select-keys it [:name :place :owner :aspects :waiting :holder])))
+          (is (= "leave" (get-in bought [:data :hand-over]))))
+        (testing "the purchase says the goods are left, and the buyer is told where they are"
+          (is (= "Customer buys packet of needles (2 × a paper packet of ten needles) for 6d at the Counter, and leaves the goods there to be collected or sent up."
+                 (n/describe bought (n/names world))))
+          (is (some #(str/includes? (str %) "waiting-at-shops") replies)))
+        (testing "only the buyer sees them under waiting-at-shops, as orders give places"
+          (is (= [{:item "packet of needles" :amount "2 × a paper packet of ten needles" :at "counter"}]
+                 (:waiting-at-shops (shop/observe world "customer"))))
+          (is (not (contains? (shop/observe world "clerk") :waiting-at-shops))))
+        (testing "collected, they wait no longer"
+          (let [taken (w/apply-event world {:type :item/taken :actor "customer" :data {:item (:id it) :from-place "counter"}})]
+            (is (= "customer" (:holder (items/item taken (:id it)))))
+            (is (not (contains? (shop/observe taken "customer") :waiting-at-shops)))))
+        (is (= world (w/replay (store/read-events (:dir run)))))
+        (is (not-any? #(= :action/forfeited (:type %)) (e/events run)))
+        (is (not-any? #(re-find #"^(error:|rejected:)" (str %)) replies)))
+      (finally (e/stop-run run)))))
+
+(deftest buy-needs-a-hand-over-and-does-not-end-the-turn
+  (is (= :free (a/kind (action :buy))))
+  (is (:error (a/decode-args (action :buy) {:quote-ids ["quote-1"]})))
+  (is (:error (a/decode-args (action :buy) {:quote-ids ["quote-1"] :hand-over "send"})))
+  (is (= {:quote-ids ["quote-1"] :hand-over "leave"}
+         (:args (a/decode-args (action :buy) {"quote_ids" ["quote-1"] "hand_over" "leave"})))))
 
 (deftest refusals-and-failures-never-charge-or-create-goods
   ;; These test the contract, not the model's historical knowledge.
@@ -515,7 +567,7 @@
   (cond
     (not= "customer" agent-id) {:tool :carry-on}
     (not (some #{"converse"} used)) {:tool :converse :args {:with ["clerk"] :text "Two packets of needles, please."}}
-    (seq (get-in world [:state :quotes])) {:tool :buy :args {:quote-ids (vec (keys (get-in world [:state :quotes])))}}
+    (seq (get-in world [:state :quotes])) {:tool :buy :args {:quote-ids (vec (keys (get-in world [:state :quotes]))) :hand-over "take"}}
     :else {:tool :pass}))
 
 (defn- converse-reply [run]
@@ -531,7 +583,8 @@
     (empty? used) {:tool :walk :args {:to "general-store"}}
     (not (some #{"converse"} used))
     {:tool :converse :args {:with ["briggs"] :text "Two packets of needles, please."}}
-    :else {:tool :buy :args {:quote-ids (vec (keys (get-in world [:state :quotes])))}}))
+    (seq (get-in world [:state :quotes])) {:tool :buy :args {:quote-ids (vec (keys (get-in world [:state :quotes]))) :hand-over "take"}}
+    :else {:tool :pass}))
 
 (deftest one-customer-turn-at-the-counter
   (let [sc (assoc household/scenario
@@ -569,15 +622,16 @@
   (let [unavailable {:name :unavailable :kind :free :available? (constantly false)}
         clash {:name :reply :kind :free}
         extra {:name :check-counter :kind :free}
+        turn-ending {:name :close-shop :kind :final}
         run (start {:policy counter-customer
                     :overrides {:speaking-actions (fn [world speaker conv]
-                                                    (into [unavailable clash extra (action :buy)]
+                                                    (into [unavailable clash extra turn-ending]
                                                           (cw/speaking-actions world speaker conv)))
                                 :mock-conversation
                                 (fn [{:keys [agent-id step] :as ctx}]
                                   (if (= "clerk" agent-id)
                                     (case step
-                                      0 {:tool :buy :args {:quote-ids ["missing"]}}
+                                      0 {:tool :close-shop}
                                       2 {:tool :quote-goods :args purchase}
                                       (counter-conversation ctx))
                                     {:tool :end-conversation}))}})]
@@ -587,13 +641,44 @@
             prompt (:content (second (:messages (first calls))))]
         (is (= 4 (count calls)) "an invalid action, query, rejected second query, then reply")
         (is (= ["reply" "stay-silent" "leave" "note" "check-counter" "recommend" "quote-goods"] (:tools (first calls))))
-        (is (= "error: there is no tool called buy" (get-in (first calls) [:replies 0 :content])))
+        (is (= "error: there is no tool called close-shop" (get-in (first calls) [:replies 0 :content])))
         (is (str/starts-with? (get-in (nth calls 2) [:replies 0 :content]) "error: query limit reached"))
         (is (str/includes? (get-in (nth calls 2) [:replies 1 :content]) "This is your last call"))
         (is (str/includes? prompt "You may first use `check-counter`, `recommend`, `quote-goods` before your line."))
         (is (str/includes? prompt "Then finish this speaking turn with exactly ONE"))
         (is (= 1 (count (filter #(= "adjudicator/shop/appraise" (:agent %)) (store/read-llm (:dir run))))))
         (is (= 1 (count (filter #(= :claudeworth/bought (:type %)) (e/events run))))))
+      (finally (e/stop-run run)))))
+
+(deftest buying-on-a-line-at-the-counter
+  (let [buy? (fn [world speaker] (some #(= :buy (:name %)) (cw/speaking-actions world speaker {})))
+        customer-line (fn [{:keys [agent-id world used] :as ctx}]
+                        (cond
+                          (= "clerk" agent-id) (counter-conversation ctx)
+                          (and (seq (shop/quotes-here world "customer")) (not (some #{"buy"} used)))
+                          {:tool :buy :args {:quote-ids (mapv :id (shop/quotes-here world "customer")) :hand-over "leave"}}
+                          :else {:tool :end-conversation}))
+        run (start {:policy #(if (= "clerk" (:agent-id %)) {:tool :pass} (counter-customer %))
+                    :overrides {:speaking-actions cw/speaking-actions :mock-conversation customer-line}})]
+    (try
+      (testing "buy is a speaking-turn tool only for a customer with quotes at this shop"
+        (let [world (quoted (e/world run))]
+          (is (buy? world "customer"))
+          (is (not (buy? world "clerk")))
+          (is (not (buy? (e/world run) "customer")))
+          (is (not (buy? (assoc-in world [:agents "customer" :location] "back-room") "customer")))))
+      (rounds! run 1)
+      (let [evs (e/events run)
+            id-of (fn [t] (:id (first (filter #(= t (:type %)) evs))))
+            calls (filter #(and (= "customer" (:agent %)) (:conversation %)) (store/read-llm (:dir run)))
+            world (e/world run)]
+        (is (< (id-of :claudeworth/goods-quoted) (id-of :claudeworth/bought) (id-of :conversation/ended))
+            "bought on the customer's line, after the quote")
+        (is (some #(some #{"buy"} (:tools %)) calls))
+        (is (= 594 (get-in world [:state :household :funds])))
+        (is (= ["counter"] (map :at (:waiting-at-shops (shop/observe world "customer")))))
+        (is (not-any? #(= :action/forfeited (:type %)) evs))
+        (is (= world (w/replay (store/read-events (:dir run))))))
       (finally (e/stop-run run)))))
 
 (deftest only-serving-clerks-get-quote-goods

@@ -1,8 +1,10 @@
 (ns manor.scenarios.claudeworth.deliveries
   "Orders sent up from a shop: a delivery quote bought at the counter becomes
   an order, paid for at once, and at its due round the goods are left at the
-  delivery place (hiring's meeting place), brought by the shop's courier. A
-  shop delivers when its location has a :delivery-profile. Each shop's courier
+  delivery place (hiring's meeting place), brought by the shop's courier.
+  Goods bought and left waiting at the shop can be sent up too (`sent-up`):
+  each becomes an order carrying the item itself. A shop delivers when its
+  location has a :delivery-profile. Each shop's courier
   is named at the start (a free people-server record, so the shop and its
   customers know who sends orders up), written and spawned at its first
   delivery, and comes back for every delivery after. See docs/deliveries-design.md."
@@ -21,6 +23,8 @@
             [manor.world :as w]))
 
 (def max-lead-hours 120)
+;; Goods waiting at a shop are sent up within at most this many hours.
+(def send-up-max-hours 3)
 (def max-profile 400)
 ;; A courier goes home once this many rounds pass without a conversation.
 (def courier-leave-after 2)
@@ -51,6 +55,17 @@
 
 (defn orders [world] (get-in world [:state :orders] {}))
 
+(defn order-amount
+  "How much an order is: its quantity of units, or for goods sent up from
+  the shop, the item's :amount aspect (nil if it has none)."
+  [o]
+  (if (:unit o) (amount (:qty o) (:unit o)) (get-in o [:aspects :amount])))
+
+(defn- goods-label
+  "An order's goods as lines name them: \"tea (1 lb)\", or the name alone."
+  [o]
+  (str (:item o) (when-let [a (order-amount o)] (str " (" a ")"))))
+
 (defn ordered
   "The event for buying delivery quote `quote-id`: paid now, delivered at the
   due round to the delivery place."
@@ -74,6 +89,42 @@
 (defmethod n/describe :deliveries/ordered [{:keys [actor data]} names]
   (str (n/who names actor) " orders " (:item data) " (" (amount (:qty data) (:unit data)) ") for "
        (money/display (:price data)) " at the " (n/place names (:location data)) ", to be delivered at the "
+       (n/place names (:to data)) " by " (:due-label data) "."))
+
+(defn sent-up-id
+  "The id of the order goods waiting at a shop become when sent up."
+  [item-id]
+  (str "order-" item-id))
+
+(defn sent-up
+  "The event for `clerk` sending up `item-ids`, goods waiting at their shop:
+  each becomes an order (its id from the item's) for the person the goods
+  wait for, carrying the item's name, description, aspects, owner and
+  consumability, due within `within-hours` at the delivery place. The goods
+  are paid for already, so it has no price."
+  [world clerk item-ids within-hours]
+  (let [shop (space/location-of world clerk)
+        place (delivery-place world)
+        due (due-round world within-hours (:hours (space/location world shop)))]
+    {:type :deliveries/sent-up :visible-to (space/here world clerk)
+     :data {:location shop :to place :due-label (clock/short-label (:clock world) due (:round world))
+            :orders (vec (for [id item-ids
+                               :let [it (items/item world id)]]
+                           (cond-> {:id (sent-up-id id) :item-id id :location shop :clerk clerk
+                                    :buyer (get-in it [:waiting :for]) :item (:name it) :desc (:desc it)
+                                    :consumable (boolean (:consumable? it)) :to place :due due}
+                             (:aspects it) (assoc :aspects (:aspects it))
+                             (:owner it) (assoc :owner (:owner it)))))}}))
+
+(defmethod w/apply-event :deliveries/sent-up [world {:keys [data]}]
+  (-> world
+      (items/remove-items (map :item-id (:orders data)) "sent up by the shop's courier")
+      (update-in [:state :orders] merge (into {} (map (juxt :id identity)) (:orders data)))))
+
+(defmethod n/describe :deliveries/sent-up [{:keys [actor data]} names]
+  (str (n/who names actor) " sends up " (str/join ", " (map goods-label (:orders data)))
+       " for " (str/join " and " (map #(n/who names %) (distinct (map :buyer (:orders data)))))
+       " from the " (n/place names (:location data)) ", to be delivered at the "
        (n/place names (:to data)) " by " (:due-label data) "."))
 
 (defn hearers
@@ -132,7 +183,7 @@
 
 (defn- situation [world shop due]
   (str "You carry for the " (shop-name world shop) ". You have brought up "
-       (str/join ", " (for [o due] (str (:item o) " (" (amount (:qty o) (:unit o)) ")")))
+       (str/join ", " (map goods-label due))
        ", ordered by " (str/join " and " (distinct (map #(:name (w/agent world (:buyer %)) (:buyer %)) due)))
        ", and left it at the " (shop-name world (delivery-place world))
        ". Speak with whoever comes if you like; you go back to the shop once nobody needs you."))
@@ -187,7 +238,8 @@
 
 (defn- arrival
   "The events of one shop's due orders arriving at the delivery place: the
-  courier, a parcel for each order, which the nightly steward leaves alone
+  courier, a parcel for each order (with the aspects of goods sent up, or
+  the amount and condition quoted), which the nightly steward leaves alone
   (:order-id), and the announcement."
   [scenario world shop due]
   (let [place (delivery-place world)
@@ -200,16 +252,17 @@
         parcels (items/added-events
                  world
                  (for [o due]
-                   (cond-> {:name (:item o) :desc (:desc o) :place place :owner "household" :order-id (:id o)
-                            :aspects {:amount (amount (:qty o) (:unit o)) :state (:condition o)}}
+                   (cond-> {:name (:item o) :desc (:desc o) :place place :owner (:owner o "household") :order-id (:id o)}
+                     (:unit o) (assoc :aspects {:amount (amount (:qty o) (:unit o)) :state (:condition o)})
+                     (:aspects o) (assoc :aspects (:aspects o))
                      (:consumable o) (assoc :consumable? true)))
                  :gm)]
     (-> brought
         (into parcels)
         (conj {:type :deliveries/arrived :visible-to (hearers world place)
                :data (cond-> {:shop shop :at place :orders (mapv :id due)
-                              :goods (mapv (fn [o e] {:id (get-in e [:data :item :id]) :name (:item o)
-                                                      :amount (amount (:qty o) (:unit o))})
+                              :goods (mapv (fn [o e] (cond-> {:id (get-in e [:data :item :id]) :name (:item o)}
+                                                       (order-amount o) (assoc :amount (order-amount o))))
                                            due parcels)}
                        courier (assoc :courier courier))}))))
 
@@ -217,7 +270,8 @@
   (update-in world [:state :orders] #(apply dissoc % (:orders data))))
 
 (defmethod n/describe :deliveries/arrived [{:keys [data]} names]
-  (let [goods (str/join ", " (for [{:keys [id name amount]} (:goods data)] (str name " (" amount ", " id ")")))]
+  (let [goods (str/join ", " (for [{:keys [id name amount]} (:goods data)]
+                               (str name " (" (str/join ", " (remove nil? [amount id])) ")")))]
     (if-let [courier (:courier data)]
       (str (n/who names courier) " (" courier ") brings a delivery from the " (n/place names (:shop data))
            " and leaves it at the " (n/place names (:at data)) ": " goods ".")
@@ -258,13 +312,14 @@
                   :tick (fn [world res] (tick scenario world res))})))
 
 (defn observe
-  "The viewer's pending orders, as buyer or as the shop's clerk, without the
-  orders' ids, which no tool takes."
+  "The viewer's pending orders, ordered or sent up, as buyer or as the
+  shop's clerk, without the orders' ids, which no tool takes."
   [world id]
   (vec (for [o (sort-by :id (vals (orders world)))
              :when (or (= id (:buyer o)) (= id (:clerk o)))]
-         (cond-> {:item (:item o) :amount (amount (:qty o) (:unit o)) :from (:location o)
-                  :buyer (:buyer o) :to (:to o) :due (clock/short-label (:clock world) (:due o) (:round world))}
+         (cond-> (merge (cond-> {:item (:item o)} (order-amount o) (assoc :amount (order-amount o)))
+                        {:from (:location o) :buyer (:buyer o) :to (:to o)
+                         :due (clock/short-label (:clock world) (:due o) (:round world))})
            (courier-line world (:location o)) (assoc :sent-up-by (courier-line world (:location o)))))))
 
 (defn problems

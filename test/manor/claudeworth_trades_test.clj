@@ -79,8 +79,8 @@
                    (and (= :draper (:role (w/agent world agent-id)))
                         (= 1 (:round world)) (not (some #{"quote-goods"} used)))
                    {:tool :quote-goods :args {:for @buyer :goods [{:item "a large parcel of household linen" :qty 1 :deliver true}]}}
-                   (and (= @buyer agent-id) (= 2 (:round world)))
-                   {:tool :buy :args {:quote-ids (vec (keys (get-in world [:state :quotes])))}}
+                   (and (= @buyer agent-id) (= 2 (:round world)) (seq (get-in world [:state :quotes])))
+                   {:tool :buy :args {:quote-ids (vec (keys (get-in world [:state :quotes]))) :hand-over "take"}}
                    :else {:tool :pass}))
         run (with-redefs [e/load-scenario (constantly (assoc cw/scenario :mock-policy policy))]
               (e/start-run :claudeworth {:llm :mock :offline? true :test? true :gm :off
@@ -117,8 +117,8 @@
             (is (= (count delivering) (count (distinct (map #(get-in % [:person :name]) (vals couriers)))))))
           (is (not-any? #(hiring/written? (:person %)) (vals couriers)))
           (is (nil? (:agent-id courier)))
-          (is (= (deliveries/courier-line world "drapers-shop")
-                 (get-in (shop/observe world clerk) [:here :orders-sent-up-by]))))
+          (is (some? (deliveries/courier-line world "drapers-shop")))
+          (is (not (contains? (:here (shop/observe world clerk)) :orders-sent-up-by)) "the courier is named only on orders"))
         (e/auto! run 1)
         (is (= :idle (e/wait-idle run 60000)))
         (let [world (e/world run)

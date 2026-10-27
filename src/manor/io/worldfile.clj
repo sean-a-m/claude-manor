@@ -190,15 +190,16 @@
                    routes)})
 
 (defn ->items
-  "The file's items for a scenario's :init: a :holder, and an :owner that
-  names an agent of the file, become agent ids. Other owners (\"household\")
-  are kept as they are."
+  "The file's items for a scenario's :init: a :holder, an :owner that
+  names an agent of the file, and a :waiting marker's :for and :keeper
+  become agent ids. Other owners (\"household\") are kept as they are."
   [{:keys [agents] :as wf}]
   (let [ids (into {} (map (juxt :name (comp b/slug :name))) agents)]
     (mapv (fn [it]
             (cond-> it
               (:holder it) (update :holder ids)
-              (contains? ids (:owner it)) (update :owner ids)))
+              (contains? ids (:owner it)) (update :owner ids)
+              (:waiting it) (update :waiting #(-> % (update :for ids) (update :keeper ids)))))
           (:items wf))))
 
 (defn load-world
@@ -241,7 +242,8 @@
 
 (defn- export-items
   "The live items, in `start`'s order with new ones after, holders and agent
-  owners as names again, and without :touched (it's the run's, not the map's)."
+  owners as names again, and without :touched or :waiting (their rounds are
+  the run's, not the map's)."
   [world start]
   (let [agent-name #(:name (w/agent world %))
         live (into {} (map (juxt :id identity)) (items/all world))
@@ -249,7 +251,7 @@
         order (concat (filter live orig) (sort (remove (set orig) (keys live))))]
     (vec (for [id order
                :let [it (live id)]]
-           (cond-> (dissoc it :touched)
+           (cond-> (dissoc it :touched :waiting)
              (:holder it) (update :holder #(or (agent-name %) %))
              (agent-name (:owner it)) (update :owner agent-name))))))
 

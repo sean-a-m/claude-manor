@@ -215,6 +215,76 @@
     (e/stop-run run)))
 
 ;; ---------------------------------------------------------------------------
+;; Goods waiting for someone: Ada keeps a goose in the hall for Ben
+
+(def ^:private for-ben {:for "ben" :keeper "ada" :at "hall" :since 1})
+
+(def ^:private waiting-goods
+  [{:id "goose" :name "Goose" :desc "A plucked goose." :place "hall" :consumable? true :waiting for-ben}
+   {:id "hamper" :name "Hamper" :desc "A wicker hamper." :place "hall" :container :open}
+   {:id "crate" :name "Crate" :desc "An open crate." :place "porch" :container :open}])
+
+(defn- marked? [world id] (contains? (items/item world id) :waiting))
+
+(deftest waiting-goods-marker
+  (let [run (start)
+        _ (e/emit! run (items/init-events waiting-goods))
+        world (assoc (e/world run) :round 1)
+        ev (fn [world t actor data] (w/apply-event world {:type t :actor actor :data data}))
+        here-items #(get-in (prompt/agent-view (:scenario run) %1 %2) [:location :here :items])]
+    (testing "shown as waiting at the shop, in the view's items and the buyer's list"
+      (is (items/waiting? world (items/item world "goose")))
+      (is (not (items/waiting? world (items/item world "hamper"))))
+      (is (= ["goose"] (map :id (items/waiting-for world "ben"))))
+      (is (empty? (items/waiting-for world "ada")))
+      (is (= {:id "goose" :name "Goose" :waiting-for "Ben"}
+             (first (filter #(= "goose" (:id %)) (here-items world "ada"))))))
+    (testing "the keeper may pick it up, pack it or put it down at the shop: it stays waiting"
+      (let [held (ev world :item/taken "ada" {:item "goose"})
+            packed (ev held :item/put-in "ada" {:item "goose" :into "hamper"})
+            down (ev held :item/put-down "ada" {:item "goose" :place "hall"})]
+        (is (every? #(marked? % "goose") [held packed down]))
+        (is (items/waiting? held (items/item held "goose")) "held by the keeper")
+        (is (= ["goose"] (map :id (items/waiting-for packed "ben"))))
+        (is (= [{:id "goose" :name "Goose" :waiting-for "Ben"}]
+               (:contents (first (filter #(= "hamper" (:id %)) (here-items packed "ben"))))))
+        (testing "the keeper carrying it elsewhere hides it but keeps the marker; putting it down or in there clears it"
+          (let [away (at held "ada" "porch")]
+            (is (not (items/waiting? away (items/item away "goose"))))
+            (is (empty? (items/waiting-for away "ben")))
+            (is (marked? away "goose"))
+            (is (not (marked? (ev away :item/put-down "ada" {:item "goose" :place "porch"}) "goose")))
+            (is (not (marked? (ev away :item/put-in "ada" {:item "goose" :into "crate"}) "goose")))))
+        (testing "given to someone other than the keeper clears it; to the keeper keeps it"
+          (is (not (marked? (ev held :item/given "ada" {:item "goose" :to "ben"}) "goose")))
+          (let [ben-has (assoc-in world [:items "goose"] (-> (items/item world "goose") (dissoc :place) (assoc :holder "ben")))]
+            (is (not (items/waiting? ben-has (items/item ben-has "goose"))) "the marker alone doesn't show it")
+            (is (marked? (ev ben-has :item/given "ben" {:item "goose" :to "ada"}) "goose"))))
+        (testing "taken by someone other than the keeper clears it, and from what's inside what they take"
+          (is (not (marked? (ev world :item/taken "ben" {:item "goose"}) "goose")))
+          (is (not (marked? (ev packed :item/taken "ben" {:item "hamper"}) "goose"))))))
+    (testing "a marker away from its shop isn't shown"
+      (let [moved (assoc-in world [:items "goose" :waiting :at] "porch")]
+        (is (not (items/waiting? moved (items/item moved "goose"))))
+        (is (empty? (items/waiting-for moved "ben")))
+        (is (= {:id "goose" :name "Goose"} (first (filter #(= "goose" (:id %)) (here-items moved "ada")))))))
+    (testing "new items check the marker's people and place"
+      (is (some? (items/new-item world {:name "Fowl" :desc "A fowl." :place "hall" :waiting for-ben})))
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"waiting for unknown person"
+                            (items/new-item world {:name "Fowl" :desc "A fowl." :place "hall" :waiting (assoc for-ben :for "bob")})))
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"waiting at unknown location"
+                            (items/new-item world {:name "Fowl" :desc "A fowl." :place "hall" :waiting (assoc for-ben :at "attic")}))))
+    (testing "in a run: the keeper packs it, Ben takes the hamper away; replay agrees, and the map has no marker"
+      (e/emit! run [{:type :item/taken :actor "ada" :data {:item "goose"}}
+                    {:type :item/put-in :actor "ada" :data {:item "goose" :into "hamper"}}])
+      (is (marked? (e/world run) "goose"))
+      (is (not-any? :waiting (:items (wf/read-file (str (io/file (:dir run) "map.edn"))))))
+      (e/emit! run [{:type :item/taken :actor "ben" :data {:item "hamper"}}])
+      (is (not (marked? (e/world run) "goose")))
+      (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
+    (e/stop-run run)))
+
+;; ---------------------------------------------------------------------------
 ;; look
 
 (deftest look-around

@@ -258,13 +258,15 @@ in old pence (decision 41). Its prompt includes the actual store's `:store-profi
 setting/date and goods/quantity, not the full world or household wealth.
 
 Each checked offer or refusal is announced to people at the counter. A quote fixes buyer, clerk,
-shop, quantity, item details and price. The customer accepts with `buy {quote-ids}`, up to 10
-quotes at once: code checks funds for the total, co-location, opening hours and that each quote
-is unspent, then deducts money, consumes the quotes and creates for each one portable parcel carried by the buyer, owned by the household, with the
+shop, quantity, item details and price. The customer accepts with `buy {quote-ids hand-over}`, up to 10
+quotes at once, on their turn or on a line in the conversation: code checks funds for the total, co-location, opening hours and that each quote
+is unspent, then deducts money, consumes the quotes and creates for each one portable parcel owned by the household, with the
 amount bought and the appraised condition as its aspects, `{:amount "20 × 1 lb" :state "fresh,
-dry"}` (decisions 39 and 40). There is
+dry"}` (decisions 39 and 40), carried by the buyer (`take`) or left at the shop waiting for
+them, to be collected or sent up (`leave`). There is
 no fixed inventory, bulk counter purchasing, bargaining or clock expiry on offers. Shops with a
-`:delivery-profile` also take orders for delivery (decision 43).
+`:delivery-profile` also take orders for delivery (decision 43), and their clerk can `send-up`
+goods left there ([deliveries design](deliveries-design.md), Hand-over).
 Availability is semantic plausibility, not a finite stock ledger. Opening hours are unchanged.
 
 The shared call/check/retry/logging runner also serves the work judge; the store does not
@@ -372,7 +374,8 @@ map; places, journeys and opening hours reach agents through their view.
 | `sleep {until}` | all | final | in a bedroom |
 | `rouse {who}` | all | free | same room, target occupied |
 | `quote-goods {for goods}` | shopkeeper | query | general-store service, customer present, open hours; up to 10 lines |
-| `buy {quote-ids}` | all | final | original store, buyer and clerk present, open hours; up to 10 quotes |
+| `buy {quote-ids hand-over}` | all | free | original store, buyer and clerk present, open hours; up to 10 quotes; take or leave at the shop; also on a line in a conversation |
+| `send-up {items within-hours}` | shopkeeper | free | open shop with a delivery profile; goods waiting there; 1–3 hours; also on a line in a conversation |
 | `consult-references {query}` | all | query | architect's office |
 | `draw-plans {...}` | architect, or a client when no architect is present | query | architect's office, open hours |
 | `show-plans {plan-id}` | all | free | anywhere; shares a plan you can see with the room |

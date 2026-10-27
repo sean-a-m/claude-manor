@@ -3,6 +3,7 @@
   out, a house with a front door (the delivery place) and a hall."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
+            [manor.actions :as a]
             [manor.clock :as clock]
             [manor.engine :as e]
             [manor.io.store :as store]
@@ -47,7 +48,7 @@
     (and (= "clerk" agent-id) (#{1 8} (:round world)) (not (some #{"quote-goods"} used)))
     {:tool :quote-goods :args shopping}
     (and (= "customer" agent-id) (#{2 9} (:round world)) (seq (get-in world [:state :quotes])))
-    {:tool :buy :args {:quote-ids (vec (sort (keys (get-in world [:state :quotes]))))}}
+    {:tool :buy :args {:quote-ids (vec (sort (keys (get-in world [:state :quotes])))) :hand-over "take"}}
     :else {:tool :pass}))
 
 (def errand-boy {:title "Errand boy" :ages [13 18] :sex :male :about "You carry goods out for a tradesman."})
@@ -150,6 +151,24 @@
         (is (= world (w/replay (store/read-events (:dir run)))))
         (is (not-any? #(re-find #"^(error:|rejected:)" (:content % ""))
                       (mapcat :replies (store/read-llm (:dir run))))))
+      (finally (e/stop-run run)))))
+
+(deftest a-delivery-quote-is-ordered-whatever-the-hand-over
+  (let [leave (fn [{:keys [world agent-id] :as ctx}]
+                (if (and (= "customer" agent-id) (= 2 (:round world)) (seq (get-in world [:state :quotes])))
+                  {:tool :buy :args {:quote-ids (vec (sort (keys (get-in world [:state :quotes])))) :hand-over "leave"}}
+                  (policy ctx)))
+        run (start {:delivery-profile delivery-profile} {:mock-policy leave})]
+    (try
+      (rounds! run 2)
+      (let [world (e/world run)]
+        (is (= ["side of mutton"] (map :item (vals (deliveries/orders world)))))
+        (is (= [["tea" "counter"]] (map (juxt :name :place) (items/items-where world :waiting))))
+        (is (= ["tea"] (map :item (:waiting-at-shops (shop/observe world "customer")))))
+        (is (= (- 600 150) (get-in world [:state :household :funds])))
+        (is (some #{"Paid: the goods are left at the shop for you (waiting-at-shops in your view); goods for delivery are under orders in your view."}
+                  (map :content (mapcat :replies (filter #(= "customer" (:agent %)) (store/read-llm (:dir run)))))))
+        (is (= world (w/replay (store/read-events (:dir run))))))
       (finally (e/stop-run run)))))
 
 (deftest a-shop-without-a-delivery-profile-refuses-deliver-lines
@@ -347,9 +366,9 @@
             line "Pat Ellis 0, the Counter's errand boy"]
         (is (= line (deliveries/courier-line world "counter")))
         (is (nil? (w/agent world "pat-ellis-0")) "named, but not yet an agent")
-        (is (= line (get-in (shop/observe world "clerk") [:here :orders-sent-up-by])))
         (is (= [line] (map :sent-up-by (:orders (shop/observe world "customer")))))
-        (is (nil? (get-in (shop/observe world "butler") [:here :orders-sent-up-by])) "only shown at the shop")
+        (is (= [line] (map :sent-up-by (:orders (shop/observe world "clerk")))))
+        (is (not (contains? (:here (shop/observe world "clerk")) :orders-sent-up-by)) "named only on orders, not at the counter")
         (is (not-any? #(str/starts-with? (:agent %) "adjudicator/people") (store/read-llm (:dir run)))
             "no model call until a delivery is due"))
       (finally (e/stop-run run)))))
@@ -388,4 +407,163 @@
         (is (= [id] (map #(get-in % [:data :id]) (returned (assoc-in due [:agents id :physical :movement] {:level :impeded})))))
         (is (empty? (returned (w/apply-event due {:type :person/died :data {:person id :cause "illness"}})))))
       (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+      (finally (e/stop-run run)))))
+
+;; ---------------------------------------------------------------------------
+;; send-up: goods left waiting at the counter become orders
+
+(def tea {:for "customer" :goods [{:item "tea" :qty 1}]})
+
+(defn- leave-tea
+  "The clerk quotes tea in round 1, the customer buys it in round 2 and
+  leaves it at the counter; then `then`."
+  [then]
+  (fn [{:keys [world agent-id used] :as ctx}]
+    (cond
+      (and (= "clerk" agent-id) (= 1 (:round world)) (not (some #{"quote-goods"} used)))
+      {:tool :quote-goods :args tea}
+      (and (= "customer" agent-id) (= 2 (:round world)) (seq (get-in world [:state :quotes])))
+      {:tool :buy :args {:quote-ids (vec (keys (get-in world [:state :quotes]))) :hand-over "leave"}}
+      :else (then ctx))))
+
+(def send-up-tea
+  "The clerk sends the tea up in round 3, within the hour."
+  (leave-tea (fn [{:keys [world agent-id used]}]
+               (if (and (= "clerk" agent-id) (= 3 (:round world)) (not (some #{"send-up"} used)))
+                 {:tool :send-up :args {:items ["tea"] :within-hours 1}}
+                 {:tool :pass}))))
+
+(deftest goods-waiting-at-the-shop-are-sent-up
+  (let [run (start {:delivery-profile delivery-profile} {:mock-policy send-up-tea})]
+    (try
+      (rounds! run 3)
+      (let [world (e/world run)
+            [sent] (of-type run :deliveries/sent-up)
+            order (get (deliveries/orders world) "order-tea")
+            replies (map :content (mapcat :replies (filter #(= "clerk" (:agent %)) (store/read-llm (:dir run)))))]
+        (testing "the tea becomes an order carrying the item, already paid for, due within the hour"
+          (is (= {:id "order-tea" :item-id "tea" :location "counter" :clerk "clerk" :buyer "customer"
+                  :item "tea" :desc "Good tea." :aspects {:amount "1 lb" :state "fresh"} :consumable true
+                  :owner "household" :to "front-door" :due 5}
+                 order))
+          (is (= (- 600 30) (get-in world [:state :household :funds])) "paid once, at the buy"))
+        (testing "it's gone from the counter and from the customer's waiting goods"
+          (is (nil? (items/item world "tea")))
+          (is (= {:name "tea" :place "counter" :round 3 :fate "sent up by the shop's courier"}
+                 (get-in world [:items-gone "tea"])))
+          (is (empty? (items/items-where world :waiting)))
+          (is (not (contains? (shop/observe world "customer") :waiting-at-shops))))
+        (testing "the counter sees it sent up, and the buyer and clerk find it under orders"
+          (is (= "Clerk sends up tea (1 lb) for Customer from the Counter, to be delivered at the Front door by 12:00."
+                 (n/describe sent (n/names world))))
+          (is (w/visible-to? sent "customer"))
+          (is (not (w/visible-to? sent "butler")))
+          (doseq [id ["customer" "clerk"]]
+            (is (= [{:item "tea" :amount "1 lb" :from "counter" :buyer "customer" :to "front-door" :due "12:00"
+                     :sent-up-by "Pat Ellis 0, the Counter's errand boy"}]
+                   (:orders (shop/observe world id)))))
+          (is (nil? (:orders (shop/observe world "butler")))))
+        (testing "the clerk is told it's with the courier, with nothing to pack or carry"
+          (is (some #{"Sent up: the goods are with the shop's courier now, to be delivered at the Front door by 12:00 (see orders in your view). There is nothing for you to pack or carry."}
+                    replies))))
+      (rounds! run 2)
+      (let [world (e/world run)
+            [arrived] (of-type run :deliveries/arrived)
+            [parcel] (items/items-where world #(= "front-door" (:place %)))]
+        (testing "at the due round a parcel with the item's aspects is left at the front door, and the house hears it"
+          (is (= 5 (:round arrived)))
+          (is (empty? (deliveries/orders world)))
+          (is (= {:id "tea-2" :name "tea" :desc "Good tea." :owner "household" :consumable? true
+                  :aspects {:amount "1 lb" :state "fresh"} :order-id "order-tea"}
+                 (select-keys parcel [:id :name :desc :owner :consumable? :aspects :order-id :waiting])))
+          (is (= "Pat Ellis 0 (pat-ellis-0) brings a delivery from the Counter and leaves it at the Front door: tea (1 lb, tea-2)."
+                 (n/describe arrived (n/names world))))
+          (is (w/visible-to? arrived "butler")))
+        (is (= world (w/replay (store/read-events (:dir run)))))
+        (is (not-any? #(= :action/forfeited (:type %)) (e/events run)))
+        (is (not-any? #(re-find #"^(error:|rejected:)" (:content % ""))
+                      (mapcat :replies (store/read-llm (:dir run))))))
+      (finally (e/stop-run run)))))
+
+(defn- send-up-action [] (first (filter #(= :send-up (:name %)) shop/actions)))
+
+(defn- with-goods
+  "`world` with items added as they are."
+  [world goods]
+  (reduce w/apply-event world (items/init-events goods)))
+
+(def ^:private kept {:for "customer" :keeper "clerk" :at "counter" :since 1})
+
+(deftest send-up-refusals
+  (let [run (start)]
+    (try
+      (let [world (with-goods (e/world run)
+                    [{:id "tea" :name "tea" :desc "Tea." :place "counter" :waiting kept}
+                     {:id "soap" :name "soap" :desc "Soap." :place "counter"}
+                     {:id "moved" :name "moved" :desc "Moved." :place "front-door" :waiting kept}
+                     {:id "theirs" :name "theirs" :desc "Kept at the door." :place "front-door" :waiting (assoc kept :at "front-door")}
+                     {:id "basket" :name "basket" :desc "A basket." :place "counter" :container :open :waiting kept}
+                     {:id "egg" :name "egg" :desc "An egg." :in "basket"}])
+            reason (fn [world actor ids] (shop/send-up-reason world actor {:items ids :within-hours 1}))]
+        (is (nil? (reason world "clerk" ["tea"])))
+        (testing "only the clerk, at an open shop that sends goods out"
+          (is (= "only someone who keeps a shop can quote goods" (reason world "customer" ["tea"])))
+          (is (str/starts-with? (reason (assoc world :round 20) "clerk" ["tea"]) "the Counter is closed"))
+          (is (= "the Counter doesn't send goods out; hand them over when they're collected"
+                 (reason (update-in world [:space :locations "counter"] dissoc :delivery-profile) "clerk" ["tea"]))))
+        (testing "only goods waiting at this shop, each once, with nothing in them"
+          (doseq [id ["goose-12" "soap" "moved" "theirs"]]
+            (is (= (str id " isn't waiting at this shop; send up only goods marked waiting-for someone in your view")
+                   (reason world "clerk" [id]))
+                id))
+          (is (= "give each item once" (reason world "clerk" ["tea" "tea"])))
+          (is (= "take what's in basket out first" (reason world "clerk" ["basket"]))))
+        (testing "within-hours is 1 to 3"
+          (doseq [h [0 4]]
+            (is (:error (a/decode-args (send-up-action) {:items ["tea"] :within-hours h}))))
+          (is (= {:items ["tea"] :within-hours 3}
+                 (:args (a/decode-args (send-up-action) {"items" ["tea"] "within_hours" 3})))))
+        (testing "a late send-up comes at the next opening"
+          (let [late (assoc world :round 16)
+                {:keys [due]} (get-in (deliveries/sent-up late "clerk" ["tea"] 3) [:data :orders 0])]
+            (is (= "1904-10-15T17:30" (str (clock/time-of (:clock world) 16))))
+            (is (= "1904-10-16T08:00" (str (clock/time-of (:clock world) due)))))))
+      (finally (e/stop-run run)))))
+
+(deftest sending-up-on-a-line
+  (let [send-up? (fn [world speaker] (some #(= :send-up (:name %)) (cw/speaking-actions world speaker {})))
+        ask (leave-tea (fn [{:keys [world agent-id used]}]
+                         (if (and (= "customer" agent-id) (= 3 (:round world)) (not (some #{"converse"} used)))
+                           {:tool :converse :args {:with ["clerk"] :text "Would you send my tea up to the house?"}}
+                           {:tool :pass})))
+        line (fn [{:keys [world agent-id used]}]
+               (cond
+                 (not= "clerk" agent-id) {:tool :end-conversation}
+                 (and (seq (shop/waiting-here world "clerk")) (not (some #{"send-up"} used)))
+                 {:tool :send-up :args {:items (mapv :id (shop/waiting-here world "clerk")) :within-hours 2}}
+                 :else {:tool :reply :args {:text "The boy will have it up directly."}}))
+        run (start {:delivery-profile delivery-profile}
+                   {:mock-policy ask :speaking-actions cw/speaking-actions :mock-conversation line})]
+    (try
+      (rounds! run 2)
+      (testing "send-up is a speaking-turn tool for the clerk of a delivering shop with goods waiting there"
+        (let [world (e/world run)]
+          (is (send-up? world "clerk"))
+          (is (not (send-up? world "customer")))
+          (is (not (send-up? (update-in world [:space :locations "counter"] dissoc :delivery-profile) "clerk")))
+          (is (not (send-up? (assoc world :round 20) "clerk")))
+          (is (not (send-up? (assoc-in world [:items "tea" :waiting :at] "front-door") "clerk")))))
+      (rounds! run 1)
+      (let [evs (e/events run)
+            id-of (fn [t] (:id (first (filter #(= t (:type %)) evs))))
+            calls (filter #(and (= "clerk" (:agent %)) (:conversation %)) (store/read-llm (:dir run)))
+            world (e/world run)]
+        (is (< (id-of :conversation/started) (id-of :deliveries/sent-up) (id-of :conversation/ended))
+            "sent up on the clerk's line")
+        (is (some #(some #{"send-up"} (:tools %)) calls))
+        (is (= [{:item "tea" :due "13:00"}] (map #(select-keys % [:item :due]) (:orders (shop/observe world "customer")))))
+        (is (empty? (shop/waiting-here world "clerk")))
+        (is (not (send-up? world "clerk")) "nothing left to send")
+        (is (not-any? #(= :action/forfeited (:type %)) evs))
+        (is (= world (w/replay (store/read-events (:dir run))))))
       (finally (e/stop-run run)))))

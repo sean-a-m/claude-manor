@@ -28,15 +28,15 @@
              {:name "Clerk" :role :shopkeeper :location "counter"}
              {:name "Butler" :role :bystander :location "hall"}])
 
-(def shopping {:for "customer" :goods [{:item "tea" :qty 1}
-                                       {:item "side of mutton" :qty 1 :deliver true}]})
+(def shopping {:for "customer" :goods [{:item "tea" :amount "1"}
+                                       {:item "side of mutton" :amount "1" :deliver true}]})
 
 (defn appraisal
   "Tea over the counter; anything asked for delivery comes in two hours."
   [{:keys [request]}]
   {:tool :appraise
    :args {:lines (for [{:keys [item deliver]} request]
-                   (cond-> {:available true :item item :unit (if deliver "1 side" "1 lb")
+                   (cond-> {:available true :item item :qty 1 :unit (if deliver "1 side" "1 lb")
                             :desc (str "Good " item ".") :condition "fresh"
                             :consumable true :unit-price-pence (if deliver 120 30)}
                      deliver (assoc :lead-hours 2)))}})
@@ -109,8 +109,8 @@
           (let [sent (->> (store/read-llm (:dir run)) (filter #(= "adjudicator/shop/appraise" (:agent %)))
                           first :messages (map :content) (str/join "\n"))]
             (is (str/includes? sent delivery-profile))
-            (is (str/includes? sent "{\"item\":\"side of mutton\",\"qty\":1,\"deliver\":true}"))
-            (is (str/includes? sent "{\"item\":\"tea\",\"qty\":1}"))))
+            (is (str/includes? sent "{\"item\":\"side of mutton\",\"amount\":\"1\",\"deliver\":true}"))
+            (is (str/includes? sent "{\"item\":\"tea\",\"amount\":\"1\"}"))))
         (testing "the quote and the order say when and where"
           (is (str/includes? (n/describe (first (filter #(get-in % [:data :deliver]) (of-type run :claudeworth/goods-quoted))) names)
                              "to be delivered at the Front door within 2 hours of ordering"))
@@ -184,7 +184,7 @@
 (defn- response [lines] {:tool-calls [{:id "answer" :name "appraise" :arguments {:lines lines}}]})
 
 (deftest a-delivery-line-needs-a-lead-time
-  (let [line {:available true :item "side of mutton" :unit "1 side" :desc "A side." :condition "fresh"
+  (let [line {:available true :item "side of mutton" :qty 1 :unit "1 side" :desc "A side." :condition "fresh"
               :consumable true :unit-price-pence 120}]
     (is (str/includes? (:error (shop/check 1 #{0} (response [line]))) "lead-hours"))
     (is (:error (shop/check 1 #{0} (response [(assoc line :lead-hours 0)]))))
@@ -412,7 +412,7 @@
 ;; ---------------------------------------------------------------------------
 ;; send-up: goods left waiting at the counter become orders
 
-(def tea {:for "customer" :goods [{:item "tea" :qty 1}]})
+(def tea {:for "customer" :goods [{:item "tea" :amount "1"}]})
 
 (defn- leave-tea
   "The clerk quotes tea in round 1, the customer buys it in round 2 and

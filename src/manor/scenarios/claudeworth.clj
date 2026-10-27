@@ -625,7 +625,7 @@
     "13:30" [[:travel {:to "abbey-church"}]]
     "14:00" [[:spend-time {:doing "sitting quietly in the abbey church" :hours 1.5}]]
     "15:30" [[:travel {:to "general-store"}]]
-    "16:00" [[:request-goods {:item "feather duster" :qty 1}]]
+    "16:00" [[:request-goods {:item "feather duster" :amount "1"}]]
     "16:30" [[:accept-offer {:item "feather duster"}]]
     "17:00" [[:travel {:to "carriage-sweep"}]]
     "17:30" [[:walk {:to "drawing-room"}] [:give {:item "feather-duster" :to "nellie"}]
@@ -640,8 +640,8 @@
     "08:30" [[:spend-time {:doing "breakfasting" :hours 1}]]
     "09:30" [[:walk {:to "study"}] [:spend-time {:doing "writing letters" :hours 2}]]
     "11:30" [[:travel {:to "general-store"}]]
-    "12:00" [[:request-goods {:goods [{:item "tin of silver polish" :qty 1}
-                                      {:item "sack of flour" :qty 1 :deliver true}]}]]
+    "12:00" [[:request-goods {:goods [{:item "tin of silver polish" :amount "1"}
+                                      {:item "sack of flour" :amount "1" :deliver true}]}]]
     "12:30" [[:ask-send-up {:item "tin of silver polish"}]
              [:accept-offer {:items ["tin of silver polish" "sack of flour"] :hand-over "leave"}]]
     "13:00" [[:travel {:to "carriage-sweep"}]]

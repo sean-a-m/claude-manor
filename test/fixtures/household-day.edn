@@ -7,7 +7,7 @@
    [:spend-time {:doing "filing correspondence", :hours 4}]],
   "11:30" [[:travel {:to "general-store"}]],
   "08:30" [[:spend-time {:doing "breakfasting", :hours 1}]],
-  "12:00" [[:request-goods {:item "tin of silver polish", :qty 1}]],
+  "12:00" [[:request-goods {:item "tin of silver polish", :amount "1"}]],
   "12:30" [[:accept-offer {:item "tin of silver polish"}]],
   "06:30"
   [[:walk {:to "earls-bedroom"}]
@@ -28,7 +28,7 @@
  "lady-claudeworth"
  {"17:00" [[:travel {:to "carriage-sweep"}]],
   "15:30" [[:travel {:to "general-store"}]],
-  "16:00" [[:request-goods {:item "feather duster", :qty 1}]],
+  "16:00" [[:request-goods {:item "feather duster", :amount "1"}]],
   "14:00"
   [[:spend-time
     {:doing "sitting quietly in the abbey church", :hours 1.5}]],

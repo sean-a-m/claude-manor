@@ -23,6 +23,8 @@
 (def max-quantity 20)
 ;; Goods lines in one quote-goods call (one appraisal) and quotes in one buy.
 (def max-lines 10)
+;; A goods line's amount, as the customer put it: "a stone", "2 lb", "3".
+(def max-amount 40)
 ;; A parcel's :amount aspect, "20 × " + unit, stays within items/max-aspect.
 (def max-unit 30)
 
@@ -33,6 +35,7 @@
    [:available :boolean]
    [:reason {:optional true} (text-schema 300)]
    [:item {:optional true} (text-schema items/max-name)]
+   [:qty {:optional true} [:int {:min 1 :max max-quantity}]]
    [:unit {:optional true} (text-schema max-unit)]
    [:desc {:optional true} (text-schema items/max-desc)]
    [:condition {:optional true} [:string {:min 1 :max items/max-aspect :json-schema/maxLength items/advised-aspect}]]
@@ -61,11 +64,16 @@
        "For an available delivery line also give lead-hours: a realistic whole number of hours, 1 to " deliveries/max-lead-hours ", until it is delivered, for this shop and this order. "
        "Do not make an unsuitable request available at an enormous price. Do not silently substitute a different object. "
        "For unavailable goods give available=false and a brief in-world reason. "
-       "For available goods give available=true, item, unit (a short measure for each of the requested quantity, such as 1 lb, 1 loaf, 1 tin, 1 dozen), "
-       "desc, condition (a short phrase), consumable, and unit-price-pence (and lead-hours for a delivery line). "
+       "For available goods give available=true, item, qty and unit, desc, condition (a short phrase), consumable, "
+       "and unit-price-pence, the price of one unit (and lead-hours for a delivery line). "
+       "qty and unit express the requested amount as qty × unit, qty a whole number from 1 to " max-quantity
+       ": a stone of sugar is qty 14 of unit 1 lb, or qty 1 of unit 1 stone; half a dozen eggs is qty 6 of unit 1 egg. "
+       "The unit is a short measure such as 1 lb, 1 loaf, 1 tin or 1 dozen; for counted goods it is one piece named by what it is "
+       "(1 knife, 1 tongue, 1 pair), never a bare each. "
+       "Refuse, with a reason, an amount that would take more than " max-quantity " units of a sensible measure. "
        "consumable is true for goods used up in use (food, drink, fuel, candles, soap, polish, matches) "
        "and false for things that last (tools, crockery, cloth, furniture). "
-       "Keep the requested meaning and quantity. Describe the physical item, not invented game powers. "
+       "Keep the requested meaning and amount. Describe the physical item, not invented game powers. "
        "Price realistically in integer old pence: 12d=1 shilling; 240d=£1. For example 1s 6d=18 pence. "
        "Whole pennies only; no bargaining; delivery is not charged separately. Never decide affordability or charge money."))
 
@@ -79,7 +87,7 @@
         data {:setting (get-in world [:state :setting])
               :date (clock/label (:clock world) (:round world))
               :store (select-keys loc [:name :store-profile :delivery-profile :desc :detail])
-              :request (mapv #(cond-> (select-keys % [:item :qty]) (:deliver %) (assoc :deliver true)) (:goods args))}
+              :request (mapv #(cond-> (select-keys % [:item :amount]) (:deliver %) (assoc :deliver true)) (:goods args))}
         n (count (:goods args))
         delivered (set (keep-indexed #(when (:deliver %2) %1) (:goods args)))]
     {:messages [{:role "system" :content instructions}
@@ -90,12 +98,13 @@
      :check #(check n delivered %)}))
 
 (defn- checked-args
-  "One line's appraisal; an available delivery line needs lead-hours."
+  "One line's appraisal; an available line needs its qty and unit, and an
+  available delivery line lead-hours too."
   [deliver? raw]
   (let [{:keys [args error]} (a/decode-args {:args appraisal-schema} raw)
         fields (cond (not (:available args)) [:reason]
-                     deliver? [:item :unit :desc :condition :consumable :unit-price-pence :lead-hours]
-                     :else [:item :unit :desc :condition :consumable :unit-price-pence])]
+                     deliver? [:item :qty :unit :desc :condition :consumable :unit-price-pence :lead-hours]
+                     :else [:item :qty :unit :desc :condition :consumable :unit-price-pence])]
     (cond
       error {:error error}
       (some #(or (nil? (get args %)) (and (string? (get args %)) (str/blank? (get args %)))) fields)
@@ -123,11 +132,13 @@
 
 (defn mock-appraisal
   "A deterministic free responder, not a production inventory. Tests needing
-  particular outcomes override this adapter or provide a scripted LLM."
+  particular outcomes override this adapter or provide a scripted LLM. The
+  scripted clerk's amounts are plain numbers (\"2\"), taken as the qty;
+  any other amount is one unit."
   [{:keys [request]}]
   {:tool :appraise
-   :args {:lines (for [{:keys [item deliver]} request]
-                   (cond-> {:available true :item item :unit "one"
+   :args {:lines (for [{:keys [item amount deliver]} request]
+                   (cond-> {:available true :item item :qty (or (parse-long amount) 1) :unit "one"
                             :desc (str "An ordinary " item " from the village shop.")
                             :condition "new" :consumable false :unit-price-pence 18}
                      deliver (assoc :lead-hours 2)))}})
@@ -145,6 +156,7 @@
 (defn quote-reason [world clerk {:keys [for goods]}]
   (or (service-reason world clerk)
       (when (some (comp str/blank? :item) goods) "describe the goods you want to quote")
+      (when (some (comp str/blank? :amount) goods) "give the amount of each line, as the customer asked for it")
       (let [loc (space/location world (space/location-of world clerk))]
         (when (and (some :deliver goods) (not (deliveries/delivers? loc)))
           (str "the " (:name loc) " doesn't send goods out; quote those lines without deliver")))
@@ -188,13 +200,13 @@
   (when-not (quote-reason world clerk args)
     (let [audience (space/here world clerk)]
       (vec (map-indexed
-            (fn [i [{:keys [item qty deliver]} line]]
+            (fn [i [{:keys [item deliver]} line]]
               (if (:available line)
                 {:type :claudeworth/goods-quoted :visible-to audience
-                 :data (cond-> (merge (select-keys line [:item :unit :desc :condition :consumable :unit-price-pence])
+                 :data (cond-> (merge (select-keys line [:item :qty :unit :desc :condition :consumable :unit-price-pence])
                                       {:id (str "quote-" (+ (:seq world) 1 i)) :buyer for :clerk clerk
-                                       :location (space/location-of world clerk) :qty qty
-                                       :price (* qty (:unit-price-pence line))})
+                                       :location (space/location-of world clerk)
+                                       :price (* (:qty line) (:unit-price-pence line))})
                          deliver (assoc :deliver {:lead-hours (:lead-hours line) :to (deliveries/delivery-place world)}))}
                 {:type :claudeworth/goods-refused :visible-to audience
                  :data {:buyer for :item item :reason (:reason line)}}))
@@ -329,7 +341,8 @@
 (def actions
   [{:name :quote-goods :kind :query :roles :all :needs :shop-clerk
     :doc (str "Check whether this store can sell requested portable goods and quote firm prices to a customer here. "
-              "Use for (the customer's id) and goods: a list of up to " max-lines " lines, each one kind of goods with item and qty; "
+              "Use for (the customer's id) and goods: a list of up to " max-lines " lines, each one kind of goods with item and amount, "
+              "how much of it, as the customer asked (\"a stone\", \"2 lb\", \"half a dozen\", \"3\"); "
               "if your shop sends goods out, set deliver true on a line the customer wants sent to their house, such as goods too large or too many to carry away; "
               "the shop's courier takes those up at the time given, so you don't make them up, pack or carry them; "
               "quote a whole shopping list in one call. Each line gets its own offer (a quote-id) or refusal, announced at the counter. "
@@ -342,11 +355,12 @@
               "This does not charge the customer.")
     :args [:map [:for :string]
            [:goods [:vector {:min 1 :max max-lines}
-                    [:map [:item (text-schema 120)] [:qty [:int {:min 1 :max max-quantity}]]
+                    [:map [:item (text-schema 120)] [:amount (text-schema max-amount)]
                      [:deliver {:optional true} :boolean]]]]]
     :valid? quote-reason :adjudicate :shop/appraise :on-result offer-events :reply offers-reply}
    {:name :buy :kind :free :roles :all
     :doc (str "Accept unspent quotes made for you, using quote-ids from offers: up to " max-lines " at once, so buy a whole list together. "
+              "Buy once the quotes show the goods and amounts you asked for; if one is wrong, ask the shopkeeper to quote again. "
               "You and the shopkeeper must be at that store during its opening hours. Pays the exact quoted prices from household funds, one parcel per quote. "
               "hand-over: take carries the goods away with you now; leave keeps them at the shop, paid for, to be collected or sent up by the shop (see waiting-at-shops in your view). "
               "A quote for delivery becomes an order instead, whatever hand-over says, delivered at the time it gives (see orders in your view). "
@@ -393,7 +407,7 @@
 
 ;; Mock choreography markers are translated into real tools here. Neither the
 ;; engine nor the real clerk sees them; test fixtures own their own scripts.
-;; :request-goods takes one line {:item :qty :deliver?} or a list {:goods [...]};
+;; :request-goods takes one line {:item :amount :deliver?} or a list {:goods [...]};
 ;; :accept-offer takes {:item} or {:items [...]}, and an optional :hand-over
 ;; ("take" unless it says "leave"); :ask-send-up {:item} asks for goods left
 ;; at the shop to be sent up, which the clerk does on their next turn.
@@ -425,8 +439,8 @@
 (defn scripted-customer [world buyer tool args]
   (case tool
     :request-goods [:say {:text (str "Could I buy "
-                                     (str/join " and " (for [{:keys [qty item deliver]} (request-lines args)]
-                                                         (str qty " " item (when deliver ", sent up to the house"))))
+                                     (str/join " and " (for [{:keys [amount item deliver]} (request-lines args)]
+                                                         (str amount " " item (when deliver ", sent up to the house"))))
                                      ", please?")}]
     :accept-offer (let [quotes (sort-by :id (vals (get-in world [:state :quotes])))
                         ids (vec (keep (fn [item] (:id (first (filter #(and (= buyer (:buyer %)) (= item (:item %))) quotes))))

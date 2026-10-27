@@ -55,7 +55,7 @@
               (is (nil? (a/check work awake id {:doing "attending to work here" :on [place] :hours 0.5})))
               (is (seq (cw/agent-brief awake id)))
               (if (positions/capable? awake id :shop-clerk)
-                (let [args {:for (:id customer) :goods [{:item "a small counter purchase" :qty 1}]}
+                (let [args {:for (:id customer) :goods [{:item "a small counter purchase" :amount "1"}]}
                       request (shop/request awake id args)
                       data (json/read-value (get-in request [:messages 1 :content]) json/keyword-keys-object-mapper)]
                   (is (nil? (shop/quote-reason awake id args)))
@@ -78,7 +78,7 @@
                  (cond
                    (and (= :draper (:role (w/agent world agent-id)))
                         (= 1 (:round world)) (not (some #{"quote-goods"} used)))
-                   {:tool :quote-goods :args {:for @buyer :goods [{:item "a large parcel of household linen" :qty 1 :deliver true}]}}
+                   {:tool :quote-goods :args {:for @buyer :goods [{:item "a large parcel of household linen" :amount "1" :deliver true}]}}
                    (and (= @buyer agent-id) (= 2 (:round world)) (seq (get-in world [:state :quotes])))
                    {:tool :buy :args {:quote-ids (vec (keys (get-in world [:state :quotes]))) :hand-over "take"}}
                    :else {:tool :pass}))
@@ -97,7 +97,7 @@
             couriers (deliveries/couriers world)
             courier (get couriers "drapers-shop")
             clerk (:id (first (filter #(= :draper (:role %)) (w/active-agents world))))
-            args {:for @buyer :goods [{:item "a large parcel of household linen" :qty 1 :deliver true}]}
+            args {:for @buyer :goods [{:item "a large parcel of household linen" :amount "1" :deliver true}]}
             data (json/read-value (get-in (shop/request world clerk args) [:messages 1 :content])
                                   json/keyword-keys-object-mapper)]
         (testing "the draper opts into existing deliveries, like the butcher"

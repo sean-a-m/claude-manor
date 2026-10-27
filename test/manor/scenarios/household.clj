@@ -21,7 +21,7 @@
     (if (some #{"quote-goods"} used)
       {:tool :reply :args {:text "The two packets cost three shillings altogether."}}
       {:tool :quote-goods :args {:for (:initiator conversation)
-                                 :goods [{:item "packet of needles" :qty 2}]}})
+                                 :goods [{:item "packet of needles" :amount "2"}]}})
     (and (= "lord-claudeworth" agent-id) (= 1 (:pass conversation)))
     {:tool :reply :args {:text "Every room, my dear. I would not dream of choosing a wallpaper without you."}}))
 

@@ -175,7 +175,7 @@
         (is (contains? (tools run world "briggs") :quote-goods))
         (is (not (contains? (tools run world "lord-claudeworth") :quote-goods))))
       (testing "and the shop's own check says the same"
-        (is (nil? (shop/quote-reason world "hobbs" {:for "lord-claudeworth" :goods [{:item "a leg of mutton" :qty 1}]})))
+        (is (nil? (shop/quote-reason world "hobbs" {:for "lord-claudeworth" :goods [{:item "a leg of mutton" :amount "1"}]})))
         (is (= "only someone who keeps a shop can quote goods"
                (shop/service-reason world "lord-claudeworth"))))
       (testing ":roles and :needs are checked together"

@@ -251,8 +251,8 @@ in a fraction of a second.
 ### 6.3 The store
 
 Mr Briggs keeps the general store, with a routine and lodgings above it. Ask him for goods
-with `say`; he uses `quote-goods {for goods}`, where `goods` lists up to 10 lines of `{item qty}`
-(a whole shopping list). One narrow engine-run adjudicator call checks, line by line, whether
+with `say`; he uses `quote-goods {for goods}`, where `goods` lists up to 10 lines of `{item amount}`
+(a whole shopping list; `amount` is free text, "a stone", "3", and the appraiser turns it into a count of units, decision 48). One narrow engine-run adjudicator call checks, line by line, whether
 this kind of store in rural England in 1904 could plausibly stock each request, then prices it
 in old pence (decision 41). Its prompt includes the actual store's `:store-profile`, name/description,
 setting/date and goods/quantity, not the full world or household wealth.
@@ -864,3 +864,23 @@ Decisions for items (done):
     seeker's own words; a narrow judge, built like the find judge, picks who is meant from
     everyone in the seeker's walking area and rates the odds, the engine rolls, and the reply says
     where they are so the seeker can walk there. It moves no one and tells the person nothing.
+48. **Amounts in quotes.** Designed 2026-10-27, not yet built. The clerk's `quote-goods` line was
+    `{item qty}`, and the appraiser chose the unit afterwards, so `qty` counted units nobody had
+    chosen yet. Models read it as "one order of what was asked": in
+    `old-test-runs/shop-hand-over-first-check` Bessie asked for "a stone of your best lump" and
+    Briggs sent `lump sugar, qty 1`, appraised as `1 lb`; in `runs/claudeworth-medium-20261025-145921`
+    "a ton of house coal" became 1 × `cwt`. It worked only when the clerk wrote the measure into
+    `item` ("sirloin… (about 14 lb)"). Weights and volumes suffer; counted goods (a knife, a
+    pocket watch) were fine. The change:
+    - A goods line is `{item amount deliver?}`: `amount` is free text, at most 40 characters, the
+      amount as the customer put it ("a stone", "2 lb", "half a dozen", "3", "a ton"). `qty` goes.
+    - The appraiser sees `{item amount}` and returns `qty` (a whole number, 1 to `max-quantity`)
+      with `unit` and `unit-price-pence`, keeping the requested amount: a stone of sugar is 14 ×
+      `1 lb` or 1 × `1 stone`. For counted goods the unit is one piece named by what it is
+      (`1 knife`, `1 tongue`, `1 pair`), never a bare `each`, which made "(each each)". An amount
+      too large for the counter, or past the cap, is refused with a reason as now.
+    - The engine still multiplies and caps; quotes, purchases, orders and the `amount` aspect read as
+      before ("14 × 1 lb"), so the clerk sees the result against what was asked.
+    - The `buy` doc: buy once the quotes show the goods and amounts you asked for; if one is wrong,
+      ask the shopkeeper to quote again. (Bessie bought while Briggs was still asking how much moist
+      sugar she wanted.)

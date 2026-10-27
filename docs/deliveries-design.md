@@ -1,6 +1,6 @@
 # Deliveries: design and implementation plan
 
-**Status:** done. Phases 1–4 are built and mock-tested, and the real-run check is below
+**Status:** done; a follow-up, "Hand-over", is at the end. Phases 1–4 are built and mock-tested, and the real-run check is below
 ("Real run"). As built, the shared functions are
 `hiring/new-person`, `hiring/spawn-spec` and `hiring/idle-rounds` (in `manor.mechanics.hiring`, which owns
 the people bridges and adjudicators), not `people/...` as sketched below.
@@ -392,3 +392,125 @@ Start after `character-generation` is merged; phases 1 and 2 don't touch people 
   - whether anyone fetches the goods.
 
   Move the run to `old-test-runs/deliveries-first-check`.
+
+## Hand-over: goods left at the shop and `send-up` (2026-10-26)
+
+**Status:** designed, not built. The user agreed the design on 2026-10-26.
+
+### Why
+
+In no real run has a delivery yet arrived, but shopkeepers keep promising them. In
+`runs/claudeworth-medium-20261025-203523` there were no orders, four counter sales, and:
+
+- Mrs Garland quoted a goose, fowls and rabbits for the counter, then said "I'll have Reuben up
+  the hill with the goose… inside the hour". Mrs Thorne bought them, so they were in her hands.
+  Garland called for Reuben, spent an hour "packing up the Manor order for Reuben" (the work
+  judge agreed: "the shop stands ready for the boy's knock"), and failed to `find-person`
+  "Reuben, my errand boy", who is a people-server record, not an agent.
+- Briggs said "I'll have it all into your basket directly. And I'll tell Stephen Dobbs myself",
+  then watched the door for Dobbs and asked after him at the Crown; Hollis later asked Carter
+  about "Dobbs's cart". Hobbs noted "check the errand boy got the Manor order up"; Pocock
+  offered to "send the boy up".
+- In `…145921` the general store's carrier became a village carrier for letters and town orders.
+  The two real orders in these runs (`…145921`, `…180411`) were due after their runs ended.
+
+The cause is that the conversation and the exchange are decoupled:
+
+- `quote-goods` happens in the conversation, but `buy` is a `:final` action on the buyer's own
+  turn afterwards, when both have already agreed in words how the goods travel.
+- The clerk decides `deliver` when quoting, before their line. The wish to send goods up comes
+  later in the talk (a big order, a full basket, being obliging), when the counter quote
+  already exists, and nothing can turn it into a delivery.
+- A counter purchase leaves no state the clerk can see, so their own spoken promise is the most
+  concrete thing they have. Garland saw "takes the goods away" and packed the order anyway.
+- `here.orders-sent-up-by` names the courier at the counter all day, as if he were at hand.
+
+### Design
+
+The exchange happens inside the conversation, and every purchase leaves visible state until
+it's settled. The seller decides what is sent up; the buyer decides whether to take the goods.
+
+1. **`buy` takes a hand-over and can be used on a line.** `buy {quote-ids, hand-over: "take" |
+   "leave"}`; `hand-over` is required. `take` is today's behaviour (the goods go into the
+   buyer's hands). `leave` puts the goods at the shop, paid for and owned by the household,
+   marked as waiting for the buyer. Delivery quotes are ordered as now whatever `hand-over`
+   says. `buy` becomes `:free` and is a speaking-turn tool for a buyer with unspent quotes at
+   that shop, so its result is announced in the conversation before the clerk's next line.
+   Narration for `leave`: "Mrs Thorne buys … at the Poulterer's shop, and leaves the goods
+   there to be collected or sent up."
+2. **Waiting goods are ordinary items with a marker,** owned by the generic items mechanic:
+   `:waiting {:for buyer :keeper clerk :at shop :since round}`. `look`, `take`, `give`,
+   `put-in` and work work on them as on any item.
+   - **Shown as waiting** only while the goods are at the shop: the outermost thing lies at
+     `:at`, or is held by the keeper. In `location.here.items` such an item gets
+     `"waiting-for": "Mrs Thorne"`; the shop's rules say goods waiting for someone are paid for,
+     to be sent up or handed over.
+   - **Cleared** by the reducers when someone other than the keeper takes the item, or it's
+     given to someone other than the keeper, or it's put down or put in something away from
+     `:at`. `send-up` and the steward remove the item. Picked up, packed or put down by the
+     keeper in the shop, it stays waiting.
+   - **The buyer's view** gets `waiting-at-shops: [{item, amount, at}]` (left out when empty),
+     like `orders`. Only the buyer sees it: if they send someone, they say so, and at the shop
+     the marker shows whose the goods are.
+3. **`send-up {items, within-hours}`, the clerk's tool.** At a shop with a `:delivery-profile`,
+   open, the clerk turns waiting goods there into orders, due within `within-hours` (1 to
+   `send-up-max-hours`, 3 for now), fitted to opening hours by `due-round`. It's `:free`, on
+   the clerk's turn and as a speaking-turn tool, so "Reuben will have it up within the hour"
+   can be done as it's said. No appraisal: the goods are appraised and paid for. The items are
+   removed and each becomes an order carrying the item's name, description, aspects and
+   consumability; arrival makes the parcel from those, so nothing is duplicated. Orders appear
+   in `orders` for the buyer and clerk, with the courier's name, as now.
+4. **Held for collection at shops that don't deliver.** The same `leave` works at every shop:
+   someone collects the goods or the clerk hands them over. This replaces "nothing is set aside
+   for later collection".
+5. **The courier is named only on orders.** `here.orders-sent-up-by` goes from the shop's view;
+   `sent-up-by` on `orders` and the arrival stay. Couriers are still named at the start (a free
+   record), so the name is stable.
+6. **The steward.** Waiting goods stay steward candidates like any loose consumable, but the
+   steward sees the marker: `"waiting": "for Mrs Thorne since Mon 11:00"` in the candidate's
+   JSON, and one instruction line: goods waiting for someone are normally left until they have
+   plainly been forgotten for days. No new exclusion code.
+7. **`deliver` on quotes stays,** for goods only plausible if sent up (a ton of coal), which the
+   appraiser must judge against the delivery profile.
+
+### Decisions (the user's, 2026-10-26)
+
+1. Goods may be held for collection; forgotten ones are left to the steward, given the marker,
+   rather than protected by special cases.
+2. The clerk sets `send-up`'s lead time, capped low (3 hours) for now.
+3. `waiting-at-shops` goes to the buyer only; at the shop the items list shows the marker.
+
+### Not addressed
+
+- A clerk can still say the wrong thing before the purchase, or ignore waiting goods. Measure
+  first: count waiting goods never sent or collected in a short real run. If needed, the
+  conversation judge could later reconcile agreements with state.
+- Invented services (a village carrier for letters). Dropping the courier's name from the
+  counter should remove most of the pull.
+
+### Phases
+
+Each ends with `clojure -M:test` passing and a commit, on branch `shop-hand-over`.
+
+1. **Items: the waiting marker** (`manor.mechanics.items`, `items/views`, `items/steward`).
+   The `:waiting` key in the item schema; `items/waiting?` (shown-as-waiting test) and
+   `items/waiting-for` (a person's waiting items); clearing in the `:item/taken`, `:item/given`,
+   `:item/put-down` and `:item/put-in` reducers; the `waiting-for` annotation in
+   `add-to-view`; the steward's JSON field and instruction line. Tests: each clearing rule,
+   the keeper exception, the annotation only at `:at`, the steward request shows the marker,
+   replay.
+2. **Shop: `hand-over`** (`shop.clj`, `claudeworth.clj`). `buy` gets `hand-over`, becomes
+   `:free`, and joins `speaking-actions` for a buyer with unspent quotes here; `leave` adds the
+   waiting items at the shop; narration; `waiting-at-shops` in `observe`; drop
+   `here.orders-sent-up-by`; rules, `quote-goods` and `buy` docs, the Claudeworth shopping rules
+   and the judge brief; `scripted-customer` (`:accept-offer` takes an optional hand-over,
+   default take). Tests: take and leave, buying on a line, the buyer's list, the delivery quote
+   ignoring hand-over, the shop view without the courier.
+3. **Deliveries: `send-up`** (`deliveries.clj`, `shop.clj`, `claudeworth.clj`). The action, its
+   checks (clerk, open, delivering shop, waiting items at this shop, 1–3 hours), the
+   `:deliveries/sent-up` event and reducer (items removed, orders added), arrival from
+   item-based orders, the speaking-turn tool. Tests: send-up on a line and on a turn, refusals,
+   due round within opening hours, arrival with the items' aspects, `orders` for the buyer,
+   replay. Extend the Claudeworth mock day: a counter purchase left and sent up.
+4. **Docs and check.** `docs/scenario-authoring.md` (shop section, item marker, steward),
+   `docs/roadmap.md`, this section's status; a mock day and its transcript.

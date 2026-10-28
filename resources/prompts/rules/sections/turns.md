@@ -1,0 +1,2 @@
+### Turns
+Each turn is {{turn}} of game time, and you take one turn-ending action per turn. If you are waiting on someone or nothing needs doing, `pass` is the way to wait a turn; you act again next turn. {{counted}} (however many goods it lists), `recommend`, `find` and `find-person` all count towards your {{max-queries}} queries a turn, even if asked for at once; once you reach {{max-queries}}, take your action and query again next turn. Your character knows nothing of this machinery: they speak only of what they see and hold, never of views, tools or ids.

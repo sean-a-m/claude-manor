@@ -11,6 +11,7 @@
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.narrate :as n]
+            [manor.prompts :as prompts]
             [manor.world :as w])
   (:import (java.time LocalDate LocalDateTime LocalTime)
            (java.time.format DateTimeFormatter)
@@ -514,10 +515,7 @@
               entries))))))
 (def actions
   [{:name :recommend :kind :query :roles :all
-    :doc (str "Recommend one candidate for a position to someone else here (for: their id, not your own). "
-              "Use it whenever someone asks whether you know anyone for a post, on your turn or on your line in a conversation, before you answer: "
-              "never make up a name instead. This finds a candidate from the hiring pool or creates one that you know, but it can't be an established figure living around the village, so do not promise to recommend someone already working in the village. "
-              "Privately learn what you know of the candidate, then speak of them in your own words. Both of you learn how to send-for them.")
+    :doc (prompts/render "docs/hiring/recommend.md")
     :args [:map [:position :string] [:for :string]] :valid? recommend-reason
     :query-fn recommend! :on-result recommendation-events
     :reply (fn [_ _ _ {:keys [events]}]
@@ -626,23 +624,14 @@
                                 {:name :people/visits :tick (fn [world _] (tick scenario world))})))))
 
 (defn- rules-text
-  "Hiring's rules, step by step for each side, with `arrivals` saying who may
-  arrive."
+  "Hiring's rules, step by step for each side, with the template `arrivals`
+  saying who may arrive."
   [arrivals]
-  (str "New staff are found only through `recommend`: nobody can be hired until it has made them real.\n"
-       "- Looking for staff: ask someone who might know of a candidate (a servant, a shopkeeper, a neighbour), in `converse`. They answer with `recommend`, and you both learn the candidate's name, id and what they know of them.\n"
-       "- Asked whether you know anyone for a post: use `recommend` there and then, on your turn or on your line in a conversation before you speak, with the position id and the asker's id in `for`; then tell them of the candidate in your own words. Until `recommend` names someone, your character knows of nobody suitable: never make up a name, a relation (\"my niece\") or where a candidate lives. Do not recruit or recommend established characters already living or working in your village; a new candidate who lives locally but is not yet present as a character is fine. You may describe knowing the candidate through local acquaintances.\n"
-       "- Asked to look out for someone on another's behalf: ask around in `converse` and have whoever knows someone `recommend` them to you. Then `send-for` them when someone of the household can meet them, and tell the household who is coming.\n"
-       "- Bringing a candidate: anyone who knows a candidate's id can `send-for` them; they arrive at the meeting place (`hiring.meeting-place`) next round, and that is where to meet them. " arrivals " A letter or message of your own brings no candidate.\n"
-       "- Interview and engage: interview by `converse`, then `engage` with who (their agent id), position, terms and optionally bedroom. The candidate may `accept-place` with conditions, `decline-place` and haggle, or `take-leave`. `send-away` ends an unengaged visit. "
-       "Saying you'll take someone on engages nobody until you use `engage` to make the offer, and only the other person using `accept-place` settles the offer. Neither ends your turn, and both can be used in a conversation, so the bargain can be struck as it's agreed.\n"
-       "- Waiting: an unengaged candidate remains available for a full 24 hours after arrival or their latest conversation (24 rounds without a game clock), unless explicitly sent away or they choose to abandon the application with `take-leave`. They may wait at the house, in the village or at the pub: agree where to find them, and do not send them out of the mapped area merely to await a decision. A candidate-home is off-map background, not a place to walk to; while their status is here, their actual map location is where to meet them.\n"
-       "- Leaving and coming back: `take-leave` takes a candidate out of the mapped area, with no turns until they come back. A candidate who means to come back (to fetch their things, say) gives `take-leave` a return-date and return-time, and arrives at the meeting place then; those who know them see it in their calendar. Without a return time they come back only if sent for. `send-for` brings an away candidate back sooner.\n"
-       "Outdoor servants' lodging and dismissal of hired staff are possible."))
+  (prompts/render "rules/hiring.md" {:arrivals (prompts/render arrivals)}))
 
-(def rules (rules-text "Nobody new arrives except through send-for."))
+(def rules (rules-text "rules/hiring-arrivals.md"))
 
 (def rules-beside-visits
   "Hiring's rules for a world with visits (manor.mechanics.visits), where
   guests arrive by invitation too."
-  (rules-text "No candidate arrives except through send-for."))
+  (rules-text "rules/hiring-arrivals-beside-visits.md"))

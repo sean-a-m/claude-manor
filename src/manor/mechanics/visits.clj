@@ -26,6 +26,7 @@
             [manor.mechanics.space :as space]
             [manor.mechanics.visits.judge :as judge]
             [manor.narrate :as n]
+            [manor.prompts :as prompts]
             [manor.world :as w])
   (:import (java.time LocalDate LocalDateTime LocalTime)
            (java.time.format DateTimeFormatter)
@@ -812,15 +813,7 @@
   {:name :invite :kind :free :roles :all :per-turn 1
    :kind-for (fn [args] (if (:person args) :query :free))
    :hint "Free: does not end your turn. With person, it's a query and counts towards your queries this turn."
-   :doc (str "Invite someone to the house for a date and time. by: \"in-person\" (they're here with you), "
-             "\"post\" (you're at a post office) or \"messenger\" (via: the id of anyone here who will carry it, "
-             "the person invited included). who: their id, anyone you know, including people you've met who are "
-             "away now (away-acquaintances). Or, instead of who, person: who they are, in your own words (at most "
-             max-person " characters). Whenever you know their name, give it, with how they stand to you "
-             "(\"my father, Sir Henry Vane\", not just \"my father\"): a name makes it certain the right person comes. "
-             "A description without a name is still accepted. date (\"1904-10-21\") and time (\"19:00\"): when "
-             "they're expected at the house. stay: how long, in your words (\"to dine\", \"a week\"). reason: "
-             "optional, why. bedroom: optional, a bedroom id for a guest who stays the night.")
+   :doc (prompts/render "docs/visits/invite.md" {:max-person max-person})
    :args (into [:map [:by [:enum "in-person" "post" "messenger"]]
                 [:who {:optional true} :string]
                 [:person {:optional true} [:string {:min 1 :max max-person}]]
@@ -846,13 +839,7 @@
   "The GM's `schedule-visit` (a query: someone new is written first) and `cancel-visit`."
   [scenario]
   [{:name :schedule-visit :roles #{:gm} :kind :query
-    :doc (str "Arrange a visit to the house at a date and time. who: the id of anyone in the world; someone about is told "
-              "at once, in their calendar, and makes their own way, and someone away arrives at the meeting place at the "
-              "time, told nothing before. Or, for someone new from elsewhere, give instead of who: name, sex (\"male\" or "
-              "\"female\"), age, from (where they live), known-as (a public description with nothing private, "
-              "\"a curate from Ely\") and situation (second person: who they are, and how they stand with the house); "
-              "they're written now and arrive at the time. known-to: ids of anyone else who should have it in their "
-              "calendar (default nobody).")
+    :doc (prompts/render "docs/visits/schedule-visit.md")
     :args (-> [:map [:who {:optional true} :string]]
               (into (map (fn [[k schema]] [k {:optional true} schema])) judge/new-person-fields)
               (conj [:known-to {:optional true} [:vector :string]])
@@ -879,7 +866,7 @@
 
 (def rules
   "The rules paragraph, from the design's section 9."
-  "Anyone may `invite` someone to the house for a date and time: in person (they're here with you), by post (at a post office) or by messenger (anyone here who will carry it, even the person invited). Name them with `who` if you know their id: anyone you know, including people you've met who are away now (`away-acquaintances` in your view). Otherwise say who they are in `person`, in your own words. If you know their name, always give it in `person`, with how they stand to you (\"my father, Sir Henry Vane\", not \"my father\"): the more exactly you say who they are, the surer it is that the right person comes. Someone who lives nearby makes their own way to the house at that time; someone from further off arrives at the meeting place (`hiring.meeting-place`). A guest from elsewhere stays as long as seems right and goes with `take-leave`, which can give a return-date and return-time to come back then; while staying, they see the house's bedrooms under `household.bedrooms`, to choose one if the invitation named none. If you're invited, your calendar says when and where to be expected.")
+  (prompts/render "rules/visits.md"))
 
 (defn- merged
   "Configs merged in order, the :lead-hours map key by key."

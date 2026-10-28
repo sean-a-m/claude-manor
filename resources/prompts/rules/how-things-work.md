@@ -1,0 +1,3 @@
+## How things work
+
+{{sections}}

@@ -22,7 +22,8 @@
     (roll-cast! \"worlds/claudeworth.edn\")              ; roll and polish a world file's cast (real model)
     (roll-cast! \"worlds/claudeworth.edn\" {:llm :mock}) ; free: the mock polish
     (start! :village {:llm :mock :offline? true :test? true})  ; under test-runs/
-    (clean-test-runs!)                ; delete everything under test-runs/"
+    (clean-test-runs!)                ; delete everything under test-runs/
+    (require 'prompt-capture) (prompt-capture/capture! \"before\")  ; every prompt of three mock days, to diff"
   (:require [clojure.pprint :refer [pprint]]
             [manor.engine :as e]
             [manor.io.llm :as llm]

@@ -322,8 +322,8 @@ next phase must know.**
 
 | Phase | What | Status |
 |---|---|---|
-| 0 | Baseline prompt capture | not started |
-| 1 | Renderer, templates moved verbatim | not started |
+| 0 | Baseline prompt capture | done 2026-10-28 (`57fc5ea`) |
+| 1 | Renderer, templates moved verbatim | done 2026-10-28 (`d2425e4`, `2926604`); diff empty |
 | 2 | Setting packs, neutral rewording, overrides | not started |
 | 3 | Money specs | not started |
 | 3b | Private accounts | not started |
@@ -342,6 +342,86 @@ next phase must know.**
    paths, missing key throws, classpath cache); move the prompts of section 4 groups B and C into
    `resources/prompts/` verbatim, with code supplying today's values as parameters where text was
    computed. Diff: empty.
+
+**Phase 0, done (2026-10-28, `57fc5ea`).** `dev/prompt_capture.clj`:
+
+```sh
+clojure -M:dev -e "(require 'prompt-capture) (prompt-capture/capture! \"before\") (shutdown-agents) (System/exit 0)"
+# change the code, then the same with "after", and
+diff -r prompt-baseline/before prompt-baseline/after
+```
+
+`capture!` replaces `prompt-baseline/<label>/` (gitignored, about 53 MB, under a minute). For
+`claudeworth`, `lodge` and `claudeworth-medium` it runs a 48-round mock day (seed 1, offline,
+under `test-runs/`, no port) and writes `<scenario>/round-NN.md`: every request of the round, its
+messages and full tool definitions (a wrapper around the mock LLM keeps the definitions by digest,
+joined to llm.edn's calls), sorted by agent and then text, because agents in one schedule group
+and jobs judged together call concurrently. Calls: 352, 179 and 593. `rendered/` holds what a
+mock day may not build, rendered against the worlds at their start: the rules (Claudeworth; with
+`find` refused at shops; without visits; Lodge's, without an architect), the judge brief, the
+physical, hiring and visits rules, the find-person, invitation, persona, appearance and shop
+requests in full, the moved tool docs, and every tool of Claudeworth and Lodge. Two captures of
+unchanged code diff empty (checked).
+
+**Phase 1, done (2026-10-28, `d2425e4` renderer, `2926604` templates).** `manor.prompts/render`
+(`src/manor/prompts.clj`, tests in `test/manor/prompts_test.clj` with fixture templates under
+`test/prompts/test/`): reads `prompts/<path>` from the classpath once, drops the file's one final
+newline, fills `{{key}}` and dotted `{{a.b}}` (keyword or string keys), throws ex-info with
+`{:template :key}` for a missing or nil value; values go in with `str` and aren't filled again.
+`diff -r prompt-baseline/before prompt-baseline/after` was empty, and `clojure -M:test` passed
+(466 tests, 9184 assertions). The templates, and who renders them:
+
+| Template (under `resources/prompts/`) | Rendered by | Parameters |
+|---|---|---|
+| `agent/preamble.md` | `prompt/agent-preamble` | |
+| `rules/how-things-work.md` | `claudeworth/rules` | `sections`, the sections below joined by a blank line |
+| `rules/sections/turns.md` | ″ | `turn`, `max-queries`, `counted` (`turns-counted-architect.md` or `turns-counted.md`) |
+| `rules/sections/getting-about.md`, `sleep.md` | ″ | |
+| `rules/sections/speaking.md` | ″ | `speech-limit`, `max-others`, `passes` |
+| `rules/sections/work.md` | ″ | `max-work-hours` |
+| `rules/sections/things.md` | ″ | `find-for-sale` (`things-find-everywhere.md` or `things-find-not-at-trade.md`) |
+| `rules/sections/people.md` | ″ | `physical` (`rules/physical.md`) |
+| `rules/sections/shopping.md` | ″ | `paid` (`shopping-paid-commissions.md` or `shopping-paid.md`) |
+| `rules/sections/building.md` | ″, only with an architect | `sizes` (joined), `fee-percent` |
+| `rules/sections/hiring.md` | ″ | `hiring` (hiring's rules) |
+| `rules/sections/invitations.md` | ″, only with visits | `visits` (`rules/visits.md`) |
+| `rules/physical.md` | `physical/rules` | |
+| `rules/hiring.md` | `hiring/rules`, `hiring/rules-beside-visits` | `arrivals` (`rules/hiring-arrivals.md` or `rules/hiring-arrivals-beside-visits.md`) |
+| `rules/visits.md` | `visits/rules` | |
+| `judges/brief.md` | `claudeworth/judge-brief` | `setting` (`""` when the world has none, as before) |
+| `judges/find-person.md` | `find-person/instructions` | |
+| `judges/invitation.md` | `visits.judge/instructions` | |
+| `judges/shop-appraiser.md` | `shop/instructions` | `max-lead-hours`, `max-quantity` |
+| `writers/persona.md` | `people/instructions` (the polish) | `max-circumstance`, `advised-persona`, `max-persona`, `max-manner`, `advised-appearance`, `max-appearance` |
+| `writers/appearance.md` | `people/appearance-request` | `advised-appearance`, `max-appearance` |
+| `docs/find-person.md` | `find-person`'s `:doc` | `max-who` |
+| `docs/hiring/recommend.md` | `recommend`'s `:doc` | |
+| `docs/visits/invite.md`, `schedule-visit.md` | `invite` (`max-person`), `schedule-visit` | |
+| `docs/shop/quote-goods.md`, `buy.md`, `send-up.md` | the shop's actions | `max-lines`; `send-up` also `send-up-max-hours` |
+| `docs/architect/*.md` | the five architect actions | |
+
+What phase 2 must know:
+- **Everything renders once, at namespace load**: the instructions, the rules of physical, hiring
+  and visits, and every tool `:doc` are `def`s, and `actions/->tool` reads `:doc` as a fixed
+  string. Pack-first lookup needs the run's pack, so these become functions of the world (or the
+  scenario's actions are built per run). Only `claudeworth/rules`, the judge brief and the
+  appearance writer render per call today. The cache is keyed by path alone; a pack override
+  needs the pack in the key.
+- **Not moved, though phase 2 touches them:** `hiring/take-leave-doc` (the example date
+  "1904-10-21"; `return-reason`'s message has it too), the judges' and writers' own tool
+  descriptions (`seek`, `invitee`, `polish`, `appraise`, `appearance`). Deliveries has no
+  model-facing docs of its own: its tool docs are the shop's `quote-goods` and `send-up`.
+- **Group C is still inside shared templates:** the sterling sentence ends
+  `rules/sections/shopping.md` and is in `judges/shop-appraiser.md` ("Price realistically in
+  integer old pence ..."); the invitation examples are in `judges/invitation.md` (the "Pugh the
+  architect" and "a curate from Ely" examples, "Your father died in 1898.", the Queen line).
+- **Whitespace that matters:** `writers/appearance.md` ends with a space before its final newline
+  (the old string did); an editor that strips trailing spaces changes the prompt. The space
+  before `{{find-for-sale}}`'s fragment is in `things.md`, so the fragments have none.
+- The typos are verbatim, as decision 9 says ("You are a an agent ... a the simulation ... with
+  other agent", and the persona writer's run-together sentences: "circumstances.Use",
+  "interpretation.circumstances", "area.Present", "concrete.Period", "welcome.manner").
+- Group A prompts and the GM brief are still in code, as planned.
 2. **Setting packs.** The directory, loader, `[:state :setting-pack]`, England as default for old
    runs, `settings/england-1904/`; pack-first template lookup; group B rewording and group C
    fragments; holidays and positions catalogue from the pack; clock label from the pack; example

@@ -1,0 +1,2 @@
+### Invitations and guests
+{{visits}}

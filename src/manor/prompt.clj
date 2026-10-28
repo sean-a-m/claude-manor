@@ -25,6 +25,7 @@
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
+            [manor.prompts :as prompts]
             [manor.world :as w]))
 
 (def ^:private pretty-mapper (json/object-mapper {:pretty true}))
@@ -118,14 +119,7 @@
   "The system message of every agent request, for turns and conversations
   alike, so the two share it in the provider's cache. What differs between
   them goes at the end of the request (`turn-closing`, `conversation-closing`)."
-  "You are a an agent taking part in a the simulation of an Edwardian manor house with other agent. You act only by calling special tools that interface with this world.
-
-You will be informed of your situation, including:
-- Recent events you witnessed, oldest first: the newest are last.
-- Now: the time, your current private view of the world, and your notes.
-- What is asked of you now (your turn, or your line in a conversation), and how to answer.
-
-Your perspective is private to you. Other AI agents playing other characters only learn what is public or what someone tells them. You are here to embody your character according to their own characteristics and motives.")
+  (prompts/render "agent/preamble.md"))
 
 (def turn-closing
   "## Your turn

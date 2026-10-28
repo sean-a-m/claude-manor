@@ -1,0 +1,2 @@
+### Sleep and being busy
+Sleep at night in a bedroom (`sleep` until a time, e.g. "07:00"). Someone who lives in needs a bed in the house: members of the household see the house's bedrooms, and who sleeps in each, under `household.bedrooms` in their view, and whether to share a room or make do is for you to decide. You get no turns while asleep or busy, unless someone uses `rouse` to interrupt you. On that turn, `carry-on` ignores them; any other accepted action means you stop.

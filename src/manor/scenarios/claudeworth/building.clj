@@ -8,6 +8,7 @@
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.narrate :as n]
+            [manor.prompts :as prompts]
             [manor.scenarios.claudeworth.money :as money]
             [manor.world :as w])
   (:import (java.time LocalTime)))
@@ -196,26 +197,26 @@
 
 (def actions
   [{:name :consult-references :kind :query :roles :all
-    :doc "Search reference books at an open architect's office. The result is private and remembered next turn."
+    :doc (prompts/render "docs/architect/consult-references.md")
     :args [:map [:query [:string {:min 2 :max 200}]]]
     :valid? (fn [world actor _] (office-reason world actor))
     :bridge :architect/references :bridge-args (fn [_ _ args] (select-keys args [:query]))
     :on-result (fn [_ actor args result]
                  [{:type :claudeworth/consulted :visible-to #{actor} :data (assoc result :query (:query args))}])}
    {:name :price-list :kind :query :roles :all
-    :doc "Ask for the price list at an open architect's office. All prices in this result are whole pounds (£), not pence. The result is private and remembered next turn."
+    :doc (prompts/render "docs/architect/price-list.md")
     :args [:map] :valid? (fn [world actor _] (office-reason world actor))
     :query-fn (fn [world _ _ _] (price-list world))
     :on-result (fn [_ actor result-args result]
                  [{:type :claudeworth/prices-quoted :visible-to #{actor} :data result}])}
    {:name :draw-plans :kind :query :roles :all :needs :architect
-    :doc "Draft and price a room for a client who is with you at your open office; name them with for. Use house room ids from places for connects-to, and a size from the price list. Bridge prices are whole pounds (£); stored plans show formatted sterling. Plans are stored, not commissioned."
+    :doc (prompts/render "docs/architect/draw-plans.md")
     :args [:map [:for :string] [:name [:string {:min 1 :max 60}]] [:floor :string]
            [:desc [:string {:min 1 :max 600}]] [:connects-to [:vector {:min 1 :max 4} :string]]
            [:size [:string {:min 1 :max 40}]]]
     :valid? draw-reason :bridge :architect/draft :bridge-args draft-args :on-result store-draft}
    {:name :show-plans :kind :free :roles :all
-    :doc "Spread out a plan you hold for everyone here to see, anywhere. Use a plan id from plans."
+    :doc (prompts/render "docs/architect/show-plans.md")
     :args [:map [:plan-id :string]]
     :valid? (fn [world actor {:keys [plan-id]}]
               (or (held-reason world actor plan-id)
@@ -224,7 +225,7 @@
               [{:type :claudeworth/plans-shown :visible-to (space/here world actor)
                 :data {:plan-id plan-id :to (vec (sort (space/here world actor)))}}])}
    {:name :commission :kind :final :roles :all
-    :doc "Commission a plan you hold at an open architect's office, paid from household funds. Only one room is built at a time: while any room is being built, a commission is refused until it is finished (see building for the completion time)."
+    :doc (prompts/render "docs/architect/commission.md")
     :args [:map [:plan-id :string]]
     :valid? (fn [world actor {:keys [plan-id]}]
               (or (office-reason world actor) (held-reason world actor plan-id)

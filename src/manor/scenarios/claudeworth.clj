@@ -38,6 +38,7 @@
             [manor.mechanics.space :as space]
             [manor.mechanics.visits :as visits]
             [manor.narrate :as narrate]
+            [manor.prompts :as prompts]
             [manor.scenarios.claudeworth.building :as building]
             [manor.scenarios.claudeworth.deliveries :as deliveries]
             [manor.scenarios.claudeworth.holidays :as holidays]
@@ -378,8 +379,8 @@
 
 ;; ---------------------------------------------------------------------------
 ;; Roles. Who's who and the setting come from the world file (:meta :setting
-;; and :roles, kept in :state at :init); the rules are written here, with
-;; their numbers taken from the world and the actions.
+;; and :roles, kept in :state at :init); the rules are templates under
+;; resources/prompts/rules/, with their numbers taken from the world and the actions.
 
 (defn- find-everywhere?
   "Is `find` allowed at places of trade too? Yes unless :find-everywhere? was false."
@@ -395,88 +396,51 @@
     "this isn't your house to search; ask for it here instead"))
 
 (defn- section
-  "A headed section of the rules: `title`, then `parts` run together."
-  [title & parts]
-  (str "### " title "\n" (str/trim (apply str parts))))
+  "A section of the rules, or a part of one chosen in code: the template
+  rules/sections/`file`.md, filled from `params`."
+  ([file] (section file {}))
+  ([file params] (prompts/render (str "rules/sections/" file ".md") params)))
 
 (defn rules
   "How actions work, for every role: a section for each subject, so a model
-  (and whoever reads the prompt) can find what applies."
+  (and whoever reads the prompt) can find what applies. Each section is a
+  template under resources/prompts/rules/sections/; this chooses which
+  apply and passes their numbers."
   [world]
   (let [turn (duration (:minutes-per-round (:clock world)))
         max-queries (get-in world [:state :max-queries] 2)
         architect? (some #(contains? (:services %) :architect) (vals (get-in world [:space :locations])))
         visits? (visits/config world)]
-    (str "## How things work\n\n"
-         (str/join
-          "\n\n"
-          (remove nil?
-                  [(section "Turns"
-                            "Each turn is " turn " of game time, and you take one turn-ending action per turn. "
-                            "If you are waiting on someone or nothing needs doing, `pass` is the way to wait a turn; you act again next turn. "
-                            (if architect? "A reference lookup, the price list, each draft, each `quote-goods`" "Each `quote-goods`")
-                            " (however many goods it lists), `recommend`, `find` and `find-person` all count towards your " max-queries " queries a turn, even if asked for at once; once you reach " max-queries ", take your action and query again next turn. "
-                            "Your character knows nothing of this machinery: they speak only of what they see and hold, never of views, tools or ids.")
-                   (section "Getting about"
-                            "`walk` takes you at once to any place under `walkable` in your view, and doesn't end your turn: walk, then act there. Its reply shows the place, who is there and what is there, so you needn't `look` on arriving. "
-                            "`travel` goes to another area: use a place id from `places`, or an area name. It takes your turn; `journeys` "
-                            "in your view shows how long each journey takes, and a longer one leaves you travelling until you arrive. "
-                            "Opening hours are shown in your view where a place has them. "
-                            "`find-person` finds someone within walking distance from a description in your own words and says where they are, so you can walk straight there; `last-seen` in your view says where you last saw each person. "
-                            "To go somewhere with someone, the one coming along uses `follow`: from then on they go wherever the other walks or travels, at once, until they `follow-stop` or go somewhere themselves (`following` and `followed-by` under `you` in your view say who). Going off alone, you leave behind anyone who hasn't followed you: when you want someone to come with you, ask them in `converse` first, where they can follow you before you go. If you're busy when the person you follow goes, you stop what you're doing to go too, so `follow-stop` when you mean to stay behind.")
-                   (section "Speaking"
-                            "You're only heard by people in the same place (`say`: a few sentences, at most " b/speech-limit
-                            " characters); `whisper` is private. You can speak once a turn, with `say` or `whisper`, and it doesn't end your turn: speak, then take your action. Others answer what you say only on their own turns, after yours ends, so `say` suits remarks, greetings and orders that need no reply. "
-                            "`converse` doesn't count against speaking once a turn: you can start one conversation a turn as well. "
-                            "To talk something over with people here, `converse` draws up to " conversation/max-others " of them into a conversation within your turn: "
-                            "you each speak in turn, up to " conversation/passes " times, so nobody waits a turn for each answer, and then you carry on with your turn. Whenever you need an answer, a decision or someone's agreement before you act, ask in `converse`, not `say`, and put the question in its opening line rather than saying it first. "
-                            "`call` is heard everywhere within walking distance, so you can summon someone instead of searching the house room by room: name them with `to`, and if they're busy but awake they may stop to answer. "
-                            "Calling out is loud, and it's rude to shout through the house without good reason: call only for someone out of earshot whom you need, never instead of `say` or `converse` with people where you are; whether it's proper for you to call someone at all depends on who you both are.")
-                   (section "Sleep and being busy"
-                            "Sleep at night in a bedroom (`sleep` until a time, e.g. \"07:00\"). Someone who lives in needs a bed in the house: members of the household see the house's bedrooms, and who sleeps in each, under `household.bedrooms` in their view, and whether to share a room or make do is for you to decide. You get no turns while asleep or busy, unless someone uses `rouse` to interrupt you. On that turn, `carry-on` ignores them; any other accepted action means you stop.")
-                   (section "Work and doing things"
-                            "`spend-time` spends time on work or pastimes (`spend-time {doing, hours, on?}`, half an hour to " items/max-work-hours " hours); optionally name things here or carried, the room itself, stores in scope, or people here (yourself included) with `on`. What you do to someone counts only if they're still with you when you finish, and when someone is spending time on you (doing your hair, say), stay with them if you want it done. To do something to someone at once (stop them, take hold of them, tie them up or free them), use `act-on`: it takes your turn, and what comes of it is decided there and then. Describe everyday tools and supplies in `doing`; they need no item ids. Carry things such as dishes with `take` and `walk`; they are used up where they are eaten, not while being carried. Results show when you finish. `note` keeps private notes.")
-                   (section "Things"
-                            "Things in your place are under `items` in your view and what you carry under `carrying`; `look` shows them in detail, with their descriptions, owners and aspects (how clean they are, what needs mending, and so on), along with the room and what the people here carry, so use it to examine something closely, not routinely on arrival. The room's own aspects (its floor, hearth and air) and the stores in scope are under `here` in your view. "
-                            "Supplies are kept in stores (shelves, cupboards), listed under `here.stores`: a store has everything it keeps unless its `stock` or `lacking` says otherwise; `look` shows what it keeps. "
-                            "The house has the ordinary things a house like it keeps: everyday things (cloths, paper, pans, salt, matches and the like) can be assumed to be to hand unless you've been told otherwise. The things listed in your view are the notable ones, not everything there is. "
-                            "Use `find` only for something you must pick up or hand over, or whose presence is in doubt; everyday things you merely use need no finding. "
-                            (if (find-everywhere? world)
-                              "Never use `find` for goods that are for sale: in a shop or the public house, ask whoever serves there for what you want and `buy` what they quote. Those who serve sell their stock with `quote-goods` too; `find` is for the house's own things. "
-                              "`find` doesn't work in shops, the public house or other places of trade: ask whoever is there instead, and `buy` goods for sale. ")
-                            "Some things hold others: what's in an open one is listed under its `contents`, and one marked `closed` shows what's inside only when you `open` it. "
-                            "You can `take` things out of either, and `put-in` puts something into one. "
-                            "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn. "
-                            "Talking never changes anything. Things change hands only with `give`, `take`, `put-in`, `put-down` or a judged `act-on`; they are made or used up only by `spend-time`, and otherwise changed by `spend-time` or `act-on`, as its result says; goods for sale come only from `buy`. Agreeing to do something, or saying it's done, does none of it until someone takes the action. "
-                            "Your view is how things are now: the notable things you hold are under `carrying` (your clothes and everyday things aren't listed), and particular things (a parcel, a letter, a dish) are only where your view shows them, whatever anyone says or remembers. "
-                            "So if someone says they've handed or lent you something and it isn't under `carrying`, you haven't got it: ask them to give it to you. Never say you're handing over, lending or setting out something you don't carry: to hand it over, `find` it first, then `give` it.")
-                   (section "People and yourself"
-                            "What's notable about how someone looks now (their dress, hair or hands) is in their `aspects`, beside their usual `appearance`, and yours are under `you`. Under `you`, `inner` says how you are inside now: your spirits, how your body is, what's on your mind. Nobody else can see it unless you show or say so. It changes with what you do, what's said to you and how you sleep. Let it colour what you do and say, as anyone's would. "
-                            physical/rules)
-                   (section "Money and shopping"
-                            (if architect? "Purchases and commissions" "Purchases")
-                            " are paid from the household account (`household` in your view). There is no engine-enforced spending restriction by role: whether you should spend depends on your station, instructions and relationships. At an open shop, ask the shopkeeper with `converse` for portable goods and quantities; there is no fixed catalogue. The shopkeeper checks availability and quotes firm prices, a whole shopping list in one `quote-goods`. Accept offers made for you with `buy {quote-ids, hand-over}`, from `offers` in your view: one `buy` can take the whole list, and you can buy on your line in the conversation as soon as they're quoted. With hand-over `take` you carry the goods away; with `leave` they stay at the shop, paid for, to be collected or sent up (`waiting-at-shops` in your view), and the shopkeeper sees them marked as waiting for you. At a shop that sends goods out, the shopkeeper can send goods left there up to the house with `send-up`. Payment is separate from asking; no bargaining or bulk counters. A shop that sends goods out can quote a line for delivery, for goods too large or too many to carry away: it's paid for when you buy, and the shop's errand boy or carrier leaves it at the delivery place when due (`orders` in your view), with nothing more for the shopkeeper or you to do. Everything bought is paid in full from the household account there and then: there are no tradesmen's bills, reckonings or accounts to settle later. Prices are old sterling: £1 = 20 shillings = 240 pence (12d = 1s).")
-                   (when architect?
-                     (section "Building"
-                              "Building is arranged at the architect's office while it is open, not at the house: talk at home is for deciding what you want. "
-                              "At the office you can search reference books (`consult-references`), ask for the `price-list` and ask the architect to draw plans, in one of these sizes: "
-                              (str/join ", " (map :size (get-in world [:state :architect-prices :sizes]))) ". Only the architect draws plans (`draw-plans`), and only for a client who is with him at his office while it is open; if he is out, wait for him or come back. Any character can `commission` a plan they hold, but should judge whether they have the social authority to do so. `show-plans` shares plans with everyone present, anywhere. "
-                              "Plans are a special case: they are not things, so they are never carried, given, fetched, copied, lost or searched for. Once plans are drawn, the architect and the client both hold them, and anyone they are shown to holds them too; `plans` in your view lists the plans you hold, and those are all you need. "
-                              "Only one room is built at a time: `commission` is refused while a room is being built (see `building` for the work in hand and when it finishes), so the next room must wait until the present one is finished. "
-                              "Commissioning pays from the household; the room appears at the completion time in `building`. The architect earns "
-                              building/fee-percent "% on commissions for plans he drew."))
-                   (section "Hiring" (if visits? hiring/rules-beside-visits hiring/rules))
-                   (when visits? (section "Invitations and guests" visits/rules))])))))
+    (prompts/render
+     "rules/how-things-work.md"
+     {:sections
+      (str/join
+       "\n\n"
+       (remove nil?
+               [(section "turns" {:turn turn :max-queries max-queries
+                                  :counted (section (if architect? "turns-counted-architect" "turns-counted"))})
+                (section "getting-about")
+                (section "speaking" {:speech-limit b/speech-limit :max-others conversation/max-others
+                                     :passes conversation/passes})
+                (section "sleep")
+                (section "work" {:max-work-hours items/max-work-hours})
+                (section "things" {:find-for-sale (section (if (find-everywhere? world)
+                                                              "things-find-everywhere"
+                                                              "things-find-not-at-trade"))})
+                (section "people" {:physical physical/rules})
+                (section "shopping" {:paid (section (if architect? "shopping-paid-commissions" "shopping-paid"))})
+                (when architect?
+                  (section "building" {:sizes (str/join ", " (map :size (get-in world [:state :architect-prices :sizes])))
+                                       :fee-percent building/fee-percent}))
+                (section "hiring" {:hiring (if visits? hiring/rules-beside-visits hiring/rules)})
+                (when visits? (section "invitations" {:visits visits/rules}))]))})))
 
 (defn- setting [world] (get-in world [:state :setting]))
 
 (defn- judge-brief
   "The setting, and that everyday things are to hand."
   [world]
-  (str (setting world)
-       "\n\nThe house has the ordinary things a house like it keeps: assume the everyday things the work needs (cloths, paper, pans, salt, matches and the like) are to hand unless what you're shown says otherwise. The things listed are the notable ones, not everything there is."
-       "\n\nArchitect's plans are kept outside this judgement and are never things: never make plans, drawings or copies of plans. Drawing or copying plans changes nothing here."
-       "\n\nShop orders for delivery are made up and carried by the shop's courier outside this judgement, and arrive by themselves when due: making up, packing or carrying an order makes nothing, so never make the ordered goods or a parcel of them."))
+  (prompts/render "judges/brief.md" {:setting (or (setting world) "")}))
 
 (defn- about [world role] (get-in world [:state :positions role :about]))
 

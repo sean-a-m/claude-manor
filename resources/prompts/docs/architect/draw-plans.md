@@ -1,0 +1,1 @@
+Draft and price a room for a client who is with you at your open office; name them with for. Use house room ids from places for connects-to, and a size from the price list. Bridge prices are whole pounds (£); stored plans show formatted sterling. Plans are stored, not commissioned.

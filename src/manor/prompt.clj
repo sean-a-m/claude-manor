@@ -329,13 +329,14 @@ Each message to you gives the recent events, oldest first, then the time now and
   "The world's :state for the default GM view, without what the GM brief
   already carries: a :setting, and the GM's own entry in :roles (and
   :roles, if nothing else is left in it). Of :positions, only those someone
-  holds are shown."
+  holds are shown. The :setting-pack (manor.settings) is prompt material,
+  not world state, so it's left out."
   [world]
   (let [state (:state world)
         roles (dissoc (:roles state) :gm)
         held (set (map :role (w/active-agents world)))
         positions (select-keys (:positions state) held)]
-    (cond-> (dissoc state :setting :roles :positions)
+    (cond-> (dissoc state :setting :setting-pack :roles :positions)
       (seq roles) (assoc :roles roles)
       (seq positions) (assoc :positions positions))))
 

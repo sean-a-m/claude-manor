@@ -57,3 +57,9 @@
       (is (not (str/includes? user "\"places\"")) "the reference isn't repeated in the view")
       (is (not (str/includes? user "\n  \"")) "the view is compact JSON"))
     (e/stop-run run)))
+
+(deftest the-gm-view-leaves-out-the-setting-pack
+  (let [world {:state {:setting "A house." :setting-pack {:id "test" :positions {:cook {}}}
+                       :quotes {}}
+               :agents {}}]
+    (is (= {:quotes {}} (:state (prompt/default-gm-view world))))))

@@ -109,7 +109,8 @@ resources/settings/england-1904/
   positions.edn   the positions catalogue
   calendar.edn    starting holidays
   prompts/        setting fragments and overrides (3.3)
-    money.md                 how the currency works, for agents and the appraiser
+    money.md                 how the currency works, for agents' shopping rules
+    money-pricing.md         how the shop appraiser prices in it
     invitation-examples.md   the invitation judge's "possible, if unlikely" examples
 ```
 
@@ -269,8 +270,8 @@ dates from the clock's start, the meeting place).
 - **Architect** docs: "whole pounds (£)" → `{{money.authored-name}}`; shown only with an office.
 
 **C. Setting fragments: in the pack only.**
-- `money.md`: how the currency works and how to price in its base unit (agents' rules and the
-  appraiser).
+- `money.md`: how the currency works (agents' shopping rules); `money-pricing.md`: how to price
+  in its base unit (the shop appraiser only).
 - `invitation-examples.md`: the invitation judge's examples of the possible-but-unlikely (the
   Queen calling on the Earl, a cousin in India, "Your father died in 1898"). Neutral examples
   would teach the judge less.
@@ -483,10 +484,10 @@ Every distinct prompt change (the three captured scenarios unless qualified):
   own things” → “the things at {{home}}”. The optional no-find-at-shops rule drops “the public house”.
 - **Shopping/spending:** “the household account” → “{{household-name}}'s account”; architect
   commissions and `buy` likewise use its account/funds. “up to the house” → “to {{home}}”, “errand
-  boy or carrier” → “the shop's courier”, “tradesmen's bills” → “bills”. Agents now get the common
-  pack currency explanation as well as the old sterling sentence: integer old pence, the 1s 6d=18
-  example, and whole pennies only. The appraiser uses that same text instead of its differently
-  phrased 12d/240d conversion; no bargaining, free delivery and affordability instructions stay.
+  boy or carrier” → “the shop's courier”, “tradesmen's bills” → “bills”. The currency text is two
+  pack fragments (changed in review, below): agents' rules get `money.md`, the old sterling
+  sentence unchanged; the appraiser gets `money-pricing.md`, its old pricing sentence unchanged
+  apart from “Whole pennies only.” now ending its own sentence.
 - **Physical rules:** “a few steps within the house” → “a few steps from where you are”.
 - **Find-person doc/judge:** named examples (“the new housemaid”, “her ladyship”, “Mamma”, etc.)
   → kinds (name/nickname, family term, form of address, position); the doc drops the house example;
@@ -518,6 +519,16 @@ Every distinct prompt change (the three captured scenarios unless qualified):
   the same supplies. Architect and delivery paragraphs are selected by location services/delivering
   shops. **Lodge loses only the architect paragraph**, retaining deliveries because its shop delivers.
   A world with neither gets neither (covered by an exact template-output test).
+
+**Supervisor review of phase 2** (2026-10-28, the commit after `fe66194`). Two fixes:
+- The GM's default view dumped `[:state :setting-pack]` (the whole catalogue, calendar and
+  prompts: a GM prompt of about 110k characters). `prompt/gm-state` now leaves it out, with a test.
+  The mock days never call the GM, so the prompt capture can't see the GM prompt: check it by hand
+  when changing what the state holds.
+- One `money.md` had merged the agents' currency sentence with the appraiser's pricing rule, so
+  agents were told to "price realistically in integer old pence". Split into `money.md` (agents)
+  and `money-pricing.md` (appraiser), each rendering today's text. Capture diff against the
+  delegate's `after`: only those two sentences.
 
 Handoff to phases 3+: the pack/API/state layout is in 3.2/3.3 above. `:authored-money` in
 `setting.edn` is deliberately temporary: replace its two architect template placeholders with the

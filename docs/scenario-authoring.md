@@ -2051,8 +2051,8 @@ pack. A pack contains:
   `:authored-money` temporarily supplies architect docs' “whole pounds (£)”; currency mechanics
   themselves are still sterling, not configurable yet.
 - `positions.edn`: the default positions catalogue; `calendar.edn`: explicitly dated holidays.
-- `prompts/money.md` and `prompts/invitation-examples.md`: setting-specific prose used by the
-  shopping rules/appraiser and invitation judge. Any other markdown file under `prompts/` may
+- `prompts/money.md`, `prompts/money-pricing.md` and `prompts/invitation-examples.md`: setting-specific
+  prose used by the shopping rules, the shop appraiser and the invitation judge. Any other markdown file under `prompts/` may
   override the shared template with the same relative path, e.g. `prompts/judges/find-person.md`.
 
 Claudeworth's base `init` loads all this through `manor.settings/for-worldfile` and records it in

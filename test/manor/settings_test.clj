@@ -11,6 +11,7 @@
     (is (= pack (settings/pack {})))
     (is (= pack (settings/for-worldfile {:meta {}})))
     (is (string? (get-in pack [:prompts "money.md"])))
+    (is (string? (get-in pack [:prompts "money-pricing.md"])))
     (is (string? (get-in pack [:prompts "invitation-examples.md"])))
     (is (= (:positions pack) (positions/table {} {})))
     (is (= (:calendar pack) (:calendar (holidays/add-to {}))))))

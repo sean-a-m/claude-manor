@@ -1,0 +1,1 @@
+Follow someone here (use their id): from now on, whenever they walk or travel, you go with them at once, until you use follow-stop or go somewhere yourself. If you're busy when they go, you stop what you're doing to go with them; asleep, or unable to move, you're left behind. You can follow during a conversation too, when you're asked to come along.

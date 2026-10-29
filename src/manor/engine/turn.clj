@@ -7,7 +7,8 @@
             [manor.engine.models :as models]
             [manor.engine.resolve :as resolve]
             [manor.engine.run :as run]
-            [manor.prompt :as prompt]))
+            [manor.prompt :as prompt]
+            [manor.prompts :as prompts]))
 
 (defn- limit-reached
   "Why `actor` can't use `action` again this turn, or nil: its :per-turn
@@ -128,25 +129,24 @@
   a turn-ending action, or nil: once `early-reminder-at` calls have passed,
   and again before the last call. `final-names` are the turn-ending actions
   it has."
-  [calls-made max-steps final-names]
-  (let [wait (when (some #{"pass"} final-names)
-               " If you're unsure what to do, `pass` is a fine way to wait and see.")]
+  [world calls-made max-steps final-names]
+  (let [params {:actions (or-list final-names)
+                :wait (if (some #{"pass"} final-names)
+                        (str " " (prompts/render world "agent/reminder-pass.md" {}))
+                        "")}]
     (cond
       (>= calls-made max-steps) nil
-      (= calls-made (dec max-steps))
-      (str "This is your last call this turn. Finish now with one turn-ending action ("
-           (or-list final-names) "), or you lose your turn." wait)
-      (= calls-made early-reminder-at)
-      (str "Your turn isn't over: free tools, queries and rejected calls don't end it. "
-           "When you're ready, finish with one turn-ending action: " (or-list final-names) "." wait))))
+      (= calls-made (dec max-steps)) (prompts/render world "agent/reminder-last.md" params)
+      (= calls-made early-reminder-at) (prompts/render world "agent/reminder-early.md" params))))
 
 (defn- nudge
   "The reply to a response without tool calls. One cut off by `:max-tokens`
   (usually all reasoning) is told to think briefly."
-  [response]
-  (if (= "length" (:finish-reason response))
-    "You ran out of room while thinking, before calling a tool. Think briefly, then call one of the tools."
-    "You must respond by calling one of the tools."))
+  [world response]
+  (prompts/render world (if (= "length" (:finish-reason response))
+                          "agent/nudge-length.md"
+                          "agent/nudge-no-tool.md")
+                  {}))
 
 (defn- handle-text-as
   "A response with text and no tool call, taken as a call of `tool` with
@@ -173,7 +173,7 @@
       (and text (:text-as call-opts)) (handle-text-as run agent-id by-name call-opts st (:text-as call-opts) text)
       (:nudged st) (assoc st :replies [] :done? true)
       :else (assoc st :nudged true
-                   :replies [{:role "user" :content (nudge response)}]))))
+                   :replies [{:role "user" :content (nudge @(:world run) response)}]))))
 
 (defn- add-reminder
   "Append `text` to the replies as a user message, merged into one already

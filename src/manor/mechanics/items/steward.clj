@@ -20,6 +20,7 @@
             [manor.mechanics.physical :as physical]
             [manor.mechanics.physical.changes :as physical-changes]
             [manor.mechanics.space :as space]
+            [manor.prompts :as prompts]
             [manor.world :as w]))
 
 (defn steward-day
@@ -119,39 +120,29 @@
   (let [entries (remove #(#{:made :died :physical} (first %)) (rest (item-judge/answer-schema inner-config)))]
     (into [:map] (concat (butlast entries) [eased-entry (last entries)]))))
 
-(def steward-instructions
-  (str "You are the simulation's nightly steward. Decide the fates of only the listed idle candidates, calling `steward`.
-- Empty answers are normal. Leave anything still individually important.
-- A candidate marked `waiting` is goods waiting for someone, paid for and to be collected or sent up: leave it unless it has plainly been forgotten for days.
-- For each candidate, you may absorb it into a listed store in scope (`absorbed: [{thing, into}]`), use it up (`used-up: [id]`, with a short fate in `fates: {id: phrase}`), change its aspects (`changes: [{thing, aspect, value}]`), or leave it.
-- Absorb a container only with all its contents absorbed too; use one up only with all its contents used up too. Otherwise leave it.
-- Change only candidates, never the place or stores. Aspect keys are lower-case letters and hyphens, at most 24 characters; values are 1–" items/advised-aspect " characters, or empty to remove. Keep at most four aspects per thing.
-- `sleepers` are people asleep here, or out of sight here for the night. Their `appearance` is how they usually look, and their `aspects` how they differ from it now. Remove (value \"\") each aspect that wouldn't last the night, such as hair let down or evening dress taken off, and leave the ones that would, such as a grease-stained apron. Never set or change a sleeper's aspect: only remove.
-- `sleepers` and `hindered` (other people here, awake or unconscious) may show `physical`, the statuses of their faculties with a level, optional cause and when it was set (`set_at`), and `impediments`, smaller physical hurts. You may clear what a night's passing would clear, or ease it: `physical: [{person, faculty, level, cause?}]` with level `normal` to clear a faculty, or `impeded` to ease a disabled one (movement, grasp or speech), with a new cause if it helps; `impediments: [{person, key, value}]` with \"\" to clear one, or a milder phrase for one they have. A twisted ankle may ease overnight and a cut finger mend a little, but ropes and gags don't untie themselves; someone unconscious may well have come to by morning. Never set or worsen anything, and leave as they are the things a night wouldn't change.
-- Never make anything. A store holds everything it keeps unless its aspects say otherwise. Do not invent events. Give a short third-person summary, at most 300 characters, for the GM only."))
+(defn steward-instructions
+  "The steward's instructions, without inner state."
+  [world]
+  (prompts/render world "judges/steward.md" {:advised-aspect items/advised-aspect}))
 
 (defn- inner-instructions
   "The steward's lines about sleepers' inner state, for a scenario's `config`."
-  [config]
-  (str "## Inner state\n"
-       "- `sleepers` also have an `inner` state: how they are inside, which only they know: their spirits, how their body is, what's on their mind, and anything else about them that doesn't show. Each entry says when it was set (`set_at`). `went_to_sleep` and `wakes` say when someone went to sleep and will wake; `doing` and `since` say what someone else is about tonight, and since when.\n"
-       "- The night passes for them between when their entries were set and the morning. Update their inner state to take that time into account: some things change over a night and some don't, and which is your judgement. An empty entry is a normal state, and leaving someone as they are is a normal answer. Their temperament says how they're inclined to take things; it informs your judgement but doesn't decide it.\n"
-       "- Change only sleepers' inner state, in `inner: [{person, key, value}]`, apart from `changes`: the person's id, the key, and a phrase of at most " inner/advised-value " characters saying how they are after the night, or \"\" to clear it. "
-       (inner/key-instructions config)))
+  [world config]
+  (prompts/render world "judges/steward-inner.md"
+                  {:advised-value inner/advised-value :keys (inner/key-instructions world config)}))
 
 (defn instructions
   "The steward's system message: `steward-instructions`, and with inner state
   (the scenario's :inner as `inner-config`) its lines about sleepers'."
-  [inner-config]
-  (cond-> steward-instructions
-    inner-config (str "\n\n" (inner-instructions inner-config))))
+  [world inner-config]
+  (cond-> (steward-instructions world)
+    inner-config (str "\n\n" (inner-instructions world inner-config))))
 
-(defn- steward-tool [inner-config]
+(defn- steward-tool [world inner-config]
   {:type "function"
    :function {:name "steward"
-              :description (str "Resolve only the listed idle candidates"
-                                (when inner-config ", and update the sleepers' inner state for the night (`inner`)")
-                                ". Never make anything.")
+              :description (prompts/render world "judges/tools/steward.md"
+                                           {:inner (if inner-config (prompts/render world "judges/tools/steward-inner.md" {}) "")})
               :parameters (mjs/transform (answer-schema inner-config))}})
 
 (defn- at-label
@@ -201,8 +192,8 @@
   or impediments (`hindered`, see `steward-hindered`); no private lines or
   other rooms."
   [world place candidates & [sleepers inner-config hindered]]
-  {:tools [(steward-tool inner-config)]
-   :messages [{:role "system" :content (instructions inner-config)}
+  {:tools [(steward-tool world inner-config)]
+   :messages [{:role "system" :content (instructions world inner-config)}
               {:role "user" :content (str "## The idle scene\n```json\n"
                                           (json/write-value-as-string
                                            {:place (select-keys (space/location world place) [:id :name :desc :aspects])

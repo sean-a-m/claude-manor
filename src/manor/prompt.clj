@@ -122,17 +122,10 @@
   [world]
   (prompts/render world "agent/preamble.md" {}))
 
-(def turn-closing
-  "## Your turn
-How to act:
-- Each round you take one turn-ending action (a tool marked \"Ends your turn\").
-- Free tools and query tools do not end your turn; use them first if they help, then take your action.
-- If an action is rejected you will be told why and may try again once.
-- If there is nothing useful to do, call `pass`.
-
-Remember: There are no goals besides what you create for yourself. You are an agent embodying your given character, and you should act as they do. Don't worry about saving turns, or being efficient, or even being correct. The most important thing is to THINK and ACT and COMMUNICATE IN CHARACTER.
-
-Take your turn now.")
+(defn turn-closing
+  "The closing of an agent's turn request: how to act, and to act now."
+  [world]
+  (prompts/render world "agent/turn-closing.md" {}))
 
 (defn agent-view
   "Everything an agent is shown about the world: the scenario's `observe`
@@ -227,7 +220,7 @@ Take your turn now.")
 
 (defn agent-messages
   [scenario world events agent-id opts]
-  (agent-request scenario world events agent-id opts turn-closing))
+  (agent-request scenario world events agent-id opts (turn-closing world)))
 
 (defn- how-to-answer-speechless
   "The rules of a speaking turn for someone who can't speak
@@ -318,12 +311,10 @@ Take your turn now.")
   (agent-request scenario world events agent-id opts
                  (conversation-closing world agent-id conv turn)))
 
-(def gm-preamble
-  "You are the game master of a turn-based simulation. The engine enforces the rules and runs the world; you step in only when called, and you should intervene lightly. You see everything, including private information. Never reveal one participant's private information to another.
-
-You act only by calling tools. You may take a few actions; call `done` when finished. If nothing is needed, call `done` immediately.
-
-Each message to you gives the recent events, oldest first, then the time now and why you were called, the requests addressed to you, and the world state.")
+(defn gm-preamble
+  "The system message of every GM request, before the GM brief."
+  [world]
+  (prompts/render world "gm/preamble.md" {}))
 
 (defn- gm-state
   "The world's :state for the default GM view, without what the GM brief
@@ -354,7 +345,7 @@ Each message to you gives the recent events, oldest first, then the time now and
   [scenario world events reasons {:keys [event-window calendar-due]}]
   (let [gm-view (or (:gm-view scenario) default-gm-view)]
     [{:role "system"
-      :content (str gm-preamble
+      :content (str (gm-preamble world)
                     (when-let [b (get-in scenario [:roles :gm :brief])] (str "\n\n## This world\n" (brief-text b world))))}
      {:role "user"
       :content (str "## Recent events\n"

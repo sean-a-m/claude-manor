@@ -3,6 +3,7 @@
   (:require [clojure.string :as str]
             [manor.mechanics.physical :as physical]
             [manor.mechanics.space :as space]
+            [manor.prompts :as prompts]
             [manor.world :as w]))
 
 (defn slug [s]
@@ -192,29 +193,26 @@
 (defn agent-actions []
   [{:name :carry-on
     :kind :final :roles :all
-    :doc "Ignore the interruption and carry on with what you were doing until it is over."
+    :doc (prompts/doc "docs/builtins/carry-on.md")
     :available? (fn [world actor] (some? (:interrupted-by (w/busy world actor))))
     :valid? (fn [world actor _]
               (when-not (:interrupted-by (w/busy world actor)) "you are not interrupted"))
     :effect (fn [world actor _] [(resume world actor)])}
 
    {:name :pass
-    :doc "Wait here and do nothing (more) this round: a fine choice when you want to see what others do, or there is nothing to do yet. It ends your turn, but you take your turn again next round."
+    :doc (prompts/doc "docs/builtins/pass.md")
     :effect (fn [_ _ _] [{:type :agent/passed :visible-to :all}])}
 
    {:name :note
     :kind :free
-    :doc (str "Write a private note to your future self, at most " note-limit
-              " characters. Notes are shown to you every round.")
+    :doc (prompts/doc "docs/builtins/note.md" {:note-limit note-limit})
     :args [:map [:text [:string {:min 1 :max 500 :advised-max note-limit}]]]
     :effect (fn [_ actor {:keys [text]}]
               [{:type :agent/noted :data {:text text} :visible-to #{actor}}])}
 
    {:name :say
     :kind :free :per-turn 1 :limit-key :speech
-    :doc (str "Say something out loud to everyone in the same place: a few sentences, at most "
-              speech-limit " characters. Others can answer only on their own turns, after yours ends, so for a "
-              "question you need answered now use converse instead, not say as well. Shares its limit with whisper.")
+    :doc (prompts/doc "docs/builtins/say.md" {:speech-limit speech-limit})
     :args [:map [:text speech]]
     :available? (fn [world actor] (physical/can? world actor :speech))
     :valid? (fn [world actor _] (physical/speech-reason world actor))
@@ -225,9 +223,7 @@
 
    {:name :whisper
     :kind :free :per-turn 1 :limit-key :speech
-    :doc (str "Say something privately to one other participant in the same place (use their id): "
-              "a few sentences, at most " speech-limit " characters. They can answer only on their own turn, after "
-              "yours ends. Shares its limit with say.")
+    :doc (prompts/doc "docs/builtins/whisper.md" {:speech-limit speech-limit})
     :args [:map [:to :string] [:text speech]]
     :available? (fn [world actor] (physical/can? world actor :speech))
     :valid? (fn [world actor {:keys [to]}]
@@ -243,7 +239,7 @@
 
    {:name :pray
     :kind :free
-    :doc "Pray quietly for something beyond your own reach (help, company, a turn of fortune). A prayer is private, and whether it is answered is not yours to decide."
+    :doc (prompts/doc "docs/builtins/pray.md")
     :args [:map [:text [:string {:min 1 :max 500}]]]
     ;; The diegetic stand-in for reaching the GM; the event still fills the GM's inbox.
     :effect (fn [_ actor {:keys [text]}]
@@ -266,7 +262,7 @@
         max-agents (get-in scenario [:limits :max-agents] default-max-agents)]
     (cond->> [{:name :spawn-agent
       :roles #{:gm}
-      :doc "Bring a new participant into the world."
+      :doc (prompts/doc "docs/gm/spawn-agent.md")
       :args [:map
              [:role (into [:enum] spawnable)]
              [:name [:string {:min 1 :max 40}]]
@@ -283,7 +279,7 @@
 
      {:name :retire-agent
       :roles #{:gm}
-      :doc "Remove a participant from the world."
+      :doc (prompts/doc "docs/gm/retire-agent.md")
       :args [:map [:id :string] [:reason [:string {:max 300}]]]
       :valid? (fn [world _ {:keys [id]}]
                 (when-not (contains? (active-ids world) id) (str "no active participant with id " id)))
@@ -292,7 +288,7 @@
 
      {:name :announce
       :roles #{:gm}
-      :doc "Make an announcement. Leave `to` empty for everyone, or give a list of participant ids."
+      :doc (prompts/doc "docs/gm/announce.md")
       :args [:map [:text [:string {:min 1 :max 800}]] [:to {:optional true} [:vector :string]]]
       :effect (fn [_ _ {:keys [text to]}]
                 [{:type :gm/announced :data {:text text}
@@ -300,13 +296,13 @@
 
      {:name :ask-human
       :roles #{:gm}
-      :doc "Pause the simulation after this round and ask the human operator a question."
+      :doc (prompts/doc "docs/gm/ask-human.md")
       :args [:map [:question [:string {:min 1 :max 800}]]]
       :effect (fn [_ _ {:keys [question]}]
                 [{:type :run/pause-requested :data {:reason (str "GM asks: " question)} :visible-to :gm}])}
 
      {:name :done
       :roles #{:gm}
-      :doc "Finish this intervention."
+      :doc (prompts/doc "docs/gm/done.md")
       :effect (fn [_ _ _] [])}]
       (empty? spawnable) (filterv #(not= :spawn-agent (:name %))))))

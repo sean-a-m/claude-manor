@@ -398,8 +398,8 @@
                    (is (nil? (a/check (action name) (e/world run) "ben" args)))
                    (e/emit! run (a/effect-events (action name) (e/world run) "ben" args)))]
     (try
-      (is (str/includes? item-judge/judge-instructions "Taking or carrying something elsewhere is not using it up"))
-      (is (str/includes? item-judge/judge-instructions "Leaving any thing untouched is always a valid answer"))
+      (is (str/includes? (item-judge/judge-instructions {}) "Taking or carrying something elsewhere is not using it up"))
+      (is (str/includes? (item-judge/judge-instructions {}) "Leaving any thing untouched is always a valid answer"))
       (let [activity (assoc job :items ["beef"] :doing "carrying the joint to the porch")
             verdict (:verdict (item-judge/judgement (judge-says {:summary "The joint was left for Ben to carry."})
                                                     (e/world run) (item-work/judged-things (e/world run) activity)))]

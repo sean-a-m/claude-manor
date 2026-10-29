@@ -62,7 +62,8 @@
             [malli.core :as m]
             [malli.error :as me]
             [malli.json-schema :as mjs]
-            [malli.transform :as mt]))
+            [malli.transform :as mt]
+            [manor.prompts :as prompts]))
 
 (defn kind
   "The action's kind, or with `args` the kind of that call (its :kind-for)."
@@ -129,12 +130,10 @@
 ;; ---------------------------------------------------------------------------
 ;; Tools
 
-(def ^:private kind-hint
-  {:final "Ends your turn."
-   :free  "Free: does not end your turn."
-   :query "Query: returns information and does not end your turn (limited per turn)."
-   :act   "Real-world action: ends your turn and needs operator approval before it happens."
-   :converse "Free: does not end your turn; the others answer before it returns."})
+(defn- kind-hint
+  "What a tool's kind means for the turn, from docs/hints/."
+  [world kind]
+  (prompts/render world (str "docs/hints/" (name kind) ".md") {}))
 
 (defn- tool-schema
   "The arguments schema as models see it. A string with an :advised-max
@@ -149,15 +148,25 @@
 (defn- per-turn-hint
   "The limit in a tool's description; one that depends on the actor isn't
   told there."
-  [action]
+  [action world]
   (when-let [n (when (number? (:per-turn action)) (:per-turn action))]
-    (if (= 1 n) " Once per turn." (str " At most " n " times per turn."))))
+    (str " " (if (= 1 n)
+               (prompts/render world "docs/hints/once-per-turn.md" {})
+               (prompts/render world "docs/hints/times-per-turn.md" {:n n})))))
 
 (defn description
   "The action's doc in this world; a fixed string or a function of the world."
   [action world]
   (let [doc (:doc action)]
     (if (fn? doc) (doc world) doc)))
+
+(defn- hint
+  "The action's own :hint (a string or a function of the world, like :doc),
+  or its kind's."
+  [action world]
+  (if-let [h (:hint action)]
+    (if (fn? h) (h world) h)
+    (kind-hint world (kind action))))
 
 (defn ->tool
   "A model-facing tool, with its description rendered for this request's world.
@@ -166,7 +175,7 @@
   ([action world]
    {:type "function"
     :function {:name (name (:name action))
-               :description (str (description action world) " " (or (:hint action) (kind-hint (kind action))) (per-turn-hint action))
+               :description (str (description action world) " " (hint action world) (per-turn-hint action world))
                :parameters (mjs/transform (tool-schema (args-schema action)))}}))
 
 ;; ---------------------------------------------------------------------------

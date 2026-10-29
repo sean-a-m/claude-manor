@@ -810,7 +810,7 @@
   [scenario]
   {:name :invite :kind :free :roles :all :per-turn 1
    :kind-for (fn [args] (if (:person args) :query :free))
-   :hint "Free: does not end your turn. With person, it's a query and counts towards your queries this turn."
+   :hint (prompts/doc "docs/hints/invite.md")
    :doc (fn [world]
            (prompts/render world "docs/visits/invite.md"
                            {:max-person max-person :example-date (prompts/example-date world)
@@ -856,7 +856,7 @@
                     " on " (when-label world v) ".")
                (str "Nothing was arranged: " (or (arranged-reason world args) "try again"))))}
    {:name :cancel-visit :roles #{:gm} :kind :final
-    :doc "Cancel a visit not yet begun, by its id in state.visits, with its calendar entries."
+    :doc (prompts/doc "docs/visits/cancel-visit.md")
     :args [:map [:id :string]]
     :valid? (fn [world _ {:keys [id]}] (cancel-reason world id))
     :effect (fn [world _ {:keys [id]}] (cancel-events world id))}])

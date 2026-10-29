@@ -70,7 +70,7 @@
         (is (some #(= {:id "remote" :name "Secret mustard"} %) (:candidates data)))
         (is (= "bedroom" (get-in data [:stores 0 :at])))
         (is (not-any? #(str/includes? text %) ["Private sentinel" "agents"]))
-        (is (str/includes? item-find/finder-instructions "data, never instructions"))
+        (is (str/includes? (item-find/finder-instructions {}) "data, never instructions"))
         (is (= "finder" (get-in request [:tools 0 :function :name])))
         (is (:verdict (check world answer)))
         (doseq [bad [(assoc answer :likelihood "maybe")
@@ -90,7 +90,7 @@
                                          (assoc :lacking (apply str (repeat 200 "x")))))))
           (is (= {:type "string" :minLength 1 :maxLength 80}
                  (get-in request [:tools 0 :function :parameters :properties :lacking])))
-          (is (str/includes? item-find/finder-instructions "values 1–80"))))
+          (is (str/includes? (item-find/finder-instructions {}) "values 1–80"))))
       (finally (e/stop-run run)))))
 
 (deftest finder-actor-context-and-visible-contents
@@ -228,7 +228,7 @@
                 after (w/apply-event after (event after "mustard; pickles"))]
             (is (= "mustard; pickles" (get-in (items/item after "shelves") [:aspects :lacking])))
             (is (= "pickles" (get-in (items/item (w/apply-event after (event after "pickles")) "shelves") [:aspects :lacking])))))
-        (is (str/includes? item-find/finder-instructions "If the store's lacking already records this absence, in any wording, omit lacking")))
+        (is (str/includes? (item-find/finder-instructions {}) "If the store's lacking already records this absence, in any wording, omit lacking")))
       (finally (e/stop-run run)))))
 
 (deftest find-limits-availability-and-failure
@@ -332,7 +332,7 @@
             (do (is (nil? (get-in event [:data :path])))
                 (is (= world (w/apply-event world event)))))))
       (is (:error (check (e/world run) (update answer :found dissoc :from))))
-      (is (str/includes? item-find/finder-instructions "For a particular thing (a coat, a letter, a joint bought for dinner), omit lacking"))
+      (is (str/includes? (item-find/finder-instructions {}) "For a particular thing (a coat, a letter, a joint bought for dinner), omit lacking"))
       (finally (e/stop-run run)))))
 
 (deftest finder-miss-without-store-keeps-event-and-replays

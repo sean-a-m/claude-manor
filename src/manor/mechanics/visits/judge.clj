@@ -178,7 +178,7 @@
                                           reason (assoc :reason reason)))}]
      :tools [{:type "function"
               :function {:name "invitee"
-                         :description "Say who is meant: existing (a listed id), new (someone not yet in the world), or impossible (they physically cannot come)."
+                         :description (prompts/render world "judges/tools/invitee.md" {})
                          :parameters (mjs/transform answer-schema)}}]
      :ctx {:world world :inviter who :description person :people listed}
      :check #(adjudication/answer "invitee" % (partial check-answer (vec (mapcat val listed))))}))

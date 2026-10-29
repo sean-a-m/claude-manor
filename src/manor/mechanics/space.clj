@@ -26,6 +26,7 @@
   (:require [manor.clock :as clock]
             [manor.mechanics.physical :as physical]
             [manor.mechanics.positions :as positions]
+            [manor.prompts :as prompts]
             [manor.world :as w]))
 
 ;; ---------------------------------------------------------------------------
@@ -269,7 +270,7 @@
 
 (defn actions []
   [{:name :move
-    :doc "Go to another location along one of your exits (use its id). A trip longer than 1 round leaves you in transit, unable to act until you arrive."
+    :doc (prompts/doc "docs/space/move.md")
     :args [:map [:to :string]]
     :available? (fn [world actor] (some? (location-of world actor)))
     :valid? (fn [world actor {:keys [to]}]
@@ -291,7 +292,7 @@
 
    {:name :add-location
     :roles #{:gm}
-    :doc "Create a new location. Connect it with open-route."
+    :doc (prompts/doc "docs/gm/add-location.md")
     :args [:map [:id [:re #"^[a-z0-9-]+$"]] [:name :string] [:desc {:optional true} :string]]
     :available? (fn [world _] (enabled? world))
     :valid? (fn [world _ {:keys [id]}] (when (location world id) (str id " already exists")))
@@ -301,7 +302,7 @@
 
    {:name :open-route
     :roles #{:gm}
-    :doc "Open (or create) a route between two locations, both ways unless one-way is true. travel is in rounds; 0 means next door (e.g. rooms of one building)."
+    :doc (prompts/doc "docs/gm/open-route.md")
     :args [:map [:from :string] [:to :string] [:travel {:optional true} [:int {:min 0 :max 20}]]
            [:one-way {:optional true} :boolean]]
     :available? (fn [world _] (enabled? world))
@@ -316,7 +317,7 @@
 
    {:name :close-route
     :roles #{:gm}
-    :doc "Close a route (e.g. a storm blocks the road), both ways unless one-way is true. Travellers already on it still arrive."
+    :doc (prompts/doc "docs/gm/close-route.md")
     :args [:map [:from :string] [:to :string] [:one-way {:optional true} :boolean]]
     :available? (fn [world _] (enabled? world))
     :valid? (fn [world _ {:keys [from to]}]

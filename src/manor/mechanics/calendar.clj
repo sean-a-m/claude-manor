@@ -10,6 +10,7 @@
   (:require [clojure.string :as str]
             [malli.core :as m]
             [manor.clock :as clock]
+            [manor.prompts :as prompts]
             [manor.world :as w])
   (:import (java.time LocalDate LocalDateTime)
            (java.time.format DateTimeFormatter)
@@ -218,10 +219,10 @@
         (drop 2 Entry)))
 
 (defn actions []
-  (for [[op tool doc] [[:add :add-calendar-entry "Record a known scheduled or expected occasion."]
-                       [:update :update-calendar-entry "Edit a calendar entry or its audience."]
-                       [:cancel :cancel-calendar-entry "Cancel a calendar entry."]]]
-    {:name tool :doc doc :roles #{:gm} :kind :final
+  (for [[op tool] [[:add :add-calendar-entry]
+                   [:update :update-calendar-entry]
+                   [:cancel :cancel-calendar-entry]]]
+    {:name tool :doc (prompts/doc (str "docs/gm/" (name tool) ".md")) :roles #{:gm} :kind :final
      :args (case op
              :add Entry
              :update UpdateEntry

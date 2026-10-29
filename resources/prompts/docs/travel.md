@@ -1,0 +1,1 @@
+Go somewhere beyond walking distance: a place id from `places` in your view, or an area name (a key of `places`) for its nearest place. Shorter journeys arrive within this turn; longer ones leave you travelling until you arrive. `journeys` in your view shows how long each takes.

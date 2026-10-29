@@ -1,0 +1,1 @@
+the ids of consumable items it used up and their fates, things absorbed into stores, at most {{max-made}} things made or drawn from stores, any statuses, impediments and deaths of judged people it caused or ended,

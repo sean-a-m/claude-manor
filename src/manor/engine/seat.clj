@@ -37,7 +37,7 @@
                 ;; the GM's turn has no forfeit, so only participants are reminded
                      :remind (fn [st calls-made next-actions]
                                (when (and (not gm?) (empty? (:finals st)))
-                                 (turn/turn-reminder calls-made max-steps
+                                 (turn/turn-reminder @(:world run) calls-made max-steps
                                                      (map (comp name :name) (filter a/ends-turn? next-actions)))))
                      :ctx {:role role :reasons reasons}})))
 

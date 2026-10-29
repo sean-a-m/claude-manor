@@ -14,6 +14,7 @@
             [manor.mechanics.physical :as physical]
             [manor.mechanics.physical.changes :as physical-changes]
             [manor.mechanics.space :as space]
+            [manor.prompts :as prompts]
             [manor.world :as w]))
 
 (def max-physical
@@ -76,52 +77,26 @@
      (into [m changes] (concat (when inner-config [inner/answer-entry]) more physical-entries
                                (when act? [moved-entry]) [summary])))))
 
-(defn- judge-tool [inner-config act?]
+(defn- judge-tool [world inner-config act?]
   {:type "function"
    :function {:name "judge"
-              :description (str "Give your judgement: each aspect the " (if act? "act" "work") " changed (the thing's or person's id, the aspect's key, "
-                                "and its new value: a phrase of at most " items/advised-aspect " characters, or \"\" to remove it), "
-                                (when inner-config
-                                  "each part of a judged person's inner state it changed (`inner`: their id, the key, and the new value, or \"\" to clear it), ")
-                                (if act?
-                                  "the statuses, impediments and deaths of judged people it caused or ended, the things it moved, "
-                                  (str "the ids of consumable items it used up and their fates, things absorbed into stores, "
-                                       "at most " items/max-made " things made or drawn from stores, "
-                                       "any statuses, impediments and deaths of judged people it caused or ended, "))
-                                "and a summary of at most " items/max-summary " characters.")
+              :description (prompts/render world "judges/tools/judge.md"
+                                           {:activity (if act? "act" "work")
+                                            :advised-aspect items/advised-aspect :max-summary items/max-summary
+                                            :inner (if inner-config (str (prompts/render world "judges/tools/judge-inner.md" {}) " ") "")
+                                            :effects (if act?
+                                                       (prompts/render world "judges/tools/judge-act.md" {})
+                                                       (prompts/render world "judges/tools/judge-work.md" {:max-made items/max-made}))})
               :parameters (mjs/transform (answer-schema inner-config act?))}})
 
-(def judge-instructions
-  (str "You judge the results of an activity in a simulation. Someone has spent time on work or a pastime. "
-       "Decide what that activity, by this person, realistically changed in the scene, and answer by calling the `judge` tool. "
-       "The time may be too short for the whole job: then only part of it is done.
-
-- Most activities change little, and a pastime often changes nothing. Empty changes, used-up, absorbed and made lists are normal, successful answers. Resting in the garden need not change anything. Do not invent events to make the activity eventful, even for an unusual luck roll.
-- A store holds everything it `keeps` unless its aspects say otherwise. The listed items are notable things, not everything available.
-- You may change aspects of the place, focus, also_here, stores and the people marked `person`. Only consumables in focus or also_here may be used up. Other people and recent lines are context, not things to change.
-- A person's aspects say how they are now, where it shows and lasts beyond the activity: dress, hair, hands and face, dirt and wet. Never moods or feelings, and never hurts or hindrances, which are impediments and statuses (below). Their `appearance` is how they usually look; aspects record departures from it, and an aspect that only restates it should be removed. Most work leaves the worker as they were. Change another person only when the activity was done to them. People can't be used up, absorbed or made, and nothing can be put in them.
-- A thing's `aspects` say what's notable about its state, each under its own key: cleanliness, repair, state, amount, stock and the like. A change sets one aspect of one thing: `thing` (its id), `aspect` (the key) and `value` (a short phrase of at most " items/advised-aspect " characters saying how it is now).
-- Change only the aspects the activity affected, and leave the others alone: polishing a cabinet changes its cleanliness, not its repair. Use a key the thing already has where one fits; a new key is lower-case letters and hyphens, at most 24 characters. A thing has at most " items/max-aspects " aspects. To remove an aspect that no longer applies, give it the value \"\".
-- Leaving any thing untouched is always a valid answer. Leave out anything the work left unchanged.
-- An activity happens in one place and you cannot move things (only an immediate act can, below). Taking or carrying something elsewhere is not using it up: leave it where it is; the person carries things with `take` and movement actions.
-- When leftovers or supplies are put away into a store in scope (leftovers set in the pantry, groceries shelved), absorb them into that store: they join its stock and get a put-away fate. Adjust the store's aspects if its stock or lacking changes. Never describe a thing as moved or put away in its aspects while leaving it where it is. If something isn't put away or consumed, leave it as it is.
-- The `place` entry is the place itself: its aspects describe the room as a whole (floor, hearth, air), not the things in it, which have their own entries.
-- `Carrying` lists the notable things the worker holds. Their clothes and the everyday things work needs (a needle, a cloth, a basket) are never listed there, but they are to hand. Sometimes an activity assumes a particular notable thing that someone said they brought, handed over or set aside (a parcel, packets of goods, a letter) that is neither in the scene nor carried: only such a thing doesn't exist. Never write as if it was counted, used, moved or set out, in the summary or in aspects; do the rest of the work and say in the summary that it wasn't there. A store still holds the everyday supplies it keeps, and work may draw on them as usual.
-- An item's nature can't change: work can't turn a vase into gold. If the task is impossible or absurd, change nothing and say so in the summary.
-- Only things marked `consumable` can be used up, and only once they are gone: food eaten or cooked into something else, fuel burnt, an ingredient used up. List their ids in `used-up`; give their fates in `fates` (id to short phrase), otherwise the fate is \"used up while <doing>\". Something partly used is not used up: change its `amount` to say what's left (\"about a third left\").
-- `made` is for at most " items/max-made " things really produced from what was used up or everyday supplies (no source or use-up needed for the activity's direct product: a letter, a list, plans, a dish), or fetched from a store in scope with `from` (that store's id). Keep `from` for drawing from a store, not making a work product. Give each a name, desc, optional aspects and a `consumable` flag: writing and drawing products are not consumable; dishes are. Make a thing only if someone will carry, hand over, serve or keep it; otherwise describe the result as an aspect (the room's table \"laid for dinner\"). Do not promote every utensil used.
-- A made entry may give `held`: true puts it in the worker's hands, false at the job's place. Things the worker would naturally keep about them (a letter, a list, a note) are held; dishes and large things aren't. `in` puts it in a listed container and takes precedence. Without either, it goes to the worker's hands if no place-bound focus was named, else the job's place.
-- A quick job records putting things away, already moved into the store: judge it even at zero minutes. You may absorb them into stock, clear or change the store's lacking or stock, change affected aspects, or leave things alone.
-- `absorbed: [{thing, into}]` puts a thing from focus or also_here away in a store in scope (`into`, its id). Only unfixed, non-store things marked `consumable` or `drawn_from` can be absorbed. A container can go only with all its contents absorbed too. Do not absorb something still individually important.
-- A thing listed with `in` is inside another of the things listed. The work may or may not have touched it: leave it out if it didn't.
-- Luck is a roll from 1 to 100, and 50 is ordinary: low luck can mean mishaps (a slip, a breakage), high luck can mean it went unusually well. The roll alone does not require a change.
-- People in `people` may show `physical`, the statuses of their faculties with a level, optional cause and when it was set (`set_at`), and `impediments`, smaller physical hurts (a cut finger, a sprained wrist); someone marked `dead` is dead. Take them into account: someone bound can't polish the silver, and a cut hand makes fine work slower. Movement impeded keeps them to a few steps nearby; disabled, they can't move. Grasp impeded makes handling things awkward; disabled, they can't pick up or hand over anything. Speech impeded, they're heard only as muffled noises; disabled, not at all. Sight or hearing disabled, they can't see or hear. Consciousness disabled is unconscious.
-- Most activities change none of these: leave `physical`, `impediments` and `died` out. A mishap on low luck may leave an impediment (a cut finger, a scald), and care given to someone may ease or clear one.
-- `physical: [{person, faculty, level, cause?, minutes?}]` sets a judged person's faculty: level `normal` clears it; movement, grasp and speech can be `impeded` or `disabled`, sight, hearing and consciousness only `disabled`. `cause` is a short phrase (\"bound hand and foot with curtain cord\"), at most " items/advised-aspect " characters. For someone knocked unconscious, `minutes` says how long until they come to; without it they stay out until someone revives them.
-- `impediments: [{person, key, value}]` sets a judged person's impediment as aspects are set: a key (hand, ankle, face), a short phrase, or \"\" to remove it. A person has at most " items/max-impediments " impediments.
-- `died: [{person, cause?}]` records that a judged person was killed. Death is final; the dead can still have aspects and impediments changed, and what they carry moved.
-- An immediate act, marked so in the activity, is something done to people at once, in a few minutes: taking hold of someone, binding or gagging them, striking or searching them, freeing or reviving them. It may set or clear any faculty, add or remove impediments, or kill, as the scene warrants, and nothing is used up, absorbed or made. It may move what the actor or the people acted on carry (their `carrying`): `moved: [{item, to}]`, with `to` a judged person's id (into their hands) or \"place\" (dropped here).
-- The summary is one or two sentences, past tense, third person, for the people present, at most " items/max-summary " characters."))
+(defn judge-instructions
+  "The scene judge's instructions, before the suggested aspect keys, inner
+  state and the setting."
+  [world]
+  (prompts/render world "judges/scene.md"
+                  {:advised-aspect items/advised-aspect :max-aspects items/max-aspects
+                   :max-made items/max-made :max-impediments items/max-impediments
+                   :max-summary items/max-summary}))
 
 (def pretty (json/object-mapper {:pretty true}))
 
@@ -172,14 +147,14 @@
                     :stores (mapv #(assoc (items/store-view (:place job) %) :keeps (get-in % [:store :keeps])) stores)
                     :people (people-json world inner-config people) :recent (vec (take-last 10 recent))}
         scene-json (cond-> scene-json (:reference job) (assoc :reference (:reference job)))]
-    {:tools [(judge-tool inner-config act?)]
+    {:tools [(judge-tool world inner-config act?)]
      :messages
      [{:role "system"
-       :content (str judge-instructions
+       :content (str (judge-instructions world)
                      (when (seq suggested)
                        (str "\n\n## Suggested aspect keys\n"
                             (str/join "\n" (for [[k gloss] (sort-by key suggested)] (str "- " (name k) ": " gloss)))))
-                     (when inner-config (str "\n\n" (inner/instructions inner-config)))
+                     (when inner-config (str "\n\n" (inner/instructions world inner-config)))
                      (when-not (str/blank? brief) (str "\n\n## The setting\n" brief)))}
       {:role "user"
        :content (str "# The activity\n\n"

@@ -16,8 +16,10 @@
   group and jobs judged together call at once. `rendered/` holds prompts a
   mock day may never build (the judges', the writers', every tool), rendered
   against the Claudeworth world at its start, and Lodge's for the rules
-  without an architect; `rendered/palace/` the same against the palace, for
-  reading what another setting sends. Nothing nondeterministic is written:
+  without an architect; `rendered/engine/` the judges', steward's, finder's,
+  GM's and turn reminders' prompts that a mock day may miss; `rendered/palace/`
+  the same as `rendered/` against the palace, for reading what another
+  setting sends. Nothing nondeterministic is written:
   no times, run ids or costs."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
@@ -34,7 +36,12 @@
             [manor.mechanics.visits.judge :as visits-judge]
             [manor.prompt :as prompt]
             [manor.ruleset.rules :as rules]
-            [manor.mechanics.shop :as shop]))
+            [manor.mechanics.shop :as shop]
+            [manor.mechanics.items.judge :as item-judge]
+            [manor.mechanics.items.steward :as item-steward]
+            [manor.mechanics.items.find :as item-find]
+            [manor.mechanics.conversation.judge :as conversation-judge]
+            [manor.engine.turn :as turn]))
 
 (def scenarios [:claudeworth :lodge :claudeworth-medium :palace])
 
@@ -205,6 +212,30 @@
      "gm-request.md" (request-text "gm" {:messages (prompt/gm-messages (:scenario run) world [] ["a test"] (:opts run))
                                          :tools (mapv #(a/->tool % world) (a/for-role (:actions run) :gm))})}))
 
+(defn- rendered-engine
+  "Name -> text: the judges', the steward's, the GM's and the turn's prompts
+  that a mock day doesn't always build, against Claudeworth at its start."
+  []
+  (let [[run world] (start-world :claudeworth)
+        scenario (:scenario run)
+        inner (:inner scenario)
+        act {:id "job-x" :act? true :actor "mrs-finch" :place "kitchen"
+             :doing "taking him by the collar" :people ["bert"]}]
+    {"scene-judge-act.md" (request-text "judge" (item-judge/judge-request scenario world act {:luck 50 :recent []}))
+     "steward-no-inner.md" (request-text "steward" (item-steward/steward-request world "kitchen" [] [] nil []))
+     "steward-inner.md" (request-text "steward" (item-steward/steward-request world "kitchen" [] [] inner []))
+     "finder.md" (request-text "finder" (item-find/finder-request world "mrs-finch" {:what "a blue umbrella"}))
+     "conversation-judge.md" (request-text "react" (conversation-judge/judge-request
+                                                    inner world {:initiator "mrs-finch" :members ["mrs-finch" "bert"]} []))
+     "gm-request.md" (request-text "gm" {:messages (prompt/gm-messages scenario world [] ["a test"] (:opts run))
+                                         :tools (mapv #(a/->tool % world) (a/for-role (:actions run) :gm))})
+     "turn-reminders.md" (str/join "\n\n" [(turn/turn-reminder world 2 8 ["pass" "walk"])
+                                          (turn/turn-reminder world 7 8 ["pass" "walk"])
+                                          (turn/turn-reminder world 2 8 ["sleep"])
+                                          (turn/turn-reminder world 7 8 ["sleep" "walk"])
+                                          (#'turn/nudge world {:finish-reason "length"})
+                                          (#'turn/nudge world {:finish-reason "stop"})])}))
+
 ;; ---------------------------------------------------------------------------
 
 (defn capture!
@@ -216,6 +247,8 @@
       (doseq [f (reverse (file-seq dir))] (.delete f))))
   (doseq [[file text] (rendered)]
     (write! label "rendered" file text))
+  (doseq [[file text] (rendered-engine)]
+    (write! label "rendered" "engine" file text))
   (doseq [[file text] (rendered-palace)]
     (write! label "rendered" "palace" file text))
   (into {} (for [s scenarios] [s (capture-day! label s)])))

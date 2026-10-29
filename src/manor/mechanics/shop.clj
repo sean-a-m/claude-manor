@@ -67,7 +67,7 @@
         delivered (set (keep-indexed #(when (:deliver %2) %1) (:goods args)))]
     {:messages [{:role "system" :content (instructions world)}
                 {:role "user" :content (json/write-value-as-string data)}]
-     :tools [{:type "function" :function {:name "appraise" :description "For each requested line, offer plausible stock (portable over the counter, or sent up for a delivery line) or refuse with a reason."
+     :tools [{:type "function" :function {:name "appraise" :description (prompts/render world "judges/tools/appraise.md" {})
                                         :parameters (mjs/transform (lines-schema n))}}]
      :ctx {:request (:request data)}
      :check #(check n delivered %)}))

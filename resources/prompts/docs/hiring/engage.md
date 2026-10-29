@@ -1,0 +1,1 @@
+Offer a present candidate a position, optional free-text terms and bedroom id. A new offer replaces the old. They must accept; terms and conditions are recorded, not enforced. Living-in staff need a bed, but sharing is your decision. Saying you'll take someone on offers nothing: this does. You can use it on your line in a conversation with them, before you speak.

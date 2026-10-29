@@ -14,6 +14,7 @@
             [manor.mechanics.physical :as physical]
             [manor.narrate :as narrate]
             [manor.prompt :as prompt]
+            [manor.prompts :as prompts]
             [manor.world :as w]))
 
 (defn- extra-speaking-actions
@@ -32,10 +33,10 @@
 
 (defn- speaking-reminder
   "The reminder before a speaking turn's last call."
-  [max-steps st calls-made actions]
+  [world max-steps st calls-made actions]
   (when (and (empty? (:finals st)) (= calls-made (dec max-steps)))
-    (str "This is your last call for this line. Answer now with "
-         (turn/or-list (map (comp name :name) (filter a/ends-turn? actions))) ".")))
+    (prompts/render world "agent/reminder-speaking-last.md"
+                    {:actions (turn/or-list (map (comp name :name) (filter a/ends-turn? actions)))})))
 
 (defn- during
   "The events of conversation `id` after it started, up to its end."
@@ -96,7 +97,7 @@
                                   :max-steps max-steps
                                   ;; models often write the line as plain text, not as a reply
                                   :call-opts (assoc call-opts :text-as (when (physical/can? world speaker :speech) "reply"))
-                                  :remind (partial speaking-reminder max-steps)
+                                  :remind (partial speaking-reminder world max-steps)
                                   :ctx {:role (:role (w/agent world speaker))
                                         :conversation (assoc (select-keys conv [:id :initiator :members])
                                                              :pass (:pass turn) :final? (boolean (:final? turn)))}

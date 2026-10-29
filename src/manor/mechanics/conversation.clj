@@ -19,6 +19,7 @@
             [manor.mechanics.physical :as physical]
             [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
+            [manor.prompts :as prompts]
             [manor.world :as w]))
 
 (def max-others "People the initiator can draw in." 3)
@@ -187,14 +188,7 @@
 (def converse
   {:name :converse
    :kind :converse :per-turn 1
-   :doc (str "Start a conversation with up to " max-others " people here: their ids in with, or leave it out "
-             "for everyone here (if that's " max-others " or fewer). Use it whenever you need an answer now: a "
-             "question asked with say is answered only on the others' turns, after yours ends. Put your question "
-             "in text rather than saying it first. You open with text; then each of you speaks "
-             "in turn, you first, up to " passes " times each, and you have the last word. You can end it at "
-             "any of your turns; the others can stay silent or leave. Everyone here hears it. Keep each line "
-             "to a few sentences, at most " line-limit " characters. People asleep or away can't join; someone "
-             "busy can talk without stopping. When it's over, carry on with your turn.")
+   :doc (prompts/doc "docs/conversation/converse.md" {:max-others max-others :passes passes :line-limit line-limit})
    :args [:map
           [:with {:optional true} [:vector {:max 10 :decode/json #(if (string? %) [%] %)} :string]]
           [:text line]]
@@ -204,7 +198,7 @@
 (def ^:private speaking-hint
   "Each speaking-turn tool ends the line, which models otherwise read, from
   the usual hint, as ending their own turn."
-  "Ends your part in this round of the conversation, not your own turn.")
+  (prompts/doc "docs/hints/speaking-turn.md"))
 
 (defn- speaking-turn-action
   "A speaking-turn tool for `spec`, whose `effect` (fn [world actor conv
@@ -230,17 +224,16 @@
   (manor.mechanics.physical) has no `reply`."
   [world {:keys [initiator] :as conv} speaker]
   (let [reply (speaking-turn-action conv {:name :reply
-                                          :doc (str "Say your line to the conversation: a few sentences, at most "
-                                                    line-limit " characters.")
+                                          :doc (prompts/doc "docs/conversation/reply.md" {:line-limit line-limit})
                                           :args [:map [:text line]]}
                                     (fn [world actor conv {:keys [text]}] (line-events world actor conv (unquote-line text))))]
     (into (if (physical/can? world speaker :speech) [reply] [])
           (if (= speaker initiator)
             [{:name :end-conversation :kind :final :hint speaking-hint
-              :doc "End the conversation now, without another word."}]
-            [(speaking-turn-action conv {:name :stay-silent :doc "Say nothing this time; you stay in the conversation."}
+              :doc (prompts/doc "docs/conversation/end-conversation.md")}]
+            [(speaking-turn-action conv {:name :stay-silent :doc (prompts/doc "docs/conversation/stay-silent.md")}
                                    (fn [world actor conv _] [(silent world actor conv)]))
-             (speaking-turn-action conv {:name :leave :doc "Leave the conversation. You stay where you are, and still hear it."}
+             (speaking-turn-action conv {:name :leave :doc (prompts/doc "docs/conversation/leave.md")}
                                    (fn [world actor conv _] [(left world actor conv)]))]))))
 
 (defn outcome

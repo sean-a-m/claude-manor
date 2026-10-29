@@ -302,7 +302,7 @@
             (is (str/includes? content "dressed high, with combs"))
             (is (str/includes? content "usually in a grey day dress"))
             (is (not (str/includes? content "grease")))
-            (is (str/includes? item-steward/steward-instructions "Never set or change a sleeper's aspect"))))
+            (is (str/includes? (item-steward/steward-instructions {}) "Never set or change a sleeper's aspect"))))
         (testing "a sleeper's aspects may only be removed"
           (let [check #(item-steward/stewardship (say %) world "bedroom" [] (get sleepers "bedroom"))]
             (is (= [{:person "lady-ashby" :aspect :hair :from "dressed high, with combs" :to nil}]

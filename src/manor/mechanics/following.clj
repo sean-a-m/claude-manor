@@ -19,6 +19,7 @@
             [manor.mechanics.physical :as physical]
             [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
+            [manor.prompts :as prompts]
             [manor.world :as w]))
 
 ;; ---------------------------------------------------------------------------
@@ -154,10 +155,7 @@
 (def actions
   [{:name :follow
     :kind :free :per-turn 1
-    :doc (str "Follow someone here (use their id): from now on, whenever they walk or travel, you go with them at once, "
-              "until you use follow-stop or go somewhere yourself. If you're busy when they go, you stop what you're "
-              "doing to go with them; asleep, or unable to move, you're left behind. You can follow during a "
-              "conversation too, when you're asked to come along.")
+    :doc (prompts/doc "docs/following/follow.md")
     :args [:map [:who :string]]
     :valid? follow-reason
     :effect (fn [world actor {:keys [who]}]
@@ -169,7 +167,7 @@
 
    {:name :follow-stop
     :kind :free :per-turn 1
-    :doc "Stop following the person you follow: you stay where you are when they go."
+    :doc (prompts/doc "docs/following/follow-stop.md")
     :args [:map]
     :available? (fn [world actor] (some? (leader world actor)))
     :valid? (fn [world actor _] (when-not (leader world actor) "you aren't following anyone"))

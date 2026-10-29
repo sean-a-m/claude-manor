@@ -534,7 +534,7 @@
             (is (= [{:id "mrs-pell" :name "Mrs Pell" :appearance "A stout woman, usually in a print frock and a white apron."
                      :aspects {:apron "spattered with grease"}}]
                    (:sleepers (scene-json request))))
-            (is (= item-steward/steward-instructions (get-in request [:messages 0 :content])))
+            (is (= (item-steward/steward-instructions {}) (get-in request [:messages 0 :content])))
             (is (not (contains? (get-in request [:tools 0 :function :parameters :properties]) :inner))))))
       (rounds! run 1)
       (let [world (e/world run)

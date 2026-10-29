@@ -27,6 +27,8 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/physical-status-design.md` | physical status (bound, gagged, blind, deaf, unconscious, dead), impediments, the immediate `act-on`; built and mock/offline-tested, ordinary real-model compatibility smoke checked |
 | `docs/settings-design.md` | one ruleset for many settings: setting packs, prompt templates, money specs and private accounts, `manor.ruleset`, a palace skeleton; progress in its section 8 |
 | `docs/household-1904-proposal.md` | proposal: a second Claudeworth scenario, a modest household with new ironstone income that means to expand; not started |
+| `docs/prompts.md` | catalogue of the prompt templates in `resources/prompts/`: what each is for, who renders it, its parameters; keep it current |
+| `docs/prompt-extraction-design.md` | proposal: moving the model-facing text still in code (request framing, replies, reasons, narration) |
 | `docs/user-todos.md` | the user's own wishlist for later; not agent tasks |
 | `docs/archived/` | finished build briefs and old handoff notes: history, not the present state |
 
@@ -155,7 +157,7 @@ resources/worlds/ world files on the classpath; claudeworth.edn is the small tes
                  claudeworth-medium.edn the larger household (see docs/household-1904-proposal.md);
                  palace.edn the Qing palace skeleton; claudeworth-day.edn, lodge-day.edn and palace-day.edn
                  are mock days
-resources/prompts/ shared prompt templates (see manor.prompts)
+resources/prompts/ shared prompt templates (see manor.prompts; catalogued in docs/prompts.md)
 resources/settings/ setting packs, one directory each (england-1904/, qing-palace/): setting.edn, money.edn,
                  people.edn, positions.edn, calendar.edn and prompts/ (fragments and template overrides)
 resources/pricing.edn model prices, peak hours and cache block size for manor.tools.cache-report

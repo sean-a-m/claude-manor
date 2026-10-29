@@ -85,8 +85,10 @@ The scenario boundary is already clean: the engine only reads the keys listed in
   - The GM is always named "GM" with an empty persona.
   - **Partly done (2026-10-29, `docs/settings-design.md`):** the agent preamble is now the template
     `resources/prompts/agent/preamble.md`, and a setting pack can replace it (or any other shared
-    template) with a file at the same path under its `prompts/`. The GM preamble, the turn closing
-    and the conversation rules are still constants in `prompt.clj`.
+    template) with a file at the same path under its `prompts/`. The GM preamble
+    (`gm/preamble.md`) and the turn closing (`agent/turn-closing.md`) are templates too
+    (2026-10-29); the conversation rules are still code in `prompt.clj`
+    (`docs/prompt-extraction-design.md` 3.1).
 - **Approach:** optional scenario keys:
   - `:prompts {:agent-preamble "..." :gm-preamble "..." :turn-instruction "..."}`
   - `:gm {:name "Narrator" :persona "..."}` (used by `engine/init!`)
@@ -654,6 +656,15 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   `scenario-authoring.md` (`manor.mechanics.following`). Mock-tested only so far.
 - **Not done:** the village scenario's `move` doesn't take followers along; a real-model check
   of whether agents use it when asked to come along.
+
+### B17. The rest of the prompts in templates
+
+- **Why:** to read and tune every prompt in one place, and let a setting pack reword any of it.
+- **Now:** every block of instructions and every tool description of the household mechanics
+  and builtins is a template (`docs/prompts.md`). Request framing (section headings, the
+  conversation rules), replies, rejection reasons, narration and view text are still code.
+- **Approach:** `docs/prompt-extraction-design.md`: the framing as templates first, then
+  message catalogues for short strings if wanted. It has open questions for the user.
 
 ---
 

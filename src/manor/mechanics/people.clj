@@ -158,7 +158,7 @@
     {:messages [{:role "system" :content (instructions world)}
                 {:role "user" :content (json/write-value-as-string data)}]
      :tools [{:type "function"
-              :function {:name "polish" :description "One or two circumstances, a consistent persona and manner, and public appearance, written from basic traits."
+              :function {:name "polish" :description (prompts/render world "judges/tools/polish.md" {})
                          :parameters (mjs/transform polish-schema)}}]
      :ctx {:role :adjudicator :task :people/polish :record record}
      :check #(check-polish record %)})))
@@ -194,7 +194,7 @@
   (let [visible (visible-record record)]
     {:messages [{:role "system" :content (prompts/render world "writers/appearance.md" {:advised-appearance advised-appearance :max-appearance max-appearance})}
                 {:role "user" :content (json/write-value-as-string visible)}]
-     :tools [{:type "function" :function {:name "appearance" :description "Visible appearance only."
+     :tools [{:type "function" :function {:name "appearance" :description (prompts/render world "judges/tools/appearance.md" {})
                                          :parameters (mjs/transform appearance-schema)}}]
      :ctx {:record visible}
      :check #(adjudication/answer "appearance" %

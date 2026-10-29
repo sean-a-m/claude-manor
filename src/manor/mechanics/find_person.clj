@@ -92,7 +92,7 @@
                 {:role "user" :content (json/write-value-as-string {:seeker me :who who :people people})}]
      :tools [{:type "function"
               :function {:name "seek"
-                         :description "Say who is meant (a listed id) and how likely they are to be found, or that no one listed is meant."
+                         :description (prompts/render world "judges/tools/seek.md" {})
                          :parameters (mjs/transform answer-schema)}}]
      :ctx {:world world :who who :people people}
      :check #(adjudication/answer "seek" % (partial check-answer (vec listed)))}))

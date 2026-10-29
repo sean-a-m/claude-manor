@@ -1,0 +1,1 @@
+Say something privately to one other participant in the same place (use their id): a few sentences, at most {{speech-limit}} characters. They can answer only on their own turn, after yours ends. Shares its limit with say.

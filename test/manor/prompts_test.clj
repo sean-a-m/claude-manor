@@ -102,3 +102,17 @@
 (deftest one-final-newline-is-not-part-of-the-template
   (is (= "No newline at the end." (prompts/render "test/no-newline.md")))
   (is (= "A blank line follows.\n" (prompts/render "test/blank-line.md"))))
+
+(deftest tool-hints-come-from-templates
+  (let [tool #(get-in (a/->tool (merge {:name :x :doc "Do it."} %)) [:function :description])]
+    (is (= "Do it. Ends your turn." (tool {})))
+    (is (= "Do it. Free: does not end your turn. Once per turn." (tool {:kind :free :per-turn 1})))
+    (is (= "Do it. Query: returns information and does not end your turn (limited per turn). At most 2 times per turn."
+           (tool {:kind :query :per-turn 2})))
+    (is (= "Do it. Real-world action: ends your turn and needs operator approval before it happens."
+           (tool {:kind :act})))
+    (is (= "Do it. Free: does not end your turn; the others answer before it returns." (tool {:kind :converse})))
+    (testing "an action's own :hint, a string or a function of the world"
+      (is (= "Do it. Mine." (tool {:hint "Mine."})))
+      (is (= "Do it. Ends your part in this round of the conversation, not your own turn."
+             (tool {:hint (prompts/doc "docs/hints/speaking-turn.md")}))))))

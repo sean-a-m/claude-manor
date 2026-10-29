@@ -1,0 +1,1 @@
+Say something out loud to everyone in the same place: a few sentences, at most {{speech-limit}} characters. Others can answer only on their own turns, after yours ends, so for a question you need answered now use converse instead, not say as well. Shares its limit with whisper.

@@ -257,6 +257,10 @@ GM/operator views may see the small accounts map. No `pay` action or old `:house
 Every model-facing prompt, sorted. Only groups B and C move now; group A stays in code until
 it's touched for another reason (it can then move with no wording change).
 
+*Later (2026-10-29):* group A's instructions and tool docs moved to templates with no wording
+change (the conversation rules and request framing did not); see `docs/prompts.md` and
+`docs/prompt-extraction-design.md`.
+
 **A. Already neutral: no change.**
 - Items: the scene judge's instructions (its examples, "the pantry", "about 17 lb left", are
   illustrations, not assumptions), the steward, the finder (`find`), item tool docs.

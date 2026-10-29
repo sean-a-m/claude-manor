@@ -2121,14 +2121,15 @@ parameters. Two packs ship: `settings/england-1904` (Claudeworth, the medium hou
 `resources/prompts/path.md`, and fills `{{key}}` or dotted paths from the setting parameters with
 explicit `params` winning (whether their keys are strings or keywords). Missing values throw;
 no conditionals or loops in templates. Code picks fragments. Only shared files are cached. Instructions and rules are rendered for each request.
-An action's `:doc` may be a fixed string or a function of the world; `(prompts/doc "docs/x.md"
+An action's `:doc` (and an own `:hint`) may be a fixed string or a function of the world; `(prompts/doc "docs/x.md"
 params)` constructs one, `(actions/description action world)` resolves it, and `(actions/->tool
 action world)` builds its model-facing tool, including kind/limit hints. Pass the world in model
 requests and human-seat panel forms. Shorter renderer/tool arities use the default setting for
 old callers. `clock/world-label` applies the pack's clock label. Dated tool docs use
 `prompts/example-date`: the run's start date, or `1970-01-01` without a clock, solely as a format
 example. Judge briefs include architect/delivery paragraphs only with the corresponding places;
-visits' post option is described only with a post office.
+visits' post option is described only with a post office. `docs/prompts.md` lists every shared
+template, what it's for and its parameters: the paths a pack can override.
 
 #### People in a setting pack
 

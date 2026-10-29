@@ -1,0 +1,1 @@
+Give your judgement: each part of a member's inner state the conversation changed (`inner`: their id, the key, and the new value: a phrase of at most {{advised-value}} characters, or "" to clear it), and a summary of at most {{max-summary}} characters for the record.

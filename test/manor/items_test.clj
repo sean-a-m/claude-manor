@@ -577,7 +577,7 @@
       (is (str/includes? (:content system) "a short phrase of at most 80 characters"))
       (is (= {:type "string" :maxLength 80}
              (get-in (first (:tools request)) [:function :parameters :properties :changes :items :properties :value])))
-      (is (str/includes? item-steward/steward-instructions "values are 1–80 characters")))
+      (is (str/includes? (item-steward/steward-instructions {}) "values are 1–80 characters")))
     (is (str/includes? (:content user) (str "- Time: Saturday 15 October 1904, 22:30\n"
                                             "- Worker: Ben. A night owl who hates going to bed.\n"
                                             "- Place: Hall\n"

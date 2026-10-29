@@ -2,6 +2,7 @@
   "Candidate records, private recommendations and event-owned hiring.
   I/O runs through the engine's composed-query services; reducers never call out."
   (:require [clojure.string :as str]
+            [manor.actions :as a]
             [manor.clock :as clock]
             [manor.mechanics.builtins :as b]
             [manor.mechanics.calendar :as calendar]
@@ -517,12 +518,11 @@
                "No recommendation was made: the people or candidate pool are no longer ready."))}
    {:name :send-for :kind :final :roles :all
     :available? (fn [world actor] (boolean (some #(and (contains? (:known-to %) actor) (#{:pooled :away :returning} (:status %))) (vals (pool world)))))
-    :doc "Send for a candidate you know by candidate id. They arrive at the meeting place next round; meet and converse there."
+    :doc (prompts/doc "docs/hiring/send-for.md")
     :args [:map [:candidate :string]] :valid? send-for-reason :effect sent-for}
    {:name :engage :kind :free :roles :all
     :available? (fn [world actor] (boolean (some #(and (not= actor (:agent-id %)) (nil? (present-candidate-reason world actor (:agent-id %)))) (vals (pool world)))))
-    :doc (str "Offer a present candidate a position, optional free-text terms and bedroom id. A new offer replaces the old. They must accept; terms and conditions are recorded, not enforced. Living-in staff need a bed, but sharing is your decision. "
-              "Saying you'll take someone on offers nothing: this does. You can use it on your line in a conversation with them, before you speak.")
+    :doc (prompts/doc "docs/hiring/engage.md")
     :args [:map [:who :string] [:position :string] [:terms {:optional true} text-arg] [:bedroom {:optional true} :string]]
     :valid? engage-reason
     :effect (fn [world actor args]
@@ -533,20 +533,20 @@
              (str "You have offered " (:name (w/agent world who)) " the " position " place. They answer with accept-place or decline-place."))}
    {:name :accept-place :kind :free :roles :all
     :available? (fn [world actor] (some? (get-in world [:state :place-offers actor])))
-    :doc "Accept the place offered to you, with any conditions in free text. These are recorded, not enforced. You can use it on your line in a conversation, before you speak."
+    :doc (prompts/doc "docs/hiring/accept-place.md")
     :args [:map [:conditions {:optional true} text-arg]] :valid? offer-reason :effect accept
     :reply (fn [world actor _]
              (str "You have taken the place: you are now the " (str/lower-case (:title (positions/position world actor) "")) "."))}
    {:name :decline-place :kind :free :roles :all
     :available? (fn [world actor] (some? (get-in world [:state :place-offers actor])))
-    :doc "Decline your current offer. Discuss another offer or take-leave. You can use it on your line in a conversation, before you speak."
+    :doc (prompts/doc "docs/hiring/decline-place.md")
     :args [:map [:reason {:optional true} text-arg]] :valid? offer-reason
     :effect (fn [world actor args]
               [{:type :people/declined :visible-to #{actor (get-in world [:state :place-offers actor :employer])} :data args}
                {:type :people/offer-closed :visible-to :system :data {:who actor}}])}
    {:name :send-away :kind :final :roles :all
     :available? (fn [world actor] (boolean (some #(nil? (present-candidate-reason world actor (:agent-id %))) (vals (pool world)))))
-    :doc "Send an unengaged candidate here away. They keep their memories and can be sent for again. This does not dismiss hired staff."
+    :doc (prompts/doc "docs/hiring/send-away.md")
     :args [:map [:who :string]]
     :valid? (fn [world actor {:keys [who]}] (departure-reason world actor who))
     :effect (fn [world _ {:keys [who]}] (departure world who "sent away"))}
@@ -583,7 +583,10 @@
   writer's knowledge, never the candidate's record, for the scene judge."
   [spec]
   (-> spec
-      (update :doc str " When writing a character/reference for someone recommended, name their candidate id in candidate; any paper made is linked to them. Omit candidate for all other activities.")
+      (update :doc (fn [doc]
+                     (fn [world]
+                       (str (a/description {:doc doc} world) " "
+                            (prompts/render world "docs/hiring/spend-time-candidate.md" {})))))
       (update :args conj [:candidate {:optional true} :string])
       (assoc :valid? (fn [world actor args]
                        (or ((:valid? spec) world actor args)

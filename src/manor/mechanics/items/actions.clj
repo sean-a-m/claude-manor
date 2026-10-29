@@ -14,6 +14,7 @@
             [manor.mechanics.physical.changes :as physical-changes]
             [manor.mechanics.space :as space]
             [manor.narrate :as n]
+            [manor.prompts :as prompts]
             [manor.world :as w]))
 
 (defn- listing
@@ -194,17 +195,12 @@
         activity-args (fn [args] (if alias? args (assoc args :items (:on args))))]
     {:name action-name
      :kind :final
-     :doc (str (when alias? "Alias for spend-time; items means on. ")
-               "Spend time on an activity here, work or pastime. doing reads after \"is\", e.g. \"resting in the garden\". "
-               "Keep doing to at most " items/advised-doing " characters. "
-               "hours is half an hour to " items/max-work-hours ", default half an hour. "
-               "Optionally name up to " items/max-work-items " things or people with " (if alias? "items" "on")
-               ": items here or carried, this place's id, stores in scope, or the ids of people here, yourself included. "
-               "Working on a container includes its contents. "
-               "What you do to someone takes effect only if they're still with you when you finish: they may walk away, "
-               "or rouse you to stop you early, and then only the time you worked counts. "
-               (when act-on? "To do something to someone at once (take hold of them, untie them), use act-on instead. ")
-               "You get no turns until it ends; results show when you finish.")
+     :doc (fn [world]
+            (prompts/render world "docs/items/spend-time.md"
+                            {:alias (if alias? (str (prompts/render world "docs/items/work-on-alias.md" {}) " ") "")
+                             :advised-doing items/advised-doing :max-work-hours items/max-work-hours
+                             :max-work-items items/max-work-items :on (if alias? "items" "on")
+                             :act-on (if act-on? (str (prompts/render world "docs/items/spend-time-act-on.md" {}) " ") "")}))
      :args [:map
             [(if alias? :items :on) (if alias? {} {:optional true})
              [:vector {:min (if alias? 1 0) :max items/max-work-items} :string]]
@@ -263,12 +259,7 @@
   no occupation. A scenario offers it with its :items config's :act-on?."
   {:name :act-on
    :kind :final
-   :doc (str "Do something to one or more people here, at once: take hold of them, stop them leaving, bind or gag them, "
-             "strike them, search them, help them up, untie them, revive them. What happens is decided at once, before anyone "
-             "else acts, and the reply says what came of it. Name the people with on (their ids, at most " max-act-on
-             ") and anything you use with with (at most " max-act-with " items here or carried). "
-             "doing reads after \"is\", e.g. \"seizing him by the collar\"; keep it to at most " items/advised-doing " characters. "
-             "For longer care of someone (dressing her hair, nursing him), use spend-time.")
+   :doc (prompts/doc "docs/items/act-on.md" {:max-act-on max-act-on :max-act-with max-act-with :advised-doing items/advised-doing})
    :args [:map
           [:on [:vector {:min 1 :max max-act-on} :string]]
           [:with {:optional true} [:vector {:max max-act-with} :string]]
@@ -291,8 +282,7 @@
    (cond->
     [{:name :find
       :kind :query :per-turn 1
-      :doc (str "Look for a particular thing you need to pick up or hand over, or whose presence is in doubt. "
-                "Everyday things you only use in your work need no finding: just name them in what you're doing.")
+      :doc (prompts/doc "docs/items/find.md")
       :args [:map [:what [:string {:min 1 :max 60}]]]
       :available? (fn [world actor] (some? (space/location-of world actor)))
       :valid? (fn [world actor _]
@@ -303,10 +293,7 @@
 
      {:name :look
       :kind :free
-      :doc (str "Examine this place and its things closely: the room's detail, and the descriptions, aspects and owners of "
-                "the items here and what the people here carry. "
-                "Use it when you need to inspect the state of something or see it in detail; "
-                "your view already lists who is here and what items are here, so don't look routinely on arrival.")
+      :doc (prompts/doc "docs/items/look.md")
       :valid? (fn [world actor _]
                 (if (space/location-of world actor)
                   (physical/sight-reason world actor "look around")
@@ -315,7 +302,7 @@
 
      {:name :take
       :kind :free
-      :doc "Pick up an item in your place and carry it (use its id from `items` in your view)."
+      :doc (prompts/doc "docs/items/take.md")
       :args [:map [:item :string]]
       :valid? take-reason
       :effect (fn [world actor {id :item}]
@@ -328,22 +315,21 @@
 
      {:name :open
       :kind :free
-      :doc (str "Open a container here (use its id) to see what's in it, in detail. "
-                "Containers marked `closed` in your view show their contents only this way.")
+      :doc (prompts/doc "docs/items/open.md")
       :args [:map [:container :string]]
       :valid? open-reason
       :reply (fn [world _ {id :container}] (item-views/opened world (items/item world id)))}
 
      {:name :put-in
       :kind :free
-      :doc "Put an item (use its id) that you carry, or could pick up here, into a container here (its id)."
+      :doc (prompts/doc "docs/items/put-in.md")
       :args [:map [:item :string] [:container :string]]
       :valid? put-in-reason
       :effect put-in-events}
 
      {:name :put-down
       :kind :free
-      :doc "Put down an item you carry (use its id), leaving it where you are."
+      :doc (prompts/doc "docs/items/put-down.md")
       :args [:map [:item :string]]
       :valid? (fn [world actor {id :item}]
                 (or (carrying-reason world actor id)
@@ -354,8 +340,7 @@
 
      {:name :give
       :kind :free
-      :doc (str "Give an item you carry (use its id) to someone in the same place (use their id). "
-                "Saying you hand something over doesn't: only this does, and what you're given appears under `carrying`.")
+      :doc (prompts/doc "docs/items/give.md")
       :args [:map [:item :string] [:to :string]]
       :valid? give-reason
       :effect (fn [world actor {id :item to :to}]

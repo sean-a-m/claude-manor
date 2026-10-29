@@ -25,6 +25,7 @@
             [manor.clock :as clock]
             [manor.mechanics.items :as items]
             [manor.narrate :as n]
+            [manor.prompts :as prompts]
             [manor.world :as w]))
 
 (def max-value items/max-aspect)
@@ -100,19 +101,16 @@
 (defn key-instructions
   "The lines naming the keys every person has, with their glosses, and how
   many others a judge may add, for a scenario's `config`."
-  [config]
-  (str "Every person has the keys below. You may add others (lower-case letters and hyphens, at most 24 characters), at most " (open-cap config) " a person besides these.\n"
-       (str/join "\n" (for [[k gloss] (:keys config)] (str "- " (name k) ": " gloss)))))
+  [world config]
+  (prompts/render world "judges/inner-keys.md"
+                  {:open (open-cap config)
+                   :keys (str/join "\n" (for [[k gloss] (:keys config)] (str "- " (name k) ": " gloss)))}))
 
 (defn instructions
   "The judge's lines about inner state, for a scenario's `config`."
-  [config]
-  (str "## Inner state\n"
-       "- A person's `inner` state is how they are inside, which only they know: their spirits, how their body is, what's on their mind, and anything else about them that doesn't show. Each entry says when it was set (`set_at`). Change it only where the activity would, and leave the rest.\n"
-       "- Their temperament says how they're inclined to take things; it informs your judgement but doesn't decide it.\n"
-       "- The summary is read by everyone present: say only what they could see or hear, never anyone's inner state.\n"
-       "- Change the inner state only of the people marked `person`, in `inner: [{person, key, value}]`, apart from `changes`: the person's id, the key, and a phrase of at most " advised-value " characters saying how they are now, or \"\" to clear it. "
-       (key-instructions config)))
+  [world config]
+  (prompts/render world "judges/inner.md"
+                  {:advised-value advised-value :keys (key-instructions world config)}))
 
 (defn- decoded
   "The judge's inner changes as [{:person :key :to}]: keys normalised like

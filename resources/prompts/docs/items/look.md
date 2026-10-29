@@ -1,0 +1,1 @@
+Examine this place and its things closely: the room's detail, and the descriptions, aspects and owners of the items here and what the people here carry. Use it when you need to inspect the state of something or see it in detail; your view already lists who is here and what items are here, so don't look routinely on arrival.

@@ -74,12 +74,12 @@
 (def actions
   [;; overrides the built-in, which everyone sees: here only people present notice
    {:name :pass
-    :doc "Do nothing (more) this turn."
+    :doc (prompts/doc "docs/pass.md")
     :effect (fn [world actor _] [{:type :agent/passed :visible-to (space/here world actor)}])}
 
    {:name :walk
     :kind :free
-    :doc "Walk to any place listed under `walkable` in your view (use its id). You arrive at once, so you can act there this turn; the reply shows the place, who is there and what is there."
+    :doc (prompts/doc "docs/walk.md")
     :args [:map [:to :string]]
     :per-turn physical/walks-per-turn
     :valid? (fn [world actor {:keys [to]}]
@@ -112,7 +112,7 @@
 
    {:name :travel
     :kind :final
-    :doc "Go somewhere beyond walking distance: a place id from `places` in your view, or an area name (a key of `places`) for its nearest place. Shorter journeys arrive within this turn; longer ones leave you travelling until you arrive. `journeys` in your view shows how long each takes."
+    :doc (prompts/doc "docs/travel.md")
     :args [:map [:to :string]]
     :valid? (fn [world actor {:keys [to]}]
               (let [here (space/location-of world actor)
@@ -141,8 +141,7 @@
                                      :visible-to (space/here world actor)}]))))}
 
    {:name :sleep
-    :doc (str "Go to sleep in a bedroom until a time of day, e.g. \"07:00\" (at most " max-sleep-hours
-              " hours away). You get no turns while asleep.")
+    :doc (prompts/doc "docs/sleep.md" {:max-sleep-hours max-sleep-hours})
     :args [:map [:until :string]]
     :valid? (fn [world actor {:keys [until]}]
               (let [c (:clock world)
@@ -159,7 +158,7 @@
 
    {:name :rouse
     :kind :free
-    :doc "Interrupt someone here who is asleep or busy (use their id). They get a turn and decide whether to stop."
+    :doc (prompts/doc "docs/rouse.md")
     :args [:map [:who :string]]
     :valid? (fn [world actor {:keys [who]}]
               (cond (not (space/together? world actor who)) (str who " is not here")

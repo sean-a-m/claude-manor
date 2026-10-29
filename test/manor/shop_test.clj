@@ -47,7 +47,7 @@
                                  :store-profile profile :hours ["08:00" "18:00"]}
                                 {:id "back-room" :name "Back room" :desc "A quiet room."}]
                     :routes [["counter" "back-room" 0]]}
-            :state {:setting "Rural England, 1904." :household {:funds 600 :untouched 7}
+            :state {:setting "Rural England, 1904." :accounts {"household" 600} :unrelated {:untouched 7}
                     :positions {:shopkeeper {:capabilities #{:shop-clerk}}}
                     :quotes {}}
             :items []})
@@ -89,7 +89,7 @@
       (let [world (e/world run)
             [offer] (vals (get-in world [:state :quotes]))
             events (e/events run)]
-        (is (= 600 (get-in world [:state :household :funds])))
+        (is (= 600 (get-in world [:state :accounts "household"])))
         (is (empty? (items/items-where world :holder)))
         (is (= 6 (:price offer)))
         (is (= "customer" (:buyer offer)))
@@ -101,8 +101,8 @@
                                      (n/names world)) (:id offer)))
         (rounds! run 2)
         (let [after (e/world run)]
-          (is (= 594 (get-in after [:state :household :funds])))
-          (is (= 7 (get-in after [:state :household :untouched])))
+          (is (= 594 (get-in after [:state :accounts "household"])))
+          (is (= 7 (get-in after [:state :unrelated :untouched])))
           (is (empty? (get-in after [:state :quotes])))
           (testing "one parcel for the whole quantity, its amount and state as aspects"
             (is (= [{:id "packet-of-needles" :name "packet of needles" :owner "household" :holder "customer"
@@ -114,6 +114,34 @@
           (is (not-any? #(= :action/forfeited (:type %)) (e/events run)))
           (is (not-any? #(re-find #"^(error:|rejected:)" (:content % ""))
                         (mapcat :replies (store/read-llm (:dir run)))))))
+      (finally (e/stop-run run)))))
+
+(deftest buying-with-a-private-purse
+  (let [base (:init (scenario agents))
+        policy (fn [ctx]
+                 (let [reply (policy ctx)]
+                   (if (= :buy (:tool reply)) (assoc-in reply [:args :from] "own") reply)))
+        run (start {:policy policy
+                    :overrides {:init (fn [opts] (assoc-in (base opts) [:state :accounts "customer"] 10))}})]
+    (try
+      (let [world (quoted (e/world run))
+            args {:quote-ids (vec (keys (get-in world [:state :quotes]))) :hand-over "take" :from "own"}]
+        (is (nil? (a/check (action :buy) world "customer" args)))
+        (is (str/includes? (shop/buy-reason (assoc-in world [:state :accounts "customer"] 5) "customer" args)
+                           "your purse has 5d"))
+        (is (str/includes? (shop/buy-reason (update-in world [:state :accounts] dissoc "customer") "customer" args)
+                           "no personal account"))
+        (is (:error (a/decode-args (action :buy) (assoc args :from "clerk"))))
+        (doseq [hand-over ["take" "leave"]]
+          (let [evs (shop/buy-events world "customer" (assoc args :hand-over hand-over))
+                after (reduce w/apply-event world evs)]
+            (is (= "customer" (get-in (first evs) [:data :account])))
+            (is (= "customer" (:owner (first (vals (:items after)))))))))
+      (rounds! run 2)
+      (let [world (e/world run)]
+        (is (= {"household" 600 "customer" 4} (get-in world [:state :accounts])))
+        (is (= ["customer"] (map :owner (items/held-by world "customer"))))
+        (is (= world (w/replay (store/read-events (:dir run))))))
       (finally (e/stop-run run)))))
 
 (deftest appraisal-receives-store-scope-not-private-state
@@ -233,7 +261,7 @@
         (let [after (e/world run)
               parcels (items/held-by after "customer")]
           (testing "one buy pays for both and hands over a parcel for each"
-            (is (= (- 600 25) (get-in after [:state :household :funds])))
+            (is (= (- 600 25) (get-in after [:state :accounts "household"])))
             (is (empty? (get-in after [:state :quotes])))
             (is (= 2 (count (filter #(= :claudeworth/bought (:type %)) (e/events run)))))
             (is (= #{"1 packet" "4 × 1 packet"} (set (map #(get-in % [:aspects :amount]) parcels))))
@@ -255,9 +283,9 @@
         (is (nil? (shop/buy-reason world "customer" {:quote-ids ids})))
         (is (str/includes? (shop/buy-reason world "customer" {:quote-ids [(first ids) (first ids)]}) "once"))
         (is (str/includes? (shop/buy-reason world "customer" {:quote-ids [(first ids) "quote-999"]}) "quote-999: no such unspent quote"))
-        (is (str/includes? (shop/buy-reason (assoc-in world [:state :household :funds] 24) "customer" {:quote-ids ids})
+        (is (str/includes? (shop/buy-reason (assoc-in world [:state :accounts "household"] 24) "customer" {:quote-ids ids})
                            "these cost 2s 1d"))
-        (is (nil? (shop/buy-reason (assoc-in world [:state :household :funds] 24) "customer" {:quote-ids [(first ids)]}))))
+        (is (nil? (shop/buy-reason (assoc-in world [:state :accounts "household"] 24) "customer" {:quote-ids [(first ids)]}))))
       (finally (e/stop-run run)))))
 
 (defn- bought
@@ -339,7 +367,7 @@
             [bought] (filter #(= :claudeworth/bought (:type %)) (e/events run))
             replies (map :content (mapcat :replies (filter #(= "customer" (:agent %)) (store/read-llm (:dir run)))))]
         (testing "paid for, the quote spent, and the goods left at the counter for the customer"
-          (is (= 594 (get-in world [:state :household :funds])))
+          (is (= 594 (get-in world [:state :accounts "household"])))
           (is (empty? (get-in world [:state :quotes])))
           (is (empty? (items/held-by world "customer")))
           (is (= {:name "packet of needles" :place "counter" :owner "household"
@@ -383,7 +411,7 @@
               [event] (filter #(= :claudeworth/goods-refused (:type %)) (e/events run))]
           (is (= reason (get-in event [:data :reason])))
           (is (= #{"customer" "clerk"} (:visible-to event)))
-          (is (= 600 (get-in world [:state :household :funds])))
+          (is (= 600 (get-in world [:state :accounts "household"])))
           (is (empty? (get-in world [:state :quotes])))
           (is (empty? (items/items-where world :holder)))
           (is (= world (w/replay (e/events run)))))
@@ -400,7 +428,7 @@
               failed (filter #(= :adjudication/failed (:type %)) (e/events run))]
           (is (= calls (count logged)))
           (is (= success (boolean (seq (get-in world [:state :quotes])))))
-          (is (= 600 (get-in world [:state :household :funds])))
+          (is (= 600 (get-in world [:state :accounts "household"])))
           (is (empty? (items/items-where world :holder)))
           (is (= (not success) (boolean (seq failed))))
           (is (every? #(= :system (:visible-to %)) failed)))
@@ -414,7 +442,7 @@
             args {:quote-ids [id]}
             placed (fn [world actor place] (w/apply-event world {:type :agent/placed :data {:id actor :to place}}))]
         (is (nil? (shop/buy-reason world "customer" args)))
-        (is (shop/buy-reason (assoc-in world [:state :household :funds] 5) "customer" args))
+        (is (shop/buy-reason (assoc-in world [:state :accounts "household"] 5) "customer" args))
         (is (shop/buy-reason world "clerk" args))
         (is (shop/buy-reason (assoc-in world [:agents "other"] (assoc (w/agent world "customer") :id "other")) "other" args))
         (is (shop/buy-reason (placed world "customer" "back-room") "customer" args))
@@ -437,7 +465,7 @@
     (let [run (start {:cast cast})]
       (try
         (rounds! run 2)
-        (is (= 594 (get-in (e/world run) [:state :household :funds])))
+        (is (= 594 (get-in (e/world run) [:state :accounts "household"])))
         (is (= 1 (count (items/items-where (e/world run) #(= "customer" (:holder %))))))
         (is (not-any? #(= :action/forfeited (:type %)) (e/events run)))
         (finally (e/stop-run run))))))
@@ -449,7 +477,7 @@
         (is (some #(= :buy (:name %)) (a/for-role (:actions run) role)))
         (rounds! run 2)
         (let [world (e/world run)]
-          (is (= 594 (get-in world [:state :household :funds])) (name role))
+          (is (= 594 (get-in world [:state :accounts "household"])) (name role))
           (is (= 1 (count (items/items-where world #(= "customer" (:holder %))))))
           (is (= world (w/replay (e/events run)))))
         (finally (e/stop-run run)))))
@@ -702,7 +730,7 @@
         (is (< (id-of :claudeworth/goods-quoted) (id-of :claudeworth/bought) (id-of :conversation/ended))
             "bought on the customer's line, after the quote")
         (is (some #(some #{"buy"} (:tools %)) calls))
-        (is (= 594 (get-in world [:state :household :funds])))
+        (is (= 594 (get-in world [:state :accounts "household"])))
         (is (= ["counter"] (map :at (:waiting-at-shops (shop/observe world "customer")))))
         (is (not-any? #(= :action/forfeited (:type %)) evs))
         (is (= world (w/replay (store/read-events (:dir run))))))

@@ -39,7 +39,6 @@
 
 (defn- loc-name [world id] (:name (space/location world id) id))
 (defn- here [world actor] (space/location world (space/location-of world actor)))
-(defn- funds [world] (get-in world [:state :household :funds]))
 (defn- work-in-progress [world] (first (get-in world [:state :works])))
 
 (defn- floor-key
@@ -79,9 +78,9 @@
 (defmethod w/apply-event :claudeworth/plans-shown [world {:keys [data]}]
   (update-in world [:state :plans (:plan-id data) :holders] into (:to data)))
 (defmethod w/apply-event :claudeworth/commissioned [world {:keys [data]}]
-  (cond-> (-> world (update-in [:state :household :funds] - (:price data))
+  (cond-> (-> world (update-in [:state :accounts (:account data)] - (:price data))
               (update-in [:state :works] conj (select-keys data [:plan-id :room :name :due :connects-to :by])))
-    (:payee data) (update-in [:state :purses (:payee data)] (fnil + 0) (:fee data))))
+    (:payee data) (update-in [:state :accounts (:payee data)] (fnil + 0) (:fee data))))
 (defmethod w/apply-event :claudeworth/works-completed [world {:keys [data]}]
   (-> world (update-in [:state :works] #(vec (remove (fn [work] (= (:room data) (:room work))) %)))
       (assoc-in [:state :plans (:plan-id data) :built?] true)))
@@ -227,18 +226,18 @@
                 :data {:plan-id plan-id :to (vec (sort (space/here world actor)))}}])}
    {:name :commission :kind :final :roles :all
     :doc (prompts/doc "docs/architect/commission.md")
-    :args [:map [:plan-id :string]]
-    :valid? (fn [world actor {:keys [plan-id]}]
+    :args [:map [:plan-id :string] [:from {:optional true} [:enum "household" "own"]]]
+    :valid? (fn [world actor {:keys [plan-id from]}]
               (or (office-reason world actor) (held-reason world actor plan-id)
                   (when-let [work (work-in-progress world)]
                     (str "the " (:name work) " is already being built; it will be finished "
                          (clock/short-label (:clock world) (:due work) (:round world))
                          ". Only one room is built at a time: commission the "
                          (:name (plan world plan-id)) " then."))
-                  (when (> (:price (plan world plan-id)) (funds world))
+                  (when-let [reason (money/spend-reason world actor from (:price (plan world plan-id)))]
                     (str "the " (:name (plan world plan-id)) " would cost " (money/display (money/spec world) (:price (plan world plan-id)))
-                         "; the household has " (money/display (money/spec world) (funds world))))))
-    :effect (fn [world actor {:keys [plan-id]}]
+                         "; " reason))))
+    :effect (fn [world actor {:keys [plan-id from]}]
               (let [p (plan world plan-id) price (:price p)
                     delay (or (get-in world [:state :build-rounds]) (* (clock/rounds-per-day (:clock world)) (:build-days p)))
                     payee (when (positions/capable? world (:drawn-by p) :architect) (:drawn-by p))
@@ -246,6 +245,7 @@
                                                     (map :room (get-in world [:state :works]))))]
                 [{:type :claudeworth/commissioned :visible-to :all
                   :data {:plan-id plan-id :room room :name (:name p) :by actor :price price
+                         :account (money/account actor from)
                          :due (+ (:round world) delay) :fee (if payee (quot (* price fee-percent) 100) 0)
                          :payee payee :connects-to (:connects-to p)}}]))}])
 
@@ -268,8 +268,9 @@
 
 (defn observe [world id]
   (let [works (get-in world [:state :works])]
-    (cond-> {:household (update (get-in world [:state :household]) :funds #(money/display (money/spec world) %))}
-      (positions/capable? world id :architect) (assoc :you {:purse (money/display (money/spec world) (get-in world [:state :purses id] 0))})
+    (cond-> {:household {:funds (money/display (money/spec world) (get-in world [:state :accounts "household"]))}}
+      (contains? (get-in world [:state :accounts]) id)
+      (assoc :you {:purse (money/display (money/spec world) (get-in world [:state :accounts id]))})
       (seq works) (assoc :building (mapv (fn [work] {:name (:name work)
                                                     :beside (mapv #(loc-name world %) (:connects-to work))
                                                     :finish (clock/short-label (:clock world) (:due work) (:round world))}) works))
@@ -282,13 +283,17 @@
 
 (defn initial-state
   "Money, plans, works and the architect's price list at the start.
-  `positions` say who is an architect, with a purse for their fees."
+  `positions` say who is an architect; they have a zero account for fees
+  unless the world gives them a starting :purse, in authored units."
   [wf agents positions opts]
-  {:household {:funds (money/authored->units (:money (settings/for-worldfile wf)) (get-in wf [:meta :starting-funds]))}
-   :architect-prices (some-> (get-in wf [:meta :architect-prices]) read-price-list)
-   :purses (into {} (for [a agents :when (contains? (get-in positions [(:role a) :capabilities]) :architect)]
-                      [(b/slug (:name a)) 0]))
-   :plans {} :works [] :build-rounds (:build-rounds opts)})
+  (let [spec (:money (settings/for-worldfile wf))]
+    {:accounts (into {"household" (money/authored->units spec (get-in wf [:meta :starting-funds]))}
+                     (for [a agents
+                           :when (or (contains? a :purse)
+                                     (contains? (get-in positions [(:role a) :capabilities]) :architect))]
+                       [(b/slug (:name a)) (money/authored->units spec (:purse a 0))]))
+     :architect-prices (some-> (get-in wf [:meta :architect-prices]) read-price-list)
+     :plans {} :works [] :build-rounds (:build-rounds opts)}))
 
 (defn- price-list-problems
   "What's wrong with the price list a world file names, or nil."
@@ -305,6 +310,8 @@
 
 (defn problems [{:keys [locations meta] :as wf}]
   (concat
+   (for [a (:agents wf) :when (= "household" (b/slug (:name a)))]
+     (str "agent " (pr-str (:name a)) ": household is reserved for the shared account; choose another name"))
    (when (some #(and (set? (:services %)) (contains? (:services %) :architect)) locations)
      (if-let [source (:architect-prices meta)]
        (price-list-problems (:money (settings/for-worldfile wf)) source)

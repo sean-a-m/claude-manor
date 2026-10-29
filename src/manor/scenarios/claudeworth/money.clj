@@ -31,3 +31,20 @@
                               (let [q (quot remaining value)]
                                 [(rem remaining value) (cond-> parts (pos? q) (conj (component unit q)))]))
                             [(abs n) []] (:units spec)))))))
+
+(defn account
+  "The paying owner: household by default; own can only mean the actor."
+  [actor from]
+  (if (= "own" from) actor "household"))
+
+(defn spend-reason
+  "Why the selected account cannot cover n, or nil. Never exposes another
+  character's balance. Callers prefix this with the cost of their purchase."
+  [world actor from n]
+  (let [owner (account actor from)
+        balance (get-in world [:state :accounts owner])]
+    (cond
+      (nil? balance) "you have no personal account; use from \"household\" instead"
+      (> n balance) (str (if (= owner "household") "the household has " "your purse has ")
+                         (display (spec world) balance)
+                         (when (= "own" from) "; spend less or use from \"household\" instead")))))

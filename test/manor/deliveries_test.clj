@@ -66,7 +66,7 @@
                                  {:id "front-door" :name "Front door" :desc "The front door of the house."}
                                  {:id "hall" :name "Hall" :desc "A hall."}]
                      :routes [["front-door" "hall" 0] ["counter" "front-door" 1]]}
-             :state (merge {:setting "Rural England, 1904." :household {:funds 600}
+             :state (merge {:setting "Rural England, 1904." :accounts {"household" 600}
                             :positions {:shopkeeper {:capabilities #{:shop-clerk}} :errand-boy errand-boy}
                             :quotes {} :meeting-place "front-door"}
                            (select-keys shop-extra [:hiring-max-agents]))
@@ -91,6 +91,34 @@
 
 (defn- of-type [run t] (filter #(= t (:type %)) (e/events run)))
 
+(deftest private-orders-and-sent-up-goods-keep-their-owner
+  (let [base (:init (scenario {:delivery-profile delivery-profile}))
+        own-policy (fn [{:keys [world agent-id] :as ctx}]
+                     (let [reply (policy ctx)
+                           waiting (shop/waiting-here world agent-id)]
+                       (cond
+                         (= :buy (:tool reply)) (update reply :args assoc :from "own" :hand-over "leave")
+                         (and (= "clerk" agent-id) (= 3 (:round world)) (seq waiting))
+                         {:tool :send-up :args {:items (mapv :id waiting) :within-hours 1}}
+                         :else reply)))
+        run (start {:delivery-profile delivery-profile}
+                   {:init (fn [opts] (assoc-in (base opts) [:state :accounts "customer"] 200))
+                    :mock-policy own-policy})]
+    (try
+      (rounds! run 3)
+      (let [world (e/world run)]
+        (is (= {"household" 600 "customer" 50} (get-in world [:state :accounts])))
+        (is (= ["customer" "customer"] (map :owner (vals (deliveries/orders world)))))
+        (is (= "customer" (get-in (first (of-type run :deliveries/ordered)) [:data :account]))))
+      (rounds! run 3)
+      (let [world (e/world run)
+            goods (items/items-at world "front-door")]
+        (is (= #{"tea" "side of mutton"} (set (map :name goods))))
+        (is (every? #(= "customer" (:owner %)) goods))
+        (is (= {"household" 600 "customer" 50} (get-in world [:state :accounts])))
+        (is (= world (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))
+
 (deftest an-order-is-paid-now-and-delivered-later
   (let [run (start)]
     (try
@@ -100,7 +128,7 @@
             [ordered] (of-type run :deliveries/ordered)
             names (n/names world)]
         (testing "one buy: tea handed over, the mutton ordered, both paid for"
-          (is (= (- 600 150) (get-in world [:state :household :funds])))
+          (is (= (- 600 150) (get-in world [:state :accounts "household"])))
           (is (empty? (get-in world [:state :quotes])))
           (is (= ["tea"] (map :name (items/held-by world "customer"))))
           (is (= {:item "side of mutton" :buyer "customer" :clerk "clerk" :location "counter" :to "front-door" :due 6}
@@ -165,7 +193,7 @@
         (is (= ["side of mutton"] (map :item (vals (deliveries/orders world)))))
         (is (= [["tea" "counter"]] (map (juxt :name :place) (items/items-where world :waiting))))
         (is (= ["tea"] (map :item (:waiting-at-shops (shop/observe world "customer")))))
-        (is (= (- 600 150) (get-in world [:state :household :funds])))
+        (is (= (- 600 150) (get-in world [:state :accounts "household"])))
         (is (some #{"Paid: the goods are left at the shop for you (waiting-at-shops in your view); goods for delivery are under orders in your view."}
                   (map :content (mapcat :replies (filter #(= "customer" (:agent %)) (store/read-llm (:dir run)))))))
         (is (= world (w/replay (store/read-events (:dir run))))))
@@ -446,7 +474,7 @@
                   :item "tea" :desc "Good tea." :aspects {:amount "1 lb" :state "fresh"} :consumable true
                   :owner "household" :to "front-door" :due 5}
                  order))
-          (is (= (- 600 30) (get-in world [:state :household :funds])) "paid once, at the buy"))
+          (is (= (- 600 30) (get-in world [:state :accounts "household"])) "paid once, at the buy"))
         (testing "it's gone from the counter and from the customer's waiting goods"
           (is (nil? (items/item world "tea")))
           (is (= {:name "tea" :place "counter" :round 3 :fate "sent up by the shop's courier"}

@@ -38,7 +38,7 @@
     {:plans {} :rooms {} :annotations {}} (map-indexed vector events))))
 
 (defn toolbar [world]
-  (when-let [funds (get-in world [:state :household :funds])]
+  (when-let [funds (get-in world [:state :accounts "household"])]
     [:div.scene-household [:b "Household funds: "] (money/display (money/spec world) funds)]))
 
 (defn badges [world loc-id]
@@ -52,7 +52,7 @@
 (defn inspect [world kind id]
   (case kind
     "agent"
-    (let [purse (get-in world [:state :purses id])
+    (let [purse (get-in world [:state :accounts id])
           plans (filter #(contains? (:holders %) id) (sort-by :id (vals (get-in world [:state :plans]))))]
       (when (or (some? purse) (seq plans))
         [:section.scene-extra [:h3 "Household · plans and purse"]

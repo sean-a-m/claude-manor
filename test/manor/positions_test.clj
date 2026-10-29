@@ -185,7 +185,7 @@
           (is (not (a/allowed? action :earl #{:shop-clerk})))
           (is (not (a/allowed? (assoc action :roles :all) :gm #{:shop-clerk})))))
       (testing "Mr Pugh is the architect by capability: his purse and the office's drawing"
-        (is (= {"pugh" 0} (get-in world [:state :purses])))
+        (is (= 0 (get-in world [:state :accounts "pugh"])))
         (is (contains? (:you (cw/observe world "pugh")) :purse))
         (is (not (contains? (:you (cw/observe world "hale")) :purse))))
       (finally (e/stop-run run)))))

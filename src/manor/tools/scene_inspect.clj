@@ -117,7 +117,7 @@
                 (get-in snap [:opts :model]))
      :usage (get-in world [:usage id]) :carrying (items/by-name (items/held-by world id))
      :bedroom (get-in world [:state :bedrooms id]) :routine (get-in world [:state :routines id])
-     :purse (get-in world [:state :purses id]) :last-seen (space/last-seen world id)
+     :purse (get-in world [:state :accounts id]) :last-seen (space/last-seen world id)
      :recently (recently snap calls id)}))
 
 (defn place [{:keys [world]} id]

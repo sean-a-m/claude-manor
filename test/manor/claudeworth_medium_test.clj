@@ -98,7 +98,7 @@
         (is (= w (w/replay (store/read-events (:dir run)))))
         (testing "the day is everybody's own: no plan drawn, no money spent"
           (is (empty? (get-in w [:state :plans])))
-          (is (= 2900 (quot (get-in w [:state :household :funds]) 240)))))
+          (is (= 2900 (quot (get-in w [:state :accounts "household"]) 240)))))
       (finally (e/stop-run run)))))
 
 (deftest the-village-and-the-abbey-keep-the-claudeworth-ones

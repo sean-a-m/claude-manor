@@ -67,18 +67,18 @@
 (defn ordered
   "The event for buying delivery quote `quote-id`: paid now, delivered at the
   due round to the delivery place."
-  [world buyer quote-id quote audience]
+  [world buyer quote-id quote audience account]
   (let [shop (space/location world (:location quote))
         due (due-round world (get-in quote [:deliver :lead-hours]) (:hours shop))]
     {:type :deliveries/ordered :visible-to audience
      :data (merge (select-keys quote [:location :clerk :item :unit :qty :price :desc :condition :consumable])
                   {:id (str/replace quote-id #"^quote-" "order-") :quote-id quote-id :buyer buyer
-                   :due due :to (get-in quote [:deliver :to])
+                   :due due :to (get-in quote [:deliver :to]) :account account :owner account
                    :due-label (clock/short-label (:clock world) due (:round world))})}))
 
 (defmethod w/apply-event :deliveries/ordered [world {:keys [data]}]
   (-> world
-      (update-in [:state :household :funds] - (:price data))
+      (update-in [:state :accounts (:account data)] - (:price data))
       (update-in [:state :quotes] dissoc (:quote-id data))
       (assoc-in [:state :orders (:id data)] (dissoc data :due-label))))
 
@@ -251,7 +251,7 @@
         parcels (items/added-events
                  world
                  (for [o due]
-                   (cond-> {:name (:item o) :desc (:desc o) :place place :owner (:owner o "household") :order-id (:id o)}
+                   (cond-> {:name (:item o) :desc (:desc o) :place place :owner (:owner o) :order-id (:id o)}
                      (:unit o) (assoc :aspects {:amount (amount (:qty o) (:unit o)) :state (:condition o)})
                      (:aspects o) (assoc :aspects (:aspects o))
                      (:consumable o) (assoc :consumable? true)))

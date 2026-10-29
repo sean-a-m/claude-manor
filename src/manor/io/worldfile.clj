@@ -44,6 +44,7 @@
             [manor.mechanics.inner :as inner]
             [manor.mechanics.items :as items]
             [manor.mechanics.physical :as physical]
+            [manor.settings :as settings]
             [manor.world :as w]))
 
 (def Location
@@ -72,6 +73,7 @@
    [:away? {:optional true} :boolean]
    [:persona {:optional true} :string]
    [:situation {:optional true} :string]
+   [:purse {:optional true} :any]          ; authored money; checked below for a readable message
    [:manner {:optional true} :string]
    [:appearance {:optional true} [:string {:min 1 :max 600}]]
    [:aspects {:optional true} :any]          ; checked by `problems`, for a readable message
@@ -160,6 +162,10 @@
             (for [{:keys [name location]} (:agents wf)
                   :when (and location (not (known location)))]
               (str "agent " (pr-str name) ": unknown location " (pr-str location)))
+            (for [{:keys [name] :as a} (:agents wf)
+                  :when (and (contains? a :purse) (not (nat-int? (:purse a))))]
+              (str "agent " (pr-str name) ": :purse must be non-negative integer "
+                   (get-in (settings/for-worldfile wf) [:money :authored-name])))
             (for [{:keys [name] :as a} (:agents wf)
                   :when (contains? a :aspects)
                   :let [p (items/aspects-problem (:aspects a))]

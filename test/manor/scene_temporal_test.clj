@@ -31,10 +31,10 @@
            :desc "Fresh plaster." :connects-to ["hall"] :holders #{"owner"} :price 240})
 (def commissioned {:type :claudeworth/commissioned
                    :data {:plan-id "extension" :room "extension-2" :name "Morning room"
-                          :price 240 :due 5 :by "owner" :connects-to ["hall"]}})
+                          :price 240 :account "household" :due 5 :by "owner" :connects-to ["hall"]}})
 (def completed {:type :claudeworth/works-completed
                 :data {:plan-id "extension" :room "extension-2" :name "Morning room" :connects-to ["hall"]}})
-(def initial [{:type :world/initialized :data {:state {:household {:funds 5000} :works [] :plans {}}}}
+(def initial [{:type :world/initialized :data {:state {:accounts {"household" 5000} :works [] :plans {}}}}
               (location "hall") (location "study") (route "hall" "study")
               {:type :round/started :data {:round 1}}
               {:type :claudeworth/plans-drawn :data {:plan plan}}])
@@ -161,7 +161,7 @@
     (is (str/includes? (html (scene/svg overlay (scene/presentation overlay))) "&lt;badge&gt;"))
     (is (str/includes? (html (inspect/fragment overlay [] "place" "hall")) "&lt;private plans&gt;"))
     (is (str/includes? (html (scene/svg snapshot (scene/presentation snapshot))) "adjoining works")))
-  (let [world {:state {:purses {"pugh" 258} :plans {"p" (assoc plan :holders #{"pugh"})}}}]
+  (let [world {:state {:accounts {"pugh" 258} :plans {"p" (assoc plan :holders #{"pugh"})}}}]
     (is (str/includes? (html (household/inspect world "agent" "pugh")) "£1 1s 6d"))
     (is (str/includes? (html (household/inspect world "agent" "pugh")) "Morning room"))))
 

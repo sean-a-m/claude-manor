@@ -112,8 +112,8 @@
                 reviewed (filter #(= :calendar/reviewed (:type %)) (e/events run))]
             (is (= :reviewed (status world "guy-fawkes-1904")))
             (is (= 1 (count reviewed)))
-            (is (= (get-in before [:state :household :funds])
-                   (get-in world [:state :household :funds])))
+            (is (= (get-in before [:state :accounts "household"])
+                   (get-in world [:state :accounts "household"])))
             (is (= (set (keys (:agents before))) (set (keys (:agents world)))))
             (is (not-any? #(= :action/forfeited (:type %)) (e/events run)))
             (is (= world (w/replay (store/read-events (:dir run)))))))))))

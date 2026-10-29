@@ -24,6 +24,8 @@
             [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as cw]
+            [manor.ruleset.mock :as mock]
+            [manor.ruleset.rules :as rules]
             [manor.scenarios.claudeworth-medium :as medium]
             [manor.world :as w])
   (:import (java.time LocalDateTime)))
@@ -38,7 +40,7 @@
                                       :world-file world-file :run-id (str (gensym "visits-"))}
                                      opts))))
 
-(defn- start-with [scenario day opts] (start-policy scenario #(cw/scripted-policy day %) opts))
+(defn- start-with [scenario day opts] (start-policy scenario #(mock/scripted-policy day %) opts))
 
 (defn- start [day opts] (start-with cw/scenario day opts))
 
@@ -154,7 +156,7 @@
           (is (= :free (a/kind (action run :invite))))
           (is (= 1 (:per-turn (action run :invite))))
           (is (= #{:gm} (:roles (action run :schedule-visit))))
-          (is (str/includes? (cw/agent-brief world "hale") (visits/rules world))))
+          (is (str/includes? (rules/agent-brief world "hale") (visits/rules world))))
         (testing "structural checks, with reasons that say what to do"
           (is (= "you can't invite yourself" (check run world "lord-claudeworth" :invite (invite "post" "lord-claudeworth" "10:00"))))
           (is (= "no one has the id gm" (check run world "lord-claudeworth" :invite (invite "post" "gm" "10:00"))))
@@ -372,7 +374,7 @@
       (if (and (= round (:round world)) (not (some #{(name tool)} used)))
         {:tool tool :args args}
         {:tool :done})
-      (cw/scripted-policy day ctx))))
+      (mock/scripted-policy day ctx))))
 
 (def arden-day
   "The earl waits at the carriage sweep. Mr Arden notes something when he
@@ -431,7 +433,7 @@
           (let [view (prompt/agent-view (:scenario run) world "mr-arden")]
             (is (= {:invited-for "to call" :arrived "22:00"} (get-in view [:you :visit])))
             (is (some #(= "blue-room" (:id %)) (get-in view [:household :bedrooms]))))
-          (is (str/includes? (cw/agent-brief world "mr-arden") "`visit` under `you`"))
+          (is (str/includes? (rules/agent-brief world "mr-arden") "`visit` under `you`"))
           (is (not (str/includes? (pr-str (prompt/agent-messages (:scenario run) world (e/events run) "lord-claudeworth" {}))
                                   "SECRET-SITUATION")))))
       (until! run 6)
@@ -763,8 +765,8 @@
       (is (str/includes? (visits/rules {}) "my father, Sir Henry Vane"))
       (let [world (e/world run)]
         (testing "hiring's rules limit only candidates to send-for, as guests arrive by invitation"
-          (is (str/includes? (cw/rules world) "No candidate arrives except through send-for."))
-          (is (not (str/includes? (cw/rules world) "Nobody new arrives"))))
+          (is (str/includes? (rules/rules world) "No candidate arrives except through send-for."))
+          (is (not (str/includes? (rules/rules world) "Nobody new arrives"))))
         (is (= "give who (their id) or person (who they are, in your words), not both"
                (check run world "lord-claudeworth" :invite {:by "post" :who "mrs-bell" :person "Mrs Bell"
                                                             :date "1904-10-16" :time "10:00" :stay "x"})))

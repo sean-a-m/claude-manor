@@ -12,7 +12,9 @@
             [manor.mechanics.space :as space]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
-            [manor.scenarios.claudeworth :as cw]
+            [manor.ruleset :as ruleset]
+            [manor.ruleset.actions :as ruleset-actions]
+            [manor.ruleset.hibernation :as hibernation]
             [manor.mechanics.shop :as shop]
             [manor.scenarios.household :as household]
             [manor.world :as w]))
@@ -495,13 +497,13 @@
                            (assoc-in [:state :routines "other-clerk"]
                                      [{:from "08:00" :at "back-room" :doing "drawing plans"}]))]
         (doseq [world [world with-other (update with-other :agents dissoc "other-clerk")]]
-          (is (= {:activity "tending the shop" :location "counter"} (cw/hibernate world "clerk")))
-          (is (nil? (cw/hibernate (assoc-in world [:agents "customer" :location] "counter") "clerk")))
-          (is (nil? (cw/hibernate (assoc-in world [:agents "customer" :travel]
+          (is (= {:activity "tending the shop" :location "counter"} (hibernation/hibernate world "clerk")))
+          (is (nil? (hibernation/hibernate (assoc-in world [:agents "customer" :location] "counter") "clerk")))
+          (is (nil? (hibernation/hibernate (assoc-in world [:agents "customer" :travel]
                                                  {:from "back-room" :to "counter" :arrives 3}) "clerk"))))
-        (let [asleep (reduce w/apply-event world (b/hibernations cw/hibernate world))
+        (let [asleep (reduce w/apply-event world (b/hibernations hibernation/hibernate world))
               visited (assoc-in asleep [:agents "customer" :location] "counter")
-              changes (filter #(= "clerk" (:actor %)) (b/hibernations cw/hibernate visited))]
+              changes (filter #(= "clerk" (:actor %)) (b/hibernations hibernation/hibernate visited))]
           (is (b/hibernating? asleep "clerk"))
           (is (= [:agent/freed] (map :type changes)))))
       (finally (e/stop-run run)))))
@@ -538,8 +540,8 @@
 (defn- routine-overrides
   "The fixture clerk tends the counter when nobody is there."
   [cast]
-  {:hibernate cw/hibernate
-   :actions (vec (concat cw/actions shop/actions))
+  {:hibernate hibernation/hibernate
+   :actions (vec (concat ruleset-actions/actions shop/actions))
    :init (fn [opts]
            (assoc-in ((:init (scenario cast)) opts) [:state :routines "clerk"]
                      [{:from "00:00" :at "counter" :doing "tending the shop"}]))})
@@ -575,8 +577,8 @@
                             [{:from "00:00" :at "counter" :doing "tending the shop"}])
             hib (w/apply-event world (b/hibernate world "clerk" "tending the shop"))]
         (doseq [place ["village-green" "other-shop"]]
-          (is (empty? (b/wakings cw/hibernate (assoc-in hib [:agents "customer" :location] place)))))
-        (is (empty? (b/wakings cw/hibernate
+          (is (empty? (b/wakings hibernation/hibernate (assoc-in hib [:agents "customer" :location] place)))))
+        (is (empty? (b/wakings hibernation/hibernate
                               (assoc-in world [:agents "customer" :location] "counter")))
             "a waking pass never hibernates someone who is awake"))
       (finally (e/stop-run run)))))
@@ -681,7 +683,7 @@
         run (start {:policy counter-customer
                     :overrides {:speaking-actions (fn [world speaker conv]
                                                     (into [unavailable clash extra turn-ending]
-                                                          (cw/speaking-actions world speaker conv)))
+                                                          (ruleset/speaking-actions world speaker conv)))
                                 :mock-conversation
                                 (fn [{:keys [agent-id step] :as ctx}]
                                   (if (= "clerk" agent-id)
@@ -706,7 +708,7 @@
       (finally (e/stop-run run)))))
 
 (deftest buying-on-a-line-at-the-counter
-  (let [buy? (fn [world speaker] (some #(= :buy (:name %)) (cw/speaking-actions world speaker {})))
+  (let [buy? (fn [world speaker] (some #(= :buy (:name %)) (ruleset/speaking-actions world speaker {})))
         customer-line (fn [{:keys [agent-id world used] :as ctx}]
                         (cond
                           (= "clerk" agent-id) (counter-conversation ctx)
@@ -714,7 +716,7 @@
                           {:tool :buy :args {:quote-ids (mapv :id (shop/quotes-here world "customer")) :hand-over "leave"}}
                           :else {:tool :end-conversation}))
         run (start {:policy #(if (= "clerk" (:agent-id %)) {:tool :pass} (counter-customer %))
-                    :overrides {:speaking-actions cw/speaking-actions :mock-conversation customer-line}})]
+                    :overrides {:speaking-actions ruleset/speaking-actions :mock-conversation customer-line}})]
     (try
       (testing "buy is a speaking-turn tool only for a customer with quotes at this shop"
         (let [world (quoted (e/world run))]
@@ -738,7 +740,7 @@
 
 (deftest only-serving-clerks-get-quote-goods
   (let [run (start)
-        quote-goods? (fn [world speaker] (some #(= :quote-goods (:name %)) (cw/speaking-actions world speaker {})))]
+        quote-goods? (fn [world speaker] (some #(= :quote-goods (:name %)) (ruleset/speaking-actions world speaker {})))]
     (try
       (let [world (e/world run)]
         (is (quote-goods? world "clerk"))
@@ -750,7 +752,7 @@
 (deftest speaking-queries-preserve-occupations
   (doseq [interrupted? [false true]]
     (let [run (start {:policy counter-customer
-                      :overrides {:speaking-actions cw/speaking-actions :mock-conversation counter-conversation}})]
+                      :overrides {:speaking-actions ruleset/speaking-actions :mock-conversation counter-conversation}})]
       (try
         (e/emit! run [(b/occupy (e/world run) "clerk" "writing accounts" 5)])
         (when interrupted? (e/emit! run [(b/interrupt (e/world run) "clerk" "customer")]))
@@ -798,7 +800,7 @@
                    (cond-> (llm/complete mock request)
                      (= :adjudicator (get-in request [:ctx :role])) (assoc-in [:usage :cost] 0.02))))
         run (start {:opts {:llm-impl priced :max-cost 0.01}
-                    :overrides {:speaking-actions cw/speaking-actions}})]
+                    :overrides {:speaking-actions ruleset/speaking-actions}})]
     (try
       (rounds! run 1)
       (is (= 0.02 (w/total-cost (e/world run))))

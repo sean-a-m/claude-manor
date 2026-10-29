@@ -7,7 +7,8 @@
             [manor.io.store :as store]
             [manor.mechanics.items :as items]
             [manor.mechanics.space :as space]
-            [manor.scenarios.claudeworth :as cw]
+            [manor.ruleset.init :as ruleset-init]
+            [manor.ruleset.views :as views]
             [manor.world :as w]))
 
 (def bundled [:village :treasure :quiz :claudeworth :claudeworth-medium :lodge :dressing :burglary])
@@ -39,14 +40,14 @@
           (doseq [agent (w/active-agents world) :when (not= :gm (:role agent))]
             (is (= :bedroom (:kind (space/location world (get-in world [:state :bedrooms (:id agent)]))))
                 (:id agent))
-            (is (contains? (cw/observe world (:id agent)) :household) (:id agent))
+            (is (contains? (views/observe world (:id agent)) :household) (:id agent))
             (is (= #{:buy :commission}
                    (set (keep #(when (#{:buy :commission} (:name %)) (:name %))
                               (a/for-role (:actions run) (:role agent)))))
                 (:id agent)))
           (is (= world (w/replay (store/read-events (:dir run))))))
         (finally (e/stop-run run)))))
-  (is (empty? (cw/problems (:world-file (cw/init {:world-file "test/fixtures/household.edn"}))))))
+  (is (empty? (ruleset-init/problems (:world-file (ruleset-init/init {:world-file "test/fixtures/household.edn"}))))))
 
 (deftest household-containers
   ;; Exact contents and choreography belong to a frozen test-owned world.

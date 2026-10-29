@@ -6,6 +6,7 @@
             [manor.io.worldfile :as wf]
             [manor.mechanics.items :as items]
             [manor.scenarios.claudeworth :as cw]
+            [manor.ruleset.hibernation :as hibernation]
             [manor.mechanics.money :as money]
             [manor.scenarios.household :as fixture]
             [manor.world :as w]))
@@ -30,9 +31,8 @@
                     (update :agents #(vec (reverse %))))]
     (with-redefs [wf/read-file (fn [source]
                                 (if (= source "worlds/claudeworth.edn") bundled (read-file source)))
-                  cw/mock-day {}
                   cw/scenario (assoc cw/scenario
-                                     :defaults {:leave-out ["pugh"]}
+                                     :defaults {:world-file "worlds/claudeworth.edn" :leave-out ["pugh"]}
                                      :mock-policy (fn [_] {:tool :pass}))]
       (let [live (start :claudeworth)
             fixed (start :household)]
@@ -54,7 +54,7 @@
                                 (assoc (e/world fixed) :round 5)
                                 ["lord-claudeworth" "lady-claudeworth" "hale"])
                   world (w/apply-event world {:type :agent/placed :data {:id "pugh" :to "dining-room"}})]
-              (is (some? (cw/hibernate world "pugh")))))
+              (is (some? (hibernation/hibernate world "pugh")))))
           (testing "the fixed mock day still runs even when the production script is replaced"
             (e/auto! fixed 47)
             (is (= :idle (e/wait-idle fixed 120000)))

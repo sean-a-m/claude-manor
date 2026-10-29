@@ -14,7 +14,9 @@
             [manor.mechanics.space :as space]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
-            [manor.scenarios.claudeworth :as cw]
+            [manor.ruleset :as ruleset]
+            [manor.ruleset.actions :as ruleset-actions]
+            [manor.ruleset.hibernation :as hibernation]
             [manor.mechanics.deliveries :as deliveries]
             [manor.mechanics.shop :as shop]
             [manor.world :as w]))
@@ -410,8 +412,8 @@
 
 (deftest a-courier-waits-out-of-play-until-someone-comes
   (let [run (start {:delivery-profile delivery-profile}
-                   {:hibernate cw/hibernate :on-spawn positions/starting-events :mock-policy butler-goes-out
-                    :actions (into shop/actions (filter #(= :walk (:name %)) cw/actions))})]
+                   {:hibernate hibernation/hibernate :on-spawn positions/starting-events :mock-policy butler-goes-out
+                    :actions (into shop/actions (filter #(= :walk (:name %)) ruleset-actions/actions))})]
     (try
       (rounds! run 6)
       (is (:hibernating? (w/busy (e/world run) "pat-ellis-0")) "alone at the door on arriving")
@@ -559,7 +561,7 @@
       (finally (e/stop-run run)))))
 
 (deftest sending-up-on-a-line
-  (let [send-up? (fn [world speaker] (some #(= :send-up (:name %)) (cw/speaking-actions world speaker {})))
+  (let [send-up? (fn [world speaker] (some #(= :send-up (:name %)) (ruleset/speaking-actions world speaker {})))
         ask (leave-tea (fn [{:keys [world agent-id used]}]
                          (if (and (= "customer" agent-id) (= 3 (:round world)) (not (some #{"converse"} used)))
                            {:tool :converse :args {:with ["clerk"] :text "Would you send my tea up to the house?"}}
@@ -571,7 +573,7 @@
                  {:tool :send-up :args {:items (mapv :id (shop/waiting-here world "clerk")) :within-hours 2}}
                  :else {:tool :reply :args {:text "The boy will have it up directly."}}))
         run (start {:delivery-profile delivery-profile}
-                   {:mock-policy ask :speaking-actions cw/speaking-actions :mock-conversation line})]
+                   {:mock-policy ask :speaking-actions ruleset/speaking-actions :mock-conversation line})]
     (try
       (rounds! run 2)
       (testing "send-up is a speaking-turn tool for the clerk of a delivering shop with goods waiting there"

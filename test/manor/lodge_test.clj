@@ -8,7 +8,8 @@
             [manor.mechanics.items :as items]
             [manor.mechanics.space :as space]
             [manor.prompt :as prompt]
-            [manor.scenarios.claudeworth :as cw]
+            [manor.ruleset.init :as ruleset-init]
+            [manor.ruleset.rules :as rules]
             [manor.mechanics.building :as building]
             [manor.world :as w]))
 
@@ -18,7 +19,7 @@
   (let [wf (:world-file (worldfile/load-world "worlds/lodge.edn"))
         office {:id "office" :services #{:architect}}
         priced (assoc-in wf [:meta :architect-prices] "architect/prices-1904.edn")]
-    (is (empty? (cw/problems wf)))
+    (is (empty? (ruleset-init/problems wf)))
     (is (= ["at least one architect service needs :hours"]
            (building/problems (update priced :locations conj office))))
     (is (= [":meta :architect-prices must name a price list, such as \"architect/prices-1904.edn\", when there is an architect's office"]
@@ -27,7 +28,7 @@
   (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true
                                       :run-id (str (gensym "lodge-office-regression-"))})]
     (try
-      (let [rules (cw/rules (e/world run))]
+      (let [rules (rules/rules (e/world run))]
         (doseq [text ["Purchases and commissions are paid" "Building is arranged at the architect's office"
                       "`consult-references`" "`price-list`" "`draw-plans`" "`show-plans`"
                       "Only one room is built at a time" "10% on commissions for plans he drew."]]
@@ -57,7 +58,7 @@
         (testing "tools and briefs do not advertise building without an office"
           (is (not-any? #(excluded (:name %)) (:actions run)))
           (doseq [tool excluded]
-            (is (not (.contains (cw/rules world) (str "`" (name tool) "`")))))
+            (is (not (.contains (rules/rules world) (str "`" (name tool) "`")))))
           (is (every? (set (map :name (:actions run))) [:quote-goods :buy :spend-time :find :look]))))
       (e/auto! run 48)
       (is (= :idle (e/wait-idle run 120000)))

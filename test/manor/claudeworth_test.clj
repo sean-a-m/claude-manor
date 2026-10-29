@@ -19,7 +19,11 @@
             [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
             [manor.prompt :as prompt]
-            [manor.scenarios.claudeworth :as cw]
+            [manor.ruleset.actions :as ruleset-actions]
+            [manor.ruleset.hibernation :as hibernation]
+            [manor.ruleset.init :as ruleset-init]
+            [manor.ruleset.rules :as rules]
+            [manor.ruleset.views :as views]
             [manor.mechanics.building :as building]
             [manor.mechanics.money :as money]
             [manor.scenarios.household :as fixture]
@@ -63,7 +67,7 @@
         world (e/world run)]
     (testing "the world file loads with no problems, the scenario's own included"
       (is (empty? (wf/problems world-file)))
-      (is (empty? (cw/problems world-file))))
+      (is (empty? (ruleset-init/problems world-file))))
     (testing "everyone's bedroom is a bedroom"
       (is (= {"lord-claudeworth" "earls-bedroom" "lady-claudeworth" "countess-bedroom"
               "hale" "secretarys-room" "pugh" "architects-lodgings" "briggs" "maids-room"}
@@ -84,12 +88,12 @@
       (is (= "Saturday 15 October 1904, 08:00" (:time (prompt/agent-view (:scenario run) world "hale")))))
     (testing "bad bedrooms and opening hours are named"
       (let [closed-store (fn [ls] (mapv #(if (= "general-store" (:id %)) (assoc % :hours ["8am" "18:00"]) %) ls))
-            ps (str/join "\n" (cw/problems (-> world-file
+            ps (str/join "\n" (ruleset-init/problems (-> world-file
                                                (update :agents update-entry :name "Lord Claudeworth" #(assoc % :bedroom "study"))
                                                (update :locations closed-store))))]
         (is (str/includes? ps "agent \"Lord Claudeworth\": :bedroom \"study\" is not a bedroom"))
         (is (str/includes? ps "location \"general-store\": :hours must be two times")))
-      (let [ps (str/join "\n" (cw/problems (-> world-file (update :meta dissoc :setting) (assoc-in [:roles :earl :about] nil))))]
+      (let [ps (str/join "\n" (ruleset-init/problems (-> world-file (update :meta dissoc :setting) (assoc-in [:roles :earl :about] nil))))]
         (is (str/includes? ps ":meta :setting must be a paragraph"))
         (is (str/includes? ps "position :earl: needs an :about paragraph"))))
     (e/stop-run run)))
@@ -156,9 +160,9 @@
         (is (str/includes? (check (assoc-in world [:state :accounts "household"] (money/authored->units (money/spec world) 900)) "lord-claudeworth" :commission {:plan-id "library"}) "would cost £1200; the household has £900"))
         (is (str/includes? (check world "hale" :show-plans {:plan-id "library"}) "not seen those plans"))
         (is (some #(= :commission (:name %)) (a/for-role (:actions run) :architect)))
-        (is (contains? (cw/observe world "pugh") :household))
-        (is (= "0d" (get-in (cw/observe world "pugh") [:you :purse])))
-        (is (empty? (:plans (cw/observe world "hale"))))
+        (is (contains? (views/observe world "pugh") :household))
+        (is (= "0d" (get-in (views/observe world "pugh") [:you :purse])))
+        (is (empty? (:plans (views/observe world "hale"))))
         (is (not (str/includes? (narrate/describe event (narrate/names world)) "fee")))
         (let [shared (at world "hale" "architects-office")
               [shown] (perform run shared "pugh" :show-plans {:plan-id "library"})]
@@ -207,11 +211,11 @@
             args {:plan-id "library" :from "own"}
             [after [ev]] (perform run world "lord-claudeworth" :commission args)]
         (is (= {"household" 720000 "lord-claudeworth" 360000 "pugh" 480 "hale" 0} accounts))
-        (is (= "£1500" (get-in (cw/observe world "lord-claudeworth") [:you :purse])))
-        (is (= "0d" (get-in (cw/observe world "hale") [:you :purse])))
-        (is (nil? (get-in (cw/observe world "briggs") [:you :purse])))
-        (is (= "£2" (get-in (cw/observe world "pugh") [:you :purse])))
-        (is (nil? (:accounts (cw/observe world "briggs"))))
+        (is (= "£1500" (get-in (views/observe world "lord-claudeworth") [:you :purse])))
+        (is (= "0d" (get-in (views/observe world "hale") [:you :purse])))
+        (is (nil? (get-in (views/observe world "briggs") [:you :purse])))
+        (is (= "£2" (get-in (views/observe world "pugh") [:you :purse])))
+        (is (nil? (:accounts (views/observe world "briggs"))))
         (is (= "lord-claudeworth" (get-in ev [:data :account])))
         (is (= 720000 (get-in after [:state :accounts "household"])))
         (is (= 72000 (get-in after [:state :accounts "lord-claudeworth"])))
@@ -248,7 +252,7 @@
     (is (nil? (check (assoc draft :size "cottage"))))
     (is (= (money/authored->units (money/spec world) 50)
            (get-in (drafted world "pugh" (assoc draft :size "cottage")) [:state :plans "library" :price])))
-    (is (str/includes? (cw/rules world) "in one of these sizes: cottage. Only the architect draws plans"))
+    (is (str/includes? (rules/rules world) "in one of these sizes: cottage. Only the architect draws plans"))
     (e/stop-run run)))
 
 (deftest any-character-can-be-left-out
@@ -368,7 +372,7 @@
   (let [source (wf/read-file fixture/world-file)]
     ;; Insertion/reordering must not change which actor a validation case exercises.
     (doseq [world-file [source (update source :agents #(vec (reverse %)))]]
-      (is (empty? (cw/problems world-file)))
+      (is (empty? (ruleset-init/problems world-file)))
       (doseq [[bad diagnostic]
               [[(update world-file :locations update-entry :id "general-store" #(dissoc % :store-profile)) ":store-profile"]
                [(assoc-in world-file [:meta :starting-funds] -1) "starting-funds"]
@@ -376,11 +380,11 @@
                [(update world-file :locations update-entry :id "architects-office" #(assoc % :services ["architect"])) ":services"]
                [(update world-file :meta dissoc :architect-prices) ":meta :architect-prices must name a price list"]
                [(assoc-in world-file [:meta :architect-prices] "architect/nowhere.edn") "no architect's price list"]]]
-        (is (str/includes? (str/join "\n" (cw/problems bad)) diagnostic)))
+        (is (str/includes? (str/join "\n" (ruleset-init/problems bad)) diagnostic)))
       (doseq [[field value] [[:from "9am"] [:at "nowhere"] [:doing " "]]]
         (let [change #(assoc-in % [:routine 0 field] value)
               bad (update world-file :agents update-entry :name "Pugh" change)
-              ps (cw/problems bad)]
+              ps (ruleset-init/problems bad)]
           (is (= 1 (count ps)))
           (is (str/includes? (first ps) "agent \"Pugh\": :routine entry")))))))
 
@@ -427,17 +431,17 @@
   (let [run (start)
         world (-> (e/world run) (assoc :round 9) (at "lady-claudeworth" "dining-room"))   ; 12:00
         [arrived] (perform run world "hale" :walk {:to "dining-room"})
-        reply (cw/arrival arrived "hale")]
+        reply (ruleset-actions/arrival arrived "hale")]
     (testing "the place, who is there and what they carry, and the things there"
       (is (= "Dining room" (get-in reply [:here :name])))
       (is (= ["family-portrait" "silver-candlesticks"] (map :id (get-in reply [:here :items]))))
       (is (= [{:id "lady-claudeworth" :name "Lady Claudeworth" :role :countess :address-as "my lady"}] (:people-here reply))))
     (testing "nobody there is said outright"
       (let [[alone] (perform run world "hale" :walk {:to "kitchen"})]
-        (is (= [] (:people-here (cw/arrival alone "hale"))))))
+        (is (= [] (:people-here (ruleset-actions/arrival alone "hale"))))))
     (testing "opening hours where the place has them"
       (let [[shop] (perform run (at world "hale" "village-green") "hale" :walk {:to "general-store"})]
-        (is (= {:open "08:00-18:00" :open-now? true} (select-keys (:here (cw/arrival shop "hale")) [:open :open-now?])))))
+        (is (= {:open "08:00-18:00" :open-now? true} (select-keys (:here (ruleset-actions/arrival shop "hale")) [:open :open-now?])))))
     (testing "it's walk's reply"
       (is (= reply ((:reply (action run :walk)) arrived "hale" {:to "dining-room"}))))
     (e/stop-run run)))
@@ -472,10 +476,10 @@
       (is (= "no one has the id nobody" (a/check call world "hale" {:text "Hello?" :to "nobody"})))
       (is (= "you can't call for yourself" (a/check call world "hale" {:text "Hale!" :to "hale"}))))
     (testing "the rules explain it, and last-seen"
-      (is (str/includes? (cw/rules world) "`call` is heard everywhere within walking distance"))
-      (is (str/includes? (cw/rules world) "`last-seen` in your view"))
-      (is (str/includes? (cw/rules world) "You can speak once a turn, with `say` or `whisper`"))
-      (is (str/includes? (cw/rules world) "it's rude to shout through the house without good reason")))
+      (is (str/includes? (rules/rules world) "`call` is heard everywhere within walking distance"))
+      (is (str/includes? (rules/rules world) "`last-seen` in your view"))
+      (is (str/includes? (rules/rules world) "You can speak once a turn, with `say` or `whisper`"))
+      (is (str/includes? (rules/rules world) "it's rude to shout through the house without good reason")))
     (e/stop-run run)))
 
 (deftest sleeping-pastimes-and-rousing
@@ -597,8 +601,8 @@
 (deftest hibernation
   (let [run (start)
         world (assoc (e/world run) :round 5)              ; 10:00, everyone at home
-        hib #(cw/hibernate % "pugh")
-        changes #(map :type (b/hibernations cw/hibernate %))]
+        hib #(hibernation/hibernate % "pugh")
+        changes #(map :type (b/hibernations hibernation/hibernate %))]
     (testing "alone in the village, Mr Pugh's routine says where he is: at his drawing board in office hours"
       (is (= {:activity "at his drawing board" :location "architects-office"} (hib world))))
     (testing "in his lodgings in the evening; the night's entry holds until breakfast"
@@ -624,11 +628,11 @@
                        (assoc-in [:state :routines "briggs"] [{:from "07:00" :at "architects-office" :doing "copying plans"}])
                        (at "briggs" "architects-office"))]
         (is (some? (hib shared)))
-        (is (some? (cw/hibernate shared "briggs")))
+        (is (some? (hibernation/hibernate shared "briggs")))
         (is (nil? (hib (at shared "hale" "architects-office")))
             "but a caller away from their own routine's place is company")))
     (let [lodgings (at world "pugh" "architects-lodgings")
-          evs (b/hibernations cw/hibernate lodgings)
+          evs (b/hibernations hibernation/hibernate lodgings)
           out (reduce w/apply-event lodgings evs)]
       (testing "the engine takes him to his routine's place and occupies him there, with no end of its own"
         (is (= [:agent/moved :agent/occupied] (map :type evs)))
@@ -715,8 +719,8 @@
     (testing "Hale's view lists what he carries, and the shop says to ask its clerk"
       (is (= [{:id "pocket-notebook" :name "Pocket notebook" :aspects {:amount "half full"}}]
              (get-in (prompt/agent-view (:scenario run) world "hale") [:you :carrying])))
-      (is (str/includes? (get-in (cw/observe shop "hale") [:here :service]) "shopkeeper"))
-      (is (not (contains? (:here (cw/observe shop "hale")) :sells))))
+      (is (str/includes? (get-in (views/observe shop "hale") [:here :service]) "shopkeeper"))
+      (is (not (contains? (:here (views/observe shop "hale")) :sells))))
     (testing "look in the drawing room: its detail, the furniture, and the earl's watch"
       (let [room (-> world (at "hale" "drawing-room") (at "lord-claudeworth" "drawing-room"))
             seen (item-views/look room "hale")]
@@ -731,14 +735,14 @@
     (testing "a few rooms have a :detail"
       (is (every? #(:detail (space/location world %)) ["drawing-room" "study" "general-store"])))
     (testing "the rules say the item actions are free, and what look shows"
-      (is (str/includes? (cw/rules world) "`look` shows them in detail, with their descriptions, owners and aspects"))
-      (is (str/includes? (cw/rules world) "The room's own aspects (its floor, hearth and air) and the stores in scope are under `here` in your view."))
-      (is (str/includes? (cw/rules world) "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn"))
-      (is (str/includes? (cw/rules world) "Talking never changes anything."))
-      (is (str/includes? (cw/rules world) "never of views, tools or ids")))
+      (is (str/includes? (rules/rules world) "`look` shows them in detail, with their descriptions, owners and aspects"))
+      (is (str/includes? (rules/rules world) "The room's own aspects (its floor, hearth and air) and the stores in scope are under `here` in your view."))
+      (is (str/includes? (rules/rules world) "`look`, `open`, `take`, `put-in`, `put-down` and `give` don't end your turn"))
+      (is (str/includes? (rules/rules world) "Talking never changes anything."))
+      (is (str/includes? (rules/rules world) "never of views, tools or ids")))
     (testing "the rules and the judge both take everyday things as to hand"
       (let [judge-brief ((get-in (:scenario run) [:items :judge-brief]) world)]
-        (is (str/includes? (cw/rules world) "everyday things (cloths, paper, pans, salt, matches and the like) can be assumed to be to hand"))
+        (is (str/includes? (rules/rules world) "everyday things (cloths, paper, pans, salt, matches and the like) can be assumed to be to hand"))
         (is (str/starts-with? judge-brief (get-in world [:state :setting])))
         (is (str/includes? judge-brief "are to hand unless what you're shown says otherwise"))))
     (e/stop-run run))
@@ -766,7 +770,7 @@
       (is (= :housemaid (:role (w/agent world "nellie"))))
       (is (= "maids-room" (get-in world [:state :bedrooms "nellie"])))
       (is (= "maids-room" (space/location-of world "nellie")))
-      (is (contains? (cw/observe world "nellie") :household)))
+      (is (contains? (views/observe world "nellie") :household)))
     (testing "the day is free of forfeits and bad replies, and replay gives the same world"
       (is (= 47 (:round world)))
       (is (empty? (of-type run :action/forfeited)))
@@ -801,8 +805,8 @@
         (is (= {:item "feather-duster" :to "nellie"} (:data given)))
         (is (= "nellie" (:holder (items/item world "feather-duster"))))))
     (testing "the rules explain when to look"
-      (is (str/includes? (cw/rules world) "`spend-time` spends time on work or pastimes"))
-      (is (str/includes? (cw/rules world) "not routinely on arrival")))
+      (is (str/includes? (rules/rules world) "`spend-time` spends time on work or pastimes"))
+      (is (str/includes? (rules/rules world) "not routinely on arrival")))
     (e/stop-run run)))
 
 ;; ---------------------------------------------------------------------------
@@ -836,10 +840,10 @@
     (testing "the GM brief has the setting too, and the no-income guard"
       (is (str/includes? (:content (first (prompt/gm-messages (:scenario run) world (e/events run) ["test"] {})))
                          (get-in world [:state :setting])))
-      (is (str/includes? (cw/gm-brief world) "no income credit action")))
+      (is (str/includes? (rules/gm-brief world) "no income credit action")))
     (testing "the rules quote the query limit from the world, not a literal"
       (doseq [n [3 7]]
-        (is (str/includes? (cw/rules (assoc-in world [:state :max-queries] n)) (str "towards your " n " queries a turn")))))
+        (is (str/includes? (rules/rules (assoc-in world [:state :max-queries] n)) (str "towards your " n " queries a turn")))))
     (e/stop-run run)))
 
 (deftest move-the-abbey
@@ -871,13 +875,13 @@
     (try
       (doseq [place ["general-store" "architects-office" "public-house"]]
         (is (nil? (a/check (action run :find) (at (e/world run) "hale" place) "hale" {:what "a lantern"}))))
-      (is (str/includes? (cw/rules (e/world run)) "Never use `find` for goods that are for sale"))
+      (is (str/includes? (rules/rules (e/world run)) "Never use `find` for goods that are for sale"))
       (finally (e/stop-run run)))))
 
 (deftest find-is-refused-at-service-places-unless-everywhere
   (let [run (start {:find-everywhere? false})]
     (try
-      (is (str/includes? (cw/rules (e/world run)) "`find` doesn't work in shops"))
+      (is (str/includes? (rules/rules (e/world run)) "`find` doesn't work in shops"))
       (doseq [place ["general-store" "architects-office"]]
         (e/emit! run [{:type :agent/placed :data {:id "hale" :to place}}])
         (let [before (e/events run)
@@ -888,6 +892,6 @@
           (is (= calls (store/read-llm (:dir run))))))
       (let [world (-> (e/world run) (at "hale" "study"))]
         (is (nil? (a/check (action run :find) world "hale" {:what "a letter"})))
-        (is (str/includes? (cw/rules world) "Carry things such as dishes with `take` and `walk`; they are used up where they are eaten, not while being carried.")))
+        (is (str/includes? (rules/rules world) "Carry things such as dishes with `take` and `walk`; they are used up where they are eaten, not while being carried.")))
       (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
       (finally (e/stop-run run)))))

@@ -1,17 +1,18 @@
 (ns manor.scenarios.household
-  "Stable test household for Claudeworth mechanics. The world, cast defaults
+  "Stable test household on the ruleset (manor.ruleset). The world, cast defaults
   and scripted day are test-owned, not inherited from the bundled content.
   Reuse the production mechanics so regressions in those still fail tests."
   (:require [clojure.edn :as edn]
-            [manor.scenarios.claudeworth :as cw]
-            [manor.mechanics.shop :as shop]))
+            [manor.mechanics.shop :as shop]
+            [manor.ruleset :as ruleset]
+            [manor.ruleset.mock :as mock]))
 
 (def world-file "test/fixtures/household.edn")
 
 (def mock-day (edn/read-string (slurp "test/fixtures/household-day.edn")))
 
 (defn mock-policy [ctx]
-  (cw/scripted-policy mock-day ctx))
+  (mock/scripted-policy mock-day ctx))
 
 (defn mock-conversation
   "The breakfast exchange, and Briggs quoting needles during a counter visit."
@@ -26,10 +27,9 @@
     {:tool :reply :args {:text "Every room, my dear. I would not dream of choosing a wallpaper without you."}}))
 
 (def scenario
-  (assoc (dissoc cw/scenario :calendar)
-         ;; Retain the installed mechanics' setup, but not the bundled calendar.
-         :init (comp #(dissoc % :calendar) (:init cw/scenario))
-         :name :household
-         :defaults {:world-file world-file :leave-out ["nellie"]}
-         :mock-policy mock-policy
-         :mock-conversation mock-conversation))
+  (ruleset/scenario {:name :household
+                     :doc "A stable test household on the ruleset."
+                     :defaults {:world-file world-file :leave-out ["nellie"]}
+                     :mock-policy mock-policy
+                     :mock-conversation mock-conversation
+                     :calendar? false}))

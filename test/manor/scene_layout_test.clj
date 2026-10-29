@@ -223,7 +223,7 @@
   (doseq [scenario [:village :treasure :quiz :claudeworth :claudeworth-medium :lodge :dressing]]
     (testing (name scenario)
       (let [definition @(requiring-resolve (symbol (str "manor.scenarios." (name scenario)) "scenario"))
-            topology (preview/world-file-topology (:space ((:init definition) {:llm :mock :offline? true :test? true})))
+            topology (preview/world-file-topology (:space ((:init definition) (merge (:defaults definition) {:llm :mock :offline? true :test? true}))))
             r (l/layout {:initial topology})]
         (check-layout topology r)
         (is (= r (l/layout {:initial topology}))))))

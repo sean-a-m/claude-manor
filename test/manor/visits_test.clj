@@ -154,7 +154,7 @@
           (is (= :free (a/kind (action run :invite))))
           (is (= 1 (:per-turn (action run :invite))))
           (is (= #{:gm} (:roles (action run :schedule-visit))))
-          (is (str/includes? (cw/agent-brief world "hale") visits/rules)))
+          (is (str/includes? (cw/agent-brief world "hale") (visits/rules world))))
         (testing "structural checks, with reasons that say what to do"
           (is (= "you can't invite yourself" (check run world "lord-claudeworth" :invite (invite "post" "lord-claudeworth" "10:00"))))
           (is (= "no one has the id gm" (check run world "lord-claudeworth" :invite (invite "post" "gm" "10:00"))))
@@ -164,7 +164,7 @@
                  (check run world "hale" :invite (invite "post" "mrs-bell" "10:00"))))
           (is (= "by post, the earliest they can be here is Saturday 15 October, 23:00"
                  (check run world "lord-claudeworth" :invite (assoc (invite "post" "mrs-bell" "22:00") :date "1904-10-15"))))
-          (is (= "give the date like \"1904-10-21\" and the time like \"19:00\""
+          (is (= "give the date like \"1904-10-15\" and the time like \"19:00\""
                  (check run world "lord-claudeworth" :invite (invite "post" "mrs-bell" "teatime"))))
           (is (= "bedroom must be the id of a bedroom"
                  (check run world "lord-claudeworth" :invite (invite "post" "mrs-bell" "10:00" :bedroom "drawing-room"))))
@@ -760,7 +760,7 @@
       (is (= :free (a/kind invite {:who "mrs-bell"})))
       (is (= :query (a/kind invite {:person "Mrs Bell"})))
       (is (str/includes? (get-in (a/->tool invite) [:function :description]) "my father, Sir Henry Vane"))
-      (is (str/includes? visits/rules "my father, Sir Henry Vane"))
+      (is (str/includes? (visits/rules {}) "my father, Sir Henry Vane"))
       (let [world (e/world run)]
         (testing "hiring's rules limit only candidates to send-for, as guests arrive by invitation"
           (is (str/includes? (cw/rules world) "No candidate arrives except through send-for."))

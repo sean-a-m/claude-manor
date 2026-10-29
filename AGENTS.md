@@ -143,7 +143,7 @@ src/manor/
                  pence, pounds/shillings/pence formatting)
 resources/worlds/ world files on the classpath; claudeworth.edn is the small test world,
                  claudeworth-medium.edn the larger household (see docs/household-1904-proposal.md)
-resources/positions/ shared catalogues of positions; england-1904.edn is a country house and village
+resources/settings/ setting packs; england-1904/ holds positions, calendar and prompt parameters/fragments
 resources/pricing.edn model prices, peak hours and cache block size for manor.tools.cache-report
 mcp-servers/pi/server.mjs  pi as an MCP server: send_message {session, message}; Node, no deps
 resources/architect/    architect price lists (whole pounds), one per world, named in :meta :architect-prices

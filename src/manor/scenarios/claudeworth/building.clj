@@ -197,26 +197,26 @@
 
 (def actions
   [{:name :consult-references :kind :query :roles :all
-    :doc (prompts/render "docs/architect/consult-references.md")
+    :doc (prompts/doc "docs/architect/consult-references.md")
     :args [:map [:query [:string {:min 2 :max 200}]]]
     :valid? (fn [world actor _] (office-reason world actor))
     :bridge :architect/references :bridge-args (fn [_ _ args] (select-keys args [:query]))
     :on-result (fn [_ actor args result]
                  [{:type :claudeworth/consulted :visible-to #{actor} :data (assoc result :query (:query args))}])}
    {:name :price-list :kind :query :roles :all
-    :doc (prompts/render "docs/architect/price-list.md")
+    :doc (prompts/doc "docs/architect/price-list.md")
     :args [:map] :valid? (fn [world actor _] (office-reason world actor))
     :query-fn (fn [world _ _ _] (price-list world))
     :on-result (fn [_ actor result-args result]
                  [{:type :claudeworth/prices-quoted :visible-to #{actor} :data result}])}
    {:name :draw-plans :kind :query :roles :all :needs :architect
-    :doc (prompts/render "docs/architect/draw-plans.md")
+    :doc (prompts/doc "docs/architect/draw-plans.md")
     :args [:map [:for :string] [:name [:string {:min 1 :max 60}]] [:floor :string]
            [:desc [:string {:min 1 :max 600}]] [:connects-to [:vector {:min 1 :max 4} :string]]
            [:size [:string {:min 1 :max 40}]]]
     :valid? draw-reason :bridge :architect/draft :bridge-args draft-args :on-result store-draft}
    {:name :show-plans :kind :free :roles :all
-    :doc (prompts/render "docs/architect/show-plans.md")
+    :doc (prompts/doc "docs/architect/show-plans.md")
     :args [:map [:plan-id :string]]
     :valid? (fn [world actor {:keys [plan-id]}]
               (or (held-reason world actor plan-id)
@@ -225,7 +225,7 @@
               [{:type :claudeworth/plans-shown :visible-to (space/here world actor)
                 :data {:plan-id plan-id :to (vec (sort (space/here world actor)))}}])}
    {:name :commission :kind :final :roles :all
-    :doc (prompts/render "docs/architect/commission.md")
+    :doc (prompts/doc "docs/architect/commission.md")
     :args [:map [:plan-id :string]]
     :valid? (fn [world actor {:keys [plan-id]}]
               (or (office-reason world actor) (held-reason world actor plan-id)

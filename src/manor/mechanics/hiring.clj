@@ -49,10 +49,10 @@
       :knows {:temperament (vec (take 1 (:temperament person))) :faculties [] :circumstances []}})})
 
 (def adjudicators
-  {:people/appearance {:request (fn [_ _ {:keys [record]}] (people/appearance-request record))
+  {:people/appearance {:request (fn [world _ {:keys [record]}] (people/appearance-request world record))
                        :mock (fn [_] {:tool :appearance :args {:appearance "A young figure in plain working clothes and spectacles."}})}
    :people/polish {:request (fn [world _ {:keys [record appearance notes]}]
-                              (people/polish-request {:setting (get-in world [:state :setting])
+                              (people/polish-request world {:setting (get-in world [:state :setting])
                                                       :position (:position record) :record record
                                                       :notes (str (when-not (str/blank? notes) (str notes "\n\n"))
                                                                   "Keep these visible physical facts consistent: " appearance)}))
@@ -427,11 +427,9 @@
   "`take-leave`'s optional return time, both or neither."
   [:map [:return-date {:optional true} :string] [:return-time {:optional true} :string]])
 
-(def take-leave-doc
-  (str "Leave the mapped area: a candidate ends an unengaged visit, and a guest from elsewhere goes home. "
-       "Once gone you have no turns until you come back. To come back at a set time (to fetch your things and return, say), "
-       "give return-date like \"1904-10-21\" and return-time like \"07:00\", within " max-return-days " days: "
-       "you arrive at the meeting place then, and those expecting you are told. Without them, you return only if sent for or invited again."))
+(defn take-leave-doc [world]
+  (prompts/render world "docs/hiring/take-leave.md"
+                  {:example-date (prompts/example-date world) :max-return-days max-return-days}))
 
 (defn return-at
   "The time someone taking leave gave for coming back, or nil."
@@ -447,7 +445,8 @@
     (let [at (return-at args)]
       (cond (not (:clock world)) "there is no clock here to come back by; leave without a return time"
             (not (and return-date return-time)) "give both return-date and return-time, or neither"
-            (nil? at) "give return-date like \"1904-10-21\" and return-time like \"07:00\""
+            (nil? at) (prompts/render world "docs/hiring/return-time-format.md"
+                                      {:example-date (prompts/example-date world)})
             (not (.isAfter at (clock/time-of (:clock world) (:round world)))) "the return time must be later than now"
             (.isAfter at (.plusDays (clock/time-of (:clock world) (:round world)) max-return-days))
             (str "say you'll be back within " max-return-days " days")))))
@@ -515,7 +514,7 @@
               entries))))))
 (def actions
   [{:name :recommend :kind :query :roles :all
-    :doc (prompts/render "docs/hiring/recommend.md")
+    :doc (prompts/doc "docs/hiring/recommend.md")
     :args [:map [:position :string] [:for :string]] :valid? recommend-reason
     :query-fn recommend! :on-result recommendation-events
     :reply (fn [_ _ _ {:keys [events]}]
@@ -626,12 +625,13 @@
 (defn- rules-text
   "Hiring's rules, step by step for each side, with the template `arrivals`
   saying who may arrive."
-  [arrivals]
-  (prompts/render "rules/hiring.md" {:arrivals (prompts/render arrivals)}))
+  [world arrivals]
+  (prompts/render world "rules/hiring.md" {:arrivals (prompts/render world arrivals {})}))
 
-(def rules (rules-text "rules/hiring-arrivals.md"))
+(defn rules [world] (rules-text world "rules/hiring-arrivals.md"))
 
-(def rules-beside-visits
+(defn rules-beside-visits
   "Hiring's rules for a world with visits (manor.mechanics.visits), where
   guests arrive by invitation too."
-  (rules-text "rules/hiring-arrivals-beside-visits.md"))
+  [world]
+  (rules-text world "rules/hiring-arrivals-beside-visits.md"))

@@ -47,7 +47,7 @@
 
 (defn- due [world round]
   (when (number? round)
-    (if-let [c (:clock world)] (clock/label c round) (str "r" round))))
+    (if-let [c (:clock world)] (clock/world-label world round) (str "r" round))))
 
 (defn inspect [world kind id]
   (case kind

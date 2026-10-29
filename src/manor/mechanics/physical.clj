@@ -215,9 +215,10 @@
         (update :location dissoc :people-here)
         (assoc-in [:location :cant-see] cant-see))))
 
-(def rules
+(defn rules
   "What the levels stop people doing, for a scenario's rules."
-  (prompts/render "rules/physical.md"))
+  [world]
+  (prompts/render world "rules/physical.md" {}))
 
 ;; ---------------------------------------------------------------------------
 ;; World files and starting agents

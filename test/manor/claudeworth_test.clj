@@ -89,9 +89,9 @@
                                                (update :locations closed-store))))]
         (is (str/includes? ps "agent \"Lord Claudeworth\": :bedroom \"study\" is not a bedroom"))
         (is (str/includes? ps "location \"general-store\": :hours must be two times")))
-      (let [ps (str/join "\n" (cw/problems (-> world-file (update :meta dissoc :setting) (update :roles dissoc :earl))))]
+      (let [ps (str/join "\n" (cw/problems (-> world-file (update :meta dissoc :setting) (assoc-in [:roles :earl :about] nil))))]
         (is (str/includes? ps ":meta :setting must be a paragraph"))
-        (is (str/includes? ps "position :earl has no :about paragraph: add it to :roles or the catalogue"))))
+        (is (str/includes? ps "position :earl: needs an :about paragraph"))))
     (e/stop-run run)))
 
 ;; ---------------------------------------------------------------------------
@@ -385,7 +385,7 @@
     (testing "the place, who is there and what they carry, and the things there"
       (is (= "Dining room" (get-in reply [:here :name])))
       (is (= ["family-portrait" "silver-candlesticks"] (map :id (get-in reply [:here :items]))))
-      (is (= [{:id "lady-claudeworth" :name "Lady Claudeworth" :role :countess}] (:people-here reply))))
+      (is (= [{:id "lady-claudeworth" :name "Lady Claudeworth" :role :countess :address-as "my lady"}] (:people-here reply))))
     (testing "nobody there is said outright"
       (let [[alone] (perform run world "hale" :walk {:to "kitchen"})]
         (is (= [] (:people-here (cw/arrival alone "hale"))))))

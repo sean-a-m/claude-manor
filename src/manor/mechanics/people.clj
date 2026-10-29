@@ -29,7 +29,8 @@
             [manor.io.worldfile :as worldfile]
             [manor.mechanics.adjudication :as adjudication]
             [manor.mechanics.positions :as positions]
-            [manor.prompts :as prompts]))
+            [manor.prompts :as prompts]
+            [manor.settings :as settings]))
 
 (def mcp-servers {:people {:command ["bb" "-m" "people.server"] :cwd "mcp-servers/people"}})
 
@@ -117,8 +118,8 @@
    [:manner [:string {:min 1 :max max-manner}]]
    [:appearance [:string {:min 1 :max max-appearance :json-schema/maxLength advised-appearance}]]])
 
-(def instructions
-  (prompts/render "writers/persona.md"
+(defn instructions [world]
+  (prompts/render world "writers/persona.md"
                   {:max-circumstance max-circumstance :advised-persona advised-persona :max-persona max-persona
                    :max-manner max-manner :advised-appearance advised-appearance :max-appearance max-appearance}))
 
@@ -149,17 +150,18 @@
 (defn polish-request
   "The polish call for one person. Only the setting, the position, the base
   record and any authored notes reach the model."
-  [{:keys [setting position record notes]}]
+  ([input] (polish-request {} input))
+  ([world {:keys [setting position record notes]}]
   (let [record (base-record record)
         data (cond-> {:setting setting :position position :record record}
                (not (str/blank? notes)) (assoc :notes notes))]
-    {:messages [{:role "system" :content instructions}
+    {:messages [{:role "system" :content (instructions world)}
                 {:role "user" :content (json/write-value-as-string data)}]
      :tools [{:type "function"
               :function {:name "polish" :description "One or two circumstances, a consistent persona and manner, and public appearance, written from basic traits."
                          :parameters (mjs/transform polish-schema)}}]
      :ctx {:role :adjudicator :task :people/polish :record record}
-     :check #(check-polish record %)}))
+     :check #(check-polish record %)})))
 
 (defn mock-polish
   "A free deterministic fixture for tests and --mock, not a production writer.
@@ -187,9 +189,10 @@
 
 (defn appearance-request
   "Write a runtime candidate's public appearance from a whitelisted record."
-  [record]
+  ([record] (appearance-request {} record))
+  ([world record]
   (let [visible (visible-record record)]
-    {:messages [{:role "system" :content (prompts/render "writers/appearance.md" {:advised-appearance advised-appearance :max-appearance max-appearance})}
+    {:messages [{:role "system" :content (prompts/render world "writers/appearance.md" {:advised-appearance advised-appearance :max-appearance max-appearance})}
                 {:role "user" :content (json/write-value-as-string visible)}]
      :tools [{:type "function" :function {:name "appearance" :description "Visible appearance only."
                                          :parameters (mjs/transform appearance-schema)}}]
@@ -199,7 +202,7 @@
                  (let [{:keys [args error]} (a/decode-args {:args appearance-schema} raw)]
                    (cond error {:error error}
                          (str/blank? (:appearance args)) {:error "appearance must not be blank"}
-                         :else (update args :appearance str/trim)))))}))
+                         :else (update args :appearance str/trim)))))})))
 
 (defn- conj-reply
   "Add the model's reply, unless it has neither content nor tool calls
@@ -214,7 +217,7 @@
   persona, manner and appearance, or {:failure reason},
   with :calls (each call's messages, response and replies) and :cost (USD)."
   [llm opts input]
-  (let [{:keys [messages tools ctx check]} (polish-request input)
+  (let [{:keys [messages tools ctx check]} (polish-request (:world opts {}) input)
         cost-of #(reduce + 0 (keep (comp :cost :usage :response) %))]
     (loop [messages messages, attempt 0, calls []]
       (if (and (:max-cost opts) (>= (cost-of calls) (:max-cost opts)))
@@ -269,7 +272,7 @@
         ;; The authored :situation is the one thing the author wrote about this
         ;; person, so the polish is told it as notes (see `instructions`): the
         ;; persona and circumstances must fit it. Old descriptions still don't.
-        result (try (polish! llm opts {:setting (get-in wf [:meta :setting])
+        result (try (polish! llm (assoc opts :world {:state {:setting-pack (settings/for-worldfile wf)}}) {:setting (get-in wf [:meta :setting])
                                        :position position
                                        :record authored
                                        :notes situation})

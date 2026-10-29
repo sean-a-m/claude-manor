@@ -112,14 +112,15 @@
   "\"Round 3\", or with a clock \"Saturday 15 October 1904, 09:30\"."
   [world]
   (if-let [c (:clock world)]
-    (clock/label c (:round world))
+    (clock/world-label world (:round world))
     (str "Round " (:round world))))
 
-(def agent-preamble
+(defn agent-preamble
   "The system message of every agent request, for turns and conversations
   alike, so the two share it in the provider's cache. What differs between
   them goes at the end of the request (`turn-closing`, `conversation-closing`)."
-  (prompts/render "agent/preamble.md"))
+  [world]
+  (prompts/render world "agent/preamble.md" {}))
 
 (def turn-closing
   "## Your turn
@@ -147,7 +148,7 @@ Take your turn now.")
     (physical/view-by-sight
      world agent-id
      (cond-> (-> (merge (if-let [c (:clock world)]
-                          {:time (clock/label c (:round world))}
+                          {:time (clock/world-label world (:round world))}
                           {:round (:round world)})
                         (observe world agent-id))
                  (update :you #(merge {:id agent-id :name (:name a) :role (name (:role a))} %)))
@@ -206,7 +207,7 @@ Take your turn now.")
         view (agent-view scenario world agent-id)
         notes (:notes a)]
     [{:role "system"
-      :content (str agent-preamble
+      :content (str (agent-preamble world)
                     "\n\n## Your role\n" (brief-text brief world agent-id)
                     "\n\n## Who you are\n" (who-you-are world agent-id)
                     (when-not (str/blank? (:situation a)) (str "\n\n## Your situation\n" (:situation a)))
@@ -328,13 +329,14 @@ Each message to you gives the recent events, oldest first, then the time now and
   "The world's :state for the default GM view, without what the GM brief
   already carries: a :setting, and the GM's own entry in :roles (and
   :roles, if nothing else is left in it). Of :positions, only those someone
-  holds are shown."
+  holds are shown. The :setting-pack (manor.settings) is prompt material,
+  not world state, so it's left out."
   [world]
   (let [state (:state world)
         roles (dissoc (:roles state) :gm)
         held (set (map :role (w/active-agents world)))
         positions (select-keys (:positions state) held)]
-    (cond-> (dissoc state :setting :roles :positions)
+    (cond-> (dissoc state :setting :setting-pack :roles :positions)
       (seq roles) (assoc :roles roles)
       (seq positions) (assoc :positions positions))))
 

@@ -2039,18 +2039,53 @@ or promised. It does not select an existing villager.
   detailed item views and preserved in export/replay. Give the paper with the ordinary `give`
   action. The link does not grant its reader a recommendation or verify the prose.
 
+#### Setting packs and prompt templates
+
+The household scenarios name a classpath directory in `:meta :setting-pack`, currently
+`"settings/england-1904"`. Omitting it defaults to England, including old runs without a stored
+pack. A pack contains:
+
+- `setting.edn`: prompt parameters (`:era`, `:home`, `:household-name`, `:everyday-things`,
+  `:measures`, `:invite-example`, `:known-as-example`), `:clock {:label "EEEE d MMMM yyyy, HH:mm"}`
+  and `:courier-position` (England `:errand-boy`, overridable by a shop's `:courier`).
+  `:authored-money` temporarily supplies architect docs' “whole pounds (£)”; currency mechanics
+  themselves are still sterling, not configurable yet.
+- `positions.edn`: the default positions catalogue; `calendar.edn`: explicitly dated holidays.
+- `prompts/money.md`, `prompts/money-pricing.md` and `prompts/invitation-examples.md`: setting-specific
+  prose used by the shopping rules, the shop appraiser and the invitation judge. Any other markdown file under `prompts/` may
+  override the shared template with the same relative path, e.g. `prompts/judges/find-person.md`.
+
+Claudeworth's base `init` loads all this through `manor.settings/for-worldfile` and records it in
+`[:state :setting-pack]`. Fragment/override text is snapshotted, so editing pack files does not
+change an existing run. `settings/pack` reads that snapshot (England for a pre-pack state), and
+`(settings/parameter world :home)` or `(settings/parameter world :clock :label)` reads a parameter.
+The loaded pack's `:positions`, `:calendar`, `:source` and `:prompts` are not rendering parameters.
+
+`(manor.prompts/render world "path.md" params)` looks in the pack first, then
+`resources/prompts/path.md`, and fills `{{key}}` or dotted paths from the setting parameters with
+explicit `params` winning. Missing values throw; no conditionals or loops in templates. Code picks
+fragments. Only shared files are cached. Instructions and rules are rendered for each request.
+An action's `:doc` may be a fixed string or a function of the world; `(prompts/doc "docs/x.md"
+params)` constructs one, `(actions/description action world)` resolves it, and `(actions/->tool
+action world)` builds its model-facing tool, including kind/limit hints. Pass the world in model
+requests and human-seat panel forms. Shorter renderer/tool arities use the default setting for
+old callers. `clock/world-label` applies the pack's clock label. Dated tool docs use
+`prompts/example-date`: the run's start date, or `1970-01-01` without a clock, solely as a format
+example. Judge briefs include architect/delivery paragraphs only with the corresponding places;
+visits' post option is described only with a post office.
+
 #### Positions, posts and situations
 
 Who someone is (their persona and traits) is kept apart from the job they hold (their position)
 and from their circumstances in this world (their situation). The code is `manor.mechanics.positions`.
 
-**Positions** come from a catalogue shared between worlds, `resources/positions/england-1904.edn`
-(country-house and village positions in 1904, plus `:none`). A world file names it
-in `:meta :positions` and may add or override entries in its own `:roles`, merged key by key over
-the catalogue's (a world without a catalogue has only its `:roles`):
+**Positions** come from a catalogue shared between worlds, `resources/settings/england-1904/positions.edn`
+(country-house and village positions in 1904, plus `:none`). By default the catalogue comes from
+the world's setting pack. An explicit `:meta :positions` path overrides it. A world may add or
+override entries in its own `:roles`, merged key by key over the chosen catalogue:
 
 ```clojure
-{:meta {:positions "positions/england-1904.edn" ...}
+{:meta {:positions "settings/england-1904/positions.edn" ...}
  :roles {:secretary {:workplace ["study"]}                ; adds a key to the catalogue's entry
          :ferryman {:title "Ferryman" :standing :villager :sleeps :out
                     :about "You row people across the river."}   ; a new position
@@ -2218,8 +2253,9 @@ through `worldfile/load-world`'s `:calendar` from a world file:
   the steward. Scenarios without `:calendar` retain their existing prompts and tools.
 
 The bundled `claudeworth` and `claudeworth-medium` scenarios opt in and compose their base init
-with `manor.scenarios.claudeworth.holidays/add-to`. It adds the shared, explicitly dated
-`resources/calendars/england-1904-1905.edn` entries to the init result's `:calendar`. A world-file
+with `manor.scenarios.claudeworth.holidays/add-to`. It adds the loaded setting pack's explicitly dated
+calendar entries (England: `resources/settings/england-1904/calendar.edn`) to the init result's
+`:calendar`. A world-file
 entry with a matching ID replaces the default completely (including audience and lifecycle);
 other entries are retained and normal engine validation still applies. The base `claudeworth/init`
 loads only the supplied world: worlds reusing the rules without the holiday seed, such as Lodge,

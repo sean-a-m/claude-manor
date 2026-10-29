@@ -179,7 +179,7 @@ button:disabled{opacity:.5;cursor:default}")]]
         grid? (some #(:domain (space/location world %)) locs)
         {:keys [width height pos labels]} (if grid? (grid-layout world locs) (circle-layout world locs))
         travellers (filter :travel (w/active-agents world))
-        arrives #(if-let [c (:clock world)] (clock/label c %) (str "r" %))]
+        arrives #(if-let [c (:clock world)] (clock/world-label world %) (str "r" %))]
     [:svg {:width width :height height :style "background:#111;border-radius:4px"}
      (for [[domain y] labels]
        [:text {:x 4 :y y :fill "#999" :font-size 11} (str/upper-case domain)])
@@ -253,7 +253,7 @@ button:disabled{opacity:.5;cursor:default}")]]
      [:section
       [:h2 "Run"]
       [:div [:b (:id run)] " - round " [:b (:round world)]
-       (when-let [c (:clock world)] (list " - " [:b (clock/label c (:round world))]))
+       (when-let [c (:clock world)] (list " - " [:b (clock/world-label world (:round world))]))
        " - " (name state) " / " (name mode)
        (when remaining (str " (" remaining " left)"))
        (format " - cost $%.4f" (double (w/total-cost world)))]

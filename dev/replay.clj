@@ -46,9 +46,10 @@
   "The call's tools rebuilt from the current code: the scenario's actions,
   the speaking-turn tools, or the scene judge's tool."
   ([call] (tools-for call :claudeworth))
-  ([call scenario-key]
+  ([call scenario-key] (tools-for call scenario-key {}))
+  ([call scenario-key world]
    (let [pool (tool-pool scenario-key)]
-     (mapv #(if (= "judge" %) @#'item-judge/judge-tool (a/->tool (get pool %))) (:tools call)))))
+     (mapv #(if (= "judge" %) @#'item-judge/judge-tool (a/->tool (get pool %) world)) (:tools call)))))
 
 (defn check
   "The names of tools whose rebuilt definition differs from what was sent;

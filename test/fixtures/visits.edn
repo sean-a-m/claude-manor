@@ -7,7 +7,7 @@
         :start "1904-10-15T20:00"
         :minutes-per-round 30
         :starting-funds 100
-        :positions "positions/england-1904.edn"
+        :positions "settings/england-1904/positions.edn"
         :setting "Claudeworth Manor is a modest country house beside a small village with a post office and a forge."}
 
  :locations

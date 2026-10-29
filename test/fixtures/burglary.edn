@@ -9,7 +9,7 @@
         :start "1904-10-16T01:00"
         :minutes-per-round 30
         :starting-funds 0
-        :positions "positions/england-1904.edn"
+        :positions "settings/england-1904/positions.edn"
         :setting "Hollin Grange is a country house in rural England, 1904. The family are away in London, and the servants keep the house. It is the middle of the night."}
 
  :locations

@@ -31,7 +31,7 @@
 
 (def odds {"certain" 100 "likely" 75 "even" 50 "unlikely" 25 "impossible" 0})
 
-(def instructions (prompts/render "judges/find-person.md"))
+(defn instructions [world] (prompts/render world "judges/find-person.md" {}))
 
 ;; ---------------------------------------------------------------------------
 ;; Who is about
@@ -88,7 +88,7 @@
   (let [listed (about world actor)
         people (mapv #(entry world %) listed)
         me (seeker world actor recent)]
-    {:messages [{:role "system" :content instructions}
+    {:messages [{:role "system" :content (instructions world)}
                 {:role "user" :content (json/write-value-as-string {:seeker me :who who :people people})}]
      :tools [{:type "function"
               :function {:name "seek"
@@ -153,7 +153,7 @@
 (def action
   {:name :find-person
    :kind :query :per-turn 1
-   :doc (prompts/render "docs/find-person.md" {:max-who max-who})
+   :doc (prompts/doc "docs/find-person.md" {:max-who max-who})
    :args [:map [:who [:string {:min 1 :max max-who}]]]
    :available? (fn [world actor] (some? (space/location-of world actor)))
    :valid? (fn [world actor _]

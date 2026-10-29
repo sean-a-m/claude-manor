@@ -136,7 +136,7 @@
 (defn- label [x] (cond (nil? x) "not recorded" (keyword? x) (name x) (string? x) x :else (pr-str x)))
 (defn- at [world round]
   (if (number? round)
-    (str "r" round (when-let [c (:clock world)] (str " · " (clock/label c round))))
+    (str "r" round (when-let [c (:clock world)] (str " · " (clock/world-label world round))))
     "not recorded"))
 (defn- duration [world rounds]
   (if (number? rounds)

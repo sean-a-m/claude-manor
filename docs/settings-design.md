@@ -55,8 +55,8 @@ and `deliveries/install`.
 - `household` is the string `"household"` (posts, owners of bought goods).
 
 **Time.** `clock.clj` labels are "Saturday 15 October 1904, 09:30" (weekday names; `Locale/ENGLISH`
-is right, since the prompts are English). The holiday calendar `calendars/england-1904-1905.edn`
-is added by Claudeworth's `init` (`holidays/add-to`). Example dates in tool docs ("1904-10-21")
+is right, since the prompts are English). The holiday calendar (now `settings/england-1904/calendar.edn`)
+is added by Claudeworth's `init` (`holidays/add-to`, from the loaded pack). Example dates in tool docs ("1904-10-21")
 are literals. Times are `HH:mm` everywhere.
 
 ## 3. The design
@@ -104,12 +104,13 @@ use England's). One file per subject, so each stays short:
 ```
 resources/settings/england-1904/
   setting.edn     era, how home is named, the few prompt parameters (below), clock label
-  money.edn       the currency (3.4)
-  people.edn      people-server data set id, honorifics, name order, standings
-  positions.edn   the positions catalogue (moved from resources/positions/england-1904.edn)
-  calendar.edn    starting holidays (moved from resources/calendars/england-1904-1905.edn)
+  money.edn       the currency (3.4; phase 3, not yet present)
+  people.edn      people-server data set id, honorifics, name order, standings (phase 5)
+  positions.edn   the positions catalogue
+  calendar.edn    starting holidays
   prompts/        setting fragments and overrides (3.3)
-    money.md                 how the currency works, for agents and the appraiser
+    money.md                 how the currency works, for agents' shopping rules
+    money-pricing.md         how the shop appraiser prices in it
     invitation-examples.md   the invitation judge's "possible, if unlikely" examples
 ```
 
@@ -124,6 +125,8 @@ resources/settings/england-1904/
  :measures "a stone of sugar is qty 14 of unit 1 lb, or qty 1 of unit 1 stone; half a dozen eggs is qty 6 of unit 1 egg"
  :invite-example "my father, Sir Henry Vane"
  :known-as-example "a curate from Ely"
+ :authored-money "whole pounds (£)"       ; temporary until phase 3's money spec
+ :courier-position :errand-boy            ; a position in the pack's catalogue
  :clock {:label "EEEE d MMMM yyyy, HH:mm"}}
 ```
 
@@ -131,25 +134,49 @@ resources/settings/england-1904/
 :standings {:family {:household? true} ... :visitor {}}}`. A world's `:meta :positions` still
 overrides the pack's catalogue; architect price lists stay per world.
 
-`init` reads the pack into `[:state :setting-pack]` (prompt fragments included, as text), so a
-run doesn't depend on the files staying the same, and replay and `--load` keep working. A run
-whose state has no pack (every run made before this change) is read as England, so old runs in
-`runs/` still load.
+`manor.settings/load-pack` reads `setting.edn`, `positions.edn`, `calendar.edn` and every markdown
+file recursively under `prompts/`. Claudeworth's base `init` stores the resulting immutable map in
+`[:state :setting-pack]`: setting parameters at the top level, `:source` (classpath directory),
+`:positions`, `:calendar` and `:prompts` (relative template path → text without one final newline).
+The initialized event therefore contains the pack snapshot, including fragment and override text;
+replay does not read pack files or add a pack to an old state. `settings/pack` reads a state without
+one as England, so old runs still load without changing their replayed world. A world file without
+`:meta :setting-pack` also defaults to England. `settings/parameter` takes a world and keyword path,
+for example `(settings/parameter world :home)` or `(settings/parameter world :clock :label)`.
+`settings/parameters` excludes `:source`, `:positions`, `:calendar` and `:prompts`.
+
+Positions use an explicit `:meta :positions` catalogue first, otherwise the pack's catalogue, with
+`:roles` merged over either. `holidays/add-to` reads the snapshot's calendar; Lodge still uses the
+base init and drops the calendar. A delivering shop uses its own `:courier`, otherwise the pack's
+`:courier-position`; that position must exist in its merged catalogue. Currency formatting and
+people vocabulary remain unchanged until their later phases.
 
 ### 3.3 Prompts as parameterised markdown
 
-A small renderer, **`manor.prompts`**: `(render "rules/money.md" params)` reads a classpath
-template once, replaces `{{key}}` (and `{{money.base-name}}`-style paths) from `params`, and
-throws on a missing key, so a template can't silently show `{{home}}`. No conditionals in
+A small renderer, **`manor.prompts`**: `(render world "rules/sections/shopping.md" params)`
+uses the world's snapshotted pack override, otherwise a shared classpath template. It replaces
+`{{key}}` (and `{{money.base-name}}`-style paths) from setting parameters merged under explicit
+`params`, and throws on a missing key, so a template can't silently show `{{home}}`. The one- and
+two-argument arities use England for callers without a world. No conditionals in
 templates: code picks which fragments to join, as `AGENTS.md` asks.
 
 - `resources/prompts/` holds the shared templates.
 - **Room to swap:** a pack may hold a file at the same relative path under its `prompts/`
   (`settings/qing-palace/prompts/judges/find-person.md`), which replaces the shared template for
   runs in that setting. So any moved prompt can be made setting-specific later without code,
-  while the shared one stays neutral. (Lookup: pack first, then shared; added in phase 2.)
+  while the shared one stays neutral. Only shared templates are cached by path: overrides are
+  already text in the run's state, so the cache cannot mix packs.
 - A fragment that *is* the setting (section 4, group C) lives only in the pack and is passed to
-  a shared template as a parameter.
+  a shared template as a parameter (`money.md` and `invitation-examples.md`).
+- Moved instructions and rules render when a request is built. An action's `:doc` may be a string
+  or `(fn [world] text)`; `prompts/doc` constructs the latter. `(actions/description action world)`
+  resolves it, and `(actions/->tool action world)` adds the kind/limit hints and schema. Both model
+  requests and human-seat panel forms pass the live world; tool digests hash that resolved tool.
+  The one-argument `->tool` remains for default-setting callers. Writer requests accept a world
+  before their input, with old one-input arities defaulting to England.
+- `clock/world-label` uses `:clock :label`, falling back to the existing English pattern.
+  `prompts/example-date` uses the run clock's start date (stable over the run), or `1970-01-01`
+  without a clock. This is a format example, not a promised future appointment.
 
 ### 3.4 Money
 
@@ -243,8 +270,8 @@ dates from the clock's start, the meeting place).
 - **Architect** docs: "whole pounds (£)" → `{{money.authored-name}}`; shown only with an office.
 
 **C. Setting fragments: in the pack only.**
-- `money.md`: how the currency works and how to price in its base unit (agents' rules and the
-  appraiser).
+- `money.md`: how the currency works (agents' shopping rules); `money-pricing.md`: how to price
+  in its base unit (the shop appraiser only).
 - `invitation-examples.md`: the invitation judge's examples of the possible-but-unlikely (the
   Queen calling on the Earl, a cousin in India, "Your father died in 1898"). Neutral examples
   would teach the judge less.
@@ -324,7 +351,7 @@ next phase must know.**
 |---|---|---|
 | 0 | Baseline prompt capture | done 2026-10-28 (`57fc5ea`) |
 | 1 | Renderer, templates moved verbatim | done 2026-10-28 (`d2425e4`, `2926604`); diff empty |
-| 2 | Setting packs, neutral rewording, overrides | not started |
+| 2 | Setting packs, neutral rewording, overrides | done 2026-10-28 (`d768180`, `d255456`, `114bac8`; reviewed and documented below) |
 | 3 | Money specs | not started |
 | 3b | Private accounts | not started |
 | 4 | One ruleset | not started |
@@ -426,13 +453,104 @@ What phase 2 must know:
    runs, `settings/england-1904/`; pack-first template lookup; group B rewording and group C
    fragments; holidays and positions catalogue from the pack; clock label from the pack; example
    dates from the clock. Diff: the rewording, reviewed.
+
+**Phase 2, done (2026-10-28).** Commits: `d768180` (pack directory, snapshot, paths, positions and
+calendar), `d255456` (per-world instructions/tool docs, pack-first lookup, clock labels), `114bac8`
+(neutral wording, fragments, conditional judge brief and post docs). The completion commit records
+this review and removes a redundant parenthesis in the invitation judge.
+
+Validation: a new baseline was captured at master `6012d5e` in a detached temporary worktree
+(`master` itself was already checked out), using the same capture coverage, including Lodge's
+judge brief. The temporary worktree was removed. Step 1 and step 2 each diffed **empty** against
+that baseline. The final `before`/`after` diff was reviewed in full by deduplicating repeated edit
+spans across the captured requests; `prompt-baseline/review.txt` keeps that local review. No new or
+missing capture files, changed schemas, altered request data, or unexplained changes were found.
+Only the changes listed below remain. The three offline mock days each reached 48 rounds, with
+352 / 179 / 593 calls (Claudeworth / Lodge / medium), no exceptions and no pauses. The helper now
+checks the round count, error/pause status and pause events explicitly. Mock capture runs were
+removed from `test-runs/`. No real models or ports were used. The full suite passed before each
+implementation commit; the final implementation suite passed **472 tests, 9224 assertions**.
+
+Every distinct prompt change (the three captured scenarios unless qualified):
+
+- **Agent preamble (also used by the small example scenarios):** “a an agent ... a the simulation
+  of an Edwardian manor house ... other agent” → “an agent ... a simulation ... other agents”.
+- **House/home rules:** sleeping “a bed in the house ... the house's bedrooms” → “a bed at
+  {{home}} ... the bedrooms”; things “The house has the ordinary things a house like it keeps”
+  → “At {{home}}, everyday things”. Speaking, visits and building use `{{home}}`; these substitutions
+  otherwise preserve England's wording. The `call` doc's “the whole house, say” → “throughout
+  {{home}}, say”. Everyday supplies use `{{everyday-things}}`, unchanged for England.
+- **Finding goods:** “a shop or the public house” → “a shop or other place of trade”; “the house's
+  own things” → “the things at {{home}}”. The optional no-find-at-shops rule drops “the public house”.
+- **Shopping/spending:** “the household account” → “{{household-name}}'s account”; architect
+  commissions and `buy` likewise use its account/funds. “up to the house” → “to {{home}}”, “errand
+  boy or carrier” → “the shop's courier”, “tradesmen's bills” → “bills”. The currency text is two
+  pack fragments (changed in review, below): agents' rules get `money.md`, the old sterling
+  sentence unchanged; the appraiser gets `money-pricing.md`, its old pricing sentence unchanged
+  apart from “Whole pennies only.” now ending its own sentence.
+- **Physical rules:** “a few steps within the house” → “a few steps from where you are”.
+- **Find-person doc/judge:** named examples (“the new housemaid”, “her ladyship”, “Mamma”, etc.)
+  → kinds (name/nickname, family term, form of address, position); the doc drops the house example;
+  “a house or a village is small” → “the area is small”; “the servants' quarters” is removed.
+- **Hiring rules/recommend doc:** “a servant” → “someone who works nearby”; “your village” /
+  “around the village” / “in the village” → “the area”; waiting at house/village/pub → anywhere
+  in the mapped area; “Outdoor servants' lodging” → “Lodging for staff who live out”.
+- **Invitation/leave docs:** example dates “1904-10-21” → clock start date: **1904-12-21** for
+  Claudeworth, **1904-12-19** for medium, **1904-10-15** for Lodge (and the frozen test worlds).
+  Invalid invitation/return-time format replies use the same rule. Visits use `{{home}}`,
+  `{{invite-example}}` and `{{known-as-example}}` (the latter two render unchanged for England).
+  GM schedule-visit's “stand with the house” → “stand with {{household-name}}”. Without a post
+  office, the post option is omitted from the invite doc and visits rules; in the captured days,
+  this removes it from Lodge's invite tool only.
+- **Invitation judge:** home/era/known-as are parameters (unchanged in England). The matching
+  examples (“Pugh the architect”, “the curate from Ely”) and deceased-father example move out of
+  their instruction bullets into the pack's examples alongside the unchanged Queen/duke/India
+  examples. The now-unneeded matching parenthesis is removed; the matching rule remains.
+- **Persona/appearance writers:** “an English village circa 1900” / “England circa 1900” →
+  “a simulation set in {{era}}” (England in 1904). Persona's “behavioral a” → “behavioral and”,
+  and the five run-together sentence boundaries gain spaces. Appearance's final space is retained.
+- **Shop appraiser/docs:** “a village general store” → “a small general shop”; “the customer's
+  house” / “their house” → `{{home}}`; amount examples come from `{{measures}}` (unchanged in
+  England). `send-up` says “to {{home}}” instead of “up to the customer's house”.
+- **Architect docs (Claudeworth/medium):** “house room ids” → “room ids”; “whole pounds (£)”
+  comes from `{{authored-money}}` (same text); price-list drops “not pence”, and draw-plans'
+  “formatted sterling” → “formatted amounts”. No currency schema or formatter changes yet.
+- **Judge brief:** ordinary-things preface → “At {{home}}, assume the everyday things ...”, with
+  the same supplies. Architect and delivery paragraphs are selected by location services/delivering
+  shops. **Lodge loses only the architect paragraph**, retaining deliveries because its shop delivers.
+  A world with neither gets neither (covered by an exact template-output test).
+
+**Supervisor review of phase 2** (2026-10-28, the commit after `fe66194`). Two fixes:
+- The GM's default view dumped `[:state :setting-pack]` (the whole catalogue, calendar and
+  prompts: a GM prompt of about 110k characters). `prompt/gm-state` now leaves it out, with a test.
+  The mock days never call the GM, so the prompt capture can't see the GM prompt: check it by hand
+  when changing what the state holds.
+- One `money.md` had merged the agents' currency sentence with the appraiser's pricing rule, so
+  agents were told to "price realistically in integer old pence". Split into `money.md` (agents)
+  and `money-pricing.md` (appraiser), each rendering today's text. Capture diff against the
+  delegate's `after`: only those two sentences.
+
+Handoff to phases 3+: the pack/API/state layout is in 3.2/3.3 above. `:authored-money` in
+`setting.edn` is deliberately temporary: replace its two architect template placeholders with the
+money spec's authored name in phase 3. The appraiser still returns `unit-price-pence`; all reducers,
+sterling formatting and account state are unchanged. No `money.edn`, accounts, ruleset move,
+`people.edn`, standings/honorific/name-order changes or people-server data sets were started.
+The courier position now comes from the pack (England `:errand-boy`) unless the shop overrides it.
+The five judge/writer answer tools (`seek`, `invitee`, `polish`, `appraise`, `appearance`) were
+reviewed: their own descriptions already contain no setting text, so they remain in code under
+Group A rather than moving unchanged text unnecessarily. Group A prose and the GM brief are
+otherwise untouched. Phase 4 must **not** repeat the conditional judge-brief work; its remaining
+availability/ruleset/meeting-place/home-domain changes are still outstanding. Pack-less fixtures
+now inherit England's catalogue: tests that wanted a missing entry must override it explicitly,
+and inherited forms of address are real, expected state rather than a prompt leak.
+
 3. **Money specs.** `mechanics/money.clj` with specs; shop, building, deliveries, views and scene
    tools use the run's spec; `unit-price`. Diff: the appraiser's field and docs.
 3b. **Private accounts** (3.4).
 4. **One ruleset.** `manor.ruleset`; move building, shop, deliveries; meeting place and home
-   domain from the world file; architect actions by `:available?`; conditional judge-brief
-   paragraphs; Claudeworth, medium and Lodge become thin. Diff: Lodge's judge brief loses the
-   architect paragraph it never needed; otherwise unchanged.
+   domain from the world file; architect actions by `:available?`; Claudeworth, medium and Lodge
+   become thin. Conditional judge-brief paragraphs were completed in phase 2. Diff: otherwise
+   unchanged.
 5. **People and positions.** Standings, honorifics and name order from the pack; people-server
    data sets; reputation wording. Diff: none for England.
 6. **Palace skeleton** (section 5), and the best-effort read of its prompts.

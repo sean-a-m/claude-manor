@@ -65,11 +65,11 @@
        (when-let [{:keys [to arrives]} (:travel ag)]
          (str " · travelling to " (or (:name (space/location world to)) to)
               (when (number? arrives)
-                (str " · arrives " (if-let [c (:clock world)] (clock/label c arrives) (str "r" arrives))))))
+                (str " · arrives " (if-let [c (:clock world)] (clock/world-label world arrives) (str "r" arrives))))))
        (when-let [busy (:busy ag)]
          (str " · " (:activity busy)
               (when-let [until (:until busy)]
-                (str " until " (if-let [c (:clock world)] (clock/label c until) (str "r" until))))))))
+                (str " until " (if-let [c (:clock world)] (clock/world-label world until) (str "r" until))))))))
 
 (defn- token [snap ag x y]
   (let [world (:world snap)
@@ -160,7 +160,7 @@
                    (when (:reservation? r)
                      (str "\nUnder construction" (when-let [due (:due r)]
                                                   (str " · done " (if-let [c (:clock world)]
-                                                                   (clock/label c due) (str "r" due)))))))]
+                                                                   (clock/world-label world due) (str "r" due)))))))]
       [:rect (rect g)]
       [:text {:x (+ (:x g) 0.06) :y (+ (:y g) 0.26) :font-size 0.16
               :textLength (min (- (:w g) 0.12) (* 0.088 (count (str (or (:name r) id)))))
@@ -263,7 +263,7 @@
   (let [{:keys [state mode remaining acting pause-reasons error last-human-feedback]} status]
     [:section.scene-toolbar
      [:div [:b id] " · round " [:b (:round world)]
-      (when-let [c (:clock world)] (str " · " (clock/label c (:round world))))
+      (when-let [c (:clock world)] (str " · " (clock/world-label world (:round world))))
       " · " (label state) " / " (label mode) (when remaining (str " (" remaining " left)"))
       (format " · cost $%.4f" (double (w/total-cost world)))]
      (when-let [f (get-in scenario [:scene :toolbar])] (f world))

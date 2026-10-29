@@ -143,7 +143,7 @@ reach characters. See [the calendar contract](docs/scenario-authoring.md#calenda
 for startup review, lifecycle and world-file export limitations. New `claudeworth` and
 `claudeworth-medium` runs share a public calendar of English holidays, quarter days (including
 Lady Day and Michaelmas) and seasonal observances for **1904–1905**. Edit
-[`resources/calendars/england-1904-1905.edn`](resources/calendars/england-1904-1905.edn) to extend it;
+[`resources/settings/england-1904/calendar.edn`](resources/settings/england-1904/calendar.edn) to extend it;
 there is no annual generation. The whole list is stored, but characters see only today through
 30 days ahead. These are known occasions, not automatic celebrations, days off or payments.
 
@@ -163,7 +163,7 @@ so the person written fits the scenario. It keeps names, sex, jobs and situation
 fresh seed, printed and recorded for reproduction; pass `{:seed 1}` for repeatable traits.
 It writes the result into the file for review with `git diff`; see "People and traits" in
 [docs/scenario-authoring.md](docs/scenario-authoring.md).
-Positions (a shared catalogue in `resources/positions/`), posts and situations are described
+Positions (a shared catalogue in `resources/settings/england-1904/positions.edn`), posts and situations are described
 under "Positions, posts and situations" there.
 
 Whenever a run stops running rounds (it pauses, `auto!`'s rounds are done, a manual step ends,

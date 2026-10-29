@@ -98,7 +98,7 @@
           by-name (a/by-name actions)
           p (promise)]
       (reset! (:input run) {:agent agent-id :promise p :request-id (str (random-uuid))
-                           :tools (sort (keys by-name)) :tool-specs (mapv a/->tool actions)
+                           :tools (sort (keys by-name)) :tool-specs (mapv #(a/->tool % @(:world run)) actions)
                            :feedback feedback :context context})
       (run/set-status! run assoc :state :awaiting-human :awaiting agent-id)
       (let [{:keys [action args]} @p
@@ -198,7 +198,7 @@
       (if (or (:done? st) (>= step max-steps))
         st
         (let [by-name (a/by-name actions)
-              tools (mapv a/->tool actions)
+              tools (mapv #(a/->tool % @(:world run)) actions)
               request {:model model :messages messages :tools tools
                        :max-tokens (:max-tokens opts) :reasoning (:reasoning opts)
                        :tool-choice (:tool-choice opts)}

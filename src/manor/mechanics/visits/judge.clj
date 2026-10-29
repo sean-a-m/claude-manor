@@ -35,7 +35,9 @@
    [:new {:optional true} (into [:map] new-person-fields)]
    [:impossible {:optional true} [:string {:min 1 :max 300}]]])
 
-(def instructions (prompts/render "judges/invitation.md"))
+(defn instructions [world]
+  (prompts/render world "judges/invitation.md"
+                  {:invitation-examples (prompts/render world "invitation-examples.md" {})}))
 
 ;; ---------------------------------------------------------------------------
 ;; Who the inviter could mean
@@ -170,7 +172,7 @@
   [world actor {:keys [person reason recent]}]
   (let [who (inviter world actor recent)
         listed (people world actor)]
-    {:messages [{:role "system" :content instructions}
+    {:messages [{:role "system" :content (instructions world)}
                 {:role "user" :content (json/write-value-as-string
                                         (cond-> {:inviter who :description person :people listed}
                                           reason (assoc :reason reason)))}]

@@ -1,0 +1,2 @@
+{:id "test" :era "a test setting" :home "the test court"
+ :clock {:label "yyyy-MM-dd HH:mm"}}

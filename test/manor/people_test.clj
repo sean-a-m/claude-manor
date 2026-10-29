@@ -72,7 +72,7 @@
                         (mapcat :faculties (:groups (data "faculties.edn")))))
             (is (not (.exists (io/file "mcp-servers/people/circumstances.edn")))))
           (testing "age and sex come from the request: the catalogue's entry, as the engine passes it"
-            (let [catalogue (positions/read-catalogue "positions/england-1904.edn")
+            (let [catalogue (positions/read-catalogue "settings/england-1904/positions.edn")
                   maids (:people (call "generate_people"
                                        (assoc (people/generate-args :scullery-maid (:scullery-maid catalogue)
                                                                     {:seed 3 :taken-names []})

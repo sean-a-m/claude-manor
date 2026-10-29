@@ -47,8 +47,9 @@
 (defn- lines-schema [n]
   [:map [:lines [:vector {:min n :max n} appraisal-schema]]])
 
-(def instructions
-  (prompts/render "judges/shop-appraiser.md" {:max-lead-hours deliveries/max-lead-hours :max-quantity max-quantity}))
+(defn instructions [world]
+  (prompts/render world "judges/shop-appraiser.md" {:max-lead-hours deliveries/max-lead-hours :max-quantity max-quantity
+                                                        :money (prompts/render world "money-pricing.md" {})}))
 
 (declare check)
 
@@ -58,12 +59,12 @@
   [world clerk args]
   (let [loc (space/location world (space/location-of world clerk))
         data {:setting (get-in world [:state :setting])
-              :date (clock/label (:clock world) (:round world))
+              :date (clock/world-label world (:round world))
               :store (select-keys loc [:name :store-profile :delivery-profile :desc :detail])
               :request (mapv #(cond-> (select-keys % [:item :amount]) (:deliver %) (assoc :deliver true)) (:goods args))}
         n (count (:goods args))
         delivered (set (keep-indexed #(when (:deliver %2) %1) (:goods args)))]
-    {:messages [{:role "system" :content instructions}
+    {:messages [{:role "system" :content (instructions world)}
                 {:role "user" :content (json/write-value-as-string data)}]
      :tools [{:type "function" :function {:name "appraise" :description "For each requested line, offer plausible stock (portable over the counter, or sent up for a delivery line) or refuse with a reason."
                                         :parameters (mjs/transform (lines-schema n))}}]
@@ -313,19 +314,19 @@
 
 (def actions
   [{:name :quote-goods :kind :query :roles :all :needs :shop-clerk
-    :doc (prompts/render "docs/shop/quote-goods.md" {:max-lines max-lines})
+    :doc (prompts/doc "docs/shop/quote-goods.md" {:max-lines max-lines})
     :args [:map [:for :string]
            [:goods [:vector {:min 1 :max max-lines}
                     [:map [:item (text-schema 120)] [:amount (text-schema max-amount)]
                      [:deliver {:optional true} :boolean]]]]]
     :valid? quote-reason :adjudicate :shop/appraise :on-result offer-events :reply offers-reply}
    {:name :buy :kind :free :roles :all
-    :doc (prompts/render "docs/shop/buy.md" {:max-lines max-lines})
+    :doc (prompts/doc "docs/shop/buy.md" {:max-lines max-lines})
     :args [:map [:quote-ids [:vector {:min 1 :max max-lines} :string]]
            [:hand-over [:enum "take" "leave"]]]
     :valid? buy-reason :effect buy-events :reply buy-reply}
    {:name :send-up :kind :free :roles :all :needs :shop-clerk
-    :doc (prompts/render "docs/shop/send-up.md" {:max-lines max-lines :send-up-max-hours deliveries/send-up-max-hours})
+    :doc (prompts/doc "docs/shop/send-up.md" {:max-lines max-lines :send-up-max-hours deliveries/send-up-max-hours})
     :args [:map [:items [:vector {:min 1 :max max-lines} :string]]
            [:within-hours [:int {:min 1 :max deliveries/send-up-max-hours}]]]
     :valid? send-up-reason :effect send-up-events :reply send-up-reply}])

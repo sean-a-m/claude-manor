@@ -183,7 +183,7 @@
                      (when-not (str/blank? brief) (str "\n\n## The setting\n" brief)))}
       {:role "user"
        :content (str "# The activity\n\n"
-                     "- Time: " (if-let [c (:clock world)] (clock/label c (:round world)) (str "round " (:round world))) "\n"
+                     "- Time: " (if-let [c (:clock world)] (clock/world-label world (:round world)) (str "round " (:round world))) "\n"
                      (when act? "- An immediate act, a few minutes: done to the people named, judged at once\n")
                      (if act? "- Actor: " "- Worker: ") (:name worker) (when-not (str/blank? (:persona worker)) (str ". " (:persona worker))) "\n"
                      "- Place: " (:name (space/location world (:place job)) (:place job)) "\n"

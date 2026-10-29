@@ -97,8 +97,9 @@ For short strings, one EDN file per mechanic under `resources/prompts/messages/`
 
 Narration is the largest part and the least like a prompt: it's the engine describing what
 happened, read as the recent-events lines. Moving it would use the same catalogues
-(`narration.edn` per mechanic), with each event's text in two forms, `:self` ("You give ...") and
-`:other` ("Hale gives ..."), chosen by `describe`. Replay and the transcript check it for free: the
+(`narration.edn` per mechanic), one string per event type ("{{actor}} gives {{item}} to {{to}}."),
+with `describe` still choosing between variants (finishes or leaves off, with or without a
+container). Narration is always in the third person, even for the agent's own acts. Replay and the transcript check it for free: the
 prompt capture shows every narrated line of the mock days.
 
 Recommendation: leave narration in code unless a second setting or a scenario actually

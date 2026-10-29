@@ -334,7 +334,8 @@ up to 10 lines `{item amount deliver?}` in one appraisal and one query; its `:re
 refusal). `amount` is free text, at most 40 characters, the amount as the customer put it ("a stone",
 "2 lb", "3"); the appraiser sees `{item amount}` and gives back, for an available line, `qty` (a
 whole number, 1 to 20) and `unit` that express it, a stone of sugar as 14 × `1 lb` or 1 × `1 stone`,
-counted goods as one named piece (`1 knife`), with `unit-price-pence` for one unit. A missing or
+counted goods as one named piece (`1 knife`), with `unit-price` for one unit in the pack's
+smallest currency unit (`money.base-name`). A missing or
 out-of-range `qty` gets the checked-answer correction. The quote's price is `qty` × the unit price,
 and the quote, purchase, order and `:amount` aspect all read as `qty` × `unit`, so the clerk can
 compare what was quoted with what was asked. At an open counter, Claudeworth offers `quote-goods` in the clerk's speaking turn:
@@ -343,8 +344,9 @@ gets the quote ids and can `buy` on their next line, before speaking (a speaking
 customer with unspent quotes at that shop), or later in that same turn. Anyone's speaking
 turn also offers `recommend`, to someone in that conversation, so whoever is asked for a candidate
 can answer with a real one on their line instead of making up a name.
-`buy {quote-ids hand-over}` is free (it doesn't end the turn) and separately debits money for up to 10 quotes at once, checked as a
-whole, and creates for each counter quote one portable item owned by the household, a parcel of the whole quantity, with two aspects: `:amount`, the amount
+`buy {quote-ids hand-over from?}` is free (it doesn't end the turn) and separately debits money for up to 10 quotes at once, checked as a
+whole, and creates for each counter quote one portable item owned by the paying account
+(`"household"` by default, the buyer's id with `from "own"`), a parcel of the whole quantity, with two aspects: `:amount`, the amount
 bought ("20 × 1 lb"), where work can later say what's left, and `:state`, the appraiser's
 `condition` ("fresh, dry"). It is `:consumable?` when the appraiser says the goods are used up in
 use (food, fuel, soap; not tools or crockery). The appraiser's `unit` (at most 30 characters) is
@@ -356,10 +358,15 @@ at every shop: someone collects the goods, or the clerk hands them over with `gi
 delivering shop sends them up (below). Only the buyer's view lists them, under `waiting-at-shops
 [{item amount at}]` (left out when empty); at the shop `location.here.items` marks each
 `waiting-for` the buyer, and `here.service` says such goods are paid for and kept until collected
-(or sent up). `buy`'s reply says where the goods are now. No fixed inventory, bulk counters or bargaining; delivery is below. Amounts are integer
-old pence; world-file starting funds and architect bridge prices remain authored in pounds.
+(or sent up). `buy`'s reply says where the goods are now. No fixed inventory, bulk counters or bargaining; delivery is below. Amounts are integers in the pack's
+smallest unit (England: old pence); world-file starting funds/purses and architect bridge prices
+use its authored unit (England: whole pounds). See **Money and private accounts** below.
 All Claudeworth characters can buy and commission from the shared household account and
-see its balance. There is no spender-role allowlist: authority to spend is a social decision
+see its balance. Both actions take optional `from "household"` (the default) or `from "own"`:
+the latter spends only the actor's own account, refusing a missing account or insufficient balance.
+Goods bought from it belong to that person, including goods left at the shop, ordered for delivery
+or sent up later. No tool can spend another person's account, and there is no `pay` action.
+There is no spender-role allowlist: authority to spend is a social decision
 for the agents, not an engine permission. Buyer-bound quotes, affordability, plan access,
 co-location and opening-hours checks still apply. The GM is not a character and does not
 receive these actions.
@@ -1811,7 +1818,8 @@ in `:init`:
 A Claudeworth-derived world with an architect's office names the architect's price list in
 `:meta :architect-prices`: a file or classpath resource such as `"architect/prices-1904.edn"`
 (`resources/architect/`), `{:sizes [{:size "small" :price 200 :build-days 1} ...]}` with prices in
-whole pounds. `:init` reads it into `:state :architect-prices`; `price-list` answers from it, the
+the setting pack's authored money unit (England: whole pounds). `:init` reads it into
+`:state :architect-prices`; `price-list` answers from it, the
 rules list its sizes, `draw-plans` accepts only those sizes, and each draft sends it to the
 architect server. A world without an office needs none.
 
@@ -2042,14 +2050,14 @@ or promised. It does not select an existing villager.
 #### Setting packs and prompt templates
 
 The household scenarios name a classpath directory in `:meta :setting-pack`, currently
-`"settings/england-1904"`. Omitting it defaults to England, including old runs without a stored
-pack. A pack contains:
+`"settings/england-1904"`. Omitting it defaults to England. Pack-less test fixtures also use
+England; old run money/state/event shapes are not supported. A pack contains:
 
 - `setting.edn`: prompt parameters (`:era`, `:home`, `:household-name`, `:everyday-things`,
   `:measures`, `:invite-example`, `:known-as-example`), `:clock {:label "EEEE d MMMM yyyy, HH:mm"}`
   and `:courier-position` (England `:errand-boy`, overridable by a shop's `:courier`).
-  `:authored-money` temporarily supplies architect docs' “whole pounds (£)”; currency mechanics
-  themselves are still sterling, not configurable yet.
+- `money.edn`: the currency spec, available to templates as `{{money.base-name}}`,
+  `{{money.authored-name}}`, etc. See below; no `:authored-money` parameter remains.
 - `positions.edn`: the default positions catalogue; `calendar.edn`: explicitly dated holidays.
 - `prompts/money.md`, `prompts/money-pricing.md` and `prompts/invitation-examples.md`: setting-specific
   prose used by the shopping rules, the shop appraiser and the invitation judge. Any other markdown file under `prompts/` may
@@ -2063,8 +2071,8 @@ The loaded pack's `:positions`, `:calendar`, `:source` and `:prompts` are not re
 
 `(manor.prompts/render world "path.md" params)` looks in the pack first, then
 `resources/prompts/path.md`, and fills `{{key}}` or dotted paths from the setting parameters with
-explicit `params` winning. Missing values throw; no conditionals or loops in templates. Code picks
-fragments. Only shared files are cached. Instructions and rules are rendered for each request.
+explicit `params` winning (whether their keys are strings or keywords). Missing values throw;
+no conditionals or loops in templates. Code picks fragments. Only shared files are cached. Instructions and rules are rendered for each request.
 An action's `:doc` may be a fixed string or a function of the world; `(prompts/doc "docs/x.md"
 params)` constructs one, `(actions/description action world)` resolves it, and `(actions/->tool
 action world)` builds its model-facing tool, including kind/limit hints. Pass the world in model
@@ -2073,6 +2081,46 @@ old callers. `clock/world-label` applies the pack's clock label. Dated tool docs
 `prompts/example-date`: the run's start date, or `1970-01-01` without a clock, solely as a format
 example. Judge briefs include architect/delivery paragraphs only with the corresponding places;
 visits' post option is described only with a post office.
+
+#### Money and private accounts
+
+A pack's `money.edn` describes fixed-ratio currency. Every runtime amount is an integer in its
+smallest unit, never a float. England's spec is:
+
+```clojure
+{:units [{:value 240 :prefix "£"} {:value 12 :suffix "s"} {:value 1 :suffix "d"}]
+ :zero "0d" :base-name "old pence" :authored 240 :authored-name "whole pounds (£)"}
+```
+
+List units in descending order of positive integer `:value`, ending at `1`. Each unit uses
+`:prefix`/`:suffix` (joined directly to its count), or `:singular`/`:plural` (joined with a space).
+For example `{:value 1000 :singular "tael" :plural "taels"}` and
+`{:value 1 :singular "cash" :plural "cash"}` format `3250` as `3 taels 250 cash`.
+Zero uses `:zero`; negative amounts have a leading minus sign. `:base-name` names the integer
+unit for pricing, and `:authored` is the integer multiplier for world-file and price-list amounts;
+`:authored-name` names that authored unit in docs and validation errors.
+`prompts/money.md` explains the currency to agents; `prompts/money-pricing.md` explains realistic
+pricing to the appraiser and may use `{{money.base-name}}`. These are distinct fragments.
+
+In household-derived worlds, `:meta :starting-funds` is a non-negative integer in authored units.
+An agent may have a non-negative integer `:purse` in those units, e.g. `:purse 2` means £2 for
+England. Omission gives no personal account, except that an architect starts at zero for fees;
+explicit zero gives anyone an account. The slug `household` is reserved and cannot name a member
+of the initial cast. Balances live only in `[:state :accounts {owner amount}]`, with
+`"household"` as the shared owner and agent ids as private owners. The shared balance is still
+shown as `household.funds`; your own account appears as `you.purse`, and nobody else's does.
+The GM/operator can see all balances. Architect fees credit the architect's ordinary account.
+`buy` and `commission` select the account with optional `from` (`"household"` default or
+`"own"`); there is no restriction by role on shared spending and no transfer/`pay` action.
+Purchases belong to the paying owner, whether carried, left, ordered or sent up.
+
+The implementation remains `manor.scenarios.claudeworth.money` until the ruleset move:
+`(money/spec world)`, `(money/display spec n)` and `(money/authored->units spec n)`.
+Narration gets the spec from `(get names [:money])`; it does not load current pack files.
+Paid events (`:claudeworth/bought`, `:deliveries/ordered`, `:claudeworth/commissioned`) record
+`:account`, and delivery orders also record `:owner`. Replay uses these, not old balance keys or
+`:unit-price-pence`. World-file values and the architect's raw price list remain authored amounts;
+convert once at initialization or when storing a draft, never when replaying an event.
 
 #### Positions, posts and situations
 

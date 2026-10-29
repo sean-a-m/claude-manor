@@ -1,1 +1,1 @@
-Draft and price a room for a client who is with you at your open office; name them with for. Use room ids from places for connects-to, and a size from the price list. Bridge prices are {{authored-money}}; stored plans show formatted amounts. Plans are stored, not commissioned.
+Draft and price a room for a client who is with you at your open office; name them with for. Use room ids from places for connects-to, and a size from the price list. Bridge prices are {{money.authored-name}}; stored plans show formatted amounts. Plans are stored, not commissioned.

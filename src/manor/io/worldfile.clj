@@ -44,6 +44,7 @@
             [manor.mechanics.inner :as inner]
             [manor.mechanics.items :as items]
             [manor.mechanics.physical :as physical]
+            [manor.settings :as settings]
             [manor.world :as w]))
 
 (def Location
@@ -64,7 +65,9 @@
   :impediments, and :status :dead with an optional :died {:cause}, are their
   physical state at the start (see manor.mechanics.physical). With :away? true
   they are spawned, then away (elsewhere, with no place) until something brings
-  them back (visits). Starting dead takes precedence over :away?."
+  them back (visits). Starting dead takes precedence over :away?.
+  An optional :purse is a non-negative integer in the setting's authored
+  money unit; household scenarios turn it into a private account."
   [:map
    [:name :string]
    [:role :keyword]
@@ -72,6 +75,7 @@
    [:away? {:optional true} :boolean]
    [:persona {:optional true} :string]
    [:situation {:optional true} :string]
+   [:purse {:optional true} :any]          ; authored money; checked below for a readable message
    [:manner {:optional true} :string]
    [:appearance {:optional true} [:string {:min 1 :max 600}]]
    [:aspects {:optional true} :any]          ; checked by `problems`, for a readable message
@@ -160,6 +164,10 @@
             (for [{:keys [name location]} (:agents wf)
                   :when (and location (not (known location)))]
               (str "agent " (pr-str name) ": unknown location " (pr-str location)))
+            (for [{:keys [name] :as a} (:agents wf)
+                  :when (and (contains? a :purse) (not (nat-int? (:purse a))))]
+              (str "agent " (pr-str name) ": :purse must be non-negative integer "
+                   (get-in (settings/for-worldfile wf) [:money :authored-name])))
             (for [{:keys [name] :as a} (:agents wf)
                   :when (contains? a :aspects)
                   :let [p (items/aspects-problem (:aspects a))]

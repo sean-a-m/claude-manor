@@ -426,6 +426,7 @@
                                                                           "things-find-not-at-trade"))})
                 (section world "people" {:physical (physical/rules world)})
                 (section world "shopping" {:paid (section world (if architect? "shopping-paid-commissions" "shopping-paid"))
+                                           :spending-tools (section world (if architect? "shopping-spending-tools-commissions" "shopping-spending-tools"))
                                            :money (prompts/render world "money.md" {})})
                 (when architect?
                   (section world "building" {:sizes (str/join ", " (map :size (get-in world [:state :architect-prices :sizes])))

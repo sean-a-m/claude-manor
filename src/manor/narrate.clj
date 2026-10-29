@@ -3,7 +3,8 @@
   line of text. Agents see these lines for the events visible to them.
   Scenarios add `(defmethod manor.narrate/describe :my/event ...)`."
   (:require [clojure.string :as str]
-            [manor.clock :as clock]))
+            [manor.clock :as clock]
+            [manor.settings :as settings]))
 
 (defmulti describe
   "One line of text for `event`. `names` maps agent id -> display name."
@@ -159,11 +160,13 @@
 
 (defn names
   "Display names: agent id -> name, [:loc id] -> location name, and
-  [:item id] -> item name. With a clock, also [:clock] and [:today] (the
+  [:item id] -> item name, and [:money] -> the currency spec.
+  With a clock, also [:clock] and [:today] (the
   current round), for `at`."
   [world]
   (cond-> (merge (into {} (map (juxt key (comp :name val))) (:agents world))
                  (into {} (map (fn [[id l]] [[:loc id] (:name l)])) (get-in world [:space :locations]))
                  ;; resolved at call time: manor.mechanics.items requires this namespace for its describe methods
-                 ((requiring-resolve 'manor.mechanics.items/names) world))
+                 ((requiring-resolve 'manor.mechanics.items/names) world)
+                 {[:money] (:money (settings/pack world))})
     (:clock world) (assoc [:clock] (:clock world) [:today] (:round world))))

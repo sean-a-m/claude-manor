@@ -18,7 +18,8 @@ before.
 
 ## 2. What's hard-coded today
 
-The survey, by kind. "Setting text" means model-facing English-1904 wording inside code.
+The original survey, before this refactor, by kind (current progress is in section 8).
+"Setting text" means model-facing English-1904 wording inside code.
 
 **Structure: Claudeworth is the ruleset.** `scenarios/claudeworth.clj` holds the shared rules:
 walk/call/travel/sleep/rouse, views, hibernation, the rules prompt, `init`, `problems`, the
@@ -104,7 +105,7 @@ use England's). One file per subject, so each stays short:
 ```
 resources/settings/england-1904/
   setting.edn     era, how home is named, the few prompt parameters (below), clock label
-  money.edn       the currency (3.4; phase 3, not yet present)
+  money.edn       the currency (3.4)
   people.edn      people-server data set id, honorifics, name order, standings (phase 5)
   positions.edn   the positions catalogue
   calendar.edn    starting holidays
@@ -125,7 +126,6 @@ resources/settings/england-1904/
  :measures "a stone of sugar is qty 14 of unit 1 lb, or qty 1 of unit 1 stone; half a dozen eggs is qty 6 of unit 1 egg"
  :invite-example "my father, Sir Henry Vane"
  :known-as-example "a curate from Ely"
- :authored-money "whole pounds (£)"       ; temporary until phase 3's money spec
  :courier-position :errand-boy            ; a position in the pack's catalogue
  :clock {:label "EEEE d MMMM yyyy, HH:mm"}}
 ```
@@ -134,13 +134,13 @@ resources/settings/england-1904/
 :standings {:family {:household? true} ... :visitor {}}}`. A world's `:meta :positions` still
 overrides the pack's catalogue; architect price lists stay per world.
 
-`manor.settings/load-pack` reads `setting.edn`, `positions.edn`, `calendar.edn` and every markdown
+`manor.settings/load-pack` reads `setting.edn`, `money.edn`, `positions.edn`, `calendar.edn` and every markdown
 file recursively under `prompts/`. Claudeworth's base `init` stores the resulting immutable map in
 `[:state :setting-pack]`: setting parameters at the top level, `:source` (classpath directory),
-`:positions`, `:calendar` and `:prompts` (relative template path → text without one final newline).
+`:money`, `:positions`, `:calendar` and `:prompts` (relative template path → text without one final newline).
 The initialized event therefore contains the pack snapshot, including fragment and override text;
-replay does not read pack files or add a pack to an old state. `settings/pack` reads a state without
-one as England, so old runs still load without changing their replayed world. A world file without
+replay does not read pack files. `settings/pack` reads a state without one as England for pack-less
+test fixtures, not as old-run compatibility (decision 11). A world file without
 `:meta :setting-pack` also defaults to England. `settings/parameter` takes a world and keyword path,
 for example `(settings/parameter world :home)` or `(settings/parameter world :clock :label)`.
 `settings/parameters` excludes `:source`, `:positions`, `:calendar` and `:prompts`.
@@ -148,8 +148,8 @@ for example `(settings/parameter world :home)` or `(settings/parameter world :cl
 Positions use an explicit `:meta :positions` catalogue first, otherwise the pack's catalogue, with
 `:roles` merged over either. `holidays/add-to` reads the snapshot's calendar; Lodge still uses the
 base init and drops the calendar. A delivering shop uses its own `:courier`, otherwise the pack's
-`:courier-position`; that position must exist in its merged catalogue. Currency formatting and
-people vocabulary remain unchanged until their later phases.
+`:courier-position`; that position must exist in its merged catalogue. Currency formatting now
+uses `:money`; people vocabulary remains unchanged until phase 5.
 
 ### 3.3 Prompts as parameterised markdown
 
@@ -180,17 +180,24 @@ templates: code picks which fragments to join, as `AGENTS.md` asks.
 
 ### 3.4 Money
 
-`manor.mechanics.money` (from `scenarios/claudeworth/money.clj`): amounts are integers in the
-setting's smallest unit, always. `(display spec n)` formats from `:units` (prefix/suffix, or
-singular/plural names); `(authored->units spec n)` converts world files' and price lists'
-amounts. Every caller passes the run's spec (`(money/spec world)`). The appraiser's field becomes
-`unit-price`, priced in `{{money.base-name}}` with the pack's `money-pricing.md`. No need to keep
-reading `:unit-price-pence` in old events (decision 11).
+Implemented in **`manor.scenarios.claudeworth.money`** (phase 4 will move it to
+`manor.mechanics.money`): amounts are integers in the setting's smallest unit, always.
+`(display spec n)` formats from descending positive-integer `:units`, ending at value 1
+(prefix/suffix joined directly, or singular/plural names separated by a space), omitting zero
+components, using `:zero` for zero and a leading minus sign for negatives.
+`(authored->units spec n)` multiplies by `:authored` at world-file/architect boundaries.
+Every caller passes the run's spec (`(money/spec world)`). The spec is part of the pack snapshot
+at `[:state :setting-pack :money]`, and a rendering parameter `:money` (including dotted paths).
+Narration's `names` map carries it at `[:money]`; describe methods format with that snapshot,
+not the current pack on disk. The appraiser returns `unit-price` in `{{money.base-name}}`,
+explained by the pack's `money-pricing.md` (separate from agents' `money.md`).
+`:unit-price-pence`, the old formatter API, `:money-unit` and `:authored-money` are removed;
+old events/state need not keep working (decision 11).
 
 ```clojure
 ;; settings/england-1904/money.edn
 {:units [{:value 240 :prefix "£"} {:value 12 :suffix "s"} {:value 1 :suffix "d"}]
- :zero "0d" :base-name "old pence" :authored 240 :authored-name "whole pounds"}
+ :zero "0d" :base-name "old pence" :authored 240 :authored-name "whole pounds (£)"}
 
 ;; settings/qing-palace/money.edn
 {:units [{:value 1000 :singular "tael" :plural "taels"} {:value 1 :singular "cash" :plural "cash"}]
@@ -207,13 +214,23 @@ Fixing the rate at 1,000 makes 1 cash = 1 li of silver, so one integer counts bo
 copper separately; both belong with bartering (later), as goods rather than money. Roman, medieval
 and most other "ancient" systems had fixed nominal ratios too, so the same spec covers them.
 
-**Private accounts (phase 3b).** Small: about 15 call sites (shop's buy, deliveries' orders,
-the commission, the architect's purse, views, the two scene tools) plus one argument. Accounts
-become `[:state :accounts {owner amount}]` with `"household"` as today's account; a world file
-can give an agent a starting `:purse`; `buy` and `commission` take an optional `from`
-(`"household"` or `"own"`, default household); only the owner spends their own purse; bought
-goods' owner follows the account. The architect's fee purse becomes an ordinary account.
-Old runs' `[:state :household :funds]` need not keep working (decision 11). No `pay` action yet.
+**Private accounts (phase 3b, implemented).** Accounts are
+`[:state :accounts {owner amount}]`, with `"household"` as the shared account and agent ids as
+private owners. A world file agent may have a starting `:purse`, a non-negative integer in the
+spec's authored unit (`:authored-name` names it in validation). Explicit zero creates an account;
+omission gives none, except architects start at zero for their fees. `household` is a reserved
+initial-cast slug. Starting funds and architect price lists remain authored units too; runtime
+balances, stored plan prices and fees are base-unit integers, with percentage fees rounded down.
+
+`buy` and `commission` take optional `from` (`"household"` default or `"own"`), never an arbitrary
+owner id. Only the actor's own account can be selected as `own`; missing accounts and insufficient
+balances are refused with actionable reasons. Household-spending permissions remain unchanged.
+Paid events record `:account`; bought goods belong to that account's owner. Direct delivery orders
+record that `:owner`, while sent-up goods retain their existing owner. Architect fees credit the
+architect's ordinary account (creating it if necessary). Views still expose shared funds under
+`household.funds` and expose only your own balance at `you.purse`, when you have an account.
+GM/operator views may see the small accounts map. No `pay` action or old `:household :funds` /
+`:purses` compatibility remains.
 
 ### 3.5 People
 
@@ -356,8 +373,8 @@ next phase must know.**
 | 0 | Baseline prompt capture | done 2026-10-28 (`57fc5ea`) |
 | 1 | Renderer, templates moved verbatim | done 2026-10-28 (`d2425e4`, `2926604`); diff empty |
 | 2 | Setting packs, neutral rewording, overrides | done 2026-10-28 (`d768180`, `d255456`, `114bac8`; reviewed and documented below) |
-| 3 | Money specs | not started |
-| 3b | Private accounts | not started |
+| 3 | Money specs | done 2026-10-28 (`a2a1cb1`) |
+| 3b | Private accounts | done 2026-10-28 (`979f74a`) |
 | 4 | One ruleset | not started |
 | 5 | People and positions from the pack | not started |
 | 6 | Palace skeleton | not started |
@@ -548,9 +565,79 @@ availability/ruleset/meeting-place/home-domain changes are still outstanding. Pa
 now inherit England's catalogue: tests that wanted a missing entry must override it explicitly,
 and inherited forms of address are real, expected state rather than a prompt leak.
 
-3. **Money specs.** `mechanics/money.clj` with specs; shop, building, deliveries, views and scene
+3. **Money specs.** `scenarios/claudeworth/money.clj` with specs (move in phase 4); shop, building, deliveries, views and scene
    tools use the run's spec; `unit-price`. Diff: the appraiser's field and docs.
+**Phase 3, done (2026-10-28, `a2a1cb1`).** Money specs live in each pack's `money.edn`; the API is
+`money/spec`, `(money/display spec n)` and `(money/authored->units spec n)`, still in
+`scenarios/claudeworth/money.clj` until phase 4 moves it. No sterling constants remain in code;
+`:money-unit` and `:authored-money` are removed. Narration carries the spec in `names` at
+`[:money]`. England's authored name is `whole pounds (£)` to preserve the architect docs.
+The renderer now lets explicit string keys override keyword setting parameters too (adding
+`:money` exposed that latent collision). Full suite: **474 tests, 9239 assertions**, green.
+The three 48-round offline mock days completed with 352 / 179 / 593 calls, no pauses/exceptions.
+Reviewed capture diff: only appraiser `unit-price-pence` → `unit-price` (instructions/schema,
+Claudeworth and Lodge calls plus rendered request), and price-list narration `prices in pounds`
+→ `prices in whole pounds (£)` (Claudeworth's event memories). All other rendered docs and
+captured prompts unchanged. GM system/user character counts, before → phase 3:
+Claudeworth 1381/80163 → 1381/80138; Lodge 1480/10102 → 1480/10077;
+medium 1795/186087 → 1795/186062. The pack remains excluded; removing the money-unit marker
+accounts for the 25-character decrease in each user message. No real models or ports used.
+
 3b. **Private accounts** (3.4).
+
+**Phase 3b, done (2026-10-28, `979f74a`).** Runtime balances are `[:state :accounts {owner amount}]`;
+no `:household :funds` or `:purses` state remains. The household's view is still
+`household.funds`; any account owner now sees `you.purse`, privately. Agents may author a
+non-negative integer `:purse` in the pack's authored unit; an architect without one starts at
+zero. `buy` and `commission` accept optional `from` (`household` default, or `own`), never
+another person's id. Their events carry `:account`; bought items and direct delivery orders
+carry the paying owner, and sent-up goods retain theirs. Architect fees credit the ordinary
+account (creating it if necessary). `household` is reserved as an account owner, so the initial
+cast may not use it as a slug. No `pay`, old-state/event compatibility, or change to who can
+spend household funds. All files stay in their current namespaces until phase 4.
+
+Full suite: **478 tests, 9289 assertions**, green. New tests cover two currencies through
+initialization/validation/pricing/narration, authored purses (including zero and an architect's
+nonzero purse), private purchase success/insufficient/missing account, private commission,
+item ownership for taken/left/direct-delivery/sent-up goods, and recorded-run replay equality.
+One first full-suite attempt found that Lodge's new shopping wording advertised `commission`;
+fixed by choosing the spending-tools fragment with the existing architect-service condition.
+The subsequent full suite passed. The suite prints transcript-writing warnings (including steward cleanup warnings);
+no test failures/errors remain.
+
+The three 48-round mock days again completed with **352 / 179 / 593 calls**, no exceptions or
+pauses. The phase-3 → phase-3b capture diff was reviewed by grouping every changed span; only
+five distinct spans (the two rules variants, the two tool docs, and the schema addition):
+- **Shopping rules, all three scenarios and rendered rules:** household account → household
+  account **by default**; add `from: "own"`, `you.purse` and owner-only spending/ownership;
+  `buy {quote-ids, hand-over}` → `buy {quote-ids, hand-over, from?}`; paid from household account
+  there and then → paid from **chosen** account. Claudeworth and medium name `buy` or
+  `commission`; Lodge names only `buy`.
+- **`buy` docs, all three scenarios and rendered tools:** household funds → household funds
+  **by default**; add `from`/`own`, owner-only spending and goods' paying-account ownership.
+- **`commission` docs, Claudeworth/medium and rendered tools:** household funds → household
+  funds **by default**; add `from`/`own` and owner-only spending.
+- **Both schemas (commission only with an architect):** add optional string `from`, enum
+  `household` / `own`. Existing required fields are unchanged.
+- No captured view lines change: the bundled worlds author no new purses, and architects
+  already saw theirs. New tests check `you.purse` for non-architects and absence for others.
+
+GM system/user character counts, phase 3 → phase 3b: Claudeworth **1381/80138 → 1381/80130**;
+Lodge **1480/10077 → 1480/10068**; medium **1795/186062 → 1795/186054**. Parsed GM state diff
+against the unchanged baseline is only removing `:money-unit`, `:household` and `:purses`,
+and adding the small `:accounts` map. The pack remains excluded. No real models or ports used;
+capture mock runs were removed from `test-runs/`.
+
+**Handoff to phase 4+:** move the existing money namespace with the other Claudeworth mechanics;
+its API is above, plus `money/account` and `money/spend-reason` for the shared payer selection.
+Update both scene tools' imports too. `:accounts` is the only runtime balance map, deliberately
+not the old household/purse shapes; the views keep their stable public keys. `money.edn` is now
+required in every pack (including test packs), but no people data or ruleset/file moves were
+started. Both shopping rules and judge brief already condition architect prose by services;
+don't regress Lodge by advertising commission in a shared new fragment. Currency tests use a
+tael/cash spec; an actual second setting pack still belongs to the palace phase. Keep the pack
+out of the GM view. This work used only this worktree and did not touch any real runs or ports.
+
 4. **One ruleset.** `manor.ruleset`; move building, shop, deliveries; meeting place and home
    domain from the world file; architect actions by `:available?`; Claudeworth, medium and Lodge
    become thin. Conditional judge-brief paragraphs were completed in phase 2. Diff: otherwise

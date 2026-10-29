@@ -1,1 +1,1 @@
-Commission a plan you hold at an open architect's office, paid from {{household-name}}'s funds. Only one room is built at a time: while any room is being built, a commission is refused until it is finished (see building for the completion time).
+Commission a plan you hold at an open architect's office, paid from {{household-name}}'s funds by default. Set from to own to use your own purse instead; only you can spend it. Only one room is built at a time: while any room is being built, a commission is refused until it is finished (see building for the completion time).

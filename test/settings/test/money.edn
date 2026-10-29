@@ -1,0 +1,2 @@
+{:units [{:value 1 :suffix " coins"}]
+ :zero "0 coins" :base-name "coins" :authored 1 :authored-name "coins"}

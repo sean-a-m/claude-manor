@@ -1,6 +1,6 @@
 (ns manor.settings
   "Setting packs, loaded once into a run's state, including prompt text.
-  Worlds and old runs without a pack use England. No files are read when
+  Pack-less worlds/fixtures use England. No files are read when
   rendering a world that already has its pack snapshot."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
@@ -38,13 +38,14 @@
            :source path
            :positions (read-edn (str path "/positions.edn"))
            :calendar (read-edn (str path "/calendar.edn"))
+           :money (read-edn (str path "/money.edn"))
            :prompts (into {} (for [p (prompt-paths path)]
                                [(subs p (count prefix)) (str/replace (slurp (resource p)) #"\n$" "")])))))
 
 (def ^:private england (delay (load-pack default-path)))
 
 (defn pack
-  "The run's snapshot, or England for a pre-pack world/state."
+  "The run's snapshot, or England for pack-less worlds and fixtures."
   [world]
   (or (get-in world [:state :setting-pack]) @england))
 
@@ -52,7 +53,7 @@
   (load-pack (get-in wf [:meta :setting-pack])))
 
 (defn parameters
-  "Only setting.edn's prompt parameters, not the snapshotted catalogues or text."
+  "Setting parameters and the money spec, not catalogues or prompt text."
   [world]
   (dissoc (pack world) :source :positions :calendar :prompts))
 

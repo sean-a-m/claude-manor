@@ -149,11 +149,11 @@
             completed (reduce w/apply-event (assoc commissioned :round due) ((:tick building/construction) (assoc commissioned :round due) {}))
             [second-world [second-event]] (perform run completed "lord-claudeworth" :commission {:plan-id "library"})]
         (is (= 51 due))
-        (is (= (money/pounds->pence 120) (get-in commissioned [:state :purses "pugh"])))
+        (is (= (money/authored->units (money/spec world) 120) (get-in commissioned [:state :accounts "pugh"])))
         (is (= "library-2" (get-in second-event [:data :room])))
-        (is (= (money/pounds->pence 600) (get-in second-world [:state :household :funds])))
+        (is (= (money/authored->units (money/spec world) 600) (get-in second-world [:state :accounts "household"])))
         (is (str/includes? (check commissioned "lord-claudeworth" :commission {:plan-id "library"}) "already being built"))
-        (is (str/includes? (check (assoc-in world [:state :household :funds] (money/pounds->pence 900)) "lord-claudeworth" :commission {:plan-id "library"}) "would cost £1200; the household has £900"))
+        (is (str/includes? (check (assoc-in world [:state :accounts "household"] (money/authored->units (money/spec world) 900)) "lord-claudeworth" :commission {:plan-id "library"}) "would cost £1200; the household has £900"))
         (is (str/includes? (check world "hale" :show-plans {:plan-id "library"}) "not seen those plans"))
         (is (some #(= :commission (:name %)) (a/for-role (:actions run) :architect)))
         (is (contains? (cw/observe world "pugh") :household))
@@ -185,6 +185,52 @@
 (defn bb-available? []
   (try (zero? (:exit (shell/sh "bb" "-e" ""))) (catch Exception _ false)))
 
+(deftest world-file-purses-and-private-commissions
+  (let [source (wf/read-file fixture/world-file)
+        source (-> source
+                   (update :agents update-entry :name "Lord Claudeworth" #(assoc % :purse 1500))
+                   (update :agents update-entry :name "Pugh" #(assoc % :purse 2))
+                   (update :agents update-entry :name "Hale" #(assoc % :purse 0)))
+        filename (str (gensym "private-accounts-") ".edn")
+        _ (store/write-text! store/test-runs-root filename (wf/->edn-string source))
+        run (with-redefs [e/load-scenario
+                          (constantly (assoc fixture/scenario :mock-policy
+                                             (fn [ctx]
+                                               (let [reply (fixture/mock-policy ctx)]
+                                                 (if (= :commission (:tool reply))
+                                                   (assoc-in reply [:args :from] "own") reply)))))]
+              (start {:world-file (str (io/file store/test-runs-root filename))}))]
+    (try
+      (let [world (-> (e/world run) (assoc :round 3) (at "lord-claudeworth" "architects-office")
+                      (drafted "pugh" draft))
+            accounts (get-in world [:state :accounts])
+            args {:plan-id "library" :from "own"}
+            [after [ev]] (perform run world "lord-claudeworth" :commission args)]
+        (is (= {"household" 720000 "lord-claudeworth" 360000 "pugh" 480 "hale" 0} accounts))
+        (is (= "£1500" (get-in (cw/observe world "lord-claudeworth") [:you :purse])))
+        (is (= "0d" (get-in (cw/observe world "hale") [:you :purse])))
+        (is (nil? (get-in (cw/observe world "briggs") [:you :purse])))
+        (is (= "£2" (get-in (cw/observe world "pugh") [:you :purse])))
+        (is (nil? (:accounts (cw/observe world "briggs"))))
+        (is (= "lord-claudeworth" (get-in ev [:data :account])))
+        (is (= 720000 (get-in after [:state :accounts "household"])))
+        (is (= 72000 (get-in after [:state :accounts "lord-claudeworth"])))
+        (is (= (+ 480 28800) (get-in after [:state :accounts "pugh"])))
+        (is (str/includes? (perform run (assoc-in world [:state :accounts "lord-claudeworth"] 0)
+                                    "lord-claudeworth" :commission args) "your purse has 0d"))
+        (is (str/includes? (perform run (update-in world [:state :accounts] dissoc "lord-claudeworth")
+                                    "lord-claudeworth" :commission args) "no personal account"))
+        (is (= after (w/apply-event world ev))))
+      (rounds! run 7)
+      (is (= "lord-claudeworth" (get-in (first (of-type run :claudeworth/commissioned)) [:data :account])))
+      (is (= 720000 (get-in (e/world run) [:state :accounts "household"])))
+      (is (= 72000 (get-in (e/world run) [:state :accounts "lord-claudeworth"])))
+      (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+      (doseq [bad [-1 1.5 "10" nil]]
+        (let [ps (wf/problems (update source :agents update-entry :name "Hale" #(assoc % :purse bad)))]
+          (is (some #(str/includes? % ":purse must be non-negative integer whole pounds (£)") ps))))
+      (finally (e/stop-run run)))))
+
 (deftest the-price-list-comes-from-the-world-file
   (let [prices {:sizes [{:size "cottage" :price 50 :build-days 1}]}
         prices-name (str (gensym "prices-") ".edn")
@@ -200,7 +246,7 @@
     (is (= prices ((:query-fn (action run :price-list)) world "lord-claudeworth" {} nil)))
     (is (= "size must be one of: cottage" (check draft)))
     (is (nil? (check (assoc draft :size "cottage"))))
-    (is (= (money/pounds->pence 50)
+    (is (= (money/authored->units (money/spec world) 50)
            (get-in (drafted world "pugh" (assoc draft :size "cottage")) [:state :plans "library" :price])))
     (is (str/includes? (cw/rules world) "in one of these sizes: cottage. Only the architect draws plans"))
     (e/stop-run run)))
@@ -247,10 +293,10 @@
       (let [event (first (of-type run :claudeworth/commissioned))
             due (get-in event [:data :due])]
         (is (some? event) (pr-str opts))
-        (is (= (money/pounds->pence 1200) (get-in event [:data :price])))
+        (is (= (money/authored->units (money/spec (e/world run)) 1200) (get-in event [:data :price])))
         (is (= 13 due))
-        (is (= (money/pounds->pence 1800) (get-in (e/world run) [:state :household :funds])))
-        (is (= {"pugh" (money/pounds->pence 120)} (get-in (e/world run) [:state :purses])))
+        (is (= (money/authored->units (money/spec (e/world run)) 1800) (get-in (e/world run) [:state :accounts "household"])))
+        (is (= (money/authored->units (money/spec (e/world run)) 120) (get-in (e/world run) [:state :accounts "pugh"])))
         (is (nil? (space/location (e/world run) "library")))
         (rounds! run 5)
         (is (nil? (space/location (e/world run) "library")))
@@ -271,7 +317,7 @@
                 room (first (filter #(= "library" (:id %)) (:locations exported)))]
             (is (= (:aspects loc) (:aspects room)))
             (is (empty? (wf/problems exported))))
-          (is (= (- (money/pounds->pence 1800) 18) (get-in world [:state :household :funds]))))
+          (is (= (- (money/authored->units (money/spec world) 1800) 18) (get-in world [:state :accounts "household"]))))
         (rounds! run 34)
         (is (seq (moves-to run "lord-claudeworth" "library")))
         (is (empty? (of-type run :action/forfeited)))
@@ -290,7 +336,7 @@
     (let [drawn (drafted world "pugh" args)
           [commissioned [event]] (perform run drawn "lord-claudeworth" :commission {:plan-id "bathroom"})
           completed (reduce w/apply-event commissioned ((:tick building/construction) (assoc commissioned :round 4) {}))]
-      (is (= (money/pounds->pence 120) (get-in event [:data :fee])))
+      (is (= (money/authored->units (money/spec world) 120) (get-in event [:data :fee])))
       (is (= "pugh" (get-in event [:data :payee])))
       (is (= #{"dining-room" "gallery"} (set (map :to (space/exits completed "bathroom"))))))
     (doseq [bad ["truncated" nil (assoc-in result [:plan :id] "study") (assoc-in result [:plan :id] "Bad ID")

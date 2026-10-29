@@ -20,7 +20,7 @@
             [manor.scenarios.claudeworth.money :as money]
             [manor.world :as w]))
 
-(def max-unit-price 240000) ; £1000: bound untrusted arithmetic, not a price list
+(def max-unit-price 240000) ; bound untrusted arithmetic, not a price list
 (def max-quantity 20)
 ;; Goods lines in one quote-goods call (one appraisal) and quotes in one buy.
 (def max-lines 10)
@@ -41,7 +41,7 @@
    [:desc {:optional true} (text-schema items/max-desc)]
    [:condition {:optional true} [:string {:min 1 :max items/max-aspect :json-schema/maxLength items/advised-aspect}]]
    [:consumable {:optional true} :boolean]
-   [:unit-price-pence {:optional true} [:int {:min 1 :max max-unit-price}]]
+   [:unit-price {:optional true} [:int {:min 1 :max max-unit-price}]]
    [:lead-hours {:optional true} [:int {:min 1 :max deliveries/max-lead-hours}]]])
 
 (defn- lines-schema [n]
@@ -77,8 +77,8 @@
   [deliver? raw]
   (let [{:keys [args error]} (a/decode-args {:args appraisal-schema} raw)
         fields (cond (not (:available args)) [:reason]
-                     deliver? [:item :qty :unit :desc :condition :consumable :unit-price-pence :lead-hours]
-                     :else [:item :qty :unit :desc :condition :consumable :unit-price-pence])]
+                     deliver? [:item :qty :unit :desc :condition :consumable :unit-price :lead-hours]
+                     :else [:item :qty :unit :desc :condition :consumable :unit-price])]
     (cond
       error {:error error}
       (some #(or (nil? (get args %)) (and (string? (get args %)) (str/blank? (get args %)))) fields)
@@ -114,7 +114,7 @@
    :args {:lines (for [{:keys [item amount deliver]} request]
                    (cond-> {:available true :item item :qty (or (parse-long amount) 1) :unit "one"
                             :desc (str "An ordinary " item " from the village shop.")
-                            :condition "new" :consumable false :unit-price-pence 18}
+                            :condition "new" :consumable false :unit-price 18}
                      deliver (assoc :lead-hours 2)))}})
 
 (def adjudicators {:shop/appraise {:request request :mock mock-appraisal}})
@@ -143,12 +143,12 @@
 
 (defmethod w/apply-event :claudeworth/bought [world {:keys [data]}]
   (-> world
-      (update-in [:state :household :funds] - (:price data))
+      (update-in [:state :accounts (:account data)] - (:price data))
       (update-in [:state :quotes] dissoc (:quote-id data))))
 
 (defmethod n/describe :claudeworth/goods-quoted [{:keys [actor data]} names]
   (str (n/who names actor) " offers " (n/who names (:buyer data)) " " (:qty data) " " (:item data)
-       " (" (:unit data) " each) for " (money/display (:price data))
+       " (" (:unit data) " each) for " (money/display (get names [:money]) (:price data))
        (when-let [{:keys [lead-hours to]} (:deliver data)]
          (str ", to be delivered at the " (n/place names to) " within " lead-hours
               (if (= 1 lead-hours) " hour" " hours") " of ordering"))
@@ -161,7 +161,7 @@
 
 (defmethod n/describe :claudeworth/bought [{:keys [actor data]} names]
   (str (n/who names actor) " buys " (:item data) " (" (amount (:qty data) (:unit data)) ") for "
-       (money/display (:price data)) " at the " (n/place names (:location data))
+       (money/display (get names [:money]) (:price data)) " at the " (n/place names (:location data))
        (if (= "leave" (:hand-over data))
          ", and leaves the goods there to be collected or sent up."
          ", and takes the goods away.")))
@@ -177,10 +177,10 @@
             (fn [i [{:keys [item deliver]} line]]
               (if (:available line)
                 {:type :claudeworth/goods-quoted :visible-to audience
-                 :data (cond-> (merge (select-keys line [:item :qty :unit :desc :condition :consumable :unit-price-pence])
+                 :data (cond-> (merge (select-keys line [:item :qty :unit :desc :condition :consumable :unit-price])
                                       {:id (str "quote-" (+ (:seq world) 1 i)) :buyer for :clerk clerk
                                        :location (space/location-of world clerk)
-                                       :price (* (:qty line) (:unit-price-pence line))})
+                                       :price (* (:qty line) (:unit-price line))})
                          deliver (assoc :deliver {:lead-hours (:lead-hours line) :to (deliveries/delivery-place world)}))}
                 {:type :claudeworth/goods-refused :visible-to audience
                  :data {:buyer for :item item :reason (:reason line)}}))
@@ -202,26 +202,25 @@
     :else (or (service-reason world (:clerk quote))
               (when-not (space/together? world buyer (:clerk quote)) "the shopkeeper must be here"))))
 
-(defn buy-reason [world buyer {:keys [quote-ids]}]
+(defn buy-reason [world buyer {:keys [quote-ids from]}]
   (let [quotes (map #(get-in world [:state :quotes %]) quote-ids)
-        total (reduce + (keep :price quotes))
-        funds (get-in world [:state :household :funds])]
+        total (reduce + (keep :price quotes))]
     (cond
       (not (and (w/active? world buyer) (not= :gm (:role (w/agent world buyer))))) "the buyer must be an active character"
       (not (apply distinct? quote-ids)) "give each quote-id once"
       :else (or (first (keep (fn [[id quote]] (some->> (quote-problem world buyer quote) (str id ": ")))
                              (map vector quote-ids quotes)))
-                (when (> total funds)
-                  (str (if (next quote-ids) "these cost " "this costs ") (money/display total)
-                       "; the household has " (money/display funds)))))))
+                (when-let [reason (money/spend-reason world buyer from total)]
+                  (str (if (next quote-ids) "these cost " "this costs ") (money/display (money/spec world) total)
+                       "; " reason))))))
 
 (defn- parcel
-  "The item a counter quote's goods make: owned by the household, its
+  "The item a counter quote's goods make: owned by the paying account, its
   :amount aspect the amount bought (where work can later say what's left)
   and its :state the appraised condition. Taken, it's in the buyer's hands;
   left, it lies at the shop, waiting for the buyer and kept by the clerk."
-  [world buyer quote hand-over]
-  (cond-> {:name (:item quote) :desc (:desc quote) :owner "household"
+  [world buyer quote hand-over owner]
+  (cond-> {:name (:item quote) :desc (:desc quote) :owner owner
            :aspects {:amount (amount (:qty quote) (:unit quote)) :state (:condition quote)}}
     (= "take" hand-over) (assoc :holder buyer)
     (= "leave" hand-over) (assoc :place (:location quote)
@@ -233,17 +232,18 @@
   taken by the buyer or left at the shop as `hand-over` says. A delivery
   quote becomes an order instead, paid now and delivered later, whatever
   `hand-over` says."
-  [world buyer {:keys [quote-ids hand-over]}]
-  (let [audience (space/here world buyer)]
+  [world buyer {:keys [quote-ids hand-over from]}]
+  (let [audience (space/here world buyer)
+        account (money/account buyer from)]
     (second
      (reduce (fn [[world evs] quote-id]
                (let [quote (get-in world [:state :quotes quote-id])
                      new (if (:deliver quote)
-                           [(deliveries/ordered world buyer quote-id quote audience)]
+                           [(deliveries/ordered world buyer quote-id quote audience account)]
                            [{:type :claudeworth/bought :visible-to audience
                              :data (assoc (select-keys quote [:location :item :unit :qty :price])
-                                          :quote-id quote-id :hand-over hand-over)}
-                            (items/added world (parcel world buyer quote hand-over) audience
+                                          :quote-id quote-id :hand-over hand-over :account account)}
+                            (items/added world (parcel world buyer quote hand-over account) audience
                                          :amount (amount (:qty quote) (:unit quote)))])]
                  [(reduce w/apply-event world new) (into evs new)]))
              [world []]
@@ -323,7 +323,8 @@
    {:name :buy :kind :free :roles :all
     :doc (prompts/doc "docs/shop/buy.md" {:max-lines max-lines})
     :args [:map [:quote-ids [:vector {:min 1 :max max-lines} :string]]
-           [:hand-over [:enum "take" "leave"]]]
+           [:hand-over [:enum "take" "leave"]]
+           [:from {:optional true} [:enum "household" "own"]]]
     :valid? buy-reason :effect buy-events :reply buy-reply}
    {:name :send-up :kind :free :roles :all :needs :shop-clerk
     :doc (prompts/doc "docs/shop/send-up.md" {:max-lines max-lines :send-up-max-hours deliveries/send-up-max-hours})
@@ -345,7 +346,7 @@
         offers (for [quote (sort-by :id (vals (get-in world [:state :quotes])))
                      :when (or (= id (:buyer quote)) (= id (:clerk quote)))]
                  (assoc (select-keys quote [:id :buyer :clerk :location :item :unit :qty :deliver])
-                        :price (money/display (:price quote))))
+                        :price (money/display (money/spec world) (:price quote))))
         orders (deliveries/observe world id)
         waiting (waiting-at-shops world id)]
     (cond-> {:offers (vec offers)}

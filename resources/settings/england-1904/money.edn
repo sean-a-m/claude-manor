@@ -1,0 +1,2 @@
+{:units [{:value 240 :prefix "£"} {:value 12 :suffix "s"} {:value 1 :suffix "d"}]
+ :zero "0d" :base-name "old pence" :authored 240 :authored-name "whole pounds (£)"}

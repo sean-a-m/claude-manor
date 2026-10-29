@@ -149,23 +149,27 @@ src/manor/
   scenarios/     village.clj (full example), treasure.clj (small example), quiz.clj (MCP/pi);
                  on the ruleset: claudeworth.clj (Claudeworth Manor: daily life, the small test
                  house), claudeworth_medium.clj (the larger household of
-                 docs/household-1904-proposal.md), lodge.clj (Ashby Lodge)
+                 docs/household-1904-proposal.md), lodge.clj (Ashby Lodge), palace.clj (a Qing palace
+                 skeleton: the second setting)
 resources/worlds/ world files on the classpath; claudeworth.edn is the small test world,
                  claudeworth-medium.edn the larger household (see docs/household-1904-proposal.md);
-                 claudeworth-day.edn and lodge-day.edn are mock days
+                 palace.edn the Qing palace skeleton; claudeworth-day.edn, lodge-day.edn and palace-day.edn
+                 are mock days
 resources/prompts/ shared prompt templates (see manor.prompts)
-resources/settings/ setting packs; england-1904/ holds positions, calendar and prompt parameters/fragments
+resources/settings/ setting packs, one directory each (england-1904/, qing-palace/): setting.edn, money.edn,
+                 people.edn, positions.edn, calendar.edn and prompts/ (fragments and template overrides)
 resources/pricing.edn model prices, peak hours and cache block size for manor.tools.cache-report
 mcp-servers/pi/server.mjs  pi as an MCP server: send_message {session, message}; Node, no deps
 resources/architect/    architect price lists (whole pounds), one per world, named in :meta :architect-prices
 mcp-servers/architect/  the architect MCP server: babashka, stateless, reference and draft tools
-mcp-servers/people/     the people MCP server: babashka, stateless, generate_people and reputation from data files
+mcp-servers/people/     the people MCP server: babashka, stateless, generate_people and reputation from data files;
+                        names per setting in settings/<dataset>/names.edn (england-1900, qing-1780)
 config/        mcp.example.edn; mcp.edn is local and gitignored (the user's sets pi-sandbox)
 dev/user.clj     REPL helpers (start! step! auto! feed view last-prompt transcript! spawn! change-post! afflict! approve! act! roll-cast! ...)
 test/            engine, conversation, space, items, MCP, clock, world-file, panel, transcript, cache-report, Claudeworth and scenario smoke tests;
                  test scenarios prize.clj and hamlet.clj (world file test/fixtures/hamlet.edn);
                  household.clj is on the ruleset with fixed household.edn / household-day.edn fixtures,
-                 and burglary.clj with burglary.edn (physical status);
+                 and burglary.clj with burglary.edn (physical status); palace_test checks the palace skeleton;
                  test/fixtures/fake-pi.mjs (fake `pi --mode rpc` for free MCP tests)
 runs/            real runs (gitignored; the user's data; never delete). runs/smoke-llm is a real 5-round village run
 test-runs/       test and ad-hoc runs ({:test? true} / --test); mock runs are safe to delete

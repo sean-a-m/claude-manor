@@ -1,0 +1,16 @@
+;; People in England around 1904: the people server's data set, the titles
+;; left out when a form of address is filled, the order of a name's words,
+;; and the standings a position may have. :household? standings start in the
+;; household; tradesmen and professional men keep their own houses, and a
+;; :visitor (a guest from elsewhere) belongs to no household.
+{:dataset "england-1900"
+ :honorifics ["Mr" "Mrs" "Miss" "Master" "Lord" "Lady" "Sir" "Dr" "Father" "Brother" "Sister"]
+ :name-order :given-first
+ :standings {:family {:household? true}
+             :upper-servant {:household? true}
+             :servant {:household? true}
+             :outdoor {:household? true}
+             :tradesman {}
+             :professional {}
+             :villager {}
+             :visitor {}}}

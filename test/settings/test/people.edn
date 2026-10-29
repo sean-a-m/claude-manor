@@ -1,0 +1,4 @@
+{:dataset "test-1"
+ :honorifics ["Lady" "Master"]
+ :name-order :family-first
+ :standings {:resident {:household? true} :outsider {}}}

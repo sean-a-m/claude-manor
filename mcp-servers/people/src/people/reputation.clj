@@ -12,8 +12,8 @@
                 :temperament 2 :faculties 1 :circumstances 1}
    "acquaintance" {:text "%k has known %p these %y years." :years [2 20]
                    :temperament 3 :faculties 2 :circumstances 1}
-   "fellow-servant" {:text "%k was in service with %p for %y years." :years [1 6]
-                     :temperament 3 :faculties 2 :circumstances 2}
+   "worked-alongside" {:text "%k worked alongside %p for %y years." :years [1 6]
+                       :temperament 3 :faculties 2 :circumstances 2}
    "employer" {:text "%k employed %p for %y years." :years [1 8]
                :temperament 4 :faculties 3 :circumstances 1}
    "family" {:text "%k is family to %p." :temperament 5 :faculties 7 :circumstances 2}})

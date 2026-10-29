@@ -12,6 +12,7 @@
             [manor.mechanics.space :as space]
             [manor.narrate :as n]
             [manor.prompts :as prompts]
+            [manor.settings :as settings]
             [manor.world :as w])
   (:import (java.time LocalDate LocalDateTime LocalTime)
            (java.time.format DateTimeFormatter)
@@ -143,7 +144,8 @@
   (let [record (check-record
                 (first (:people (bridge :people/generate
                                         (cond-> (assoc (people/generate-args position (get-in world [:state :positions position])
-                                                                             {:seed seed :taken-names taken-names :sex sex :ages ages})
+                                                                             {:dataset (people/dataset (settings/pack world))
+                                                                              :seed seed :taken-names taken-names :sex sex :ages ages})
                                                        :area area)
                                           candidate? (assoc :candidate true))))))]
     (when (and candidate? (or (not (string? (:candidate-home record))) (str/blank? (:candidate-home record))))

@@ -1,6 +1,10 @@
-;; Names for rural England around 1900: first names by sex, and surnames.
-;; Also where people come from and where a villager lives, for base records.
-{:male ["John" "William" "George" "Thomas" "James" "Arthur" "Frederick" "Albert" "Charles"
+;; Names for rural England around 1900: first names by sex, and surnames,
+;; written given name first. Honorifics are words that are never a name (a
+;; taken "Mr Hale" takes only "Hale"). Also where people come from and where
+;; a villager lives, for base records.
+{:name-order :given-first
+ :honorifics ["Mr" "Mrs" "Miss" "Master" "Lord" "Lady" "Sir" "Dr"]
+ :male ["John" "William" "George" "Thomas" "James" "Arthur" "Frederick" "Albert" "Charles"
         "Henry" "Alfred" "Joseph" "Harry" "Ernest" "Walter" "Edward" "Robert" "Samuel"
         "Frank" "Herbert" "Sidney" "Percy" "Harold" "Jesse" "Reuben" "Amos" "Isaac" "Edwin"
         "Abel" "Eli" "Silas" "Josiah" "Levi" "Wilfred" "Cecil" "Horace" "Stanley" "Ambrose"

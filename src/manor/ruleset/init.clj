@@ -19,7 +19,8 @@
   they work."
   [{:keys [locations agents meta] :as wf}]
   (let [by-id (into {} (map (juxt :id identity)) locations)
-        table (positions/table wf {})]
+        table (positions/table wf {})
+        pack (settings/for-worldfile wf)]
     (concat
      (building/problems wf)
      (shop/problems wf)
@@ -43,12 +44,12 @@
        (when-not (some #(= domain (:domain %)) locations)
          [(str ":meta :home-domain " (pr-str domain) " is not the :domain of any location")]))
      (when-not (string? (:setting meta)) [":meta :setting must be a paragraph about the place"])
-     (mapcat (fn [[id entry]] (positions/entry-problems id entry)) (sort-by key table))
+     (mapcat (fn [[id entry]] (positions/entry-problems (positions/standings pack) id entry)) (sort-by key table))
      (for [role (distinct (map :role agents)) :when (not (contains? table role))]
        (str "position " role " has no :about paragraph: add it to :roles or the catalogue"))
      (for [{:keys [id] :as loc} locations
            :when (deliveries/delivers? loc)
-           :let [courier (or (:courier loc) (:courier-position (settings/for-worldfile wf)))]
+           :let [courier (or (:courier loc) (:courier-position pack))]
            :when (not (contains? table courier))]
        (str "location " (pr-str id) ": its courier's position " courier " is not in the positions catalogue"))
      (for [[id {:keys [workplace]}] (sort-by key table)

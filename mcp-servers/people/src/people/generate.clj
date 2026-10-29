@@ -2,8 +2,12 @@
   "Base records for new people, rolled from the data files: name, sex, age,
   origin, where they live, five temperament levels and one faculty from each
   of the seven groups. Only basic readings and definitions: the engine's
-  character writer supplies circumstances and prose. Deterministic from seed."
+  character writer supplies circumstances and prose. Deterministic from seed.
+
+  Names, origins and homes come from a data set per setting,
+  settings/<setting>/names.edn; temperament and faculties are shared."
   (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [clojure.string :as str])
   (:import (java.util Random)))
 
@@ -11,7 +15,6 @@
 
 (def temperament (data "temperament.edn"))
 (def faculties (data "faculties.edn"))
-(def names (data "names.edn"))
 
 (def default-ages
   "The ages rolled when a request gives none. The engine passes a position's
@@ -19,8 +22,22 @@
   [18 55])
 
 (def settings
-  "The settings this server has data for. Another setting would add its own files."
-  #{"england-1900"})
+  "The settings this server has data for: each directory under settings/
+  with a names.edn. Another setting adds its own directory."
+  (into (sorted-set)
+        (for [dir (.listFiles (io/file "settings"))
+              :when (.exists (io/file dir "names.edn"))]
+          (.getName dir))))
+
+(def default-setting
+  "The data set of a request that names none."
+  "england-1900")
+
+(def names
+  "A setting's names.edn: :name-order (:given-first or :family-first),
+  :honorifics, first names by sex (:male, :female), :surnames, :origins,
+  :dwellings and :candidate-home-areas."
+  (memoize (fn [setting] (data (str "settings/" setting "/names.edn")))))
 
 (def max-count 10)
 
@@ -47,20 +64,22 @@
 ;; ---------------------------------------------------------------------------
 ;; Rolling one person
 
-(def ^:private honorifics #{"Mr" "Mrs" "Miss" "Master" "Lord" "Lady" "Sir" "Dr"})
-
-(defn- name-words [s] (remove honorifics (str/split (str/trim (str s)) #"\s+")))
+(defn- name-words [honorifics s] (remove (set honorifics) (str/split (str/trim (str s)) #"\s+")))
 
 (defn- roll-name
-  "A first name and surname, neither of which is a word of a taken name, so
-  nobody new shares a name with anyone already about."
-  [r sex taken]
-  (let [used (into #{} (mapcat name-words) taken)]
+  "A first name and surname from the data set `ds`, neither of which is a word
+  of a taken name, so nobody new shares a name with anyone already about.
+  Written in the data set's :name-order."
+  [ds r sex taken]
+  (let [used (into #{} (mapcat #(name-words (:honorifics ds) %)) taken)]
     (loop [tries 0]
-      (let [first-name (pick r (get names sex))
-            surname (pick r (:surnames names))]
+      (let [first-name (pick r (get ds sex))
+            surname (pick r (:surnames ds))]
         (cond
-          (not (or (used first-name) (used surname))) (str first-name " " surname)
+          (not (or (used first-name) (used surname)))
+          (if (= :family-first (:name-order ds))
+            (str surname " " first-name)
+            (str first-name " " surname))
           (< tries 500) (recur (inc tries))
           :else (throw (ex-info "no untaken name left" {})))))))
 
@@ -79,19 +98,20 @@
   [position]
   (keyword (str/replace (str/lower-case (str/trim (str position))) #"[^a-z0-9]+" "-")))
 
-(defn- person [r {:keys [position area sex ages candidate]} taken]
-  (let [sex (or sex (pick r [:male :female]))
+(defn- person [r {:keys [position area sex ages candidate setting]} taken]
+  (let [ds (names setting)
+        sex (or sex (pick r [:male :female]))
         [lo hi] (or ages default-ages)]
-    {:name (roll-name r sex taken)
+    {:name (roll-name ds r sex taken)
      :sex sex
      :age (+ lo (.nextInt r (inc (- hi lo))))
      :position (name position)
-     :origin (pick r (:origins names))
+     :origin (pick r (:origins ds))
      ;; A hiring home is off-map background, never an internal walking-area id.
      (if candidate :candidate-home :lives)
-     (let [dwelling (pick r (:dwellings names))]
+     (let [dwelling (pick r (:dwellings ds))]
        (if candidate
-         (str dwelling ", " (pick r (:candidate-home-areas names)))
+         (str dwelling ", " (pick r (:candidate-home-areas ds)))
          (cond-> dwelling (not (str/blank? area)) (str ", " area))))
      :temperament (roll-temperament r)
      :faculties (roll-faculties r)}))
@@ -112,7 +132,8 @@
       (and sex (not (#{"male" "female"} sex))) (throw (ex-info "sex must be \"male\" or \"female\"" {}))
       (and ages (not (and (sequential? ages) (= 2 (clojure.core/count ages)) (every? nat-int? ages) (apply <= ages))))
       (throw (ex-info "ages must be [youngest oldest], whole numbers" {}))
-      :else (assoc req :count n :position (position-key position) :sex (some-> sex keyword)))))
+      :else (assoc req :count n :position (position-key position) :sex (some-> sex keyword)
+                   :setting (or setting default-setting)))))
 
 (defn generate
   "`count` new people for `position`: basic identity/readings and definitions,

@@ -870,11 +870,14 @@
   (into [(invite-action scenario) (take-leave (first (filter #(= :take-leave (:name %)) hiring/actions)))] (gm-actions scenario)))
 
 (defn rules
-  "The rules paragraph, from the design's section 9."
+  "The rules paragraph, from the design's section 9: with the post only
+  where there's a post office, and the calendar only where there is one."
   [world]
   (prompts/render world "rules/visits.md"
                   {:post (if (seq (post-offices world))
-                           (prompts/render world "rules/visits-post.md" {}) "")}))
+                           (prompts/render world "rules/visits-post.md" {}) "")
+                   :calendar (if (:calendar world)
+                               (prompts/render world "rules/visits-calendar.md" {}) "")}))
 
 (defn- merged
   "Configs merged in order, the :lead-hours map key by key."

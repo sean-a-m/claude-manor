@@ -1,7 +1,8 @@
 (ns manor.scenarios.lodge
   "Ashby Lodge: three neighbours on the shared ruleset (manor.ruleset), with
   a scripted day for free checks (resources/worlds/lodge-day.edn), no
-  building business and no calendar."
+  building business, and no calendar (so none of the setting pack's
+  holidays: a content choice; visits work without one)."
   (:require [clojure.walk :as walk]
             [manor.mechanics.hiring :as hiring]
             [manor.ruleset :as ruleset]
@@ -28,14 +29,12 @@
     {:tool :reply :args {:text "We can manage breakfast, but we shall want another pair of hands. Perhaps the shop knows of a girl."}}))
 
 (def scenario
-  (-> (ruleset/scenario
-       {:name :lodge
-        :doc "Ashby Lodge, 1904: a widow, her cook-general and the shopkeeper across the street. A maid is wanted."
-        :defaults {:world-file "worlds/lodge.edn" :max-cost 0.10}
-        :mock-policy mock-policy
-        :mock-conversation mock-conversation
-        :calendar? false
-        :meeting-place "front-gate"})
-      (update :exclude-actions into #{:consult-references :price-list :draw-plans :show-plans :commission})
-      ;; As before the ruleset: no visit config (to be fixed separately).
-      (update :init (fn [init] (fn [opts] (update (init opts) :state dissoc :visit-config))))))
+  (update (ruleset/scenario
+           {:name :lodge
+            :doc "Ashby Lodge, 1904: a widow, her cook-general and the shopkeeper across the street. A maid is wanted."
+            :defaults {:world-file "worlds/lodge.edn" :max-cost 0.10}
+            :mock-policy mock-policy
+            :mock-conversation mock-conversation
+            :calendar? false
+            :meeting-place "front-gate"})
+          :exclude-actions into #{:consult-references :price-list :draw-plans :show-plans :commission}))

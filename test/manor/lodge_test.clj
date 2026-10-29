@@ -7,8 +7,10 @@
             [manor.mechanics.hiring :as hiring]
             [manor.mechanics.items :as items]
             [manor.mechanics.space :as space]
+            [manor.mechanics.visits :as visits]
             [manor.prompt :as prompt]
             [manor.ruleset.init :as ruleset-init]
+            [manor.ruleset.mock :as mock]
             [manor.ruleset.rules :as rules]
             [manor.mechanics.building :as building]
             [manor.world :as w]))
@@ -79,5 +81,29 @@
         (is (= "just seen to" (get-in (items/item world "candlesticks") [:aspects :cleanliness])))
         (is (not-any? #(#{:action/forfeited :item/judge-failed :items/steward-failed :adjudication/failed} (:type %)) events))
         (is (not-any? #(re-find #"^(error:|rejected:)" (:content % "")) (mapcat :replies calls)))
+        (is (= world (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))
+
+(deftest invitations-without-a-calendar
+  (let [day {"mrs-ashby" {"08:00" [[:walk {:to "general-store"}]
+                                   [:invite {:by "in-person" :who "ward" :date "1904-10-15" :time "10:00" :stay "to tea"}]
+                                   [:walk {:to "parlour"}]]}
+             "ward" {"09:30" [[:walk {:to "front-gate"}]]}}
+        run (with-redefs [e/load-scenario (constantly (assoc (e/load-scenario :lodge)
+                                                             :mock-policy #(mock/scripted-policy day %)))]
+              (e/start-run :lodge {:llm :mock :offline? true :test? true :gm :off
+                                   :run-id (str (gensym "lodge-visit-"))}))]
+    (try
+      (is (nil? (:calendar (e/world run))))
+      (is (= "Ashby Lodge" (:house (visits/config (e/world run)))))
+      (is (.contains (rules/rules (e/world run)) "`invite`"))
+      (e/auto! run 6)
+      (is (= :idle (e/wait-idle run 60000)))
+      (let [world (e/world run) events (e/events run) v (visits/visit world "visit-1")]
+        (is (= {:guest "ward" :host "mrs-ashby" :by :in-person :told? true}
+               (select-keys v [:guest :host :by :told?])))
+        (is (= :here (:status v)))
+        (is (some #(= :visits/invited (:type %)) events))
+        (is (not-any? #(#{:action/forfeited :run/paused} (:type %)) events))
         (is (= world (w/replay (store/read-events (:dir run))))))
       (finally (e/stop-run run)))))

@@ -138,6 +138,7 @@
      "rules-claudeworth-no-visits.md" (cw/rules (update world :state dissoc :visit-config))
      "rules-lodge.md" (cw/rules lodge-world)
      "judge-brief.md" (judge-brief world)
+     "judge-brief-lodge.md" (judge-brief lodge-world)
      "physical-rules.md" physical/rules
      "find-person-instructions.md" find-person/instructions
      "find-person-request.md" (request-text "find-person" (find-person/seek-request world "hale" {:who "the housemaid" :recent []}))

@@ -1,7 +1,7 @@
 (ns manor.mechanics.positions
   "Positions and posts: what a job is, and who holds which.
 
-  A position is an entry of a shared catalogue (resources/positions/), which
+  A position is an entry of a shared catalogue (resources/settings/), which
   a world file names in :meta :positions, and adds to or overrides entry by
   entry in its own :roles:
 
@@ -26,6 +26,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [manor.narrate :as n]
+            [manor.settings :as settings]
             [manor.world :as w]))
 
 (def standings
@@ -47,7 +48,7 @@
 
 (defn read-catalogue
   "The positions of a catalogue: a file path, or a classpath resource such as
-  \"positions/england-1904.edn\"."
+  \"settings/england-1904/positions.edn\"."
   [source]
   (let [f (io/file (str source))
         r (when-not (.exists f) (io/resource (str source)))]
@@ -61,7 +62,9 @@
   one, with its own :roles merged over it entry by entry. With
   :addressed-as? false in `opts`, no position has a form of address."
   [wf opts]
-  (let [catalogue (some-> (get-in wf [:meta :positions]) read-catalogue)
+  (let [catalogue (if-let [source (get-in wf [:meta :positions])]
+                    (read-catalogue source)
+                    (:positions (settings/for-worldfile wf)))
         merged (merge-with merge catalogue (:roles wf))]
     (cond-> merged
       (false? (:addressed-as? opts)) (update-vals #(dissoc % :addressed-as)))))

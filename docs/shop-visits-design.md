@@ -172,7 +172,7 @@ among their recent events, because they're visible to everyone in the place.
   as soon as it ends." The `say` route still works but isn't advertised.
 - `quote-goods`: say that it can be used on your speaking turn in a conversation at your
   counter, before your line, and that the line should give the prices.
-- The shop-clerk positions in `resources/positions/england-1904.edn` (shopkeeper, butcher):
+- The shop-clerk positions in `resources/settings/england-1904/positions.edn` (shopkeeper, butcher):
   the same in their `:about`, e.g. "When a customer talks to you at the counter, use
   `quote-goods` on your speaking turn, then tell them the prices."
 - Claudeworth `rules`: "`converse` doesn't count against speaking once a turn: you can start

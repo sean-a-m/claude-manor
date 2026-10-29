@@ -1,0 +1,1 @@
+The Queen calling on the Earl of Claudeworth is not impossible: she is written and comes. A duke who has never met the inviter, a cousin in India, an estranged brother, a bishop, a famous novelist, someone who would surely refuse: all are possible; answer existing or new.

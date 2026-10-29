@@ -2044,13 +2044,13 @@ or promised. It does not select an existing villager.
 Who someone is (their persona and traits) is kept apart from the job they hold (their position)
 and from their circumstances in this world (their situation). The code is `manor.mechanics.positions`.
 
-**Positions** come from a catalogue shared between worlds, `resources/positions/england-1904.edn`
+**Positions** come from a catalogue shared between worlds, `resources/settings/england-1904/positions.edn`
 (country-house and village positions in 1904, plus `:none`). A world file names it
 in `:meta :positions` and may add or override entries in its own `:roles`, merged key by key over
 the catalogue's (a world without a catalogue has only its `:roles`):
 
 ```clojure
-{:meta {:positions "positions/england-1904.edn" ...}
+{:meta {:positions "settings/england-1904/positions.edn" ...}
  :roles {:secretary {:workplace ["study"]}                ; adds a key to the catalogue's entry
          :ferryman {:title "Ferryman" :standing :villager :sleeps :out
                     :about "You row people across the river."}   ; a new position
@@ -2219,7 +2219,7 @@ through `worldfile/load-world`'s `:calendar` from a world file:
 
 The bundled `claudeworth` and `claudeworth-medium` scenarios opt in and compose their base init
 with `manor.scenarios.claudeworth.holidays/add-to`. It adds the shared, explicitly dated
-`resources/calendars/england-1904-1905.edn` entries to the init result's `:calendar`. A world-file
+`resources/settings/england-1904/calendar.edn` entries to the init result's `:calendar`. A world-file
 entry with a matching ID replaces the default completely (including audience and lifecycle);
 other entries are retained and normal engine validation still applies. The base `claudeworth/init`
 loads only the supplied world: worlds reusing the rules without the holiday seed, such as Lodge,

@@ -4,7 +4,7 @@
         :start "1904-10-15T08:00"
         :minutes-per-round 30
         :starting-funds 20 ; whole pounds; runtime money is old pence
-        :positions "positions/england-1904.edn"
+        :setting-pack "settings/england-1904"
         :setting "Ashby Lodge is a small house on a village street in rural England, 1904. Ashby, a widow, keeps it with her cook-general, Bell. The housemaid gave notice and left last night; a girl is wanted, and the maid's room is empty. Ward keeps the general shop just across the street and knows the village. The front gate is where callers meet the household. House and shop are all within easy walking distance. There is no architect or architect's office here."}
 
  :locations

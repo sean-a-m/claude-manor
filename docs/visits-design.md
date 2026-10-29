@@ -464,7 +464,7 @@ The `:guest` position's `:about`:
     rules paragraph.
   - The install is idempotent like hiring's and deliveries', because `claudeworth-medium`
     re-installs on `cw/scenario`.
-  - Add `:guest` to `resources/positions/england-1904.edn`, with a new standing `:visitor`.
+  - Add `:guest` to `resources/settings/england-1904/positions.edn`, with a new standing `:visitor`.
     Standings are used only for household membership and scene colour, so a guest must not
     have a household standing.
   - Worldfile support for `:away? true` on characters, checked like the other agent fields.

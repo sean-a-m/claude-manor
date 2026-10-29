@@ -34,7 +34,7 @@ The current cast:
 | Mr Webb, barber and hairdresser | `barber` | barber's cottage | cuts hair and shaves customers in his front room |
 | Mrs Dobbins, laundress | `laundress` | laundress's cottage | takes in washing, with a washhouse and drying yard |
 
-Each role is a position of the shared catalogue (`resources/positions/england-1904.edn`), and
+Each role is a position of the shared catalogue (`resources/settings/england-1904/positions.edn`), and
 each character's plans and newness are their own `:situation` (see
 [people-and-hiring-design.md](people-and-hiring-design.md), phase 2).
 

@@ -6,7 +6,7 @@
         :minutes-per-round 30
         :starting-funds 2900 ; whole pounds here; runtime money is old pence
         :architect-prices "architect/prices-1904.edn" ; the architect's sizes and prices
-        :positions "positions/england-1904.edn"
+        :setting-pack "settings/england-1904"
         :setting "Claudeworth Manor is a modest Edwardian country house, the seat of the Earls of Claudeworth, whose fortune has lately been restored. Claudeworth village lies nearby, a sloping green with shops, a public house, a post office, a forge and tradespeople working from their cottages, as well as the offices of Pugh & Sons, Architects. Hollin Abbey is nearby too, where the monks keep to themselves."}
 
  :locations

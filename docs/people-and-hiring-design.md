@@ -380,7 +380,7 @@ No real simulation or other world's cast refresh was run.
 | **Reputation** | what someone knows of a person | a record per knower, given privately |
 
 **Positions.** The catalogue is a shared data file (decision 29), for example
-`resources/positions/england-1904.edn`. A world file names the catalogue it uses and may add or
+`resources/settings/england-1904/positions.edn`. A world file names the catalogue it uses and may add or
 override entries in its own `:roles`. The people server's age and sex ranges move into the same
 entries (the engine passes them in the request), so there is one list of positions, not two.
 Each position has:
@@ -466,7 +466,7 @@ Done. The contract is in "Positions, posts and situations" (and "People and trai
 `docs/scenario-authoring.md`; the code is `manor.mechanics.positions`, and the tests are in
 `test/manor/positions_test.clj`.
 
-- **The catalogue** is `resources/positions/england-1904.edn`: the 43 positions of section 4.2
+- **The catalogue** is `resources/settings/england-1904/positions.edn`: the 43 positions of section 4.2
   and `:none`, each with a title, duties in the style of Claudeworth's old texts, a standing,
   where the holder sleeps, an optional form of address and capabilities, and the people
   server's ages and sex. A world file names it in `:meta :positions`; its own `:roles` are merged

@@ -143,7 +143,7 @@ reach characters. See [the calendar contract](docs/scenario-authoring.md#calenda
 for startup review, lifecycle and world-file export limitations. New `claudeworth` and
 `claudeworth-medium` runs share a public calendar of English holidays, quarter days (including
 Lady Day and Michaelmas) and seasonal observances for **1904–1905**. Edit
-[`resources/calendars/england-1904-1905.edn`](resources/calendars/england-1904-1905.edn) to extend it;
+[`resources/settings/england-1904/calendar.edn`](resources/settings/england-1904/calendar.edn) to extend it;
 there is no annual generation. The whole list is stored, but characters see only today through
 30 days ahead. These are known occasions, not automatic celebrations, days off or payments.
 

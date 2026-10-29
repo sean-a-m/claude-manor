@@ -22,7 +22,7 @@
 ;; Every run here lives under test-runs/.
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
 
-(def catalogue-source "positions/england-1904.edn")
+(def catalogue-source "settings/england-1904/positions.edn")
 
 (defn- start
   "A Claudeworth run starting at 08:00 on 15 October, which the tests' rounds
@@ -90,8 +90,8 @@
       (is (= (get (positions/read-catalogue catalogue-source) :cook) (:cook table))))
     (testing "with the address flag off, no position has a form of address"
       (is (not-any? :addressed-as (vals (positions/table wf {:addressed-as? false})))))
-    (testing "a world without a catalogue has only its :roles"
-      (is (= {:ferryman (get-in wf [:roles :ferryman])}
+    (testing "a world without a catalogue uses England, with its :roles over it"
+      (is (= (assoc (positions/read-catalogue catalogue-source) :ferryman (get-in wf [:roles :ferryman]))
              (positions/table (-> wf (update :meta dissoc :positions) (update :roles dissoc :butcher)) {}))))
     (testing "the scenario names bad entries and unknown workplaces"
       (let [ps (str/join "\n" (cw/problems (-> (:world-file (wf/load-world "worlds/claudeworth.edn"))

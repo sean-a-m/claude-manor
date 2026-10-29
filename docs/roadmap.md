@@ -211,7 +211,7 @@ Focused offline calendar tests and the full suite pass; no real-model run was ma
   as reviewed. Preserve lifecycle state through replay/load/branch. Existing requests stay after
   turns. Calendar entries do not directly emit arbitrary state-changing payloads.
 - **Bundled holiday seed:** both Claudeworth scenarios initialize the shared, explicitly dated
-  `resources/calendars/england-1904-1905.edn` catalogue: English holidays, quarter days and seasonal
+  `resources/settings/england-1904/calendar.edn` catalogue: English holidays, quarter days and seasonal
   observances, public to all characters. The normal rolling view and GM review apply; no annual
   generation or automatic holiday effects. Other worlds and the fixed household fixture opt out.
 - **Separate work:** household income/account credits (B7 below). Existing travel, delivery and

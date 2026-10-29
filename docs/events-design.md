@@ -368,7 +368,7 @@ migration of existing timing remain deferred. Household income/account credits r
 ### Bundled holiday seed
 
 The user subsequently approved a proof-of-concept holiday calendar for both Claudeworth worlds.
-`resources/calendars/england-1904-1905.edn` holds 58 public date-only entries: familiar English
+`resources/settings/england-1904/calendar.edn` holds 58 public date-only entries: familiar English
 holidays, the four quarter days, church feasts and seasonal observances. The two scenarios share
 one initializer wrapper; Lodge and the fixed test household do not enable the calendar.
 World-file entries override catalogue entries by ID, without dropping authored duplicates or

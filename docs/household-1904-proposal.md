@@ -285,7 +285,7 @@ maps to the namespace (`:claudeworth-household` → `manor.scenarios.claudeworth
 `docs/scenario-authoring.md`, "World files"). What the checks require:
 
 - `:meta`: `:name`, `:start "1904-10-15T08:00"`, `:minutes-per-round 30`, `:starting-funds`
-  (whole pounds), `:positions "positions/england-1904.edn"`, `:setting` (a paragraph), and
+  (whole pounds), `:setting-pack "settings/england-1904"`, `:setting` (a paragraph), and
   `:architect-prices` (the village keeps its architect's office, so a price list is required).
 - Locations: house rooms are `:domain :house` (building attaches new rooms only to those); the
   village and abbey keep their domains; `walk` moves within a domain and `travel` moves between
@@ -299,7 +299,7 @@ maps to the namespace (`:claudeworth-household` → `manor.scenarios.claudeworth
 
 ### 8.3 Positions
 
-From the catalogue (`resources/positions/england-1904.edn`): `:earl`, `:countess`, `:cook`,
+From the catalogue (`resources/settings/england-1904/positions.edn`): `:earl`, `:countess`, `:cook`,
 `:ladys-maid`, `:head-housemaid`, `:housemaid`, `:kitchen-maid`, `:coachman`, `:head-gardener`,
 and later `:butler`, `:valet`, `:footman`, `:hall-boy`, `:housekeeper`, `:scullery-maid`,
 `:groom`, `:under-gardener`, `:gamekeeper`.

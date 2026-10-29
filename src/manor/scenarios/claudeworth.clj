@@ -39,6 +39,7 @@
             [manor.mechanics.visits :as visits]
             [manor.narrate :as narrate]
             [manor.prompts :as prompts]
+            [manor.settings :as settings]
             [manor.scenarios.claudeworth.building :as building]
             [manor.scenarios.claudeworth.deliveries :as deliveries]
             [manor.scenarios.claudeworth.holidays :as holidays]
@@ -539,6 +540,7 @@
              :items (filterv #(or (nil? (:holder %)) (ids (:holder %))) (:items loaded))
              :state (merge (building/initial-state wf agents table opts)
                            {:positions table
+                            :setting-pack (settings/for-worldfile wf)
                             :posts {} :bedrooms {} :routines {}
                             :setting (get-in wf [:meta :setting])
                             :quotes {}

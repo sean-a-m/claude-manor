@@ -184,8 +184,8 @@ templates: code picks which fragments to join, as `AGENTS.md` asks.
 setting's smallest unit, always. `(display spec n)` formats from `:units` (prefix/suffix, or
 singular/plural names); `(authored->units spec n)` converts world files' and price lists'
 amounts. Every caller passes the run's spec (`(money/spec world)`). The appraiser's field becomes
-`unit-price`, priced in `{{money.base-name}}` with the pack's `money.md`; reducers keep accepting
-`:unit-price-pence` in old events.
+`unit-price`, priced in `{{money.base-name}}` with the pack's `money-pricing.md`. No need to keep
+reading `:unit-price-pence` in old events (decision 11).
 
 ```clojure
 ;; settings/england-1904/money.edn
@@ -213,7 +213,7 @@ become `[:state :accounts {owner amount}]` with `"household"` as today's account
 can give an agent a starting `:purse`; `buy` and `commission` take an optional `from`
 (`"household"` or `"own"`, default household); only the owner spends their own purse; bought
 goods' owner follows the account. The architect's fee purse becomes an ordinary account.
-Reducers read old `[:state :household :funds]` events unchanged. No `pay` action yet.
+Old runs' `[:state :household :funds]` need not keep working (decision 11). No `pay` action yet.
 
 ### 3.5 People
 
@@ -335,6 +335,10 @@ From the review of the first draft (2026-10-28):
 9. Phase 1 moves prompts verbatim (typos included) so its diff is empty; the agent preamble's
    typos are fixed in phase 2, where it's reworded anyway.
 10. The old stashed proposal is not part of this work; don't read or touch it.
+11. **No backwards compatibility with old runs** (the user, 2026-10-28, now in `AGENTS.md`):
+    loading old runs is rarely used, so later phases needn't keep old event shapes, state keys or
+    pack-less states working, and shouldn't add complexity for them. Phase 2's England default for
+    a state without a pack may stay (it's what pack-less test fixtures use) but isn't a promise.
 
 **Later, outside this work:** dispatching messages without a post office (messengers, notes
 carried by hand); several households; hiring rework (6); lunar calendar; bartering and holding

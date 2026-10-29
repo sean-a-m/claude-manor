@@ -672,7 +672,7 @@
             id (:agent-id p)]
         (testing "a return time is checked"
           (doseq [[args reason] [[{:return-date "1904-10-15"} "give both return-date and return-time, or neither"]
-                                 [{:return-date "15 October" :return-time "11:00"} "give return-date like \"1904-10-21\" and return-time like \"07:00\""]
+                                 [{:return-date "15 October" :return-time "11:00"} "give return-date like \"1904-10-15\" and return-time like \"07:00\""]
                                  [{:return-date "1904-10-15" :return-time "08:30"} "the return time must be later than now"]
                                  [{:return-date "1904-10-30" :return-time "08:00"} "say you'll be back within 7 days"]]]
             (is (= reason (a/check leave world id args)))))

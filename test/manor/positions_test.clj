@@ -288,7 +288,7 @@
             (is (not (contains? (:household (cw/observe world id)) :bedrooms)) id)
             (is (some? (get-in (cw/observe world id) [:you :bedroom])) id)))
         (testing "the rules say someone living in needs a bed, and where to look"
-          (is (str/includes? (cw/rules world) "Someone who lives in needs a bed in the house"))
+          (is (str/includes? (cw/rules world) "Someone who lives in needs a bed at the house"))
           (is (str/includes? (cw/rules world) "`household.bedrooms`")))
         (testing "routines are set by events too"
           (is (= "07:00" (:from (first (get-in world [:state :routines "hobbs"])))))

@@ -1,1 +1,1 @@
-Never use `find` for goods that are for sale: in a shop or the public house, ask whoever serves there for what you want and `buy` what they quote. Those who serve sell their stock with `quote-goods` too; `find` is for the house's own things.
+Never use `find` for goods that are for sale: in a shop or other place of trade, ask whoever serves there for what you want and `buy` what they quote. Those who serve sell their stock with `quote-goods` too; `find` is for the things at {{home}}.

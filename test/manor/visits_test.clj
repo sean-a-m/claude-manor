@@ -164,7 +164,7 @@
                  (check run world "hale" :invite (invite "post" "mrs-bell" "10:00"))))
           (is (= "by post, the earliest they can be here is Saturday 15 October, 23:00"
                  (check run world "lord-claudeworth" :invite (assoc (invite "post" "mrs-bell" "22:00") :date "1904-10-15"))))
-          (is (= "give the date like \"1904-10-21\" and the time like \"19:00\""
+          (is (= "give the date like \"1904-10-15\" and the time like \"19:00\""
                  (check run world "lord-claudeworth" :invite (invite "post" "mrs-bell" "teatime"))))
           (is (= "bedroom must be the id of a bedroom"
                  (check run world "lord-claudeworth" :invite (invite "post" "mrs-bell" "10:00" :bedroom "drawing-room"))))

@@ -92,6 +92,13 @@
       (let [status (e/wait-idle run 600000)]
         (when-not (= :idle status)
           (throw (ex-info (str (name scenario) ": the mock day ended " status) {}))))
+      (let [status (e/status run)
+            round (:round (e/world run))]
+        (when (or (:error status) (seq (:pause-reasons status))
+                  (not= day-rounds round)
+                  (some #(= :run/paused (:type %)) (e/events run)))
+          (throw (ex-info (str (name scenario) ": incomplete or paused mock day")
+                          {:status status :round round :expected-rounds day-rounds}))))
       (mapv (fn [call] (assoc call :tools (mapv #(get @tools (:hash %)) (:tool-digests call))))
             (store/read-llm (:dir run)))
       (finally (e/stop-run run)))))

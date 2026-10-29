@@ -427,7 +427,8 @@
 
 (defn- time-reason [world ^LocalDateTime earliest channel {:keys [date time]}]
   (let [at (parse-time date time)]
-    (cond (nil? at) "give the date like \"1904-10-21\" and the time like \"19:00\""
+    (cond (nil? at) (prompts/render world "docs/visits/time-format.md"
+                                         {:example-date (prompts/example-date world)})
           (.isBefore at earliest) (str channel "the earliest they can be here is " (.format earliest earliest-format)))))
 
 (defn- text-reason
@@ -813,7 +814,11 @@
   {:name :invite :kind :free :roles :all :per-turn 1
    :kind-for (fn [args] (if (:person args) :query :free))
    :hint "Free: does not end your turn. With person, it's a query and counts towards your queries this turn."
-   :doc (prompts/doc "docs/visits/invite.md" {:max-person max-person})
+   :doc (fn [world]
+           (prompts/render world "docs/visits/invite.md"
+                           {:max-person max-person :example-date (prompts/example-date world)
+                            :post (if (seq (post-offices world))
+                                    (prompts/render world "docs/visits/post.md" {}) "")}))
    :args (into [:map [:by [:enum "in-person" "post" "messenger"]]
                 [:who {:optional true} :string]
                 [:person {:optional true} [:string {:min 1 :max max-person}]]
@@ -867,7 +872,9 @@
 (defn rules
   "The rules paragraph, from the design's section 9."
   [world]
-  (prompts/render world "rules/visits.md" {}))
+  (prompts/render world "rules/visits.md"
+                  {:post (if (seq (post-offices world))
+                           (prompts/render world "rules/visits-post.md" {}) "")}))
 
 (defn- merged
   "Configs merged in order, the :lead-hours map key by key."

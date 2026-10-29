@@ -427,11 +427,9 @@
   "`take-leave`'s optional return time, both or neither."
   [:map [:return-date {:optional true} :string] [:return-time {:optional true} :string]])
 
-(def take-leave-doc
-  (str "Leave the mapped area: a candidate ends an unengaged visit, and a guest from elsewhere goes home. "
-       "Once gone you have no turns until you come back. To come back at a set time (to fetch your things and return, say), "
-       "give return-date like \"1904-10-21\" and return-time like \"07:00\", within " max-return-days " days: "
-       "you arrive at the meeting place then, and those expecting you are told. Without them, you return only if sent for or invited again."))
+(defn take-leave-doc [world]
+  (prompts/render world "docs/hiring/take-leave.md"
+                  {:example-date (prompts/example-date world) :max-return-days max-return-days}))
 
 (defn return-at
   "The time someone taking leave gave for coming back, or nil."
@@ -447,7 +445,8 @@
     (let [at (return-at args)]
       (cond (not (:clock world)) "there is no clock here to come back by; leave without a return time"
             (not (and return-date return-time)) "give both return-date and return-time, or neither"
-            (nil? at) "give return-date like \"1904-10-21\" and return-time like \"07:00\""
+            (nil? at) (prompts/render world "docs/hiring/return-time-format.md"
+                                      {:example-date (prompts/example-date world)})
             (not (.isAfter at (clock/time-of (:clock world) (:round world)))) "the return time must be later than now"
             (.isAfter at (.plusDays (clock/time-of (:clock world) (:round world)) max-return-days))
             (str "say you'll be back within " max-return-days " days")))))

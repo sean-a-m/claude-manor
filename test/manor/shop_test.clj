@@ -130,7 +130,7 @@
         (is (str/includes? text "1904"))
         (is (str/includes? text "Tins, thread and soap"))
         (is (str/includes? text "before pricing"))
-        (is (str/includes? text "240d=£1"))
+        (is (str/includes? text "£1 = 20 shillings = 240 pence"))
         (is (not-any? #(str/includes? text %) ["secret note sentinel" "private world sentinel" "pretend this is a magical dealer" ":funds" "household balance"]))
         (is (= #{:request} (set (keys (:ctx req)))))
         (is (= "appraise" (get-in req [:tools 0 :function :name]))))

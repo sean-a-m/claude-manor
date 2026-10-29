@@ -4,6 +4,10 @@
             [manor.actions :as a]
             [manor.clock :as clock]
             [manor.mechanics.find-person :as find-person]
+            [manor.mechanics.hiring :as hiring]
+            [manor.mechanics.visits :as visits]
+            [manor.scenarios.claudeworth :as cw]
+            [manor.scenarios.claudeworth.deliveries :as deliveries]
             [manor.mechanics.people :as people]
             [manor.prompt :as prompt]
             [manor.settings :as settings]))
@@ -59,6 +63,41 @@
       (is (nil? (:positions (settings/parameters world))))
       (is (thrown? clojure.lang.ExceptionInfo
                    (prompts/render world "agent/preamble.md" {:era nil}))))))
+
+(deftest judge-brief-includes-only-present-mechanics
+  (let [brief @#'cw/judge-brief
+        world {:state {:setting "Test setting."}
+               :space {:locations {}}}
+        base (str "Test setting.\n\nAt the house, assume the everyday things the work needs "
+                  "(cloths, paper, pans, salt, matches and the like) are to hand unless what you're shown says otherwise. "
+                  "The things listed are the notable ones, not everything there is.")
+        architect {:services #{:architect}}
+        shop {:services #{:general-store} :delivery-profile "We deliver."}]
+    (is (= base (brief world)))
+    (is (= (str base "\n\n" (prompts/render "judges/brief-architect.md"))
+           (brief (assoc-in world [:space :locations "office"] architect))))
+    (is (= (str base "\n\n" (prompts/render "judges/brief-deliveries.md"))
+           (brief (assoc-in world [:space :locations "shop"] shop))))
+    (is (= (str base "\n\n" (prompts/render "judges/brief-architect.md")
+                    "\n\n" (prompts/render "judges/brief-deliveries.md"))
+           (brief (assoc-in world [:space :locations] {"office" architect "shop" shop}))))))
+
+(deftest invitation-channels-and-format-examples-follow-the-world
+  (let [world {:clock {:start "1780-06-12T08:00" :minutes-per-round 30}
+               :space {:locations {}}}
+        with-post (assoc-in world [:space :locations "post"] {:services #{:post-office}})
+        doc #(a/description (first (visits/actions {})) %)]
+    (is (not (clojure.string/includes? (visits/rules world) "by post")))
+    (is (clojure.string/includes? (visits/rules with-post) "by post (at a post office)"))
+    (is (not (clojure.string/includes? (doc world) "\"post\"")))
+    (is (clojure.string/includes? (doc with-post) "\"post\" (you're at a post office)"))
+    (is (clojure.string/includes? (doc world) "date (\"1780-06-12\")"))
+    (is (clojure.string/includes? (hiring/take-leave-doc world) "return-date like \"1780-06-12\""))
+    (is (= "give return-date like \"1780-06-12\" and return-time like \"07:00\""
+           (hiring/return-reason world {:return-date "bad" :return-time "bad"})))
+    (is (= :errand-boy (deliveries/courier-position world "shop")))
+    (is (= :runner (deliveries/courier-position
+                    (assoc-in world [:state :setting-pack] {:courier-position :runner}) "shop")))))
 
 (deftest one-final-newline-is-not-part-of-the-template
   (is (= "No newline at the end." (prompts/render "test/no-newline.md")))

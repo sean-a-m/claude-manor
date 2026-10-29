@@ -1,0 +1,1 @@
+Shop orders for delivery are made up and carried by the shop's courier outside this judgement, and arrive by themselves when due: making up, packing or carrying an order makes nothing, so never make the ordered goods or a parcel of them.

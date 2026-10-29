@@ -35,7 +35,9 @@
    [:new {:optional true} (into [:map] new-person-fields)]
    [:impossible {:optional true} [:string {:min 1 :max 300}]]])
 
-(defn instructions [world] (prompts/render world "judges/invitation.md" {}))
+(defn instructions [world]
+  (prompts/render world "judges/invitation.md"
+                  {:invitation-examples (prompts/render world "invitation-examples.md" {})}))
 
 ;; ---------------------------------------------------------------------------
 ;; Who the inviter could mean

@@ -48,7 +48,8 @@
   [:map [:lines [:vector {:min n :max n} appraisal-schema]]])
 
 (defn instructions [world]
-  (prompts/render world "judges/shop-appraiser.md" {:max-lead-hours deliveries/max-lead-hours :max-quantity max-quantity}))
+  (prompts/render world "judges/shop-appraiser.md" {:max-lead-hours deliveries/max-lead-hours :max-quantity max-quantity
+                                                        :money (prompts/render world "money.md" {})}))
 
 (declare check)
 

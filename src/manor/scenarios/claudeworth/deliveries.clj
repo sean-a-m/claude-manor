@@ -18,6 +18,7 @@
             [manor.mechanics.space :as space]
             [manor.mechanics.visits :as visits]
             [manor.narrate :as n]
+            [manor.settings :as settings]
             [manor.scenarios.claudeworth.building :as building]
             [manor.scenarios.claudeworth.money :as money]
             [manor.world :as w]))
@@ -28,9 +29,6 @@
 (def max-profile 400)
 ;; A courier goes home once this many rounds pass without a conversation.
 (def courier-leave-after 2)
-;; The position of a shop's courier unless its location names one in :courier.
-(def default-courier :errand-boy)
-
 (defn delivers?
   "Does the shop at `loc` (a location) send goods out?"
   [loc]
@@ -139,7 +137,8 @@
   [world]
   (sort-by key (group-by :location (filter #(<= (:due %) (:round world)) (vals (orders world))))))
 
-(defn courier-position [world shop] (or (:courier (space/location world shop)) default-courier))
+(defn courier-position [world shop]
+  (or (:courier (space/location world shop)) (settings/parameter world :courier-position)))
 
 (defn delivering-shops
   "Ids of the shops that send goods out, in id order."

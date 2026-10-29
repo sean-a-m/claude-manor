@@ -183,11 +183,7 @@
 
    {:name :call
     :kind :free :per-turn max-calls
-    :doc (str "Call out, so that everyone within walking distance (the whole house, say) hears you wherever they are: "
-              "a short call, at most " max-call " characters. Name someone with to (their id) to call for them; "
-              "if they hear you and are busy, but not asleep, they may stop to answer. Only the person in to is called: "
-              "naming someone in the text doesn't call them. Shouting through the house is rude without good reason: "
-              "call only for someone out of earshot whom you need, and use say or converse for people with you.")
+    :doc (prompts/doc "docs/call.md" {:max-call max-call})
     :args [:map [:text [:string {:min 1 :max max-call}]] [:to {:optional true} :string]]
     :available? (fn [world actor] (physical/can? world actor :speech))
     :valid? (fn [world actor {:keys [to]}]
@@ -429,7 +425,8 @@
                                                                           "things-find-everywhere"
                                                                           "things-find-not-at-trade"))})
                 (section world "people" {:physical (physical/rules world)})
-                (section world "shopping" {:paid (section world (if architect? "shopping-paid-commissions" "shopping-paid"))})
+                (section world "shopping" {:paid (section world (if architect? "shopping-paid-commissions" "shopping-paid"))
+                                           :money (prompts/render world "money.md" {})})
                 (when architect?
                   (section world "building" {:sizes (str/join ", " (map :size (get-in world [:state :architect-prices :sizes])))
                                              :fee-percent building/fee-percent}))
@@ -441,7 +438,15 @@
 (defn- judge-brief
   "The setting, and that everyday things are to hand."
   [world]
-  (prompts/render world "judges/brief.md" {:setting (or (setting world) "")}))
+  (let [locations (vals (get-in world [:space :locations]))
+        mechanics (cond-> []
+                    (some #(contains? (:services %) :architect) locations)
+                    (conj "judges/brief-architect.md")
+                    (some deliveries/delivers? locations)
+                    (conj "judges/brief-deliveries.md"))]
+    (prompts/render world "judges/brief.md"
+                    {:setting (or (setting world) "")
+                     :mechanics (apply str (map #(str "\n\n" (prompts/render world % {})) mechanics))})))
 
 (defn- about [world role] (get-in world [:state :positions role :about]))
 
@@ -505,7 +510,7 @@
        (str "position " role " has no :about paragraph: add it to :roles or the catalogue"))
      (for [{:keys [id] :as loc} locations
            :when (deliveries/delivers? loc)
-           :let [courier (or (:courier loc) deliveries/default-courier)]
+           :let [courier (or (:courier loc) (:courier-position (settings/for-worldfile wf)))]
            :when (not (contains? table courier))]
        (str "location " (pr-str id) ": its courier's position " courier " is not in the positions catalogue"))
      (for [[id {:keys [workplace]}] (sort-by key table)

@@ -39,8 +39,8 @@
    (fn [{:keys [position sex ages taken-names candidate]} _]
      {:people [{:name (first (remove (set taken-names) (map #(str "Pat Ellis " %) (range))))
                 :age (first (or ages [22 40])) :sex (or sex "female") :position position
-                :origin "the neighbouring village"
-                (if candidate :candidate-home :lives) (if candidate "a cottage in the next parish" "a cottage in the village")
+                :origin "a place not far off"
+                (if candidate :candidate-home :lives) (if candidate "lodgings outside the mapped area" "lodgings nearby")
                 :temperament (mapv #(hash-map :axis (name %) :level "average" :measures (people/axis-measures %)) people/axes)
                 :faculties [{:faculty "Sight" :size "small" :means "eyesight"}]}]})
    :people/reputation

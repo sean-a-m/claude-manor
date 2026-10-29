@@ -171,7 +171,7 @@
   (let [persona (str "You are the " (:position record) ". "
                      (str/join "; " (map #(str (:axis %) ": " (:level %)) (:temperament record))))]
     {:tool :polish
-     :args {:circumstances ["Has a cousin living in another parish."]
+     :args {:circumstances ["Has a cousin living some way off."]
             :persona (subs persona 0 (min max-persona (count persona)))
             :manner "You seem civil and plain to strangers."
             :appearance "A slight figure in plain, well-worn clothes, standing with shoulders drawn back."}}))

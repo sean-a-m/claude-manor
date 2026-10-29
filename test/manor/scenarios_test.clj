@@ -11,7 +11,7 @@
             [manor.ruleset.views :as views]
             [manor.world :as w]))
 
-(def bundled [:village :treasure :quiz :claudeworth :claudeworth-medium :lodge :dressing :burglary])
+(def bundled [:village :treasure :quiz :claudeworth :claudeworth-medium :lodge :palace :dressing :burglary])
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
 

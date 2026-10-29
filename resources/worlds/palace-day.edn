@@ -1,0 +1,63 @@
+;; The palace's day, for free checks (manor.ruleset.mock): agent id -> time of day
+;; -> the tool calls of that turn, in order (free ones first). Turns not listed pass.
+;; The noble lady's morning call on the consort (a conversation, see the scenario's
+;; mock-conversation), the consort's invitations to the stall keeper (by messenger,
+;; carried by Zhao, then in person to come again), the jade hairpin taken from its chest
+;; and given at tea, Zhao's errand beyond the gate (candles bought from the household's
+;; allowance, a basket of charcoal sent in to the gate, a snuff bottle bought from his own
+;; purse), the maid fetching the charcoal in, work, and bed.
+;; request-goods/accept-offer are mock-only markers translated by the shop policy.
+{"sumuru-wanxia"
+ {"08:00" [[:walk {:to "front-hall"}]
+           [:call {:text "Zhao! Attend me in the hall." :to "zhao-deshou"}]]
+  "08:30" [[:invite {:by "messenger" :via "zhao-deshou" :who "han-baoshan" :date "1784-10-20" :time "16:00"
+                     :stay "to show his silks" :reason "to choose thread for embroidery"}]
+           [:spend-time {:doing "taking breakfast" :hours 0.5}]]
+  "09:00" [[:say {:text "Noble Lady Tan. Sit."}]]
+  "09:30" [[:spend-time {:doing "practising calligraphy" :hours 2}]]
+  "11:30" [[:walk {:to "consort-bedchamber"}] [:open {:container "lacquer-chest"}] [:take {:item "jade-hairpin"}]
+           [:walk {:to "east-side-room"}] [:spend-time {:doing "painting orchids" :hours 3}]]
+  "15:00" [[:give {:item "jade-hairpin" :to "tan-qiaoyun"}]
+           [:spend-time {:on ["tea-things"] :doing "taking tea with the noble lady" :hours 1}]]
+  "16:00" [[:walk {:to "front-hall"}] [:spend-time {:doing "looking over the stall keeper's silks" :hours 0.5}]]
+  "16:30" [[:invite {:by "in-person" :who "han-baoshan" :date "1784-10-22" :time "10:00"
+                     :stay "an hour" :reason "to bring the thread she chose"}]]
+  "21:00" [[:walk {:to "consort-bedchamber"}] [:sleep {:until "07:00"}]]}
+
+ "tan-qiaoyun"
+ {"08:00" [[:walk {:to "pavilion"}] [:spend-time {:doing "having her hair dressed" :hours 0.5}]]
+  "08:30" [[:walk {:to "front-hall"}]]
+  "09:00" [[:converse {:with ["sumuru-wanxia"] :text "I come to pay my respects, Your Highness. Did you sleep well?"}]]
+  "10:00" [[:walk {:to "pavilion"}] [:spend-time {:on ["embroidery-frame"] :doing "embroidering cranes" :hours 4}]]
+  "14:30" [[:walk {:to "east-side-room"}]]
+  "16:00" [[:walk {:to "pavilion"}] [:spend-time {:doing "reading poems" :hours 2}]]
+  "21:30" [[:walk {:to "noble-lady-bedchamber"}] [:sleep {:until "07:00"}]]}
+
+ "zhao-deshou"
+ {"08:00" [[:walk {:to "front-hall"}] [:say {:text "Your servant is here, Your Highness."}]]
+  "09:00" [[:walk {:to "palace-gate"}]]
+  "09:30" [[:travel {:to "silk-stall"}]]
+  "10:00" [[:request-goods {:goods [{:item "bundle of candles" :amount "1"}
+                                    {:item "basket of charcoal" :amount "1" :deliver true}]}]]
+  "10:30" [[:accept-offer {:items ["bundle of candles" "basket of charcoal"] :hand-over "take"}]
+           [:request-goods {:item "snuff bottle" :amount "1"}]]
+  "11:00" [[:accept-offer {:item "snuff bottle" :from "own"}]]
+  "11:30" [[:travel {:to "palace-gate"}]]
+  "12:00" [[:walk {:to "west-side-room"}] [:put-in {:item "bundle-of-candles" :container "supply-shelves"}]
+           [:spend-time {:on ["supply-shelves"] :doing "counting the stores" :hours 1}]]
+  "13:00" [[:walk {:to "front-hall"}] [:spend-time {:doing "going over the palace accounts" :hours 2}]]
+  "21:00" [[:walk {:to "eunuchs-quarters"}] [:sleep {:until "06:00"}]]}
+
+ "liu-cuiping"
+ {"08:00" [[:walk {:to "pavilion"}] [:spend-time {:on ["pavilion"] :doing "dusting the pavilion" :hours 1}]]
+  "13:30" [[:walk {:to "palace-gate"}] [:take {:item "basket-of-charcoal"}] [:walk {:to "west-side-room"}]
+           [:put-in {:item "basket-of-charcoal" :container "supply-shelves"}] [:walk {:to "pavilion"}]]
+  "14:00" [[:spend-time {:doing "mending a robe" :hours 2}]]
+  "21:30" [[:walk {:to "maids-room"}] [:sleep {:until "06:00"}]]}
+
+ "han-baoshan"
+ {"15:00" [[:travel {:to "palace-gate"}]]
+  "15:30" [[:walk {:to "front-hall"}]]
+  "17:00" [[:walk {:to "palace-gate"}]]
+  "17:30" [[:travel {:to "silk-stall"}]]
+  "21:00" [[:sleep {:until "06:00"}]]}}

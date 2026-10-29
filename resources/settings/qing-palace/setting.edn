@@ -4,7 +4,11 @@
  :household-name "the palace household"
  :everyday-things "cloths, brooms, paper, ink, tea, candles, charcoal, needles and thread and the like"
  :measures "a jin of tea is qty 16 of unit 1 liang, or qty 1 of unit 1 jin; a dozen candles is qty 12 of unit 1 candle; a bolt of silk is qty 1 of unit 1 bolt"
- :invite-example "my mother, Lady Wanggiya"
+ :unit-examples "1 jin, 1 packet, 1 skein or 1 dozen"
+ :amount-examples "\"a jin\", \"2 liang\", \"half a dozen\", \"3\""
+ :invite-example "my father, Wanggiya Fulu"
  :known-as-example "a physician of the Imperial Pharmacy"
  :courier-position :errand-eunuch
- :clock {:label "d MMMM yyyy, HH:mm"}}
+ ;; Gregorian dates without weekdays (decision 4): :label for the time
+ ;; now, :day-label for a time on another day, :date-label for a date in prose.
+ :clock {:label "d MMMM yyyy, HH:mm" :day-label "d MMM HH:mm" :date-label "d MMMM"}}

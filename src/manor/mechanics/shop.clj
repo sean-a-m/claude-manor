@@ -114,7 +114,7 @@
   {:tool :appraise
    :args {:lines (for [{:keys [item amount deliver]} request]
                    (cond-> {:available true :item item :qty (or (parse-long amount) 1) :unit "one"
-                            :desc (str "An ordinary " item " from the village shop.")
+                            :desc (str "An ordinary " item ".")
                             :condition "new" :consumable false :unit-price 18}
                      deliver (assoc :lead-hours 2)))}})
 

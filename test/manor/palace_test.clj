@@ -83,7 +83,9 @@
           (is (= "supply-shelves" (:in (items/item world "basket-of-charcoal")))))
         (testing "the stall keeper came at the consort's message, and was asked again in person"
           (is (= [:messenger :in-person] (map :by (sort-by :id (vals (visits/visits world))))))
-          (is (:arrived (visits/visit world "visit-1"))))
+          (is (:arrived (visits/visit world "visit-1")))
+          (is (= "20 October at 16:00" (get-in (first (of-type :visits/entrusted)) [:data :expected])))
+          (is (= "20 Oct 21:30" (clock/short-label (:clock world) 28 49))))
         (is (some #(= "judge" (:agent %)) calls))
         (is (not-any? #(#{:action/forfeited :item/judge-failed :items/steward-failed :adjudication/failed :run/paused} (:type %)) events))
         (is (not-any? #(re-find #"^(error:|rejected:)" (:content % "")) (mapcat :replies calls)))

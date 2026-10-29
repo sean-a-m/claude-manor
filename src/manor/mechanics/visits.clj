@@ -93,13 +93,10 @@
        (catch Exception _ nil)))
 
 (defn- fmt [pattern] (DateTimeFormatter/ofPattern pattern Locale/ENGLISH))
-(def ^:private when-format (fmt "EEEE d MMMM 'at' HH:mm"))
-(def ^:private earliest-format (fmt "EEEE d MMMM, HH:mm"))
-
 (defn- when-label
-  "\"Friday 21 October at 19:00\" for a visit's :at."
-  [v]
-  (.format (LocalDateTime/parse (:at v)) when-format))
+  "\"Friday 21 October at 19:00\" for a visit's :at, in the world's setting."
+  [world v]
+  (clock/when-label world (LocalDateTime/parse (:at v))))
 
 (defn- agent-name [world id] (:name (w/agent world id) id))
 
@@ -243,7 +240,7 @@
 
 (defn- invitation-data [world v]
   (merge (select-keys v [:guest :host :via :stay :reason])
-         {:visit (:id v) :house (house world) :expected (when-label v)}))
+         {:visit (:id v) :house (house world) :expected (when-label world v)}))
 
 (defn- invitation-text [{:keys [house expected stay reason]}]
   (str house " on " expected ": " stay "." (when reason (str " " reason))))
@@ -429,7 +426,7 @@
   (let [at (parse-time date time)]
     (cond (nil? at) (prompts/render world "docs/visits/time-format.md"
                                          {:example-date (prompts/example-date world)})
-          (.isBefore at earliest) (str channel "the earliest they can be here is " (.format earliest earliest-format)))))
+          (.isBefore at earliest) (str channel "the earliest they can be here is " (.format earliest (fmt (str (clock/date-pattern world) ", HH:mm")))))))
 
 (defn- text-reason
   "The action schema's limits on stay and reason, for the operator, whose
@@ -711,7 +708,7 @@
                                 :towards (or (:lives (w/agent world actor))
                                              (:candidate-home (hiring/for-agent world actor))
                                              (:lives (hiring/for-agent world actor)) "elsewhere")}
-                         at (assoc :returns {:at (meeting-place world) :when (hiring/when-label at)}))}
+                         at (assoc :returns {:at (meeting-place world) :when (clock/when-label world at)}))}
                 (for [v (map #(visit world %) (ordered-ids world))
                       :when (and (= actor (:guest v)) (= :here (:status v)))]
                   (status-event :visits/ended v))))))
@@ -790,7 +787,7 @@
                      (into events (invite-events (apply-all world events) actor (assoc args :who id))))))))
 
 (defn- expected [world guest at]
-  (str (agent-name world guest) " (" guest ") is expected at " (house world) " on " (when-label {:at at}) "."))
+  (str (agent-name world guest) " (" guest ") is expected at " (house world) " on " (when-label world {:at at}) "."))
 
 (defn- invite-reply
   "Who is expected when; for someone described, why nothing is arranged if it isn't."
@@ -856,7 +853,7 @@
     :reply (fn [world _ args {:keys [events]}]
              (if-let [v (:data (first (filter #(= :visits/scheduled (:type %)) events)))]
                (str (:id v) ": " (agent-name world (:guest v)) " (" (:guest v) ") is expected at " (house world)
-                    " on " (when-label v) ".")
+                    " on " (when-label world v) ".")
                (str "Nothing was arranged: " (or (arranged-reason world args) "try again"))))}
    {:name :cancel-visit :roles #{:gm} :kind :final
     :doc "Cancel a visit not yet begun, by its id in state.visits, with its calendar entries."

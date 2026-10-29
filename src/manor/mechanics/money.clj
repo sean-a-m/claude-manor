@@ -45,6 +45,6 @@
         balance (get-in world [:state :accounts owner])]
     (cond
       (nil? balance) "you have no personal account; use from \"household\" instead"
-      (> n balance) (str (if (= owner "household") "the household has " "your purse has ")
+      (> n balance) (str (if (= owner "household") (str (settings/parameter world :household-name) " has ") "your purse has ")
                          (display (spec world) balance)
                          (when (= "own" from) "; spend less or use from \"household\" instead")))))

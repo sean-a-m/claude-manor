@@ -64,7 +64,8 @@
   the positions (without forms of address if :addressed-as? is false), the
   setting, the meeting place, the home area if the world names one
   (manor.mechanics.space/home-domain), the query limit the rules quote and
-  :find-everywhere? (default true).
+  :find-everywhere? (default true). The clock takes the setting pack's
+  :clock :day-label, if it has one (manor.clock/short-label).
   Everyone's post, bedroom and routine are set as they arrive (`on-spawn`)."
   [{:keys [world-file leave-out] :as opts}]
   (let [source (or world-file (throw (ex-info "no :world-file: a ruleset scenario names one in its :defaults" {})))
@@ -74,8 +75,11 @@
     (let [left-out (set (filter (set leave-out) (map (comp b/slug :name) (:agents loaded))))
           agents (remove #(left-out (b/slug (:name %))) (:agents loaded))
           ids (set (map (comp b/slug :name) agents))
-          table (positions/table wf opts)]
+          table (positions/table wf opts)
+          pack (settings/for-worldfile wf)]
       (assoc (cond-> loaded
+               (and (:clock loaded) (:day-label (:clock pack)))
+               (assoc-in [:clock :day-label] (:day-label (:clock pack)))
                (:visits loaded)
                (update :visits #(mapv (fn [v]
                                        (cond-> v
@@ -86,7 +90,7 @@
              :items (filterv #(or (nil? (:holder %)) (ids (:holder %))) (:items loaded))
              :state (cond-> (merge (building/initial-state wf agents table opts)
                                    {:positions table
-                                    :setting-pack (settings/for-worldfile wf)
+                                    :setting-pack pack
                                     :posts {} :bedrooms {} :routines {}
                                     :setting (get-in wf [:meta :setting])
                                     :meeting-place (get-in wf [:meta :meeting-place])

@@ -11,7 +11,7 @@
         :minutes-per-round 30
         :starting-funds 200 ; whole taels; runtime money is cash
         :setting-pack "settings/qing-palace"
-        :setting "The Palace of Gathered Fragrance is a consort's palace in the inner court of the Forbidden City, Beijing, in the 1780s, in the reign of the Qianlong Emperor. The Emperor is elderly and seldom seen here; he is never met in person. Consort Sumuru keeps the palace with her chief eunuch, Zhao; Noble Lady Tan lives in its smaller Pavilion of Pure Dew with her maid. A long covered street joins the palace to the gate. Beyond the gate, Master Han keeps a stall of silk and sundries, where the palace's eunuchs buy what the allowance does not supply. No architect works here and there is no post office."}
+        :setting "The Palace of Gathered Fragrance is a consort's palace in the inner court of the Forbidden City, Beijing, in the 1780s, in the reign of the Qianlong Emperor. The Emperor is elderly and seldom seen here; he is never met in person. Consort Sumuru keeps the palace with her chief eunuch, Zhao; Noble Lady Tan lives in its smaller Pavilion of Pure Dew with her maid. A long covered street joins the palace to the gate. Beyond the gate, Master Han keeps a stall of silk and sundries, where the palace's eunuchs buy what the allowance does not supply."}
 
  :locations
  [;; ------------------------------------------------ the inner court

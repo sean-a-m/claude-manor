@@ -30,10 +30,11 @@ on the same household, stores, shop and work-judge mechanics. All places are a f
 the maid's room is vacant. Its rolled cast lives in `resources/worlds/lodge.edn`, with a free
 scripted day in `lodge-day.edn`. There is no architect or building business; hiring comes later.
 
-`lodge` is Ashby Lodge: a widow, her cook-general and the shopkeeper across the street,
-on the same household, stores, shop and work-judge mechanics. All places are a free walk apart;
-the maid's room is vacant. Its rolled cast lives in `resources/worlds/lodge.edn`, with a free
-scripted day in `lodge-day.edn`. There is no architect or building business; hiring comes later.
+`palace` is the Palace of Gathered Fragrance, a skeleton in the Qing imperial palace of the 1780s
+on the same ruleset with its own setting pack (`resources/settings/qing-palace/`: taels and cash,
+names family name first, palace positions): a consort, a noble lady, a chief eunuch, a maid and a
+stall keeper beyond the gate. Hand-written placeholder personas in `resources/worlds/palace.edn`,
+a free scripted day in `palace-day.edn`. No architect and no post office.
 
 ## MCP bridges
 

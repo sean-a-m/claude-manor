@@ -129,17 +129,19 @@ resources/settings/england-1904/
  :household-name "the household"
  :everyday-things "cloths, paper, pans, salt, matches and the like"
  :measures "a stone of sugar is qty 14 of unit 1 lb, or qty 1 of unit 1 stone; half a dozen eggs is qty 6 of unit 1 egg"
+ :unit-examples "1 lb, 1 loaf, 1 tin or 1 dozen"           ; the appraiser's units (phase 6)
+ :amount-examples "\"a stone\", \"2 lb\", \"half a dozen\", \"3\""  ; quote-goods' amounts (phase 6)
  :invite-example "my father, Sir Henry Vane"
  :known-as-example "a curate from Ely"
  :courier-position :errand-boy            ; a position in the pack's catalogue
- :clock {:label "EEEE d MMMM yyyy, HH:mm"}}
+ :clock {:label "EEEE d MMMM yyyy, HH:mm"}}   ; the palace adds :day-label and :date-label (phase 6)
 ```
 
 `people.edn`: `{:dataset "england-1900" :honorifics [...] :name-order :given-first
 :standings {:family {:household? true} ... :visitor {}}}`. A world's `:meta :positions` still
 overrides the pack's catalogue; architect price lists stay per world.
 
-`manor.settings/load-pack` reads `setting.edn`, `money.edn`, `positions.edn`, `calendar.edn` and every markdown
+`manor.settings/load-pack` reads `setting.edn`, `money.edn`, `people.edn` (as `:people`), `positions.edn`, `calendar.edn` and every markdown
 file recursively under `prompts/`. The ruleset's `init` stores the resulting immutable map in
 `[:state :setting-pack]`: setting parameters at the top level, `:source` (classpath directory),
 `:money`, `:positions`, `:calendar` and `:prompts` (relative template path → text without one final newline).
@@ -148,13 +150,14 @@ replay does not read pack files. `settings/pack` reads a state without one as En
 test fixtures, not as old-run compatibility (decision 11). A world file without
 `:meta :setting-pack` also defaults to England. `settings/parameter` takes a world and keyword path,
 for example `(settings/parameter world :home)` or `(settings/parameter world :clock :label)`.
-`settings/parameters` excludes `:source`, `:positions`, `:calendar` and `:prompts`.
+`settings/parameters` excludes `:source`, `:positions`, `:calendar`, `:people` and `:prompts`.
 
 Positions use an explicit `:meta :positions` catalogue first, otherwise the pack's catalogue, with
 `:roles` merged over either. `ruleset-init/add-holidays` reads the snapshot's calendar; Lodge
 (`:calendar? false`) has no calendar. A delivering shop uses its own `:courier`, otherwise the pack's
-`:courier-position`; that position must exist in its merged catalogue. Currency formatting now
-uses `:money`; people vocabulary remains unchanged until phase 5.
+`:courier-position`; that position must exist in its merged catalogue. Currency formatting
+uses `:money`, and standings, honorifics, name order and the people server's data set come from
+`:people` (phase 5).
 
 ### 3.3 Prompts as parameterised markdown
 
@@ -380,8 +383,8 @@ next phase must know.**
 | 3 | Money specs | done 2026-10-28 (`a2a1cb1`) |
 | 3b | Private accounts | done 2026-10-28 (`979f74a`) |
 | 4 | One ruleset | done 2026-10-29 (`58f1351`, `d3c13f1`, `69e5a89`, `1c2393d`; notes below) |
-| 5 | People and positions from the pack | not started |
-| 6 | Palace skeleton | not started |
+| 5 | People and positions from the pack | done 2026-10-29 (`b97441e`, `51bc850`; notes below) |
+| 6 | Palace skeleton | done 2026-10-29 (`850733f`, `7e6a45f`, `ef7eac2`, `1766904`; notes below) |
 | 7 | Docs | not started |
 | 8 | Short real palace run (8–12 rounds, $0.20) | not started |
 
@@ -742,7 +745,147 @@ names the old files and wasn't updated. `AGENTS.md` (uncommitted user edits in t
 was left alone: its layout section needs the same change as `CLAUDE.md`'s.
 5. **People and positions.** Standings, honorifics and name order from the pack; people-server
    data sets; reputation wording. Diff: none for England.
+
+**Phase 5, done (2026-10-29).** Commits:
+- `b97441e`: `settings/england-1904/people.edn` (`:dataset "england-1900"`, England's eleven
+  honorifics, `:given-first`, the eight standings with `:household? true` on the four household
+  ones), loaded as the pack's `:people` (not a rendering parameter). `positions/standings` and
+  `positions/household-standing?` take a pack and replace the fixed `standings` and
+  `household-standings`; `entry-problems` takes the standings, and the ruleset's `problems`
+  passes the world file's pack's; `starting-events` reads the run's pack. `positions/fill` is
+  public, takes the pack's people data, strips its honorifics and reads `{surname}` and
+  `{first-name}` by `:name-order` (`:family-first`: the first word, then the rest, or the one
+  word). `people/dataset` gives a pack's data set; `generate-args` takes `:dataset` (hiring passes
+  the run's, `roll-cast!` the world file's). The people server: `names.edn` moved to
+  `settings/england-1900/` with its own `:name-order` and `:honorifics`; `settings` is now every
+  directory under `settings/` with a `names.edn` (default `"england-1900"` for a request without
+  one); names are built in the data set's order. A second data set, `settings/qing-1780/`
+  (pinyin given names, Han family names and Manchu clan names, origins and dwellings of the
+  capital), came with this commit for the data-set test. Reputation's `"fellow-servant"` is now
+  `"worked-alongside"` ("%k worked alongside %p for %y years."), renamed since only a test used
+  the id. Tests: name order for both orders and a run's own pack, standings and household
+  standings from a test pack (`test/settings/test/people.edn`), position validation against the
+  pack's standings (an entry and a world file), the people server's data-set selection, name
+  order and origins/homes. Capture diff against the phase-4 baseline: **empty**.
+- `51bc850`: neutral text in the offline people stub (origin "a place not far off", homes
+  "lodgings nearby" / "lodgings outside the mapped area", from "the neighbouring village", "a
+  cottage in the village", "a cottage in the next parish") and the mock polish's circumstance
+  ("Has a cousin living some way off."). Capture diff: exactly these strings, in Claudeworth's,
+  Lodge's and the medium household's mock prompts (checked by substituting them back: identical).
+  The stub's name, "Pat Ellis N", is left.
+
+GM prompt: the pack stays out of the GM view (`:people` is inside it), so England's GM state is
+unchanged. Full suite after each commit: **485 tests, 9416 assertions**, green.
+
 6. **Palace skeleton** (section 5), and the best-effort read of its prompts.
+
+**Phase 6, done (2026-10-29).** Commits:
+- `850733f`: the pack `resources/settings/qing-palace/`: `setting.edn` (era "the Qing imperial
+  palace in Beijing in the 1780s", home "the inner court", "the palace household", palace
+  everyday things, measures in jin and liang, courier `:errand-eunuch`), `money.edn` (taels and
+  cash, base unit cash, 1 tael = 1,000 cash, authored in whole taels), `people.edn` (data set
+  `"qing-1780"`, `:family-first`, standings `:imperial :consort :eunuch :palace-maid` in the
+  household and `:official :merchant :visitor`), `positions.edn` (consort (fei), noble lady
+  (guiren), chief eunuch, eunuch, errand eunuch, palace maid, stall keeper (`:shop-clerk`),
+  `:guest`, `:none`), `calendar.edn` (one entry: the winter solstice, 21 December 1784, a date not checked against an
+  almanac), and the
+  three fragments written for the palace.
+- `7e6a45f`: `resources/worlds/palace.edn` (below), the mock day `palace-day.edn`, the scenario
+  `src/manor/scenarios/palace.clj` (`ruleset/scenario` with `:max-cost 0.20` and a one-line
+  mock conversation), `test/manor/palace_test.clj`, `:palace` in `bundled`. The shop's scripted
+  customer passes `:from` through to `buy`, and asks for goods "sent up to {home}" (unchanged
+  for England).
+- `ef7eac2`: the capture helper runs the palace's mock day and renders its rules, judge brief,
+  find-person, hiring, visits, invitation, polish, appearance, appraiser and GM requests and
+  every tool under `rendered/palace/`.
+- `1766904`: the fixes of the England review (below).
+
+**The world.** The Palace of Gathered Fragrance (fictional), 20 October 1784. Domain
+`:inner-court`: the long covered street, the front hall, the consort's bedchamber, east and west
+side rooms (tea room; store room), the eunuchs' quarters, the noble lady's Pavilion of Pure Dew
+with her bedchamber and a maid's room, and a garden. Domain `:outside`: the palace gate (the
+meeting place, walkable from the covered street, so the house area is the inner court and the
+gate) and, a one-round journey away, a silk and sundries stall (08:00–17:00, store and delivery
+profiles; it delivers by the pack's errand eunuch) with the stall keeper's room. `:meta
+:home-domain :inner-court`. Starting funds 200 taels; purses: the consort 30 taels, the noble lady
+8, the chief eunuch 5. Five agents with short hand-written personas, no traits: Sumuru Wanxia
+(consort), Tan Qiaoyun (noble lady), Zhao Deshou (chief eunuch), Liu Cuiping (the noble lady's
+maid), Han Baoshan (stall keeper). The Emperor is in the setting paragraph only, and the GM's
+brief says never to spawn or play him. Items: a lacquer chest holding a jade hairpin, tea things,
+a tea cabinet and supply shelves (stores), an embroidery frame, the stall's counter. No
+architect's office, no post office.
+
+**The mock day** (48 rounds, 193 calls, no forfeits, no rejected or error replies, replay
+equal): the consort calls Zhao, sends Han an invitation by messenger (Zhao carrying it) for
+16:00, takes the hairpin from the chest and gives it to the noble lady at tea, and invites Han in
+person at 16:30 to come again on the 22nd; the noble lady converses with the consort; Zhao travels
+to the stall, buys candles and a basket of charcoal (delivered) from the household and a snuff
+bottle with `from "own"`, puts the candles away; the maid fetches the charcoal from the gate and
+puts it away; everyone spends time and sleeps; Han comes in at the message. The test checks the
+accounts (household 200 taels − 36 cash, Zhao's purse "4 taels 982 cash"), the forms of address
+("Noble Lady Tan", "Chief Eunuch Zhao", "Cuiping"), clock labels without weekdays, that the
+architect's tools are never offered, and replay. Inviting the noble lady in person was refused
+("lives here": a household member can't be a guest), so the in-person invitation went to Han.
+
+**The England review** (best effort: every distinct prompt of the palace's mock day and the
+rendered requests, read by eye after grepping for English words). Found → done:
+- **Weekday names**: "[Wed 12:30]" stamps (`clock/short-label`'s fixed `"EEE HH:mm"`), and
+  "on Wednesday 20 October at 16:00" in invitations, returns and visit replies (fixed
+  `"EEEE d MMMM"` in visits and hiring). Now the pack's `:clock :day-label` goes into the run's
+  clock at `init` (only when a pack gives one, so England's clock and GM state are unchanged)
+  and `clock/when-label` / `clock/date-pattern` read `:clock :date-label`. The palace: "20 Oct
+  21:30", "20 October at 16:00".
+- **English measures in shared templates**: quote-goods' `("a stone", "2 lb", "half a dozen",
+  "3")` and the appraiser's "such as 1 lb, 1 loaf, 1 tin or 1 dozen" → pack parameters
+  `{{amount-examples}}` and `{{unit-examples}}` (England's text unchanged).
+- **Scene judge's** `"about 17 lb left"` → `"about a third left"` (shared; England changes).
+- **GM's open-route doc** "(e.g. rooms of one house)" → "rooms of one building" (shared).
+- **Mock appraisal's** desc "An ordinary X from the village shop." → "An ordinary X." (mock only).
+- **Hiring candidate's situation**: "wait at the house, in the village or at the pub" → "wait
+  anywhere in the mapped area" (as the hiring rules already say).
+- **Money refusal** "the household has …" → the pack's household name ("the palace household
+  has …"; England unchanged).
+- **`find` refused at a shop**: "this isn't your house to search" → "these aren't your things to
+  search" (shared; only with `:find-everywhere? false`).
+- **The invite example** "my mother, Lady Wanggiya" didn't fit the shared "not just \"my father\""
+  → the palace's example is "my father, Wanggiya Fulu".
+- **The palace's setting paragraph** said "No architect works here and there is no post office";
+  removed (it put an architect in a Qing palace).
+England's capture diff for `1766904`: only the scene judge's amount example, the open-route doc
+(rendered tools), the mock appraisal's desc and Lodge's candidate situation.
+
+Left, with reasons: the scene judge's other illustrations ("the pantry", "polish the silver",
+"curtain cord", "(floor, hearth, air)") and the appraiser's "1 knife, 1 tongue", consumables
+"(… polish, matches)" (examples of kinds, group A); the position enum value `sleeps: "in-house"`
+in views (an identifier); `"post"` in invite's enum (refused with a reason without a post office,
+as section 3.1 allows); hiring's sequence and words like "staff", "candidate", "a character/
+reference" (decision 6); the offline stub's "Pat Ellis N" courier and the mock appearance's
+"spectacles" (mock only); the invitation judge gives no name order for a new person's name (the
+era is in its prompt); `building.clj`'s "not in the house" errors (only with an architect's
+office); the errand eunuch is employed by the stall keeper (deliveries make the shop's clerk the
+courier's employer, as the plan's courier position implies). Hiring's sequence (negotiated
+terms, "New staff") doesn't fit a palace where people are assigned (decision 6, later).
+
+**GM prompt** (rendered by hand into `rendered/palace/gm-request.md`): 22.9k characters; no pack,
+no data set or honorifics; the brief is the setting paragraph and the palace's GM `:about`; the
+state shows `"house":"the Palace of Gathered Fragrance"`, cash amounts in the accounts map and
+neutral building keys (`plans`, `works`, `architect-prices: null`). England's GM state is
+unchanged by phase 6 (no `:day-label` in its pack).
+
+Full suite after `1766904`: **488 tests, 9585 assertions**, green.
+
+**For phase 7.** `scenario-authoring.md` now has "People in a setting pack" and "A new setting:
+the palace as the example", and the setting-pack section lists the new parameters. Still to do:
+roadmap A3, and `AGENTS.md`'s table and layout (the palace scenario, `resources/settings/
+qing-palace/`, the people server's `settings/<dataset>/`, `people.edn`; not edited here because
+the main checkout has the user's uncommitted edits to it).
+
+**For phase 8 (the real run).** `clojure -M:run palace --test --port 809x --max-rounds 10` (the
+scenario's `:max-cost` is 0.20). Watch for: names and forms of address the models write
+(family name first?), prices in cash and taels from the appraiser, the stall's goods and
+delivery, whether anyone tries to hire (the hiring rules are England's sequence), the Emperor
+staying off stage, any English idiom (Mr/Mrs, pounds, "the house") in the models' own lines, and
+whether the consort's messenger invitations and the noble lady's deference come across.
 7. **Docs.** `scenario-authoring.md` (setting packs, `:meta :meeting-place`, money specs,
    templates and overrides), roadmap A3 (partly done by this), `AGENTS.md`'s table and layout.
 8. **Real run**, then read the transcript.

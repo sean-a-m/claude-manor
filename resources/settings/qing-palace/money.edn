@@ -1,0 +1,4 @@
+;; Silver taels and copper cash at the official rate, fixed at 1,000 cash to
+;; the tael, so one integer counts both (see docs/settings-design.md 3.4).
+{:units [{:value 1000 :singular "tael" :plural "taels"} {:value 1 :singular "cash" :plural "cash"}]
+ :zero "0 cash" :base-name "cash (copper coins)" :authored 1000 :authored-name "whole taels of silver"}

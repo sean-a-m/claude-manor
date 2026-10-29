@@ -1,0 +1,5 @@
+;; A near-empty calendar: dates are Gregorian (no lunar dates yet), so only a
+;; solar observance is listed. An occasion promises no ceremony or effect.
+[{:id "winter-solstice-1784" :date "1784-12-21"
+  :description "The winter solstice, when the Emperor offers the great sacrifice at the Altar of Heaven."
+  :visible-to :all}]

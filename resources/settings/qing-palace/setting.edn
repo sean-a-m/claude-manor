@@ -1,0 +1,10 @@
+{:id "qing-palace"
+ :era "the Qing imperial palace in Beijing in the 1780s"
+ :home "the inner court"
+ :household-name "the palace household"
+ :everyday-things "cloths, brooms, paper, ink, tea, candles, charcoal, needles and thread and the like"
+ :measures "a jin of tea is qty 16 of unit 1 liang, or qty 1 of unit 1 jin; a dozen candles is qty 12 of unit 1 candle; a bolt of silk is qty 1 of unit 1 bolt"
+ :invite-example "my mother, Lady Wanggiya"
+ :known-as-example "a physician of the Imperial Pharmacy"
+ :courier-position :errand-eunuch
+ :clock {:label "d MMMM yyyy, HH:mm"}}

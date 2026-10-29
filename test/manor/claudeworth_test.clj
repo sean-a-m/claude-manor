@@ -888,7 +888,7 @@
         (let [before (e/events run)
               calls (store/read-llm (:dir run))
               result (resolve/run-query! run "hale" (action run :find) {:what "sugar"})]
-          (is (= "this isn't your house to search; ask for it here instead" (:error result)))
+          (is (= "these aren't your things to search; ask for it here instead" (:error result)))
           (is (= before (e/events run)))
           (is (= calls (store/read-llm (:dir run))))))
       (let [world (-> (e/world run) (at "hale" "study"))]

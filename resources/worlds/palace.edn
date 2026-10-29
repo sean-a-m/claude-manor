@@ -1,0 +1,123 @@
+;; The Palace of Gathered Fragrance: a skeleton world in the Qing palace, 1780s,
+;; small enough to touch every mechanic of the ruleset once (see
+;; docs/settings-design.md section 5). Real era; the people and the palace's
+;; name are fictional. Personas are short placeholders written by hand.
+;; The inner court is one walking area with the gate; the stall beyond the
+;; gate is a short journey away.
+{:meta {:name "the Palace of Gathered Fragrance"
+        :meeting-place "palace-gate" ; where candidates, guests and deliveries arrive
+        :home-domain :inner-court    ; the gate stands outside: the home area is the inner court
+        :start "1784-10-20T08:00"
+        :minutes-per-round 30
+        :starting-funds 200 ; whole taels; runtime money is cash
+        :setting-pack "settings/qing-palace"
+        :setting "The Palace of Gathered Fragrance is a consort's palace in the inner court of the Forbidden City, Beijing, in the 1780s, in the reign of the Qianlong Emperor. The Emperor is elderly and seldom seen here; he is never met in person. Consort Sumuru keeps the palace with her chief eunuch, Zhao; Noble Lady Tan lives in its smaller Pavilion of Pure Dew with her maid. A long covered street joins the palace to the gate. Beyond the gate, Master Han keeps a stall of silk and sundries, where the palace's eunuchs buy what the allowance does not supply."}
+
+ :locations
+ [;; ------------------------------------------------ the inner court
+  {:id "covered-street" :name "Long covered street" :domain :inner-court :floor :outside :kind :passage
+   :connects-to ["front-hall" "pavilion" "garden" "palace-gate"]
+   :aspects {:cleanliness "swept, with a few leaves blown in"}
+   :desc "A long walled passage under a tiled roof, red walls on either side, joining the palace to the gate."}
+  {:id "front-hall" :name "Front hall" :domain :inner-court :floor :ground :kind :hall
+   :connects-to ["consort-bedchamber" "east-side-room" "west-side-room" "eunuchs-quarters"]
+   :aspects {:cleanliness "dust on the lacquered screen" :state "braziers unlit"}
+   :desc "The main hall of the Palace of Gathered Fragrance: a raised seat before a carved screen, where the consort receives."}
+  {:id "consort-bedchamber" :name "Consort's bedchamber" :domain :inner-court :floor :ground :kind :bedroom
+   :aspects {:state "the kang warmed"}
+   :desc "The consort's bedchamber behind the hall, with a heated kang under silk hangings and a dressing table."}
+  {:id "east-side-room" :name "East side room" :domain :inner-court :floor :ground :kind :sitting-room
+   :aspects {:cleanliness "the tea table wiped"}
+   :desc "A sunny side room where the consort takes tea, paints and receives her equals."}
+  {:id "west-side-room" :name "West side room" :domain :inner-court :floor :ground :kind :store-room
+   :aspects {:state "cool and dim"}
+   :desc "A store room of chests and shelves, where the palace keeps its silks, candles and charcoal."}
+  {:id "eunuchs-quarters" :name "Eunuchs' quarters" :domain :inner-court :floor :ground :kind :bedroom
+   :aspects {:cleanliness "the floor swept"}
+   :desc "A plain row of rooms by the side gate of the palace, where the chief eunuch sleeps."}
+  {:id "pavilion" :name "Pavilion of Pure Dew" :domain :inner-court :floor :ground :kind :sitting-room
+   :connects-to ["noble-lady-bedchamber" "maids-room"]
+   :aspects {:cleanliness "a little dusty"}
+   :desc "The noble lady's small pavilion across the courtyard: one sitting room with lattice windows onto the garden."}
+  {:id "noble-lady-bedchamber" :name "Noble lady's bedchamber" :domain :inner-court :floor :ground :kind :bedroom
+   :desc "A narrow bedchamber off the pavilion, with a kang and a painted wardrobe."}
+  {:id "maids-room" :name "Maid's room" :domain :inner-court :floor :ground :kind :bedroom
+   :desc "A small room behind the pavilion, with a pallet and a box for a maid's clothes."}
+  {:id "garden" :name "Garden" :domain :inner-court :floor :outside :kind :garden
+   :aspects {:state "chrysanthemums in pots along the path"}
+   :desc "A small walled garden of rocks, an old pine and a little pond, between the palace and the pavilion."}
+
+  ;; ------------------------------------------------ beyond the gate
+  {:id "palace-gate" :name "Palace gate" :domain :outside :floor :outside :kind :approach
+   :desc "A gate in the inner court's wall, kept by guards, where people from outside wait to be let in."}
+  {:id "silk-stall" :name "Silk and sundries stall" :domain :outside :kind :shop
+   :hours ["08:00" "17:00"] :services #{:general-store}
+   :connects-to ["stall-lodgings"]
+   :store-profile "A small stall beyond the palace gate in Beijing in the 1780s. Silk thread, ribbons, small lengths of silk, needles, fans, tea, candles, charcoal, snuff and sweetmeats, sold to the palace's eunuchs and maids. These describe its scope, not an exhaustive inventory. Only ordinary portable purchases over the counter; no credit."
+   :delivery-profile "Bulky goods, such as baskets of charcoal, are carried in to the gate for the buyer."
+   :desc "A wooden stall under an awning, its counter laid with skeins of coloured thread and packets of tea."}
+  {:id "stall-lodgings" :name "Stall keeper's room" :domain :outside :kind :bedroom
+   :desc "A small room behind the stall, with a bed and a strongbox."}]
+
+ ;; journeys: [from to rounds], two-way; one round is half an hour
+ :routes [["palace-gate" "silk-stall" 1]]
+
+ :roles
+ {:consort {:workplace ["front-hall"]}
+  :noble-lady {:workplace ["pavilion"]}
+  :chief-eunuch {:workplace ["front-hall"]}
+  :palace-maid {:workplace ["pavilion"]}
+  :stall-keeper {:workplace ["silk-stall"]}
+  :gm {:about "A consort's palace in the inner court going about its day. The Emperor stays off stage: never spawn or play him."}}
+
+ :items
+ [{:id "lacquer-chest" :name "Lacquer chest" :place "consort-bedchamber" :owner "Sumuru Wanxia" :fixed? true :container :closed
+   :desc "A red lacquer chest carved with peonies, for the consort's ornaments."}
+  {:id "jade-hairpin" :name "Jade hairpin" :in "lacquer-chest" :owner "Sumuru Wanxia"
+   :desc "A white jade hairpin carved with a magnolia flower."}
+  {:id "tea-things" :name "Tea things" :place "east-side-room" :owner "household"
+   :aspects {:cleanliness "the cups need rinsing"}
+   :desc "A celadon teapot, covered cups on a tray and a small brazier for water."}
+  {:id "tea-cabinet" :name "Tea cabinet" :place "east-side-room" :owner "household" :fixed? true :container :closed
+   :store {:keeps "tea, sugar, dried fruit and sweetmeats"}
+   :aspects {:stock "enough for a few days" :lacking "good green tea"}
+   :desc "A small cabinet of tea caddies and covered dishes."}
+  {:id "supply-shelves" :name "Supply shelves" :place "west-side-room" :owner "household" :fixed? true :container :open
+   :store {:keeps "candles, charcoal, lamp oil, brooms and cloths" :serves ["front-hall" "east-side-room" "consort-bedchamber"]}
+   :aspects {:stock "low on candles"}
+   :desc "Plain shelves along the store room wall."}
+  {:id "embroidery-frame" :name "Embroidery frame" :place "pavilion" :owner "Tan Qiaoyun"
+   :aspects {:state "a half-finished panel of cranes"}
+   :desc "A standing frame holding a panel of silk embroidery."}
+  {:id "stall-counter" :name "Stall counter" :place "silk-stall" :owner "Han Baoshan" :fixed? true
+   :desc "A wooden counter with a set of small scales for tea and silver."}]
+
+ :agents
+ [{:name "Sumuru Wanxia" :sex :female :role :consort :age 32 :location "consort-bedchamber" :bedroom "consort-bedchamber"
+   :purse 30
+   :situation "You are a consort of the fourth rank and mistress of the Palace of Gathered Fragrance. Zhao, your chief eunuch, runs the palace for you. Noble Lady Tan lives in the pavilion across your courtyard; she is young, newly come, and in your charge. The Emperor has not called in some months."
+   :persona "You are composed and watchful, a Manchu lady of a good banner family, proud of your calligraphy and careful of your standing."
+   :manner "You speak little and slowly, and let silences do your work."
+   :appearance "A slender woman in her thirties in a dark blue court robe embroidered with plum blossom, her hair dressed high with jade pins."}
+  {:name "Tan Qiaoyun" :sex :female :role :noble-lady :age 17 :location "noble-lady-bedchamber" :bedroom "noble-lady-bedchamber"
+   :purse 8
+   :situation "You are a noble lady of the sixth rank, chosen at the last selection and given the Pavilion of Pure Dew in Consort Sumuru's palace. Your maid Cuiping is your only servant. You owe the consort a call each morning."
+   :persona "You are quick, curious and homesick, eager to please and quick to take offence."
+   :manner "You smile readily and ask too many questions."
+   :appearance "A small young woman in a pale green robe, her hair dressed simply with a single silver pin."}
+  {:name "Zhao Deshou" :sex :male :role :chief-eunuch :age 48 :location "eunuchs-quarters" :bedroom "eunuchs-quarters"
+   :purse 5
+   :situation "You are the chief eunuch of the Palace of Gathered Fragrance, with charge of its stores, its accounts and its errands beyond the gate. The candles in the store room are running low."
+   :persona "You are patient, exact and discreet, and you keep every account in your head."
+   :manner "You bow low and say what is wanted before it is asked."
+   :appearance "A heavy, smooth-faced man near fifty in a dark eunuch's robe and a cap with a plain button."}
+  {:name "Liu Cuiping" :sex :female :role :palace-maid :age 16 :location "maids-room" :bedroom "maids-room"
+   :situation "You are the palace maid of Noble Lady Tan in the Pavilion of Pure Dew. You came into the palace two years ago from a bondservant family."
+   :persona "You are hard-working, cautious and shrewd about whom to trust."
+   :manner "You keep your eyes down and your answers short."
+   :appearance "A thin girl in a plain blue maid's robe, her hair in a single braid."}
+  {:name "Han Baoshan" :sex :male :role :stall-keeper :age 51 :location "silk-stall" :bedroom "stall-lodgings"
+   :situation "You keep the silk and sundries stall beyond the palace gate and sleep in the room behind it. The palace's eunuchs are your best customers."
+   :persona "You are a Shanxi man, shrewd and genial, who knows the price of everything in the capital."
+   :manner "You greet every customer as an old friend and weigh their silver twice."
+   :appearance "A stout man past fifty in a padded brown jacket and a skullcap, an abacus at his elbow."}]}

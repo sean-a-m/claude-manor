@@ -18,6 +18,7 @@
             [manor.mechanics.building :as building]
             [manor.mechanics.deliveries :as deliveries]
             [manor.mechanics.money :as money]
+            [manor.settings :as settings]
             [manor.world :as w]))
 
 (def max-unit-price 240000) ; bound untrusted arithmetic, not a price list
@@ -113,7 +114,7 @@
   {:tool :appraise
    :args {:lines (for [{:keys [item amount deliver]} request]
                    (cond-> {:available true :item item :qty (or (parse-long amount) 1) :unit "one"
-                            :desc (str "An ordinary " item " from the village shop.")
+                            :desc (str "An ordinary " item ".")
                             :condition "new" :consumable false :unit-price 18}
                      deliver (assoc :lead-hours 2)))}})
 
@@ -390,18 +391,26 @@
       {:tool :send-up :args {:items sends :within-hours 1}}
       :else {:tool :pass})))
 
-(defn scripted-customer [world buyer tool args]
-  (case tool
-    :request-goods [:say {:text (str "Could I buy "
-                                     (str/join " and " (for [{:keys [amount item deliver]} (request-lines args)]
-                                                         (str amount " " item (when deliver ", sent up to the house"))))
-                                     ", please?")}]
-    :accept-offer (let [quotes (sort-by :id (vals (get-in world [:state :quotes])))
-                        ids (vec (keep (fn [item] (:id (first (filter #(and (= buyer (:buyer %)) (= item (:item %))) quotes))))
-                                       (or (:items args) [(:item args)])))]
-                    (if (seq ids) [:buy {:quote-ids ids :hand-over (:hand-over args "take")}] [:pass {}]))
-    :ask-send-up [:say {:text (str "Would you send the " (:item args) " up to the house, please?")}]
-    [tool args]))
+(defn scripted-customer
+  "A scripted customer's marker as a real call: :request-goods says what
+  they want, :accept-offer buys their quotes for those items (from the
+  account in its :from, if given), :ask-send-up asks for goods to be sent
+  up to the setting's home."
+  [world buyer tool args]
+  (let [home (settings/parameter world :home)]
+    (case tool
+      :request-goods [:say {:text (str "Could I buy "
+                                       (str/join " and " (for [{:keys [amount item deliver]} (request-lines args)]
+                                                           (str amount " " item (when deliver (str ", sent up to " home)))))
+                                       ", please?")}]
+      :accept-offer (let [quotes (sort-by :id (vals (get-in world [:state :quotes])))
+                          ids (vec (keep (fn [item] (:id (first (filter #(and (= buyer (:buyer %)) (= item (:item %))) quotes))))
+                                         (or (:items args) [(:item args)])))]
+                      (if (seq ids)
+                        [:buy (cond-> {:quote-ids ids :hand-over (:hand-over args "take")} (:from args) (assoc :from (:from args)))]
+                        [:pass {}]))
+      :ask-send-up [:say {:text (str "Would you send the " (:item args) " up to " home ", please?")}]
+      [tool args])))
 
 (defn problems [{:keys [locations] :as wf}]
   (concat

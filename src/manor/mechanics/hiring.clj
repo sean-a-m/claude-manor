@@ -12,10 +12,9 @@
             [manor.mechanics.space :as space]
             [manor.narrate :as n]
             [manor.prompts :as prompts]
+            [manor.settings :as settings]
             [manor.world :as w])
-  (:import (java.time LocalDate LocalDateTime LocalTime)
-           (java.time.format DateTimeFormatter)
-           (java.util Locale)))
+  (:import (java.time LocalDate LocalDateTime LocalTime)))
 
 (def pool-limit 40)
 (def candidate-wait-hours 24)
@@ -38,8 +37,8 @@
    (fn [{:keys [position sex ages taken-names candidate]} _]
      {:people [{:name (first (remove (set taken-names) (map #(str "Pat Ellis " %) (range))))
                 :age (first (or ages [22 40])) :sex (or sex "female") :position position
-                :origin "the neighbouring village"
-                (if candidate :candidate-home :lives) (if candidate "a cottage in the next parish" "a cottage in the village")
+                :origin "a place not far off"
+                (if candidate :candidate-home :lives) (if candidate "lodgings outside the mapped area" "lodgings nearby")
                 :temperament (mapv #(hash-map :axis (name %) :level "average" :measures (people/axis-measures %)) people/axes)
                 :faculties [{:faculty "Sight" :size "small" :means "eyesight"}]}]})
    :people/reputation
@@ -143,7 +142,8 @@
   (let [record (check-record
                 (first (:people (bridge :people/generate
                                         (cond-> (assoc (people/generate-args position (get-in world [:state :positions position])
-                                                                             {:seed seed :taken-names taken-names :sex sex :ages ages})
+                                                                             {:dataset (people/dataset (settings/pack world))
+                                                                              :seed seed :taken-names taken-names :sex sex :ages ages})
                                                        :area area)
                                           candidate? (assoc :candidate true))))))]
     (when (and candidate? (or (not (string? (:candidate-home record))) (str/blank? (:candidate-home record))))
@@ -326,7 +326,7 @@
                          (str "You have come about the " (str/join ", " (map name (:seeks p)))
                               " place, sent for by " (:name (w/agent world (:summoner p)))))
                        ". Talk over the terms; you may refuse, haggle, accept-place, or take-leave. "
-                       "Remain locally available while a decision is pending: wait at the house, in the village or at the pub, "
+                       "Remain locally available while a decision is pending: wait anywhere in the mapped area, "
                        "and tell the interviewer where you will be. Walking there does not end your application. "
                        "Use take-leave only when you mean to leave the area completely, not to wait nearby: you are gone until someone sends for you, "
                        "unless you give take-leave a return-date and return-time for when to come back again."
@@ -451,12 +451,6 @@
             (.isAfter at (.plusDays (clock/time-of (:clock world) (:round world)) max-return-days))
             (str "say you'll be back within " max-return-days " days")))))
 
-(def ^:private when-format (DateTimeFormatter/ofPattern "EEEE d MMMM 'at' HH:mm" Locale/ENGLISH))
-
-(defn when-label
-  "\"Tuesday 20 December at 06:00\" for `at`."
-  [^LocalDateTime at]
-  (.format at when-format))
 
 (def calendar-owner
   "How hiring owns the calendar entries of a candidate's return (see
@@ -507,7 +501,7 @@
             place (get-in world [:state :meeting-place])]
         (vec (concat
               (map #(cond-> % (= :people/departed (:type %))
-                      (assoc-in [:data :returns] {:at place :when (when-label at)}))
+                      (assoc-in [:data :returns] {:at place :when (clock/when-label world at)}))
                    (departure world actor "takes leave"))
               [(changed (:id p) {:status :returning :arrival (clock/round-of (:clock world) at)
                                  :return-at (str at) :return-entries ids})]

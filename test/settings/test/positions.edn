@@ -1,1 +1,1 @@
-{:worker {:title "Worker" :about "You work here." :standing :villager}}
+{:worker {:title "Worker" :about "You work here." :standing :resident}}

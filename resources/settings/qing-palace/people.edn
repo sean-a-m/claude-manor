@@ -1,0 +1,15 @@
+;; People of the palace: the people server's data set, the titles left out
+;; when a form of address is filled, names written family name first, and
+;; the standings a position may have. :household? standings belong to the
+;; palace household; officials and merchants keep their own houses, and a
+;; :visitor (a guest from elsewhere) belongs to no household.
+{:dataset "qing-1780"
+ :honorifics ["Lady" "Madam" "Master" "Consort" "Noble" "Eunuch" "Chief"]
+ :name-order :family-first
+ :standings {:imperial {:household? true}
+             :consort {:household? true}
+             :eunuch {:household? true}
+             :palace-maid {:household? true}
+             :official {}
+             :merchant {}
+             :visitor {}}}

@@ -8,7 +8,7 @@
     :housemaid {:title \"Housemaid\"
                 :about \"Your day is housework: ...\"   ; duties only: no names,
                                                        ; personality or situation
-                :standing :servant                     ; one of `standings`
+                :standing :servant                     ; one of the pack's `standings`
                 :sleeps :in-house                      ; or :out
                 :workplace [\"kitchen\"]                 ; optional location ids
                 :capabilities #{:shop-clerk}           ; optional: what code treats
@@ -29,14 +29,17 @@
             [manor.settings :as settings]
             [manor.world :as w]))
 
-(def standings
-  "A :visitor (a guest from elsewhere) belongs to no household."
-  #{:family :upper-servant :servant :outdoor :tradesman :professional :villager :visitor})
+(defn standings
+  "The standings a setting pack allows: the keys of its people.edn's
+  :standings."
+  [pack]
+  (set (keys (get-in pack [:people :standings]))))
 
-(def household-standings
-  "The standings of a household's own people. A household's tradesmen and
-  professional men keep their own houses."
-  #{:family :upper-servant :servant :outdoor})
+(defn household-standing?
+  "Does `standing` belong to the household's own people, by the setting
+  pack (:household? true in its people.edn)?"
+  [pack standing]
+  (boolean (get-in pack [:people :standings standing :household?])))
 
 (def household
   "The household a post belongs to when it's in the house (the owner of the
@@ -75,8 +78,9 @@
     "a string, or a map of :male and :female to strings"))
 
 (defn entry-problems
-  "What's wrong with one position entry, as readable strings."
-  [id {:keys [about addressed-as] :as entry}]
+  "What's wrong with one position entry, as readable strings. `standings`
+  are the setting pack's (`standings`)."
+  [standings id {:keys [about addressed-as] :as entry}]
   (let [where (str "position " id ": ")]
     (concat
      (when-not (and (string? about) (not (str/blank? about)))
@@ -116,16 +120,20 @@
   ([world id] (household-member? world id household))
   ([world id h] (= h (:household (post world id)))))
 
-(def ^:private honorifics #{"Mr" "Mrs" "Miss" "Master" "Lord" "Lady" "Sir" "Dr" "Father" "Brother" "Sister"})
-
-(defn- fill
-  "An address `template` filled from `person-name`: {first-name} is its first
-  word and {surname} its last, honorifics aside."
-  [template person-name]
-  (let [words (remove honorifics (str/split (str/trim (str person-name)) #"\s+"))]
+(defn fill
+  "An address `template` filled from `person-name`, by `people` (a setting
+  pack's people.edn), with its :honorifics left out of the name first. By
+  :name-order :given-first, {first-name} is the name's first word and
+  {surname} its last; by :family-first, {surname} is its first word and
+  {first-name} the rest (or that one word, if it's all there is)."
+  [{:keys [honorifics name-order]} template person-name]
+  (let [words (remove (set honorifics) (str/split (str/trim (str person-name)) #"\s+"))
+        [given family] (if (= :family-first name-order)
+                         [(if (next words) (str/join " " (rest words)) (first words)) (first words)]
+                         [(first words) (last words)])]
     (-> template
-        (str/replace "{first-name}" (or (first words) ""))
-        (str/replace "{surname}" (or (last words) "")))))
+        (str/replace "{first-name}" (or given ""))
+        (str/replace "{surname}" (or family "")))))
 
 (defn addressed-as
   "How `id` is addressed, from their position's :addressed-as and their name
@@ -135,7 +143,7 @@
   (let [a (w/agent world id)
         template (:addressed-as (position world id))
         template (if (map? template) (get template (:sex a) (first (vals template))) template)]
-    (when template (fill template (:name a)))))
+    (when template (fill (:people (settings/pack world)) template (:name a)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Events
@@ -184,13 +192,14 @@
   "The post, bedroom and routine of someone just arrived (`spec` is what
   they were spawned with: a world file's agent, or an operator's spec). The
   post is their role's position, in the household if `spec` says
-  :household, or else if the position's standing is one of the household's.
-  The GM holds no post."
+  :household, or else if the position's standing is one of the household's
+  (`household-standing?`). The GM holds no post."
   [world id {:keys [bedroom routine] :as spec}]
   (let [role (:role (w/agent world id))
         h (if (contains? spec :household)
             (:household spec)
-            (when (household-standings (get-in world [:state :positions role :standing])) household))]
+            (when (household-standing? (settings/pack world) (get-in world [:state :positions role :standing]))
+              household))]
     (if (= :gm role)
       []
       (cond-> [(post-changed world id role {:household h})]

@@ -1928,9 +1928,12 @@ data, so there's one source and no call.
   a successful re-roll also removes a legacy `:sketch` if one is present.
 - The basic traits come from the **people server** (`mcp-servers/people/`, babashka,
   stateless, no model, no key). `generate_people {position count area setting seed taken-names sex ages candidate}`
-  rolls identity and readings from `temperament.edn`, `faculties.edn` and `names.edn`:
-  a name sharing no word with `taken-names`, requested sex (else either), age within `ages`
-  (else 18–55), origin, home, five temperament levels and one faculty from each of seven groups.
+  rolls identity and readings from `temperament.edn`, `faculties.edn` (shared) and the data set
+  `setting` names (`settings/<dataset>/names.edn`, default `"england-1900"`; the engine sends its
+  pack's `people.edn` `:dataset`): a name sharing no word with `taken-names` (the data set's
+  `:honorifics` aside), written in the data set's `:name-order`, requested sex (else either), age
+  within `ages` (else 18–55), origin, home, five temperament levels and one faculty from each of
+  seven groups. See "People in a setting pack" for the data sets.
   Readings carry only names, values and short definitions (`:measures`/`:means`).
   There are **no behavioural descriptors or circumstance templates**. Levels, sizes and
   faculty-selection distributions are unchanged; removing descriptor draws changes exact
@@ -1960,7 +1963,8 @@ data, so there's one source and no call.
   400/accepted 600, all nonblank. One correction is allowed. No phrase/regex checks judge
   prose. Basic readings stay from the server; written circumstances are stored with them.
   `mock-polish` is a free deterministic fixture, not another production generator.
-- `reputation {person knower relation seed}` takes the completed record and selects known
+- `reputation {person knower relation seed}` (relations `by-sight`, `neighbour`, `acquaintance`,
+  `worked-alongside`, `employer`, `family`) takes the completed record and selects known
   basic readings and some **already-written** circumstances according to relation. No new
   behavioural descriptions are supplied: the recommending agent interprets the readings.
   The acquaintance line still comes from the deterministic relationship service.
@@ -2089,10 +2093,17 @@ The household scenarios name a classpath directory in `:meta :setting-pack`, cur
 England; old run money/state/event shapes are not supported. A pack contains:
 
 - `setting.edn`: prompt parameters (`:era`, `:home`, `:household-name`, `:everyday-things`,
-  `:measures`, `:invite-example`, `:known-as-example`), `:clock {:label "EEEE d MMMM yyyy, HH:mm"}`
-  and `:courier-position` (England `:errand-boy`, overridable by a shop's `:courier`).
+  `:measures`, `:unit-examples` and `:amount-examples` for the shop, `:invite-example`,
+  `:known-as-example`), `:clock` and `:courier-position` (England `:errand-boy`, overridable by a
+  shop's `:courier`). `:clock {:label "EEEE d MMMM yyyy, HH:mm"}` formats the time now; optional
+  `:day-label` (a time on another day, default `"EEE HH:mm"`, copied into the run's clock by the
+  ruleset's `init` and used by `clock/short-label`) and `:date-label` (a date in prose, default
+  `"EEEE d MMMM"`, used by `clock/when-label` for invitations and returns). The palace uses
+  `"d MMMM yyyy, HH:mm"`, `"d MMM HH:mm"` and `"d MMMM"`: no weekdays.
 - `money.edn`: the currency spec, available to templates as `{{money.base-name}}`,
   `{{money.authored-name}}`, etc. See below; no `:authored-money` parameter remains.
+- `people.edn`: the people server's data set, honorifics, name order and standings (see "People in
+  a setting pack" below).
 - `positions.edn`: the default positions catalogue; `calendar.edn`: explicitly dated holidays.
 - `prompts/money.md`, `prompts/money-pricing.md` and `prompts/invitation-examples.md`: setting-specific
   prose used by the shopping rules, the shop appraiser and the invitation judge. Any other markdown file under `prompts/` may
@@ -2102,7 +2113,9 @@ The ruleset's `init` (`manor.ruleset.init`) loads all this through `manor.settin
 `[:state :setting-pack]`. Fragment/override text is snapshotted, so editing pack files does not
 change an existing run. `settings/pack` reads that snapshot (England for a pre-pack state), and
 `(settings/parameter world :home)` or `(settings/parameter world :clock :label)` reads a parameter.
-The loaded pack's `:positions`, `:calendar`, `:source` and `:prompts` are not rendering parameters.
+The loaded pack's `:positions`, `:calendar`, `:people`, `:source` and `:prompts` are not rendering
+parameters. Two packs ship: `settings/england-1904` (Claudeworth, the medium household, Lodge) and
+`settings/qing-palace` (the palace).
 
 `(manor.prompts/render world "path.md" params)` looks in the pack first, then
 `resources/prompts/path.md`, and fills `{{key}}` or dotted paths from the setting parameters with
@@ -2116,6 +2129,63 @@ old callers. `clock/world-label` applies the pack's clock label. Dated tool docs
 `prompts/example-date`: the run's start date, or `1970-01-01` without a clock, solely as a format
 example. Judge briefs include architect/delivery paragraphs only with the corresponding places;
 visits' post option is described only with a post office.
+
+#### People in a setting pack
+
+A pack's `people.edn` says how people are named and ranked in its setting:
+
+```clojure
+;; settings/qing-palace/people.edn
+{:dataset "qing-1780"                 ; the people server's data set (mcp-servers/people/settings/qing-1780/)
+ :honorifics ["Lady" "Madam" "Master" "Consort" "Noble" "Eunuch" "Chief"]
+ :name-order :family-first            ; or :given-first (England)
+ :standings {:imperial {:household? true} :consort {:household? true}
+             :eunuch {:household? true} :palace-maid {:household? true}
+             :official {} :merchant {} :visitor {}}}
+```
+
+- **Standings** are the keys of `:standings`: a position's `:standing` must be one of them
+  (`positions/standings`, checked by the ruleset's `problems` against the world file's pack).
+  `:household? true` marks the standings whose holders start in the household
+  (`positions/household-standing?`); the others keep their own homes. England's are `:family
+  :upper-servant :servant :outdoor` (household) and `:tradesman :professional :villager :visitor`.
+- **Forms of address** (`positions/fill`) leave the pack's `:honorifics` out of the name, then
+  read it by `:name-order`: `:given-first` makes `{first-name}` the first word and `{surname}` the
+  last ("Mr {surname}" for "John Hale" is "Mr Hale"); `:family-first` makes `{surname}` the first
+  word and `{first-name}` the rest ("Noble Lady {surname}" for "Tan Qiaoyun" is "Noble Lady Tan").
+- **The people server's data set** is `mcp-servers/people/settings/<dataset>/names.edn`: its own
+  `:name-order` (the server builds "Given Family" or "Family Given"), its `:honorifics` (words
+  that are never a name, so a taken "Consort Wang" blocks only "Wang"), first names by sex
+  (`:male`, `:female`), `:surnames`, `:origins`, `:dwellings` and `:candidate-home-areas`. A new
+  directory there is a new data set; nothing else changes. The data set keeps its own name order
+  so the server needs nothing from the engine. `temperament.edn` and `faculties.edn` are shared.
+
+#### A new setting: the palace as the example
+
+The palace (`resources/worlds/palace.edn`, `src/manor/scenarios/palace.clj`) is a skeleton built
+to touch every mechanic in a setting that isn't England. A new setting takes these steps:
+
+1. **A pack** under `resources/settings/<id>/`: `setting.edn` (the parameters above; give
+   `:clock` labels without English weekdays if the setting shouldn't have them), `money.edn` (the
+   palace counts cash, 1,000 to the tael, and authors whole taels), `people.edn`, `positions.edn`
+   (every position the world uses, plus `:guest` and `:none`, which visits and hiring rely on,
+   and the pack's `:courier-position`), `calendar.edn` (`[]` is fine), and the three fragments
+   `prompts/money.md`, `prompts/money-pricing.md` and `prompts/invitation-examples.md`.
+2. **A people data set** in `mcp-servers/people/settings/<dataset>/names.edn` for new people
+   (candidates, couriers, guests written to order and `roll-cast!`).
+3. **A world file** naming the pack (`:meta :setting-pack "settings/<id>"`), the meeting place,
+   and `:meta :home-domain` when the meeting place stands outside the home area (the palace gate
+   is in `:outside`; the home is `:inner-court`). Starting funds and purses are in the pack's
+   authored unit. Leave out an architect's office or a post office and their mechanics don't
+   appear. Write personas by hand, or `roll-cast!` once the data set exists (a real-model call).
+4. **A mock day** (`resources/worlds/<name>-day.edn`) and **a scenario** of a few lines on
+   `manor.ruleset` (see `palace.clj`). Add it to `bundled` and give it a test like
+   `test/manor/palace_test.clj`.
+5. **Read what it sends**: `dev/prompt_capture.clj` captures the palace's mock day and renders
+   its judges', writers' and GM requests under `prompt-baseline/<label>/rendered/palace/`. Look
+   for the old setting showing through; fix it in the shared template if the wording can be
+   neutral, or in the pack (a parameter, a fragment, or an override at the template's path under
+   `prompts/`) if it is the setting's own.
 
 #### Money and private accounts
 
@@ -2180,7 +2250,7 @@ An entry:
 ```clojure
 :housemaid {:title "Housemaid"
             :about "You are in service to the family. Your day is housework: ..."
-            :standing :servant      ; :family :upper-servant :servant :outdoor :tradesman :professional :villager :visitor
+            :standing :servant      ; one of the pack's standings (people.edn), England's here
             :sleeps :in-house       ; or :out
             :workplace ["kitchen"]  ; optional location ids; best given in the world file
             :capabilities #{:shop-clerk}   ; optional: what code treats the holder as
@@ -2196,7 +2266,8 @@ An entry:
   `:about`, and that workplaces are locations.
 - Claudeworth's `agent-brief` begins "Your position: Private secretary. You live in. You work at:
   Study (study)." and then gives the `:about`, the setting and the rules. `:standing` decides
-  who starts in the household (`positions/household-standings`). `:visitor` is the one standing
+  who starts in the household (`positions/household-standing?`, from the pack's `people.edn`). In
+  England, `:visitor` is the one standing
   outside every household: the catalogue's `:guest` (someone from elsewhere, see Visits), which
   has no `:sleeps` because they live elsewhere.
 - `:capabilities` are what code and tools go by (see `:needs` under `:actions`): `:shop-clerk`
@@ -2207,8 +2278,8 @@ An entry:
 **Forms of address** are behind the run option `:addressed-as?` (default true; CLI
 `--no-address` turns it off), so runs with and without them can be compared. When it's on, an
 agent's own prompt says "People address you as my lord." and the view of the people present gives
-each one's `:address-as`. `{first-name}` and `{surname}` are the first and last words of their
-name, titles aside. When it's off, `positions/table` drops every `:addressed-as`, so no form of
+each one's `:address-as`. `{first-name}` and `{surname}` are read by the pack's name order, the
+pack's honorifics aside (see "People in a setting pack"). When it's off, `positions/table` drops every `:addressed-as`, so no form of
 address appears anywhere; keep them out of `:about` texts and situations for the same reason (name
 people as the world names them: "Pugh", not "Mr Pugh").
 
@@ -2751,6 +2822,10 @@ valid initialization, valid mock actions and exact replay. A deliberate default 
 update its configuration test, but should not require changing unrelated mechanics tests.
 
 ## Checklist for a new scenario
+
+A household world on the shared ruleset needs much less: a world file, a mock day and a few lines
+of scenario (see "A new setting: the palace as the example"). The steps below are for a scenario
+with its own rules.
 
 1. Copy `treasure.clj` to `src/manor/scenarios/<name>.clj` and rename the namespace and `:name`.
 2. Define `:state` and (optionally) `:space` in `:init`, plus the starting agents.

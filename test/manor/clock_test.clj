@@ -1,6 +1,8 @@
 (ns manor.clock-test
   (:require [clojure.test :refer [deftest is testing]]
-            [manor.clock :as clock]))
+            [manor.clock :as clock]
+            [manor.settings :as settings])
+  (:import (java.time LocalDateTime)))
 
 (def c {:start "1904-10-15T21:00" :minutes-per-round 30})
 
@@ -14,6 +16,8 @@
   (testing "short labels add the day only when it differs from today"
     (is (= "21:30" (clock/short-label c 2 3)))
     (is (= "Sat 23:30" (clock/short-label c 6 7))))
+  (testing "a setting's clock may say how a time on another day looks"
+    (is (= "15 Oct 23:30" (clock/short-label (assoc c :day-label "d MMM HH:mm") 6 7))))
   (is (= 48 (clock/rounds-per-day c)))
   (is (= 1 (clock/rounds-for c 10)))
   (is (= 4 (clock/rounds-for c 120))))
@@ -32,3 +36,10 @@
   (is (= 1 (count (clock/problems (assoc c :start "15/10/1904")))))
   (is (= 1 (count (clock/problems (assoc c :minutes-per-round 0)))))
   (is (seq (clock/problems "noon"))))
+
+(deftest dates-in-prose-follow-the-setting
+  (let [at (LocalDateTime/parse "1904-10-21T19:00")
+        palace {:state {:setting-pack (settings/load-pack "settings/qing-palace")}}]
+    (is (= "Friday 21 October at 19:00" (clock/when-label {} at)))
+    (is (= "21 October at 19:00" (clock/when-label palace at)))
+    (is (= "d MMMM" (clock/date-pattern palace)))))

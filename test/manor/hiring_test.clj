@@ -100,7 +100,7 @@
       (let [world (e/world run) p (first-person world)]
         (is (= :pooled (:status p)))
         (is (= [secret] (get-in p [:record :circumstances])))
-        (is (= "a cottage in the next parish" (:candidate-home p)))
+        (is (= "lodgings outside the mapped area" (:candidate-home p)))
         (is (= (:candidate-home p) (get-in p [:record :candidate-home])))
         (is (not (contains? p :lives)))
         (is (= (:candidate-home p) (get-in (h/observe world "employer") [:candidates 0 :candidate-home])))

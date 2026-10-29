@@ -1,0 +1,71 @@
+;; Names for the Qing capital and palace in the 1780s, romanised in pinyin
+;; (Manchu clan names as they are usually written in English): given names
+;; by sex, and family names, written family name first ("Wang Xiuying").
+;; Honorifics are words that are never a name (a taken "Consort Wang" takes
+;; only "Wang"). Also where people come from and where they live, for base
+;; records. Fictional people: no name here is meant as a historical person.
+{:name-order :family-first
+ :honorifics ["Lady" "Madam" "Master" "Consort" "Noble" "Eunuch" "Chief"]
+ :male ["Deshou" "Fugui" "Changlu" "Yongan" "Jinxi" "Wenhai" "Baoshan" "Shunfu" "Tianlu"
+        "Xifu" "Guoqing" "Chenggong" "Yonglu" "Fuqing" "Jinzhong" "Zhongxiao" "Shoukang"
+        "Fulu" "Dexing" "Yongshou" "Guifu" "Changshun" "Wanfu" "Qinglin" "Baolin" "Rongshou"
+        "Xiangrui" "Zhaolin" "Jinbao" "Yushan" "Tingyu" "Shiliang" "Wenbing" "Mingde"
+        "Zhiyuan" "Haiqing" "Laifu" "Xishun" "Ruilin" "Enlu" "Shengbao" "Futai" "Dazhu"
+        "Erhu" "Sanxi" "Siyuan" "Wuyi" "Lianfu" "Chunshan" "Heng'an" "Bao'en"]
+ :female ["Xiuying" "Yulan" "Meixiang" "Cuiping" "Chunxiang" "Qiuyue" "Lianhua" "Guizhi"
+          "Suyun" "Hongmei" "Yuzhen" "Fengxian" "Shuzhen" "Wanru" "Jinhua" "Lanxin"
+          "Yinghua" "Xiaoyun" "Caiyun" "Baozhu" "Qiaoyun" "Huiling" "Shuying" "Mingzhu"
+          "Cuilan" "Xiulan" "Yueying" "Chunmei" "Yunxia" "Suqin" "Fengying" "Qinglian"
+          "Liuyun" "Xiangyun" "Dongmei" "Yumei" "Zhenzhu" "Yuexian" "Hehua" "Lingzhi"
+          "Ruixiang" "Wanxia" "Zhaoxia" "Biyu" "Xiumei" "Yuqing" "Sulan" "Jinlan"]
+ :surnames ["Wang" "Li" "Zhang" "Liu" "Chen" "Yang" "Zhao" "Huang" "Zhou" "Wu" "Xu" "Sun"
+            "Ma" "Zhu" "Hu" "Guo" "He" "Gao" "Lin" "Luo" "Zheng" "Liang" "Song" "Xie" "Tang"
+            "Han" "Feng" "Deng" "Cao" "Peng" "Zeng" "Tian" "Dong" "Pan" "Yuan" "Cai" "Jiang"
+            "Du" "Ye" "Cheng" "Su" "Ding" "Ren" "Shen" "Yao" "Lu" "Cui" "Tan" "Fan" "Jin"
+            "Bai" "Meng" "Qin" "Qiu" "Xue" "Duan" "Hou" "Gu" "Mao" "Shao" "Qian" "Dai"
+            "Niohuru" "Guwalgiya" "Fuca" "Nara" "Tunggiya" "Heseri" "Sumuru" "Uya"
+            "Wanggiya" "Magiya" "Hitara" "Janggiya" "Joogiya" "Weigiya" "Ligiya"]
+ :origins ["born in the capital's Inner City, in a bannerman's household"
+           "from a bondservant family of the Imperial Household Department"
+           "born in a bondservant family of the Plain Yellow Banner"
+           "born in a bondservant family of the Bordered Yellow Banner"
+           "from a Manchu family of the Plain White Banner"
+           "from a Han Chinese bannerman's family"
+           "from a village in Hejian prefecture, Zhili"
+           "from Jinghai county, south of Tianjin"
+           "born in a village near Baoding"
+           "from a farming family in Dacheng county, Zhili"
+           "born in the Outer City of the capital, near the Qianmen gate"
+           "from a shopkeeping family in the Outer City"
+           "from a silk merchant's family in Hangzhou"
+           "born in Suzhou, to a family of embroiderers"
+           "from Tianjin, in a boatman's family"
+           "from Tongzhou, at the head of the Grand Canal"
+           "born in Shanxi, to a family of merchants"
+           "from a family of porcelain dealers in Jingdezhen"
+           "born in Shandong, in a village of the Grand Canal"
+           "from a family of the Mongol banners"
+           "born at a garrison town beyond the Great Wall"
+           "from Mukden, in the Manchu homeland"
+           "from a family of scholars in Yangzhou"
+           "born in a temple village west of the capital"]
+ :candidate-home-areas ["in the Outer City"
+                        "beyond the Xizhimen gate"
+                        "in Haidian village"
+                        "in a village south of the capital"
+                        "in Tongzhou"]
+ :dwellings ["a courtyard house in a lane of the Inner City"
+             "rooms behind a shop near the Qianmen gate"
+             "a lodging in a lane west of the palace"
+             "a small courtyard by the Shichahai lakes"
+             "a room above a teahouse in the Outer City"
+             "a bannerman's house near the Drum Tower"
+             "rooms at a temple near the Di'anmen gate"
+             "a room in a compound of the Imperial Household Department"
+             "a courtyard shared with three families near the East Market"
+             "rooms over a silk shop on Dashilan street"
+             "a lodging by the canal in the Outer City"
+             "a small house near the Bell Tower"
+             "a room in a guildhall for merchants from Shanxi"
+             "rooms behind a medicine shop in the Inner City"
+             "a house by the moat outside the palace's west wall"]}

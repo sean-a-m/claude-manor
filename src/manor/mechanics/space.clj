@@ -301,7 +301,7 @@
 
    {:name :open-route
     :roles #{:gm}
-    :doc "Open (or create) a route between two locations, both ways unless one-way is true. travel is in rounds; 0 means next door (e.g. rooms of one house)."
+    :doc "Open (or create) a route between two locations, both ways unless one-way is true. travel is in rounds; 0 means next door (e.g. rooms of one building)."
     :args [:map [:from :string] [:to :string] [:travel {:optional true} [:int {:min 0 :max 20}]]
            [:one-way {:optional true} :boolean]]
     :available? (fn [world _] (enabled? world))

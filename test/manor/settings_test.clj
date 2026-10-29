@@ -33,3 +33,11 @@
   (let [entry {:id "test-day" :date "2000-01-01" :description "A day." :visible-to :all}
         init {:state {:setting-pack {:id "test" :calendar [entry]}}}]
     (is (= [entry] (:calendar (ruleset-init/add-holidays init))))))
+
+(deftest a-world-files-positions-are-checked-against-its-packs-standings
+  (let [wf {:meta {:setting-pack "settings/test" :setting "A test." :meeting-place "gate"}
+            :locations [{:id "gate" :name "Gate"}]
+            :roles {:guard {:title "Guard" :about "You keep the gate." :standing :servant}}}
+        ps (set (ruleset-init/problems wf))]
+    (is (contains? ps "position :guard: :standing must be one of :outsider :resident"))
+    (is (not-any? #(re-find #"position :worker" %) ps))))

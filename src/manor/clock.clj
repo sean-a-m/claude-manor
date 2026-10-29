@@ -15,7 +15,7 @@
 (defn- fmt [pattern] (DateTimeFormatter/ofPattern pattern Locale/ENGLISH))
 
 (def ^:private long-format (fmt "EEEE d MMMM yyyy, HH:mm"))
-(def ^:private day-format (fmt "EEE HH:mm"))
+(def ^:private default-day-label "EEE HH:mm")
 (def ^:private time-format (fmt "HH:mm"))
 
 (defn problems
@@ -59,10 +59,26 @@
   (label (:clock world) round (settings/parameter world :clock :label)))
 
 (defn short-label
-  "\"09:30\" if `round` is on the same day as `today`, else \"Sun 07:00\"."
+  "\"09:30\" if `round` is on the same day as `today`, else \"Sun 07:00\",
+  or in the clock's own :day-label pattern (a setting's, see
+  manor.ruleset.init), such as \"d MMM HH:mm\"."
   [clock round today]
   (let [t (time-of clock round)]
-    (.format t (if (= (.toLocalDate t) (.toLocalDate (time-of clock today))) time-format day-format))))
+    (.format t (if (= (.toLocalDate t) (.toLocalDate (time-of clock today)))
+                 time-format
+                 (fmt (:day-label clock default-day-label))))))
+
+(defn date-pattern
+  "The pattern of a day's date in prose for this world's setting (its
+  pack's :clock :date-label), by default \"EEEE d MMMM\" (\"Friday 21 October\")."
+  [world]
+  (or (settings/parameter world :clock :date-label) "EEEE d MMMM"))
+
+(defn when-label
+  "\"Friday 21 October at 19:00\" for `at` (a LocalDateTime), by the world's
+  `date-pattern`."
+  [world ^LocalDateTime at]
+  (.format at (fmt (str (date-pattern world) " 'at' HH:mm"))))
 
 (defn round-at
   "The first round after `round` that starts at or after the next `hh:mm`

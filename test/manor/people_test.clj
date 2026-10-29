@@ -12,7 +12,8 @@
             [manor.io.worldfile :as wf]
             [manor.mechanics.people :as people]
             [manor.mechanics.positions :as positions]
-            [manor.prompt :as prompt]))
+            [manor.prompt :as prompt]
+            [manor.settings :as settings]))
 
 ;; Everything here lives under test-runs/.
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
@@ -98,8 +99,8 @@
         (let [args {:position "housemaid" :count 5 :seed "candidate-home" :area "attic-landing"}
               ordinary (:people (call "generate_people" args))
               candidates (:people (call "generate_people" (assoc args :candidate true)))
-              homes (set (for [dwelling (:dwellings (data "names.edn"))
-                               area (:candidate-home-areas (data "names.edn"))]
+              homes (set (for [dwelling (:dwellings (data "settings/england-1900/names.edn"))
+                               area (:candidate-home-areas (data "settings/england-1900/names.edn"))]
                            (str dwelling ", " area)))]
           (is (= candidates (:people (call "generate_people" (assoc args :candidate true)))))
           (is (= candidates (:people (call "generate_people" (assoc args :candidate true :area "other-internal-id")))))
@@ -110,6 +111,38 @@
             (is (= (:candidate-home person) (:candidate-home (people/base-record person)))))
           (is (not-any? #(contains? % :candidate-home) ordinary))
           (is (thrown? clojure.lang.ExceptionInfo (call "generate_people" (assoc args :candidate "yes")))))))))
+
+(deftest people-server-data-sets
+  (if-not (bb-available?)
+    (println "Skipping people MCP data sets: bb unavailable")
+    (with-server
+      (fn [call]
+        (let [england (data "settings/england-1900/names.edn")
+              qing (data "settings/qing-1780/names.edn")
+              args {:position "maid" :count 10 :seed "sets" :sex "female"}]
+          (testing "the engine asks for its pack's data set"
+            (is (= "england-1900" (:setting (people/generate-args :groom {} {:dataset (people/dataset (settings/pack {})) :seed 1}))))
+            (is (= "test-1" (:setting (people/generate-args :groom {} {:dataset (people/dataset (settings/load-pack "settings/test")) :seed 1})))))
+          (testing "England by default, given name first"
+            (doseq [p (:people (call "generate_people" args))
+                    :let [[given family] (str/split (:name p) #" ")]]
+              (is (some #{given} (:female england)))
+              (is (some #{family} (:surnames england)))
+              (is (some #{(:origin p)} (:origins england)))))
+          (testing "a named data set, family name first, with its own origins and homes"
+            (is (= :family-first (:name-order qing)))
+            (doseq [p (:people (call "generate_people" (assoc args :setting "qing-1780" :area "the inner court")))
+                    :let [[family given] (str/split (:name p) #" ")]]
+              (is (some #{family} (:surnames qing)))
+              (is (some #{given} (:female qing)))
+              (is (some #{(:origin p)} (:origins qing)))
+              (is (some #(= (:lives p) (str % ", the inner court")) (:dwellings qing)))))
+          (testing "no new name shares a word with a taken one, honorifics aside"
+            (let [taken ["Consort Wang" "Noble Lady Li"]
+                  names (map :name (:people (call "generate_people" (assoc args :setting "qing-1780" :taken-names taken))))]
+              (is (not-any? #(re-find #"\b(Wang|Li)\b" %) names))))
+          (testing "an unknown data set is a tool error"
+            (is (thrown? clojure.lang.ExceptionInfo (call "generate_people" (assoc args :setting "mars-2100"))))))))))
 
 (deftest people-server-reputation
   (if-not (bb-available?)
@@ -122,7 +155,7 @@
               subset? (fn [k known] (every? (set (get person k)) (get-in known [:knows k])))]
           (testing "deterministic, and only the person's own traits"
             (is (= (ask "neighbour") (ask "neighbour")))
-            (doseq [relation ["by-sight" "neighbour" "acquaintance" "fellow-servant" "employer" "family"]
+            (doseq [relation ["by-sight" "neighbour" "acquaintance" "worked-alongside" "employer" "family"]
                     :let [known (ask relation)]]
               (is (str/includes? (:acquaintance known) "Hobbs"))
               (is (str/includes? (:acquaintance known) (:name person)))

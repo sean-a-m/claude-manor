@@ -171,7 +171,7 @@
   (let [persona (str "You are the " (:position record) ". "
                      (str/join "; " (map #(str (:axis %) ": " (:level %)) (:temperament record))))]
     {:tool :polish
-     :args {:circumstances ["Has a cousin living in another parish."]
+     :args {:circumstances ["Has a cousin living some way off."]
             :persona (subs persona 0 (min max-persona (count persona)))
             :manner "You seem civil and plain to strangers."
             :appearance "A slight figure in plain, well-worn clothes, standing with shoulders drawn back."}}))
@@ -245,14 +245,21 @@
           (.exists (io/file "resources" path)) (io/file "resources" path)
           :else (throw (ex-info (str "no world file " path) {:path path})))))
 
+(defn dataset
+  "The people server's data set for a setting pack (its people.edn's
+  :dataset), such as \"england-1900\"."
+  [pack]
+  (get-in pack [:people :dataset]))
+
 (defn generate-args
   "The people server's generate_people request for one new holder of
-  `position-id`, whose catalogue entry is `entry`: its ages unless `ages`
-  ([youngest oldest]) is given, and its sex unless `sex` is."
-  [position-id entry {:keys [sex ages seed taken-names]}]
+  `position-id`, whose catalogue entry is `entry`, from the server's data set
+  `dataset` (the setting's, by the function `dataset`): its ages unless
+  `ages` ([youngest oldest]) is given, and its sex unless `sex` is."
+  [position-id entry {:keys [dataset sex ages seed taken-names]}]
   (let [sex (or sex (:sex entry))
         ages (or ages (:ages entry))]
-    (cond-> {:position (name position-id) :count 1 :setting "england-1900"
+    (cond-> {:position (name position-id) :count 1 :setting dataset
              :seed seed :taken-names (vec taken-names)}
       ages (assoc :ages ages)
       sex (assoc :sex (name sex)))))
@@ -263,7 +270,8 @@
   [conn llm opts wf table {agent-name :name :keys [role sex situation]} seed]
   (let [entry (get table role)
         position (or (some-> (:title entry) str/lower-case) (str/replace (name role) "-" " "))
-        args (generate-args role entry {:sex sex :seed (str seed "/" agent-name)
+        args (generate-args role entry {:dataset (dataset (settings/for-worldfile wf))
+                                        :sex sex :seed (str seed "/" agent-name)
                                         :taken-names (map :name (:agents wf))})
         record (-> (mcp/call-tool conn "generate_people" args 20000) :value :people first base-record)
         ;; Keep identity and the world's existing home, not old descriptions.

@@ -38,7 +38,7 @@
   false, so that goods for sale are bought rather than found."
   [world _actor place]
   (when (and (not (find-everywhere? world)) (seq (:services (space/location world place))))
-    "this isn't your house to search; ask for it here instead"))
+    "these aren't your things to search; ask for it here instead"))
 
 (defn- section
   "A section of the rules, or a part of one chosen in code: the template

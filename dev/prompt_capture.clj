@@ -16,8 +16,9 @@
   group and jobs judged together call at once. `rendered/` holds prompts a
   mock day may never build (the judges', the writers', every tool), rendered
   against the Claudeworth world at its start, and Lodge's for the rules
-  without an architect. Nothing nondeterministic is written: no times, run
-  ids or costs."
+  without an architect; `rendered/palace/` the same against the palace, for
+  reading what another setting sends. Nothing nondeterministic is written:
+  no times, run ids or costs."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [jsonista.core :as json]
@@ -35,7 +36,7 @@
             [manor.ruleset.rules :as rules]
             [manor.mechanics.shop :as shop]))
 
-(def scenarios [:claudeworth :lodge :claudeworth-medium])
+(def scenarios [:claudeworth :lodge :claudeworth-medium :palace])
 
 (def day-rounds 48)
 
@@ -174,6 +175,36 @@
      "tools-claudeworth.md" (all-tools run world)
      "tools-lodge.md" (all-tools lodge-run lodge-world)}))
 
+(defn- rendered-palace
+  "Name -> text: the prompts of `rendered`, against the palace at its start."
+  []
+  (let [[run world] (start-world :palace)]
+    {"agent-preamble.md" (prompt/agent-preamble world)
+     "rules.md" (rules/rules world)
+     "judge-brief.md" (judge-brief world)
+     "physical-rules.md" (physical/rules world)
+     "find-person-request.md" (request-text "find-person" (find-person/seek-request world "sumuru-wanxia" {:who "the maid" :recent []}))
+     "hiring-rules.md" (hiring/rules world)
+     "hiring-rules-beside-visits.md" (hiring/rules-beside-visits world)
+     "visits-rules.md" (visits/rules world)
+     "invitation-request.md" (request-text "invitee" (visits-judge/invitation-request
+                                                      world "sumuru-wanxia"
+                                                      {:person "my younger brother, a guard of the Imperial Bodyguard" :reason "to hear news of home" :recent []}))
+     "polish-request.md" (request-text "polish" (people/polish-request world
+                                                 {:setting (get-in world [:state :setting]) :position "palace maid"
+                                                  :record {:name "Wang Xiuying" :age 15 :sex "female" :position "palace maid"
+                                                           :temperament [{:axis "openness" :level "high"}]
+                                                           :faculties [{:group "Senses" :faculty "Sight" :size "small"}]}}))
+     "appearance-request.md" (request-text "appearance" (people/appearance-request world
+                                                         {:age 15 :sex "female" :position "palace maid"
+                                                          :faculties [{:faculty "Sight" :size "small"}]}))
+     "shop-request.md" (request-text "appraise" (shop/request world "han-baoshan"
+                                                              {:goods [{:item "skein of red silk thread" :amount "2"}
+                                                                       {:item "basket of charcoal" :amount "1" :deliver true}]}))
+     "tools.md" (all-tools run world)
+     "gm-request.md" (request-text "gm" {:messages (prompt/gm-messages (:scenario run) world [] ["a test"] (:opts run))
+                                         :tools (mapv #(a/->tool % world) (a/for-role (:actions run) :gm))})}))
+
 ;; ---------------------------------------------------------------------------
 
 (defn capture!
@@ -185,4 +216,6 @@
       (doseq [f (reverse (file-seq dir))] (.delete f))))
   (doseq [[file text] (rendered)]
     (write! label "rendered" file text))
+  (doseq [[file text] (rendered-palace)]
+    (write! label "rendered" "palace" file text))
   (into {} (for [s scenarios] [s (capture-day! label s)])))

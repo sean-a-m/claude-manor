@@ -4,6 +4,8 @@
  :household-name "the household"
  :everyday-things "cloths, paper, pans, salt, matches and the like"
  :measures "a stone of sugar is qty 14 of unit 1 lb, or qty 1 of unit 1 stone; half a dozen eggs is qty 6 of unit 1 egg"
+ :unit-examples "1 lb, 1 loaf, 1 tin or 1 dozen"
+ :amount-examples "\"a stone\", \"2 lb\", \"half a dozen\", \"3\""
  :invite-example "my father, Sir Henry Vane"
  :known-as-example "a curate from Ely"
  :courier-position :errand-boy

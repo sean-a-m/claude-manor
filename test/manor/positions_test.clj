@@ -18,6 +18,7 @@
             [manor.ruleset.init :as ruleset-init]
             [manor.ruleset.rules :as rules]
             [manor.ruleset.views :as views]
+            [manor.settings :as settings]
             [manor.mechanics.shop :as shop]
             [manor.world :as w]))
 
@@ -55,7 +56,7 @@
       (is (seq catalogue))
       (is (contains? catalogue :none))
       (doseq [[id entry] catalogue]
-        (is (empty? (positions/entry-problems id entry)) (str id))
+        (is (empty? (positions/entry-problems (positions/standings (settings/pack {})) id entry)) (str id))
         ;; A visitor (the :guest) lives elsewhere, so the position doesn't say where they sleep.
         (is (every? #(contains? entry %) (cond-> [:title :about :standing :ages]
                                            (not= :visitor (:standing entry)) (conj :sleeps)))
@@ -101,6 +102,31 @@
                                                (assoc-in [:roles :butcher :workplace] ["quay"]))))]
         (is (str/includes? ps "position :butcher: :standing must be one of"))
         (is (str/includes? ps "position :butcher: :workplace names unknown location \"quay\""))))))
+
+(deftest standings-come-from-the-pack
+  (let [england (settings/pack {})
+        test-pack (settings/load-pack "settings/test")]
+    (testing "England's standings, and which belong to the household"
+      (is (= #{:family :upper-servant :servant :outdoor :tradesman :professional :villager :visitor}
+             (positions/standings england)))
+      (is (positions/household-standing? england :servant))
+      (is (not (positions/household-standing? england :tradesman))))
+    (testing "another pack's standings are its own"
+      (is (= #{:resident :outsider} (positions/standings test-pack)))
+      (is (positions/household-standing? test-pack :resident))
+      (is (not (positions/household-standing? test-pack :servant))))
+    (testing "an entry's standing is checked against the pack's"
+      (let [entry {:title "Worker" :about "You work here." :standing :resident}]
+        (is (empty? (positions/entry-problems (positions/standings test-pack) :worker entry)))
+        (is (= ["position :worker: :standing must be one of :outsider :resident"]
+               (positions/entry-problems (positions/standings test-pack) :worker (assoc entry :standing :servant))))
+        (is (seq (positions/entry-problems (positions/standings england) :worker entry)))))
+    (testing "a newcomer joins the household by the run's pack"
+      (let [world {:state {:setting-pack test-pack :positions (:positions test-pack)}
+                   :agents {"ann" {:id "ann" :name "Ann" :role :worker}
+                            "bo" {:id "bo" :name "Bo" :role :visitor-role}}}]
+        (is (= positions/household (get-in (first (positions/starting-events world "ann" {})) [:data :household])))
+        (is (nil? (get-in (first (positions/starting-events world "bo" {})) [:data :household])))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Claudeworth's positions and situations
@@ -269,10 +295,28 @@
 ;; Bedrooms, routines and the cap
 
 (deftest forms-of-address-skip-honorifics
-  (let [fill #'positions/fill]
+  (let [fill (partial positions/fill (:people (settings/pack {})))]
     (is (= "Father Anselm" (fill "Father {first-name}" "Father Anselm"))
         "a religious title is an honorific, not the first name")
     (is (= "Mr Hale" (fill "Mr {surname}" "Mr John Hale")))))
+
+(deftest forms-of-address-follow-the-name-order
+  (testing "given name first: the first word and the last"
+    (let [people {:honorifics ["Mr"] :name-order :given-first}]
+      (is (= "John / Hale" (positions/fill people "{first-name} / {surname}" "Mr John Henry Hale")))
+      (is (= "Nellie / Nellie" (positions/fill people "{first-name} / {surname}" "Nellie")))))
+  (testing "family name first: the first word, then the rest, honorifics aside"
+    (let [people (:people (settings/load-pack "settings/test"))]
+      (is (= :family-first (:name-order people)))
+      (is (= "Wang / Xiuying" (positions/fill people "{surname} / {first-name}" "Wang Xiuying")))
+      (is (= "Niohuru / Lady" (positions/fill {:name-order :family-first} "{surname} / {first-name}" "Niohuru Lady")))
+      (is (= "Wang / Xiu Ying" (positions/fill people "{surname} / {first-name}" "Lady Wang Xiu Ying")))
+      (is (= "Hešen / Hešen" (positions/fill people "{surname} / {first-name}" "Hešen")))))
+  (testing "a run fills by its own pack"
+    (let [world {:state {:setting-pack (settings/load-pack "settings/test")
+                         :positions {:worker {:addressed-as "Master {first-name}"}}}
+                 :agents {"wang" {:id "wang" :name "Wang Xiuying" :role :worker}}}]
+      (is (= "Master Xiuying" (positions/addressed-as world "wang"))))))
 
 (deftest the-households-bedrooms
   (let [run (start)]

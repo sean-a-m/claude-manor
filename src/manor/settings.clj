@@ -30,7 +30,9 @@
 
 (defn load-pack
   "A classpath pack directory as immutable data. Prompt keys are relative
-  paths under prompts/; fragments and overrides are both stored as text."
+  paths under prompts/; fragments and overrides are both stored as text.
+  :people is people.edn: the people server's data set, honorifics, name
+  order and standings."
   [path]
   (let [path (or path default-path)
         prefix (str path "/prompts/")]
@@ -39,6 +41,7 @@
            :positions (read-edn (str path "/positions.edn"))
            :calendar (read-edn (str path "/calendar.edn"))
            :money (read-edn (str path "/money.edn"))
+           :people (read-edn (str path "/people.edn"))
            :prompts (into {} (for [p (prompt-paths path)]
                                [(subs p (count prefix)) (str/replace (slurp (resource p)) #"\n$" "")])))))
 
@@ -53,8 +56,9 @@
   (load-pack (get-in wf [:meta :setting-pack])))
 
 (defn parameters
-  "Setting parameters and the money spec, not catalogues or prompt text."
+  "Setting parameters and the money spec, not catalogues, people data or
+  prompt text."
   [world]
-  (dissoc (pack world) :source :positions :calendar :prompts))
+  (dissoc (pack world) :source :positions :calendar :people :prompts))
 
 (defn parameter [world & path] (get-in (parameters world) path))

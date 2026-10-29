@@ -307,6 +307,7 @@
         (rounds! run 1)
         (let [world (e/world run) loc (space/location world "library")]
           (is (= :ground (:floor loc)))
+          (is (= :house (get-in event [:data :domain]) (:domain loc)) "built onto the home area")
           (is (= {:cleanliness "new, smelling of plaster and paint"} (:aspects loc)))
           (is (= (:aspects loc)
                  (get-in (first (filter #(= "library" (get-in % [:data :location :id]))

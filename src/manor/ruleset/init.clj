@@ -13,9 +13,10 @@
             [manor.settings :as settings]))
 
 (defn problems
-  "The scenario's own checks on a world file: bedrooms, opening hours, the
-  setting, the positions (its catalogue and :roles), with an :about for every
-  position an agent holds, and where they work."
+  "The scenario's own checks on a world file: the meeting place and home
+  area, bedrooms, opening hours, the setting, the positions (its catalogue
+  and :roles), with an :about for every position an agent holds, and where
+  they work."
   [{:keys [locations agents meta] :as wf}]
   (let [by-id (into {} (map (juxt :id identity)) locations)
         table (positions/table wf {})]
@@ -35,6 +36,12 @@
            :when (not (and (clock/hh-mm? from) (by-id at) (string? doing) (not (str/blank? doing))))]
        (str "agent " (pr-str name) ": :routine entry " (pr-str entry)
             " needs :from (a time like \"09:00\"), :at (a location id) and :doing (what they're doing there)"))
+     (when-not (by-id (:meeting-place meta))
+       [(str ":meta :meeting-place must be the id of a location, where people from elsewhere arrive, not "
+             (pr-str (:meeting-place meta)))])
+     (when-let [domain (:home-domain meta)]
+       (when-not (some #(= domain (:domain %)) locations)
+         [(str ":meta :home-domain " (pr-str domain) " is not the :domain of any location")]))
      (when-not (string? (:setting meta)) [":meta :setting must be a paragraph about the place"])
      (mapcat (fn [[id entry]] (positions/entry-problems id entry)) (sort-by key table))
      (for [role (distinct (map :role agents)) :when (not (contains? table role))]
@@ -53,8 +60,10 @@
   "The world file, its agents (without any whose id is in :leave-out, and
   without anything they hold), its items and authored visits (dropping
   left-out guests and removing left-out ids from :known-to), and in :state
-  the positions (without forms of address if :addressed-as? is false), the setting, the
-  query limit the rules quote and :find-everywhere? (default true).
+  the positions (without forms of address if :addressed-as? is false), the
+  setting, the meeting place, the home area if the world names one
+  (manor.mechanics.space/home-domain), the query limit the rules quote and
+  :find-everywhere? (default true).
   Everyone's post, bedroom and routine are set as they arrive (`on-spawn`)."
   [{:keys [world-file leave-out] :as opts}]
   (let [source (or world-file (throw (ex-info "no :world-file: a ruleset scenario names one in its :defaults" {})))
@@ -74,14 +83,16 @@
                                      (remove (comp left-out :who) %))))
              :agents (vec agents)
              :items (filterv #(or (nil? (:holder %)) (ids (:holder %))) (:items loaded))
-             :state (merge (building/initial-state wf agents table opts)
-                           {:positions table
-                            :setting-pack (settings/for-worldfile wf)
-                            :posts {} :bedrooms {} :routines {}
-                            :setting (get-in wf [:meta :setting])
-                            :quotes {}
-                            :max-queries (:max-queries opts 2)
-                            :find-everywhere? (not (false? (:find-everywhere? opts)))})))))
+             :state (cond-> (merge (building/initial-state wf agents table opts)
+                                   {:positions table
+                                    :setting-pack (settings/for-worldfile wf)
+                                    :posts {} :bedrooms {} :routines {}
+                                    :setting (get-in wf [:meta :setting])
+                                    :meeting-place (get-in wf [:meta :meeting-place])
+                                    :quotes {}
+                                    :max-queries (:max-queries opts 2)
+                                    :find-everywhere? (not (false? (:find-everywhere? opts)))})
+                      (get-in wf [:meta :home-domain]) (assoc :home-domain (get-in wf [:meta :home-domain])))))))
 
 (defn add-holidays
   "Add the setting pack's holidays (explicitly dated starting calendar

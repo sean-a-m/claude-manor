@@ -48,7 +48,11 @@
       str/lower-case str/trim (str/replace #"\s*floor$" "") keyword))
 
 (defn- plan [world id] (get-in world [:state :plans id]))
-(defn- house [world] (filter #(= :house (:domain %)) (vals (get-in world [:space :locations]))))
+(defn- house
+  "The rooms of the home area (manor.mechanics.space/home-domain), which plans build onto."
+  [world]
+  (let [home (space/home-domain world)]
+    (filter #(= home (:domain %)) (vals (get-in world [:space :locations])))))
 (defn- floors [world] (set (remove #{nil :outside} (map :floor (house world)))))
 (defn taken [world]
   (set (concat (keys (get-in world [:state :plans])) (keys (get-in world [:space :locations]))
@@ -59,6 +63,12 @@
 (defn- closed [world loc]
   (when-not (and (:hours loc) (open-now? world (:hours loc)))
     (str "the " (:name loc) " is closed; it is open " (str/join "-" (:hours loc)))))
+
+(defn office?
+  "Is there an architect's office (a location with the :architect service)?
+  Without one, the architect's actions aren't offered."
+  [world]
+  (some #(contains? (:services %) :architect) (vals (get-in world [:space :locations]))))
 
 (defn office-reason [world actor]
   (let [loc (here world actor)]
@@ -79,7 +89,7 @@
   (update-in world [:state :plans (:plan-id data) :holders] into (:to data)))
 (defmethod w/apply-event :building/commissioned [world {:keys [data]}]
   (cond-> (-> world (update-in [:state :accounts (:account data)] - (:price data))
-              (update-in [:state :works] conj (select-keys data [:plan-id :room :name :due :connects-to :by])))
+              (update-in [:state :works] conj (select-keys data [:plan-id :room :name :domain :due :connects-to :by])))
     (:payee data) (update-in [:state :accounts (:payee data)] (fnil + 0) (:fee data))))
 (defmethod w/apply-event :building/works-completed [world {:keys [data]}]
   (-> world (update-in [:state :works] #(vec (remove (fn [work] (= (:room data) (:room work))) %)))
@@ -195,27 +205,28 @@
 (defn- held-reason [world actor id]
   (when-not (contains? (:holders (plan world id)) actor) "you have not seen those plans; ask to have them shown to you"))
 
+;; The architect's actions, offered only where there's an office (`office?`).
 (def actions
-  [{:name :consult-references :kind :query :roles :all
+  [{:name :consult-references :kind :query :roles :all :available? (fn [world _] (office? world))
     :doc (prompts/doc "docs/architect/consult-references.md")
     :args [:map [:query [:string {:min 2 :max 200}]]]
     :valid? (fn [world actor _] (office-reason world actor))
     :bridge :architect/references :bridge-args (fn [_ _ args] (select-keys args [:query]))
     :on-result (fn [_ actor args result]
                  [{:type :building/consulted :visible-to #{actor} :data (assoc result :query (:query args))}])}
-   {:name :price-list :kind :query :roles :all
+   {:name :price-list :kind :query :roles :all :available? (fn [world _] (office? world))
     :doc (prompts/doc "docs/architect/price-list.md")
     :args [:map] :valid? (fn [world actor _] (office-reason world actor))
     :query-fn (fn [world _ _ _] (price-list world))
     :on-result (fn [_ actor result-args result]
                  [{:type :building/prices-quoted :visible-to #{actor} :data result}])}
-   {:name :draw-plans :kind :query :roles :all :needs :architect
+   {:name :draw-plans :kind :query :roles :all :needs :architect :available? (fn [world _] (office? world))
     :doc (prompts/doc "docs/architect/draw-plans.md")
     :args [:map [:for :string] [:name [:string {:min 1 :max 60}]] [:floor :string]
            [:desc [:string {:min 1 :max 600}]] [:connects-to [:vector {:min 1 :max 4} :string]]
            [:size [:string {:min 1 :max 40}]]]
     :valid? draw-reason :bridge :architect/draft :bridge-args draft-args :on-result store-draft}
-   {:name :show-plans :kind :free :roles :all
+   {:name :show-plans :kind :free :roles :all :available? (fn [world _] (office? world))
     :doc (prompts/doc "docs/architect/show-plans.md")
     :args [:map [:plan-id :string]]
     :valid? (fn [world actor {:keys [plan-id]}]
@@ -224,7 +235,7 @@
     :effect (fn [world actor {:keys [plan-id]}]
               [{:type :building/plans-shown :visible-to (space/here world actor)
                 :data {:plan-id plan-id :to (vec (sort (space/here world actor)))}}])}
-   {:name :commission :kind :final :roles :all
+   {:name :commission :kind :final :roles :all :available? (fn [world _] (office? world))
     :doc (prompts/doc "docs/architect/commission.md")
     :args [:map [:plan-id :string] [:from {:optional true} [:enum "household" "own"]]]
     :valid? (fn [world actor {:keys [plan-id from]}]
@@ -244,7 +255,7 @@
                     room (fresh-id plan-id (concat (keys (get-in world [:space :locations]))
                                                     (map :room (get-in world [:state :works]))))]
                 [{:type :building/commissioned :visible-to :all
-                  :data {:plan-id plan-id :room room :name (:name p) :by actor :price price
+                  :data {:plan-id plan-id :room room :name (:name p) :domain (space/home-domain world) :by actor :price price
                          :account (money/account actor from)
                          :due (+ (:round world) delay) :fee (if payee (quot (* price fee-percent) 100) 0)
                          :payee payee :connects-to (:connects-to p)}}]))}])
@@ -252,14 +263,14 @@
 (def construction
   {:name :construction
    :tick (fn [world _]
-           (mapcat (fn [{:keys [plan-id room name due connects-to]}]
+           (mapcat (fn [{:keys [plan-id room name domain due connects-to]}]
                      (when (<= due (:round world))
                        (let [p (plan world plan-id)]
                          (concat
                           [{:type :building/works-completed :visible-to :all
-                            :data {:plan-id plan-id :room room :name name :connects-to connects-to}}
+                            :data {:plan-id plan-id :room room :name name :domain domain :connects-to connects-to}}
                            {:type :space/location-added
-                            :data {:location {:id room :name name :desc (:desc p) :domain :house
+                            :data {:location {:id room :name name :desc (:desc p) :domain domain
                                               :floor (:floor p) :kind :room
                                               :aspects {:cleanliness "new, smelling of plaster and paint"}}}}]
                           (for [to connects-to]

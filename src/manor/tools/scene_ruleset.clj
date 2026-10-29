@@ -10,7 +10,7 @@
     (when (#{:small :medium :large :grand} size) size)))
 
 (defn- reservation [plan data]
-  (cond-> {:id (:room data) :name (:name data) :domain :house :kind :room
+  (cond-> {:id (:room data) :name (:name data) :domain (:domain data) :kind :room
            :floor (:floor plan) :desc (:desc plan) :connects-to (:connects-to data)
            :plan-id (:plan-id data) :due (:due data)}
     (display-size (:size plan)) (assoc :size (display-size (:size plan)))))

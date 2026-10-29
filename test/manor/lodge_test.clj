@@ -1,6 +1,7 @@
 (ns manor.lodge-test
   "The small bundled world exercises production household mechanics for a day."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
+            [manor.actions :as a]
             [manor.engine :as e]
             [manor.io.store :as store]
             [manor.io.worldfile :as worldfile]
@@ -58,7 +59,8 @@
                     (get-in (prompt/agent-view (:scenario run) world "mrs-ashby") [:household :bedrooms])))
           (is (empty? (:notes (w/agent world "mrs-ashby")))))
         (testing "tools and briefs do not advertise building without an office"
-          (is (not-any? #(excluded (:name %)) (:actions run)))
+          (doseq [agent agents]
+            (is (not-any? #(excluded (:name %)) (a/available (:actions run) world (:id agent)))))
           (doseq [tool excluded]
             (is (not (.contains (rules/rules world) (str "`" (name tool) "`")))))
           (is (every? (set (map :name (:actions run))) [:quote-goods :buy :spend-time :find :look]))))

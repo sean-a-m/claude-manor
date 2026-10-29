@@ -54,7 +54,7 @@
   [world]
   (let [turn (duration (:minutes-per-round (:clock world)))
         max-queries (get-in world [:state :max-queries] 2)
-        architect? (some #(contains? (:services %) :architect) (vals (get-in world [:space :locations])))
+        architect? (building/office? world)
         visits? (visits/config world)]
     (prompts/render world
      "rules/how-things-work.md"
@@ -89,7 +89,7 @@
   [world]
   (let [locations (vals (get-in world [:space :locations]))
         mechanics (cond-> []
-                    (some #(contains? (:services %) :architect) locations)
+                    (building/office? world)
                     (conj "judges/brief-architect.md")
                     (some deliveries/delivers? locations)
                     (conj "judges/brief-deliveries.md"))]

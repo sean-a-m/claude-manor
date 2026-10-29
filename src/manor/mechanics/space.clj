@@ -37,6 +37,19 @@
 
 (defn location-of [world agent-id] (:location (w/agent world agent-id)))
 
+(defn meeting-place
+  "Where people from elsewhere arrive (candidates, guests, deliveries): a
+  location id the scenario keeps at [:state :meeting-place], or nil."
+  [world]
+  (get-in world [:state :meeting-place]))
+
+(defn home-domain
+  "The home area (Claudeworth's :house): the domain of its rooms, its
+  bedrooms and the rooms built onto it. [:state :home-domain] when the world
+  sets one, otherwise the meeting place's domain."
+  [world]
+  (or (get-in world [:state :home-domain]) (:domain (location world (meeting-place world)))))
+
 (defn in-transit? [world agent-id] (some? (:travel (w/agent world agent-id))))
 
 (defn present

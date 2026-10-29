@@ -466,7 +466,7 @@
       (finally (e/stop-run run)))))
 
 (deftest away-guests-wait-for-room-and-never-lapse
-  (let [scenario (-> cw/scenario (assoc-in [:limits :max-agents] 4) (hiring/install "carriage-sweep"))
+  (let [scenario (-> cw/scenario (assoc-in [:limits :max-agents] 4) hiring/install)
         run (start-with scenario {} {})]
     (try
       (testing "the world file's away friend is in the run, away, from the start"

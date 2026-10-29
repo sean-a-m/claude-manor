@@ -53,11 +53,11 @@
                       {:name "Bystander" :role :none :location "gate"}]
              :space {:locations [{:id "gate" :name "Gate"} {:id "room" :name "Bedroom" :kind :bedroom}]
                      :routes [["gate" "room" 0]]}
-             :state {:positions (positions/read-catalogue "settings/england-1904/positions.edn") :setting "England, 1904."}})
+             :state {:positions (positions/read-catalogue "settings/england-1904/positions.edn") :setting "England, 1904."
+                     :meeting-place "gate"}})
     :actions h/actions :adjudicators h/adjudicators :bridges h/bridges
     :offline-stubs h/offline-stubs :mcp-servers people/mcp-servers
-    :reference (fn [world _] (h/reference world)) :observe h/observe :mock-policy policy}
-   "gate"))
+    :reference (fn [world _] (h/reference world)) :observe h/observe :mock-policy policy}))
 
 (defn start
   ([] (start {} {}))

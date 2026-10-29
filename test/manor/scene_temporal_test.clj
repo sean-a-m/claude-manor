@@ -30,10 +30,10 @@
 (def plan {:id "extension" :name "Morning room" :floor :ground :size "large"
            :desc "Fresh plaster." :connects-to ["hall"] :holders #{"owner"} :price 240})
 (def commissioned {:type :building/commissioned
-                   :data {:plan-id "extension" :room "extension-2" :name "Morning room"
+                   :data {:plan-id "extension" :room "extension-2" :name "Morning room" :domain :house
                           :price 240 :account "household" :due 5 :by "owner" :connects-to ["hall"]}})
 (def completed {:type :building/works-completed
-                :data {:plan-id "extension" :room "extension-2" :name "Morning room" :connects-to ["hall"]}})
+                :data {:plan-id "extension" :room "extension-2" :name "Morning room" :domain :house :connects-to ["hall"]}})
 (def initial [{:type :world/initialized :data {:state {:accounts {"household" 5000} :works [] :plans {}}}}
               (location "hall") (location "study") (route "hall" "study")
               {:type :round/started :data {:round 1}}

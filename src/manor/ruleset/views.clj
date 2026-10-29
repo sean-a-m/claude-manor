@@ -43,13 +43,14 @@
            {:to area :place place :minutes (* d (:minutes-per-round c))
             :arrive (clock/short-label c (+ (max 1 round) d) round)}))))
 
-(defn- house-bedrooms
-  "The house's bedrooms and all active assigned sleepers, guests included.
-   [{:id :name :sleeps [names]}]."
+(defn- home-bedrooms
+  "The home area's bedrooms (manor.mechanics.space/home-domain) and all
+  active assigned sleepers, guests included. [{:id :name :sleeps [names]}]."
   [world]
-  (let [sleepers (group-by #(places/bedroom-of world (:id %)) (w/active-agents world))]
+  (let [sleepers (group-by #(places/bedroom-of world (:id %)) (w/active-agents world))
+        home (space/home-domain world)]
     (vec (for [l (sort-by :id (vals (get-in world [:space :locations])))
-               :when (and (= :bedroom (:kind l)) (= :house (:domain l)))]
+               :when (and (= :bedroom (:kind l)) (= home (:domain l)))]
            {:id (:id l) :name (:name l) :sleeps (mapv :name (get sleepers (:id l)))}))))
 
 (defn reference
@@ -60,7 +61,7 @@
    :hiring (hiring/reference world)})
 
 (defn observe
-  "Your bedroom, the house's bedrooms if you're of the household or a guest
+  "Your bedroom, the home's bedrooms if you're of the household or a guest
   from elsewhere, your visit if you're a guest and the people you've met who
   are away (manor.mechanics.visits), opening hours where you are, where you
   can walk from here, and the journeys to other areas. Every place by area
@@ -74,7 +75,7 @@
                 (visits/add-to-view world id)
                 (following/add-to-view world id))
       (or (positions/household-member? world id) (visits/from-elsewhere? world id))
-      (assoc-in [:household :bedrooms] (house-bedrooms world))
+      (assoc-in [:household :bedrooms] (home-bedrooms world))
       hours (update :here merge {:open (str/join "-" hours) :open-now? (building/open-now? world hours)})
       here (assoc :walkable (vec (sort (places/walkable world here)))
                   :journeys (journeys world here)))))

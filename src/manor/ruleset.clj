@@ -124,8 +124,8 @@
   - :calendar? false for no calendar: no holidays, and calendar entries in
     the world file are ignored
   Lodge has no calendar."
-  [{:keys [name doc defaults mock-day mock-conversation calendar? meeting-place]
-    :or {calendar? true meeting-place "carriage-sweep"} :as opts}]
+  [{:keys [name doc defaults mock-day mock-conversation calendar?]
+    :or {calendar? true} :as opts}]
   (-> {:name name
        :doc doc
        :defaults defaults
@@ -151,6 +151,6 @@
        :mock-policy (or (:mock-policy opts) (mock-policy mock-day))}
       (cond-> calendar? (assoc :calendar {:lookahead-days 30})
               mock-conversation (assoc :mock-conversation mock-conversation))
-      (hiring/install meeting-place)
+      hiring/install
       deliveries/install
       visits/install))

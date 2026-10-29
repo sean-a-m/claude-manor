@@ -29,12 +29,10 @@
     {:tool :reply :args {:text "We can manage breakfast, but we shall want another pair of hands. Perhaps the shop knows of a girl."}}))
 
 (def scenario
-  (update (ruleset/scenario
-           {:name :lodge
-            :doc "Ashby Lodge, 1904: a widow, her cook-general and the shopkeeper across the street. A maid is wanted."
-            :defaults {:world-file "worlds/lodge.edn" :max-cost 0.10}
-            :mock-policy mock-policy
-            :mock-conversation mock-conversation
-            :calendar? false
-            :meeting-place "front-gate"})
-          :exclude-actions into #{:consult-references :price-list :draw-plans :show-plans :commission}))
+  (ruleset/scenario
+   {:name :lodge
+    :doc "Ashby Lodge, 1904: a widow, her cook-general and the shopkeeper across the street. A maid is wanted."
+    :defaults {:world-file "worlds/lodge.edn" :max-cost 0.10}
+    :mock-policy mock-policy
+    :mock-conversation mock-conversation
+    :calendar? false}))

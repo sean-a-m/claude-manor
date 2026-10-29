@@ -65,7 +65,9 @@
   :impediments, and :status :dead with an optional :died {:cause}, are their
   physical state at the start (see manor.mechanics.physical). With :away? true
   they are spawned, then away (elsewhere, with no place) until something brings
-  them back (visits). Starting dead takes precedence over :away?."
+  them back (visits). Starting dead takes precedence over :away?.
+  An optional :purse is a non-negative integer in the setting's authored
+  money unit; household scenarios turn it into a private account."
   [:map
    [:name :string]
    [:role :keyword]

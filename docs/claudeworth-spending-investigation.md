@@ -34,7 +34,7 @@ in a fresh checkout without those runs. Do not delete or modify those run direct
 | `claudeworth-20261020-200100` | Pursued a £3,000 West Front and Tower and repeatedly attempted to commission it with insufficient funds. |
 | `claudeworth-20261021-144231` | Still arranging a consultation after six rounds; no priced scheme chosen. |
 
-Neither of the two £3,000 tower runs contains a `:claudeworth/commissioned` event.
+Neither of the two £3,000 tower runs contains a `:building/commissioned` event.
 They demonstrate an intention or attempt to spend the full account, **not a successful
 £3,000 expenditure**. Cheaper initial plans also do not prove a character would never
 spend the remainder later.
@@ -112,7 +112,7 @@ checks whether the price exceeds available funds, not whether enough would remai
 the household. If exactly £3,000 were available, spending all of it would be legal.
 
 Sources: [scenario rules](../src/manor/scenarios/claudeworth.clj),
-[`commission` action and household state](../src/manor/scenarios/claudeworth/building.clj).
+[`commission` action and household state](../src/manor/mechanics/building.clj).
 The GM brief also says that this slice has no rents or other automatic income.
 
 Once ordinary shopping reduces the balance even slightly, the £3,000 tier is unaffordable.
@@ -138,7 +138,7 @@ He later privately notes:
 
 Sources: [transcript, line 589](../runs/claudeworth-20261020-112904/transcript.md#L589),
 [line 1411](../runs/claudeworth-20261020-112904/transcript.md#L1411);
-[fee and commissioning implementation](../src/manor/scenarios/claudeworth/building.clj).
+[fee and commissioning implementation](../src/manor/mechanics/building.clj).
 This is evidence of an in-character upsell, not just the Earl choosing an amount alone.
 
 ## 5. Persistence after rejection is a distinct model/mechanics mismatch
@@ -154,9 +154,9 @@ scheme and invent procedural explanations for the failure instead.
 
 Sources: [first rejection and proposed top-up, lines 2349–2352](../runs/claudeworth-20261020-200100/transcript.md#L2349),
 [renewed rejection and invented bank-book explanation, lines 5954–5957](../runs/claudeworth-20261020-200100/transcript.md#L5954).
-The household reducers in [building](../src/manor/scenarios/claudeworth/building.clj),
-[shop](../src/manor/scenarios/claudeworth/shop.clj) and
-[deliveries](../src/manor/scenarios/claudeworth/deliveries.clj) do not turn such prose into deposits.
+The household reducers in [building](../src/manor/mechanics/building.clj),
+[shop](../src/manor/mechanics/shop.clj) and
+[deliveries](../src/manor/mechanics/deliveries.clj) do not turn such prose into deposits.
 
 ## Assessment and possible follow-up
 

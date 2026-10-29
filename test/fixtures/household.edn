@@ -2,6 +2,7 @@
 ;; Deliberately preserves the original map, cast, goods and starting conditions.
 ;; Do not sync this file with resources/worlds/claudeworth.edn when adding content.
 {:meta {:name "Claudeworth Manor"
+        :meeting-place "carriage-sweep" ; where candidates, guests and deliveries arrive
         :start "1904-10-15T08:00"
         :minutes-per-round 30
         :starting-funds 3000 ; whole pounds here; runtime money is old pence

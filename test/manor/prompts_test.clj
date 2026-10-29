@@ -6,8 +6,8 @@
             [manor.mechanics.find-person :as find-person]
             [manor.mechanics.hiring :as hiring]
             [manor.mechanics.visits :as visits]
-            [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.claudeworth.deliveries :as deliveries]
+            [manor.ruleset.rules :as rules]
+            [manor.mechanics.deliveries :as deliveries]
             [manor.mechanics.people :as people]
             [manor.prompt :as prompt]
             [manor.settings :as settings]))
@@ -65,7 +65,7 @@
                    (prompts/render world "agent/preamble.md" {:era nil}))))))
 
 (deftest judge-brief-includes-only-present-mechanics
-  (let [brief @#'cw/judge-brief
+  (let [brief rules/judge-brief
         world {:state {:setting "Test setting."}
                :space {:locations {}}}
         base (str "Test setting.\n\nAt the house, assume the everyday things the work needs "

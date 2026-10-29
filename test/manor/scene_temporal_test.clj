@@ -6,7 +6,7 @@
             [manor.engine :as e]
             [manor.prompt :as prompt]
             [manor.tools.scene :as scene]
-            [manor.tools.scene-claudeworth :as household]
+            [manor.tools.scene-ruleset :as household]
             [manor.tools.scene-inspect :as inspect]
             [manor.tools.scene-time :as time]
             [manor.world :as w]))
@@ -29,20 +29,20 @@
 
 (def plan {:id "extension" :name "Morning room" :floor :ground :size "large"
            :desc "Fresh plaster." :connects-to ["hall"] :holders #{"owner"} :price 240})
-(def commissioned {:type :claudeworth/commissioned
-                   :data {:plan-id "extension" :room "extension-2" :name "Morning room"
+(def commissioned {:type :building/commissioned
+                   :data {:plan-id "extension" :room "extension-2" :name "Morning room" :domain :house
                           :price 240 :account "household" :due 5 :by "owner" :connects-to ["hall"]}})
-(def completed {:type :claudeworth/works-completed
-                :data {:plan-id "extension" :room "extension-2" :name "Morning room" :connects-to ["hall"]}})
+(def completed {:type :building/works-completed
+                :data {:plan-id "extension" :room "extension-2" :name "Morning room" :domain :house :connects-to ["hall"]}})
 (def initial [{:type :world/initialized :data {:state {:accounts {"household" 5000} :works [] :plans {}}}}
               (location "hall") (location "study") (route "hall" "study")
               {:type :round/started :data {:round 1}}
-              {:type :claudeworth/plans-drawn :data {:plan plan}}])
+              {:type :building/plans-drawn :data {:plan plan}}])
 
 (deftest replayable-reservation-and-immutable-plan-evidence
   (let [ghost-prefix (conj initial commissioned)
         ;; Even a later replacement of a plan cannot resize/re-floor the old reservation.
-        changed-plan {:type :claudeworth/plans-drawn
+        changed-plan {:type :building/plans-drawn
                       :data {:plan (assoc plan :size "grand" :floor :first :connects-to ["study"])}}
         specs (into ghost-prefix [changed-plan (location "unrelated")
                                  (route "unrelated" "study")
@@ -96,12 +96,12 @@
     (is (not (get-in result [:rooms "extension-2" :reservation?])))
     (is (= 1 (count (:steps (scene/placement-history (events-of specs) (household/history (events-of specs))))))))
   (doseq [size [nil "cottage"]]
-    (let [specs (into (pop initial) [{:type :claudeworth/plans-drawn :data {:plan (assoc plan :size size)}}
+    (let [specs (into (pop initial) [{:type :building/plans-drawn :data {:plan (assoc plan :size size)}}
                                     commissioned completed (location "extension-2")])
           result (scene/presentation (snap (events-of specs)))]
       (is (= [1 1] ((juxt :w :h) (get-in result [:rooms "extension-2"]))))))
   (let [specs (into (pop initial) [commissioned completed (location "extension-2")
-                                    {:type :claudeworth/plans-drawn :data {:plan plan}}])]
+                                    {:type :building/plans-drawn :data {:plan plan}}])]
     (is (= [1 1] ((juxt :w :h) (get-in (scene/presentation (snap (events-of specs))) [:rooms "extension-2"])))
         "future plan evidence never resizes an earlier unknown-size room")))
 

@@ -75,7 +75,7 @@
 (defn- area [world actor] (place-area world (space/location-of world actor)))
 (defn taken-names
   "Names already in use: everyone spawned, every candidate, and the shops'
-  couriers, who are named before they first appear (manor.scenarios.claudeworth.deliveries)."
+  couriers, who are named before they first appear (manor.mechanics.deliveries)."
   [world]
   (concat (map :name (vals (:agents world))) (map :name (vals (pool world)))
           (keep (comp :name :person) (vals (get-in world [:state :couriers])))))
@@ -605,16 +605,16 @@
                                ((:effect spec) world actor args)))))))
 
 (defn install
-  "Add hiring to a scenario, including its meeting place and spawn hook."
-  [scenario meeting-place]
+  "Add hiring to a scenario, with its spawn hook. Candidates arrive at the
+  meeting place, which the scenario's :init puts at [:state :meeting-place]
+  (manor.ruleset reads it from the world file's :meta :meeting-place)."
+  [scenario]
   (let [init (:init scenario)]
     (-> scenario
         (cond-> (:calendar scenario) (assoc-in [:calendar :managed :hiring] calendar-owner))
-        (assoc :meeting-place meeting-place
-               :init (fn [opts]
+        (assoc :init (fn [opts]
                        (update (init opts) :state merge
-                               {:meeting-place meeting-place
-                                :hiring-max-agents (get-in scenario [:limits :max-agents] b/default-max-agents)})))
+                               {:hiring-max-agents (get-in scenario [:limits :max-agents] b/default-max-agents)})))
         (cond-> (:items scenario)
           (update :actions (fn [actions]
                              (conj (vec (remove #(= :spend-time (:name %)) actions))

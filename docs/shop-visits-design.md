@@ -6,7 +6,7 @@ The empty-shop judge bug (below) is being fixed separately with world-file data 
 
 Read `AGENTS.md` first, then "Conversations", "Hibernation", "Turn order: `:schedule`" and
 "Internal adjudication queries" (the shop's quotes) in `docs/scenario-authoring.md`,
-`src/manor/mechanics/conversation.clj`, `src/manor/scenarios/claudeworth/shop.clj`, and hibernation in
+`src/manor/mechanics/conversation.clj`, `src/manor/mechanics/shop.clj`, and hibernation in
 `src/manor/mechanics/builtins.clj` and `src/manor/scenarios/claudeworth.clj`.
 
 ## Why
@@ -163,7 +163,7 @@ present at the counter, and everyone in a conversation is.
 missing from the reply the initiator reads. Change it to list every event from the
 conversation's `:conversation/started` up to its end that the initiator can see, except the
 start/end markers, usage and system events. The summary header already gives the ending. That
-picks up `:claudeworth/goods-quoted` and `goods-refused` now, and a `give` later, without tagging each kind. Members' later speaking turns already see these events
+picks up `:shop/goods-quoted` and `goods-refused` now, and a `give` later, without tagging each kind. Members' later speaking turns already see these events
 among their recent events, because they're visible to everyone in the place.
 
 ### 2d. Docs and briefs

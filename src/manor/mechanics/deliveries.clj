@@ -1,4 +1,4 @@
-(ns manor.scenarios.claudeworth.deliveries
+(ns manor.mechanics.deliveries
   "Orders sent up from a shop: a delivery quote bought at the counter becomes
   an order, paid for at once, and at its due round the goods are left at the
   delivery place (hiring's meeting place), brought by the shop's courier.
@@ -19,8 +19,8 @@
             [manor.mechanics.visits :as visits]
             [manor.narrate :as n]
             [manor.settings :as settings]
-            [manor.scenarios.claudeworth.building :as building]
-            [manor.scenarios.claudeworth.money :as money]
+            [manor.mechanics.building :as building]
+            [manor.mechanics.money :as money]
             [manor.world :as w]))
 
 (def max-lead-hours 120)

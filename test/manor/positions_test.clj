@@ -15,8 +15,10 @@
             [manor.mechanics.people :as people]
             [manor.mechanics.positions :as positions]
             [manor.prompt :as prompt]
-            [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.claudeworth.shop :as shop]
+            [manor.ruleset.init :as ruleset-init]
+            [manor.ruleset.rules :as rules]
+            [manor.ruleset.views :as views]
+            [manor.mechanics.shop :as shop]
             [manor.world :as w]))
 
 ;; Every run here lives under test-runs/.
@@ -94,7 +96,7 @@
       (is (= (assoc (positions/read-catalogue catalogue-source) :ferryman (get-in wf [:roles :ferryman]))
              (positions/table (-> wf (update :meta dissoc :positions) (update :roles dissoc :butcher)) {}))))
     (testing "the scenario names bad entries and unknown workplaces"
-      (let [ps (str/join "\n" (cw/problems (-> (:world-file (wf/load-world "worlds/claudeworth.edn"))
+      (let [ps (str/join "\n" (ruleset-init/problems (-> (:world-file (wf/load-world "worlds/claudeworth.edn"))
                                                (assoc-in [:roles :butcher :standing] :grand)
                                                (assoc-in [:roles :butcher :workplace] ["quay"]))))]
         (is (str/includes? ps "position :butcher: :standing must be one of"))
@@ -108,7 +110,7 @@
         world (e/world run)]
     (try
       (testing "the world file is fine, and everyone holds their role as a post"
-        (is (empty? (cw/problems (:world-file (wf/load-world "worlds/claudeworth.edn")))))
+        (is (empty? (ruleset-init/problems (:world-file (wf/load-world "worlds/claudeworth.edn")))))
         (is (= :butcher (:role (w/agent world "hobbs"))))
         (doseq [a (w/active-agents world)]
           (is (= (:role a) (:position (positions/post world (:id a)))) (:id a))
@@ -186,8 +188,8 @@
           (is (not (a/allowed? (assoc action :roles :all) :gm #{:shop-clerk})))))
       (testing "Mr Pugh is the architect by capability: his purse and the office's drawing"
         (is (= 0 (get-in world [:state :accounts "pugh"])))
-        (is (contains? (:you (cw/observe world "pugh")) :purse))
-        (is (not (contains? (:you (cw/observe world "hale")) :purse))))
+        (is (contains? (:you (views/observe world "pugh")) :purse))
+        (is (not (contains? (:you (views/observe world "hale")) :purse))))
       (finally (e/stop-run run)))))
 
 ;; ---------------------------------------------------------------------------
@@ -214,7 +216,7 @@
         (testing "a post outside the household: no longer of it, and no view of its bedrooms"
           (is (= :none (:role (w/agent world "nellie"))))
           (is (not (positions/household-member? world "nellie")))
-          (is (not (contains? (:household (cw/observe world "nellie")) :bedrooms))))
+          (is (not (contains? (:household (views/observe world "nellie")) :bedrooms))))
         (is (= world (w/replay (store/read-events (:dir run))))))
       (testing "an unknown position or person is refused"
         (is (thrown-with-msg? clojure.lang.ExceptionInfo #"no position :duke" (e/change-post! run "nellie" :duke)))
@@ -276,7 +278,7 @@
   (let [run (start)]
     (try
       (let [world (e/world run)
-            bedrooms (get-in (cw/observe world "nellie") [:household :bedrooms])]
+            bedrooms (get-in (views/observe world "nellie") [:household :bedrooms])]
         (testing "the household sees the house's bedrooms and who sleeps in each"
           (is (= {"cooks-room" ["Mrs Finch"] "countess-bedroom" ["Lady Claudeworth"] "earls-bedroom" ["Lord Claudeworth"]
                   "maids-room" ["Nellie"] "scullery-maids-room" ["Daisy"] "secretarys-room" ["Hale"]
@@ -285,11 +287,11 @@
           (is (= "Maid's room" (:name (first (filter #(= "maids-room" (:id %)) bedrooms))))))
         (testing "the tradesmen don't, though they have their own bedrooms"
           (doseq [id ["pugh" "briggs" "hobbs"]]
-            (is (not (contains? (:household (cw/observe world id)) :bedrooms)) id)
-            (is (some? (get-in (cw/observe world id) [:you :bedroom])) id)))
+            (is (not (contains? (:household (views/observe world id)) :bedrooms)) id)
+            (is (some? (get-in (views/observe world id) [:you :bedroom])) id)))
         (testing "the rules say someone living in needs a bed, and where to look"
-          (is (str/includes? (cw/rules world) "Someone who lives in needs a bed at the house"))
-          (is (str/includes? (cw/rules world) "`household.bedrooms`")))
+          (is (str/includes? (rules/rules world) "Someone who lives in needs a bed at the house"))
+          (is (str/includes? (rules/rules world) "`household.bedrooms`")))
         (testing "routines are set by events too"
           (is (= "07:00" (:from (first (get-in world [:state :routines "hobbs"])))))
           (is (some #(and (= :people/routine-set (:type %)) (= "pugh" (get-in % [:data :id]))) (e/events run)))))
@@ -298,7 +300,7 @@
         (testing "a newcomer sharing a room is shown there; nothing stops it"
           (is (= ["Nellie" "Ivy Platt"]
                  (:sleeps (first (filter #(= "maids-room" (:id %))
-                                         (get-in (cw/observe world "nellie") [:household :bedrooms])))))))
+                                         (get-in (views/observe world "nellie") [:household :bedrooms])))))))
         (is (= world (w/replay (store/read-events (:dir run))))))
       (finally (e/stop-run run)))))
 

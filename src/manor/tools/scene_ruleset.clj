@@ -1,7 +1,8 @@
-(ns manor.tools.scene-claudeworth
-  "Pure Claudeworth operator overlays. No changes to the world or its events."
+(ns manor.tools.scene-ruleset
+  "Pure operator overlays for the ruleset's scenarios (manor.ruleset):
+  household funds, plans and works. No changes to the world or its events."
   (:require [manor.clock :as clock]
-            [manor.scenarios.claudeworth.money :as money]))
+            [manor.mechanics.money :as money]))
 
 (defn- display-size [size]
   ;; Custom architect price lists may use names with no geometric meaning.
@@ -9,7 +10,7 @@
     (when (#{:small :medium :large :grand} size) size)))
 
 (defn- reservation [plan data]
-  (cond-> {:id (:room data) :name (:name data) :domain :house :kind :room
+  (cond-> {:id (:room data) :name (:name data) :domain (:domain data) :kind :room
            :floor (:floor plan) :desc (:desc plan) :connects-to (:connects-to data)
            :plan-id (:plan-id data) :due (:due data)}
     (display-size (:size plan)) (assoc :size (display-size (:size plan)))))
@@ -23,12 +24,12 @@
    (reduce
     (fn [{:keys [plans rooms] :as acc} [index {:keys [type data]}]]
       (case type
-        :claudeworth/plans-drawn (assoc-in acc [:plans (get-in data [:plan :id])] (:plan data))
-        :claudeworth/commissioned
+        :building/plans-drawn (assoc-in acc [:plans (get-in data [:plan :id])] (:plan data))
+        :building/commissioned
         (let [record (reservation (get plans (:plan-id data)) data)]
           (-> acc (assoc-in [:rooms (:room data)] record)
               (assoc-in [:annotations index] {:reservation record})))
-        :claudeworth/works-completed
+        :building/works-completed
         (if (contains? rooms (:room data)) acc
             (assoc-in acc [:rooms (:room data)] (reservation (get plans (:plan-id data)) data)))
         :space/location-added

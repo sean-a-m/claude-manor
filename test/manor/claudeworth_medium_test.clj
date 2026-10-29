@@ -10,8 +10,8 @@
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.mechanics.visits :as visits]
-            [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.claudeworth.building :as building]
+            [manor.ruleset.init :as ruleset-init]
+            [manor.mechanics.building :as building]
             [manor.world :as w]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
@@ -42,7 +42,7 @@
 
 (deftest the-medium-household-is-the-designed-one
   (let [wf (world)]
-    (is (empty? (cw/problems wf)))
+    (is (empty? (ruleset-init/problems wf)))
     (testing "every family member and servant holds the designed position and has a bedroom"
       (doseq [[name role] (merge family staff)]
         (is (= role (:role (entry wf name))) (str name " holds " role))

@@ -1,4 +1,4 @@
-(ns manor.scenarios.claudeworth.money
+(ns manor.mechanics.money
   "Setting-owned currency. Amounts are integers in the smallest unit.
   This is unrelated to model usage costs (USD)."
   (:require [clojure.string :as str]

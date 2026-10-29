@@ -256,7 +256,7 @@ maps to the namespace (`:claudeworth-household` → `manor.scenarios.claudeworth
   "…"
   (:require [manor.mechanics.hiring :as hiring]
             [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.claudeworth.deliveries :as deliveries]))
+            [manor.mechanics.deliveries :as deliveries]))
 
 (def scenario
   (deliveries/install

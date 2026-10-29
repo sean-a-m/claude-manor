@@ -8,7 +8,7 @@
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
-            [manor.scenarios.claudeworth.money :as money]
+            [manor.mechanics.money :as money]
             [manor.world :as w])
   (:import (java.net URLEncoder)))
 

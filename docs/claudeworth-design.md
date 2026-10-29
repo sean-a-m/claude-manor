@@ -243,7 +243,7 @@ in a fraction of a second.
 - All characters see it and can spend from it; social authority is left to the agents.
 - The architect has a private purse and earns a fee (10% of each commission) on plans he drew:
   an in-world reason to encourage bigger, grander works.
-- Integer old pence throughout runtime state: £1 = 20s = 240d. `manor.scenarios.claudeworth.money` formats amounts
+- Integer old pence throughout runtime state: £1 = 20s = 240d. `manor.mechanics.money` formats amounts
   as pounds/shillings/pence; no floats. World-file starting funds and architect MCP prices
   remain authored in whole pounds and are converted at those boundaries. Fees round down
   to a penny. This change intentionally invalidates old runs; no migration is maintained.
@@ -278,13 +278,13 @@ borrow work-job scheduling or the architect's MCP transport. See [the store brie
 consult-references (query, at the office)  ── MCP consult_references ──> reference excerpts
 draw-plans (query, at the office, open hours)
    └─ bridge :architect/draft ── MCP draft_plans ──> drafted room + price
-        └─ on-result: :claudeworth/plans-drawn   (plan stored, id "plan-123", visible to drawer and client)
+        └─ on-result: :building/plans-drawn   (plan stored, id "plan-123", visible to drawer and client)
 show-plans {plan-id} (free)        shares a plan with everyone in the room (they hold it too)
 commission {plan-id} (final, at the office, open hours)
    └─ checks: plan exists, you are family or secretary, funds cover the price
-   └─ :claudeworth/commissioned   (money moves; works complete at round + 48 × build-days)
+   └─ :building/commissioned   (money moves; works complete at round + 48 × build-days)
 construction system (every round)
-   └─ when due: :claudeworth/works-completed + :space/location-added + :space/route-opened (travel 0)
+   └─ when due: :building/works-completed + :space/location-added + :space/route-opened (travel 0)
 ```
 
 - **`draw-plans {for name floor desc connects-to size}`**. `desc` is free text: what the room is

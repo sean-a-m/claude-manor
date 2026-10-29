@@ -66,7 +66,8 @@
 
  "lord-claudeworth"
  {"18:00"
-  [[:walk {:to "drawing-room"}]
+  [[:walk {:to "@plan"}]
+   [:walk {:to "drawing-room"}]
    [:say
     {:text
      "Pugh is keen. He talks a great deal about proportion, but I think he is our man."}]],

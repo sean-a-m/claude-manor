@@ -7,7 +7,8 @@
             [manor.io.store :as store]
             [manor.mechanics.items :as items]
             [manor.mechanics.space :as space]
-            [manor.scenarios.claudeworth :as cw]
+            [manor.ruleset.init :as ruleset-init]
+            [manor.ruleset.views :as views]
             [manor.world :as w]))
 
 (def bundled [:village :treasure :quiz :claudeworth :claudeworth-medium :lodge :dressing :burglary])
@@ -39,14 +40,14 @@
           (doseq [agent (w/active-agents world) :when (not= :gm (:role agent))]
             (is (= :bedroom (:kind (space/location world (get-in world [:state :bedrooms (:id agent)]))))
                 (:id agent))
-            (is (contains? (cw/observe world (:id agent)) :household) (:id agent))
+            (is (contains? (views/observe world (:id agent)) :household) (:id agent))
             (is (= #{:buy :commission}
                    (set (keep #(when (#{:buy :commission} (:name %)) (:name %))
                               (a/for-role (:actions run) (:role agent)))))
                 (:id agent)))
           (is (= world (w/replay (store/read-events (:dir run))))))
         (finally (e/stop-run run)))))
-  (is (empty? (cw/problems (:world-file (cw/init {:world-file "test/fixtures/household.edn"}))))))
+  (is (empty? (ruleset-init/problems (:world-file (ruleset-init/init {:world-file "test/fixtures/household.edn"}))))))
 
 (deftest household-containers
   ;; Exact contents and choreography belong to a frozen test-owned world.
@@ -95,8 +96,8 @@
       (e/auto! run 47)
       (is (= :idle (e/wait-idle run 120000)))
       (let [world (e/world run) events (e/events run)
-            bought (filter #(= :claudeworth/bought (:type %)) events)
-            quoted (into {} (for [e events :when (= :claudeworth/goods-quoted (:type e))]
+            bought (filter #(= :shop/bought (:type %)) events)
+            quoted (into {} (for [e events :when (= :shop/goods-quoted (:type e))]
                               [(get-in e [:data :id]) (:data e)]))]
         (is (= 47 (:round world)))
         (is (seq bought))
@@ -157,7 +158,7 @@
           (let [sent (filter #(= :deliveries/sent-up (:type %)) events)
                 ids (set (map :id (mapcat (comp :orders :data) sent)))]
             (is (seq sent))
-            (is (some #(= "leave" (get-in % [:data :hand-over])) (filter #(= :claudeworth/bought (:type %)) events)))
+            (is (some #(= "leave" (get-in % [:data :hand-over])) (filter #(= :shop/bought (:type %)) events)))
             (is (every? #(contains? (:items-gone world) %) (mapcat #(map :item-id (get-in % [:data :orders])) sent)))
             (is (every? (set (mapcat (comp :orders :data) (filter #(= :deliveries/arrived (:type %)) events))) ids))
             (is (every? (set (keep :order-id (items/items-where world #(= "carriage-sweep" (:place %))))) ids)

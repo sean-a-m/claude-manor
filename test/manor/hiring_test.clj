@@ -18,7 +18,8 @@
             [manor.mechanics.space :as space]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
-            [manor.scenarios.claudeworth :as claudeworth]
+            [manor.ruleset :as ruleset]
+            [manor.ruleset.actions :as ruleset-actions]
             [manor.world :as w]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
@@ -52,11 +53,11 @@
                       {:name "Bystander" :role :none :location "gate"}]
              :space {:locations [{:id "gate" :name "Gate"} {:id "room" :name "Bedroom" :kind :bedroom}]
                      :routes [["gate" "room" 0]]}
-             :state {:positions (positions/read-catalogue "settings/england-1904/positions.edn") :setting "England, 1904."}})
+             :state {:positions (positions/read-catalogue "settings/england-1904/positions.edn") :setting "England, 1904."
+                     :meeting-place "gate"}})
     :actions h/actions :adjudicators h/adjudicators :bridges h/bridges
     :offline-stubs h/offline-stubs :mcp-servers people/mcp-servers
-    :reference (fn [world _] (h/reference world)) :observe h/observe :mock-policy policy}
-   "gate"))
+    :reference (fn [world _] (h/reference world)) :observe h/observe :mock-policy policy}))
 
 (defn start
   ([] (start {} {}))
@@ -244,7 +245,7 @@
                    (and (= id agent-id) (get-in world [:state :place-offers id]))
                    {:tool :accept-place :args {:conditions "Sunday afternoons free."}}
                    :else (policy ctx))))
-        run (start {:actions (conj h/actions (first (filter #(= :walk (:name %)) claudeworth/actions)))
+        run (start {:actions (conj h/actions (first (filter #(= :walk (:name %)) ruleset-actions/actions)))
                     :mock-policy hire} {})]
     (try
       (rounds! run 3)
@@ -461,7 +462,7 @@
                    {:tool :accept-place :args {}}
                    :else (policy ctx))))
         run (start {:init (fn [opts] (assoc (init opts) :clock {:start "1904-10-15T22:30" :minutes-per-round 30}))
-                    :actions (conj h/actions (first (filter #(= :walk (:name %)) claudeworth/actions)))
+                    :actions (conj h/actions (first (filter #(= :walk (:name %)) ruleset-actions/actions)))
                     :mock-policy hire} {})]
     (try
       (rounds! run 9)
@@ -624,8 +625,8 @@
       (try
         (let [world (e/world run)
               conv {:members ["employer" "recommender"]}
-              recommend (first (claudeworth/speaking-actions world "recommender" conv))]
-          (is (= [:recommend :engage :accept-place :decline-place] (mapv :name (claudeworth/speaking-actions world "recommender" conv))))
+              recommend (first (ruleset/speaking-actions world "recommender" conv))]
+          (is (= [:recommend :engage :accept-place :decline-place] (mapv :name (ruleset/speaking-actions world "recommender" conv))))
           (is (nil? (a/check recommend world "recommender" {:position "housemaid" :for "employer"})))
           (is (= "recommend to someone in this conversation"
                  (a/check recommend world "recommender" {:position "housemaid" :for "bystander"}))))
@@ -644,7 +645,7 @@
                            (some #{"recommend"} used) {:tool :reply :args {:text "I know just the girl."}}
                            :else {:tool :recommend :args {:position "housemaid" :for "employer"}}))
           run (start {:mock-policy policy :mock-conversation conversation
-                      :speaking-actions claudeworth/speaking-actions} {})]
+                      :speaking-actions ruleset/speaking-actions} {})]
       (try
         (rounds! run 3)
         (let [evs (e/events run)
@@ -729,7 +730,7 @@
                            {:tool :accept-place :args {:conditions "Sundays free."}}
                            :else {:tool :reply :args {:text "Very good."}})))
         run (start {:mock-policy policy :mock-conversation conversation
-                    :speaking-actions claudeworth/speaking-actions} {})]
+                    :speaking-actions ruleset/speaking-actions} {})]
     (try
       (rounds! run 3)
       (let [world (e/world run)

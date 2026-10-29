@@ -4,6 +4,7 @@
 ;; and a friend of the earl's who is away (from elsewhere) from the start.
 ;; Test-owned: don't sync it with the bundled worlds.
 {:meta {:name "Claudeworth Manor"
+        :meeting-place "carriage-sweep" ; where candidates, guests and deliveries arrive
         :start "1904-10-15T20:00"
         :minutes-per-round 30
         :starting-funds 100

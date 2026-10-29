@@ -9,12 +9,35 @@ examples include:
 - `src/manor/scenarios/quiz.clj`: an MCP bridge. Each contestant messages a private,
   persistent pi assistant through the pi MCP server.
 
-`src/manor/scenarios/lodge.clj` is a small production household built by associating over
-`claudeworth/scenario`, with its own world (`resources/worlds/lodge.edn`), mock day
-(`lodge-day.edn`), defaults and excluded architecture tools. It reuses the shop, stores, work
-judge, positions and posts without copying mechanics. Its missing maid is each character's
-`:situation`, not starting notes. The shared catalogue includes `:mistress` (of a small house)
-and `:cook-general` for this sort of household.
+The household scenarios (`claudeworth`, `claudeworth-medium`, `lodge`) are a few lines each over
+the **shared ruleset**, `manor.ruleset`: every household mechanic (walk/call/travel/sleep/rouse,
+items, hiring, the shop and deliveries, building, visits, physical status, inner state,
+hibernation, the rules prompt and briefs) installed once. A scenario on it is its world file and
+its mock script:
+
+```clojure
+(ns manor.scenarios.my-house
+  (:require [manor.ruleset :as ruleset]))
+
+(def scenario
+  (ruleset/scenario
+   {:name :my-house                                 ; matches the namespace
+    :doc "..."
+    :defaults {:world-file "worlds/my-house.edn" :max-cost 0.20}   ; the world file is required
+    :mock-day "worlds/my-house-day.edn"            ; agent id -> "HH:mm" -> tool calls (or a map)
+    :mock-conversation (fn [ctx] ...)}))            ; optional; or :mock-policy for a policy of your own
+```
+
+Mechanics switch themselves off by the world, not by lists: with no location offering the
+`:architect` service the architect's five tools aren't offered and the rules and judge brief say
+nothing of building; without a post office `invite` has no post. `:calendar? false` leaves the
+calendar out (and so the setting pack's holidays): Lodge does this. The world file must name its
+`:meta :meeting-place` (see World files). The scripted mock policy is
+`manor.ruleset.mock/scripted-policy`: Lodge's `mock-policy` wraps it to fill in its candidate.
+`src/manor/scenarios/lodge.clj` is the small example: its own world (`resources/worlds/lodge.edn`)
+and mock day (`lodge-day.edn`). Its missing maid is each character's `:situation`, not starting
+notes. The shared catalogue includes `:mistress` (of a small house) and `:cook-general` for this
+sort of household.
 
 `test/manor/scenarios/prize.clj` is a 22-line minimal scenario used by the tests (no locations,
 simultaneous turns). `test/manor/scenarios/hamlet.clj` is a small test scenario loaded from a
@@ -118,8 +141,9 @@ is processed even when no browser observed it. Later route changes update styles
 Outer region/panel packing may shift as the picture grows. The UI cache is disposable, not a
 source of geometry. There are no cancellation/deletion events in this adapter contract.
 
-Claudeworth's `manor.tools.scene-claudeworth/hooks` captures existing `plans-drawn` evidence when
-`commissioned` arrives, using the commissioned **room id**, not the plan id. On location creation
+The ruleset's `manor.tools.scene-ruleset/hooks` captures existing `plans-drawn` evidence when
+`commissioned` arrives, using the commissioned **room id**, not the plan id, and the home domain
+the event records (`:domain`, which construction gives the finished room). On location creation
 it carries that size forward. Existing `works-completed` plus prior plan evidence can size a room
 when commissioning evidence is absent; it cannot fabricate a historical ghost. Unknown custom
 size names use generic sizing. No size is added to simulation locations/events/state. Current
@@ -183,7 +207,7 @@ from the `:gm` run option (`:llm`, `:human`, or `:off`).
   `(fn [world agent-id] string)` for agents, `(fn [world] string)` for the GM. It's called for
   every model call, so it can fill in facts from the world (minutes per turn from the clock, text
   your `:init` put in `:state` from a world file) instead of restating them. See One home per
-  fact below; `claudeworth.clj` does this.
+  fact below; the ruleset's `manor.ruleset.rules` does this.
 - `:on-spawn` receives a world that already contains the agent. Return events, e.g. one that sets
   starting holdings privately: `{:type :my/settled :actor id :data {...} :visible-to #{id}}`.
 - A role without `:spawnable? true` can only come from `:init` or an operator `spawn!`.
@@ -326,7 +350,7 @@ count toward the normal run cost cap. One action invocation uses one query slot 
 adjudicator needs a correction. In mock runs the registered `:mock` handles these calls,
 separately from character `:mock-policy`; supply a responder for every task used offline.
 
-Claudeworth's `manor.scenarios.claudeworth.shop` is an example. Every appraisal receives the actual
+Claudeworth's `manor.mechanics.shop` is an example. Every appraisal receives the actual
 location's `:store-profile` (required, non-blank, at most 2000 characters), name/description,
 setting/date and goods/amount. It refuses unsuitable stock before pricing. The checked
 response creates a buyer-bound quote for each line of a request (`quote-goods {for goods}` takes
@@ -383,7 +407,7 @@ Claudeworth's `find-allowed?` refuses `find` there too. Their repairs, sweeping,
 `spend-time` on actual items, places or people; no paid-service or mail-transport contract is
 implied. Each resident has a bedroom and routine just like the existing shopkeepers.
 
-**Deliveries** (`manor.scenarios.claudeworth.deliveries`, design in `docs/deliveries-design.md`). A shop
+**Deliveries** (`manor.mechanics.deliveries`, design in `docs/deliveries-design.md`). A shop
 sends goods out when its location has a `:delivery-profile`: at most 400 characters, describing
 its delivery scope in general terms, never a list of goods (so it doesn't suggest purchases).
 A `quote-goods` line may set `deliver true`; at a shop without a profile such a call is refused
@@ -599,7 +623,7 @@ Event shape (returned by effects, ticks and hooks; the engine stamps `:id` and `
   the `:from-person` of an `:item/taken`, and `:person/acted-on`'s `:on` people).
   `:all`, `:gm` and `:system` are never trimmed, and the stored audience is the trimmed one, so
   replay is unaffected. Tagged so far: speech (`:agent/said`, `:agent/whispered`, Claudeworth's
-  `:claudeworth/called`) and muffled noises (`:person/muffled`) are heard; moves, departures, arrivals and placings, occupations (work
+  `:agent/called`) and muffled noises (`:person/muffled`) are heard; moves, departures, arrivals and placings, occupations (work
   starts, falling asleep), items taken, put down, put in, given, found or not found, and status
   changes and immediate acts are seen. Untagged events reach everyone in the audience who is conscious.
 - Multimethods are global. Namespace your event types (`:treasure/...`) so scenarios can't collide.
@@ -908,7 +932,7 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
   the judge or steward put the thing back; the exported map retains it. **Absorbable** means
   not fixed, not a store, and either `:consumable?` or `:drawn-from` (`items/absorbable?`).
   A watch or the family's silver cannot be absorbed or used up.
-- **`:order-id`** marks goods delivered for an order (`manor.scenarios.claudeworth.deliveries`). The nightly
+- **`:order-id`** marks goods delivered for an order (`manor.mechanics.deliveries`). The nightly
   steward never draws them as candidates, wherever they've been taken; work can still use
   them up. The exported map retains it.
 - **`:waiting {:for :keeper :at :since}`** marks goods kept for someone: whom they're for and
@@ -1815,7 +1839,15 @@ in `:init`:
   and `:inner` (people who came during the run aren't added). A run can start from an exported map
   (`{:world-file "runs/<id>/map.edn"}`), and `(export-map! path)` at the REPL writes one anywhere.
 
-A Claudeworth-derived world with an architect's office names the architect's price list in
+A ruleset world (`manor.ruleset`) names its **meeting place** in `:meta :meeting-place`, a
+location id: where candidates, guests from elsewhere and deliveries arrive (`problems` refuses a
+world without one, or with an unknown id). Its **home area** is the meeting place's `:domain`
+(Claudeworth's `:house`), or `:meta :home-domain` (a keyword, which must be some location's
+`:domain`) when the meeting place stands outside it. The home area's bedrooms are the household's
+(`household.bedrooms` in views), and plans build onto its rooms, new rooms taking its domain
+(`manor.mechanics.space/home-domain` answers it for a world).
+
+A ruleset world with an architect's office names the architect's price list in
 `:meta :architect-prices`: a file or classpath resource such as `"architect/prices-1904.edn"`
 (`resources/architect/`), `{:sizes [{:size "small" :price 200 :build-days 1} ...]}` with prices in
 the setting pack's authored money unit (England: whole pounds). `:init` reads it into
@@ -1823,10 +1855,12 @@ the setting pack's authored money unit (England: whole pounds). `:init` reads it
 rules list its sizes, `draw-plans` accepts only those sizes, and each draft sends it to the
 architect server. A world without an office needs none.
 
-Claudeworth-derived worlds may omit architect services altogether (as Lodge does). If an
+Ruleset worlds may omit architect services altogether (as Lodge does). If an
 architect service exists, the existing check still requires at least one with opening hours;
 all supplied hours are checked. With no architect service, the shared brief omits building-only
-instructions. Exclude the five architecture actions in that scenario as well. Only an agent whose position
+instructions, and the five architect actions aren't offered (their `:available?` check,
+`building/office?`; like every tool with such a check, they come at the end of the tool list).
+Only an agent whose position
 has the `:architect` capability is offered `draw-plans`, and draws only for a client with them
 at the open office. Each starting
 character still needs a bedroom, including living-out shopkeepers; the empty maid's room must
@@ -1952,9 +1986,10 @@ data, so there's one source and no call.
 
 #### Runtime candidates and hiring
 
-Claudeworth and Lodge include `manor.mechanics.hiring`. A derivative scenario with another entrance
-should call `(hiring/install scenario "entrance-id")`: it sets `:meeting-place`, initial
-state's meeting place/cap, the visit system and the writing-job extension. A new scenario
+Every ruleset scenario includes `manor.mechanics.hiring`. `(hiring/install scenario)` adds the
+initial state's agent cap, the visit system and the writing-job extension; candidates arrive at
+the meeting place, which the scenario's `:init` keeps at `[:state :meeting-place]` (the ruleset
+reads it from the world file's `:meta :meeting-place`). A scenario not on the ruleset
 must also include `hiring/actions`, `hiring/adjudicators`, `hiring/bridges`,
 `hiring/offline-stubs`, `people/mcp-servers`, `positions/starting-events` as `:on-spawn`,
 and project `hiring/observe` into its own observation (Claudeworth uses `:hiring`).
@@ -2063,7 +2098,7 @@ England; old run money/state/event shapes are not supported. A pack contains:
   prose used by the shopping rules, the shop appraiser and the invitation judge. Any other markdown file under `prompts/` may
   override the shared template with the same relative path, e.g. `prompts/judges/find-person.md`.
 
-Claudeworth's base `init` loads all this through `manor.settings/for-worldfile` and records it in
+The ruleset's `init` (`manor.ruleset.init`) loads all this through `manor.settings/for-worldfile` and records it in
 `[:state :setting-pack]`. Fragment/override text is snapshotted, so editing pack files does not
 change an existing run. `settings/pack` reads that snapshot (England for a pre-pack state), and
 `(settings/parameter world :home)` or `(settings/parameter world :clock :label)` reads a parameter.
@@ -2114,10 +2149,10 @@ The GM/operator can see all balances. Architect fees credit the architect's ordi
 `"own"`); there is no restriction by role on shared spending and no transfer/`pay` action.
 Purchases belong to the paying owner, whether carried, left, ordered or sent up.
 
-The implementation remains `manor.scenarios.claudeworth.money` until the ruleset move:
+The implementation is `manor.mechanics.money`:
 `(money/spec world)`, `(money/display spec n)` and `(money/authored->units spec n)`.
 Narration gets the spec from `(get names [:money])`; it does not load current pack files.
-Paid events (`:claudeworth/bought`, `:deliveries/ordered`, `:claudeworth/commissioned`) record
+Paid events (`:shop/bought`, `:deliveries/ordered`, `:building/commissioned`) record
 `:account`, and delivery orders also record `:owner`. Replay uses these, not old balance keys or
 `:unit-price-pence`. World-file values and the architect's raw price list remain authored amounts;
 convert once at initialization or when storing a draft, never when replaying an event.
@@ -2300,14 +2335,14 @@ through `worldfile/load-world`'s `:calendar` from a world file:
   separate supported actions. No scheduling schemas are added to work/conversation judges or
   the steward. Scenarios without `:calendar` retain their existing prompts and tools.
 
-The bundled `claudeworth` and `claudeworth-medium` scenarios opt in and compose their base init
-with `manor.scenarios.claudeworth.holidays/add-to`. It adds the loaded setting pack's explicitly dated
+Ruleset scenarios opt in (unless `:calendar? false`) and compose the ruleset's init
+with `manor.ruleset.init/add-holidays`. It adds the loaded setting pack's explicitly dated
 calendar entries (England: `resources/settings/england-1904/calendar.edn`) to the init result's
 `:calendar`. A world-file
 entry with a matching ID replaces the default completely (including audience and lifecycle);
-other entries are retained and normal engine validation still applies. The base `claudeworth/init`
-loads only the supplied world: worlds reusing the rules without the holiday seed, such as Lodge,
-use that base init and omit scenario `:calendar`. The catalogue is an illustrative period list,
+other entries are retained and normal engine validation still applies. `manor.ruleset.init/init`
+loads only the supplied world: a scenario with `:calendar? false`, such as Lodge, uses it alone
+and has no scenario `:calendar`. The catalogue is an illustrative period list,
 not an exhaustive almanac; it has no recurrence and must be extended by hand beyond 1905.
 
 ### Visits (`manor.mechanics.visits`)
@@ -2323,13 +2358,13 @@ invitation judge, which matches someone in the world or writes someone new.
   place). It adds `invite`, one `take-leave` for candidates and guests from elsewhere (in place of
   hiring's), the GM's `schedule-visit` and `cancel-visit`, the invitation judge (`:visits/invitee`
   in `:adjudicators`, with its mock), the `:visits/tick` system (after hiring's and deliveries'),
-  and the config in `[:state :visit-config]`. It's idempotent:
-  `claudeworth-medium` re-installs on `cw/scenario`. The scenario needs a clock, a `:guest`
+  and the config in `[:state :visit-config]`. It's idempotent. The scenario needs a clock, a `:guest`
   position for people made new (the catalogue has one), and `:calendar` for the guests' and hosts'
   entries (without it, visits still run but nobody's calendar shows them). Its `:observe` should
   call `(visits/add-to-view view world id)`, and its `:hibernate` should leave out anyone
-  `visits/keeps-awake?`. Both Claudeworth scenarios install it, and Claudeworth's `rules` add the
-  invitation paragraph (`visits/rules`) when the config is there.
+  `visits/keeps-awake?`. Every ruleset scenario installs it (Lodge too, without a calendar), and
+  the ruleset's `rules` add the invitation paragraph (`visits/rules`) when the config is there;
+  its sentence about the calendar is left out when there's no calendar.
 - **Config:** `visits/default-config`, then `{:house <world file :meta :name>}`, then the
   scenario's `:visits`, then the run option `:visits`, merged in that order (`:lead-hours` key by
   key):

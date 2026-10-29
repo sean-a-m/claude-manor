@@ -12,8 +12,11 @@
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.claudeworth.deliveries :as deliveries]
-            [manor.scenarios.claudeworth.shop :as shop]
+            [manor.ruleset :as ruleset]
+            [manor.ruleset.hibernation :as hibernation]
+            [manor.ruleset.rules :as rules]
+            [manor.mechanics.deliveries :as deliveries]
+            [manor.mechanics.shop :as shop]
             [manor.world :as w]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
@@ -29,7 +32,7 @@
             ;; Advance the routine without playing the household's day; all
             ;; counters are open at noon in the bundled world.
             noon (assoc world :round 9)
-            noon (reduce w/apply-event noon (b/hibernations cw/hibernate noon))
+            noon (reduce w/apply-event noon (b/hibernations hibernation/hibernate noon))
             customer (first (filter #(positions/household-member? world (:id %))
                                     (w/active-agents world)))
             work (first (filter #(= :spend-time (:name %)) (:actions run)))]
@@ -40,35 +43,35 @@
                   position (positions/position noon id)
                   visiting (w/apply-event noon {:type :agent/placed
                                                 :data {:id (:id customer) :to place}})
-                  awake (reduce w/apply-event visiting (b/wakings cw/hibernate visiting))]
+                  awake (reduce w/apply-event visiting (b/wakings hibernation/hibernate visiting))]
               (is (b/hibernating? world id) "idle village residents make no character calls")
               (is (not-any? #(and (= id (:actor %)) (= :llm/usage (:type %))) (e/events run)))
               (is (not= :house (:domain (space/location noon place))))
               (is (= :bedroom (:kind (space/location noon (get-in noon [:state :bedrooms id])))))
               (is (some #{place} (:workplace position)))
               (is (not (positions/household-member? noon id)))
-              (is (nil? (cw/hibernate visiting id)) "a caller wakes the intended resident")
+              (is (nil? (hibernation/hibernate visiting id)) "a caller wakes the intended resident")
               (is (not (b/hibernating? awake id)))
               (is (every? #(b/hibernating? awake %)
                           (remove #(= place (space/location-of noon %)) residents))
                   "a visitor wakes only the people where they call")
               (is (nil? (a/check work awake id {:doing "attending to work here" :on [place] :hours 0.5})))
-              (is (seq (cw/agent-brief awake id)))
+              (is (seq (rules/agent-brief awake id)))
               (if (positions/capable? awake id :shop-clerk)
                 (let [args {:for (:id customer) :goods [{:item "a small counter purchase" :amount "1"}]}
                       request (shop/request awake id args)
                       data (json/read-value (get-in request [:messages 1 :content]) json/keyword-keys-object-mapper)]
                   (is (nil? (shop/quote-reason awake id args)))
-                  (is (some #{:quote-goods} (map :name (cw/speaking-actions awake id {}))))
+                  (is (some #{:quote-goods} (map :name (ruleset/speaking-actions awake id {}))))
                   (is (= (:store-profile (space/location awake place)) (get-in data [:store :store-profile])))
                   (is (nil? (:household data)))
                   (is (nil? (:agents data))))
                 (do
-                  (is (not-any? #{:quote-goods} (map :name (cw/speaking-actions awake id {}))))
+                  (is (not-any? #{:quote-goods} (map :name (ruleset/speaking-actions awake id {}))))
                   (is (seq (:services (space/location awake place)))
                       "service workrooms are places of trade")
-                  (is (nil? (cw/find-allowed? awake (:id customer) place)) "find works everywhere by default")
-                  (is (string? (cw/find-allowed? (assoc-in awake [:state :find-everywhere?] false) (:id customer) place)))))))))
+                  (is (nil? (rules/find-allowed? awake (:id customer) place)) "find works everywhere by default")
+                  (is (string? (rules/find-allowed? (assoc-in awake [:state :find-everywhere?] false) (:id customer) place)))))))))
       (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
       (finally (e/stop-run run)))))
 

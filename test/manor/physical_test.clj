@@ -27,7 +27,9 @@
             [manor.narrate :as narrate]
             [manor.prompt :as prompt]
             [manor.scenarios.burglary :as burglary]
-            [manor.scenarios.claudeworth :as cw]
+            [manor.ruleset.actions :as ruleset-actions]
+            [manor.ruleset.hibernation :as hibernation]
+            [manor.ruleset.init :as ruleset-init]
             [manor.world :as w]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
@@ -82,7 +84,7 @@
   (let [good (wf/read-file burglary/world-file)
         crane (fn [k v] (wf/problems (assoc-in good [:agents 0 k] v)))]
     (is (empty? (wf/problems good)))
-    (is (empty? (cw/problems good)))
+    (is (empty? (ruleset-init/problems good)))
     (is (str/includes? (first (crane :physical {:sight {:level :impeded}})) "agent \"Crane\""))
     (is (seq (crane :physical {:smell {:level :disabled}})))
     (is (seq (crane :physical {:movement {:level :disabled :minutes 30}})) "only consciousness takes minutes")
@@ -139,7 +141,7 @@
             (is (= [{:id "pantry-keys" :name "Pantry keys" :desc "A ring of keys to the pantry and the plate chest."}]
                    (:carrying (first (filter :dead people)))))))
         (testing "the walk reply shows them too"
-          (is (:dead (first (filter #(= "albert" (:id %)) (:people-here (cw/arrival world "slade"))))))))
+          (is (:dead (first (filter #(= "albert" (:id %)) (:people-here (ruleset-actions/arrival world "slade"))))))))
       (finally (e/stop-run run)))))
 
 (deftest physical-judge-views-show-when-statuses-were-set
@@ -203,15 +205,15 @@
 (deftest a-routine-leaves-a-bound-villager-where-he-is
   (let [run (start)]
     (try
-      (is (not-any? #(= "tom" (:actor %)) (b/hibernations cw/hibernate (e/world run))))
-      (is (some? (cw/hibernate (e/world run) "tom")) "his routine would otherwise take him home")
+      (is (not-any? #(= "tom" (:actor %)) (b/hibernations hibernation/hibernate (e/world run))))
+      (is (some? (hibernation/hibernate (e/world run) "tom")) "his routine would otherwise take him home")
       (rounds! run 3)
       (is (= "potting-shed" (space/location-of (e/world run) "tom")))
       (is (nil? (w/busy (e/world run) "tom")))
       (is (= 3 (count (filter #(= "tom" (:actor %)) (of-type run :agent/passed)))) "he gets his turns")
       (testing "untied, his routine applies again"
         (let [untied (set-faculty (e/world run) "tom" :movement :normal)]
-          (is (= ["tom" "tom"] (map :actor (b/hibernations cw/hibernate untied))))))
+          (is (= ["tom" "tom"] (map :actor (b/hibernations hibernation/hibernate untied))))))
       (finally (e/stop-run run)))))
 
 ;; ---------------------------------------------------------------------------
@@ -538,13 +540,13 @@
     (try
       (place! run "will" "butlers-pantry")
       (act! run "crane" :call {:text "Help!"})
-      (let [called (last (of-type run :claudeworth/called))
+      (let [called (last (of-type run :agent/called))
             muffled (last (of-type run :person/muffled))]
         (is (= #{"crane"} (:visible-to called)))
         (is (= #{"will"} (:visible-to muffled)) "not Ivy and Slade in the dining room")
         (is (= "Crane gives a muffled cry from the butler's pantry." (describe run muffled))))
       (act! run "will" :call {:text "Thieves!"})
-      (let [heard (:visible-to (last (of-type run :claudeworth/called)))]
+      (let [heard (:visible-to (last (of-type run :agent/called)))]
         (is (every? heard ["crane" "ivy" "slade"]) "a clear call carries through the house")
         (is (not (heard "mrs-bell")) "but not to the unconscious"))
       (is (replays? run))
@@ -638,7 +640,7 @@
           (is (= physical/cant-see (get-in ivy [:location :cant-see])))
           (is (= [] (get-in ivy [:you :carrying])))
           (is (seq (get-in ivy [:location :exits])))
-          (is (= #{:here :cant-see} (set (keys (cw/arrival world "ivy")))) "nor does the walk reply"))
+          (is (= #{:here :cant-see} (set (keys (ruleset-actions/arrival world "ivy")))) "nor does the walk reply"))
         (testing "look and open are refused"
           (is (= "your sight is disabled (blindfolded with a pillowcase), so you can't look around"
                  (check run world "ivy" :look {})))

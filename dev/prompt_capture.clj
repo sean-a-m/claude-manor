@@ -32,8 +32,8 @@
             [manor.mechanics.visits :as visits]
             [manor.mechanics.visits.judge :as visits-judge]
             [manor.prompt :as prompt]
-            [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.claudeworth.shop :as shop]))
+            [manor.ruleset.rules :as rules]
+            [manor.mechanics.shop :as shop]))
 
 (def scenarios [:claudeworth :lodge :claudeworth-medium])
 
@@ -131,7 +131,7 @@
   [run world]
   (str/join "\n" (map #(tool-text (a/->tool % world)) (:actions run))))
 
-(def ^:private judge-brief @#'cw/judge-brief)
+(def ^:private judge-brief rules/judge-brief)
 
 (defn- rendered
   "Name -> text: every prompt that phase 1 of docs/settings-design.md moves."
@@ -140,10 +140,10 @@
         [lodge-run lodge-world] (start-world :lodge)
         tool #(tool-text (a/->tool (first (filter (comp #{%} :name) (:actions run))) world))]
     {"agent-preamble.md" (prompt/agent-preamble world)
-     "rules-claudeworth.md" (cw/rules world)
-     "rules-claudeworth-no-find-at-shops.md" (cw/rules (assoc-in world [:state :find-everywhere?] false))
-     "rules-claudeworth-no-visits.md" (cw/rules (update world :state dissoc :visit-config))
-     "rules-lodge.md" (cw/rules lodge-world)
+     "rules-claudeworth.md" (rules/rules world)
+     "rules-claudeworth-no-find-at-shops.md" (rules/rules (assoc-in world [:state :find-everywhere?] false))
+     "rules-claudeworth-no-visits.md" (rules/rules (update world :state dissoc :visit-config))
+     "rules-lodge.md" (rules/rules lodge-world)
      "judge-brief.md" (judge-brief world)
      "judge-brief-lodge.md" (judge-brief lodge-world)
      "physical-rules.md" (physical/rules world)

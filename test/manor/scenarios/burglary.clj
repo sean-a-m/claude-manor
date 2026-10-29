@@ -1,6 +1,6 @@
 (ns manor.scenarios.burglary
   "Test scenario for physical status (manor.mechanics.physical) on
-  Claudeworth's mechanics, loaded from test/fixtures/burglary.edn: a house
+  the ruleset (manor.ruleset), loaded from test/fixtures/burglary.edn: a house
   at one in the morning after a burglary has gone wrong. The butler is bound
   and gagged in his pantry; in the dining room the housemaid is blindfolded,
   the first footman lies dead with the pantry keys, and the burglar holds the
@@ -16,7 +16,7 @@
   (:require [manor.mechanics.items.judge :as judge]
             [manor.mechanics.items.steward :as steward]
             [manor.mechanics.physical :as physical]
-            [manor.scenarios.claudeworth :as cw]))
+            [manor.ruleset :as ruleset]))
 
 (def world-file "test/fixtures/burglary.edn")
 
@@ -31,9 +31,6 @@
    "will" {"01:00" [[:sleep {:until "02:00"}]]
            "02:00" [[:walk {:to "butlers-pantry"}]
                      [:act-on {:on ["slade"] :doing "pinning Slade's arms and recovering the jewel case"}]]}})
-
-(defn mock-policy [ctx]
-  (cw/scripted-policy mock-day ctx))
 
 (defn mock-judge
   "Fixed outcomes for the two scripted acts; other work uses the default mock.
@@ -63,11 +60,10 @@
       (assoc-in [:args :physical] [{:person "will" :faculty :movement :level :impeded :cause "a tender ankle"}]))))
 
 (def scenario
-  (assoc (dissoc cw/scenario :calendar :mock-conversation)
-         :init (comp #(dissoc % :calendar) (:init cw/scenario))
-         :name :burglary
-         :doc "Hollin Grange, 1904: a burglary at night that has gone wrong."
-         :defaults {:world-file world-file}
-         :mock-policy mock-policy
+  (assoc (ruleset/scenario {:name :burglary
+                            :doc "Hollin Grange, 1904: a burglary at night that has gone wrong."
+                            :defaults {:world-file world-file}
+                            :mock-day mock-day
+                            :calendar? false})
          :mock-judge mock-judge
          :mock-steward mock-steward))

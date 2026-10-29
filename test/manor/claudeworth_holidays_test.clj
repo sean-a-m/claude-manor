@@ -5,7 +5,8 @@
             [manor.io.store :as store]
             [manor.mechanics.calendar :as calendar]
             [manor.prompt :as prompt]
-            [manor.scenarios.claudeworth.holidays :as holidays]
+            [manor.ruleset.init :as ruleset-init]
+            [manor.settings :as settings]
             [manor.world :as w]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
@@ -19,7 +20,7 @@
 (defn- status [world id] (get-in (entries world) [id :lifecycle :status]))
 
 (deftest catalogue-is-explicit-public-and-valid
-  (let [records holidays/entries
+  (let [records (:calendar (settings/pack {}))
         by-id (into {} (map (juxt :id identity)) records)]
     (is (vector? records))
     (is (= 58 (count records) (count by-id)))
@@ -47,7 +48,7 @@
         appointment {:id "appointment" :at "1904-11-03T14:00"
                      :description "An appointment." :visible-to :gm}
         init {:state {:unchanged true} :calendar [replacement appointment]}
-        result (holidays/add-to init)
+        result (ruleset-init/add-holidays init)
         records (:calendar result)]
     (is (= (:state init) (:state result)))
     (is (= 59 (count records) (count (set (map :id records)))))
@@ -55,7 +56,7 @@
     (is (= appointment (last records)))
     ;; Duplicate authored IDs must still reach the normal validator, not be hidden.
     (is (= 2 (count (filter #(= "appointment" (:id %))
-                           (:calendar (holidays/add-to {:calendar [appointment appointment]}))))))))
+                           (:calendar (ruleset-init/add-holidays {:calendar [appointment appointment]}))))))))
 
 (deftest both-scenarios-start-with-the-shared-calendar
   (doseq [scenario [:claudeworth :claudeworth-medium]]
@@ -69,7 +70,7 @@
                                    "guy-fawkes-1904" "martinmas-1904"}]
             (is (= 30 (get-in world [:calendar :lookahead-days])))
             ;; Besides the holidays, only entries visits manage (the medium son's homecoming).
-            (is (= (set (map :id holidays/entries)) (set (keys (remove (comp :managed-by val) records)))))
+            (is (= (set (map :id (:calendar (settings/pack {})))) (set (keys (remove (comp :managed-by val) records)))))
             (is (= :historical (status world "lady-day-1904")))
             (is (= :pending (status world "lady-day-1905")))
             (is (empty? (calendar/due-records world)))

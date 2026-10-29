@@ -57,14 +57,14 @@ and `deliveries/install`.
 
 **Time.** `clock.clj` labels are "Saturday 15 October 1904, 09:30" (weekday names; `Locale/ENGLISH`
 is right, since the prompts are English). The holiday calendar (now `settings/england-1904/calendar.edn`)
-is added by Claudeworth's `init` (`holidays/add-to`, from the loaded pack). Example dates in tool docs ("1904-10-21")
+is added by the ruleset's `init` (`manor.ruleset.init/add-holidays`, from the loaded pack). Example dates in tool docs ("1904-10-21")
 are literals. Times are `HH:mm` everywhere.
 
 ## 3. The design
 
 ### 3.1 One ruleset
 
-Move the generic body of `claudeworth.clj` into **`manor.ruleset`**, with building, shop,
+The generic body of `claudeworth.clj` is now **`manor.ruleset`** (phase 4), with building, shop,
 deliveries and money moved from `scenarios/claudeworth/` to `mechanics/`. It exposes:
 
 ```clojure
@@ -76,24 +76,29 @@ deliveries and money moved from `scenarios/claudeworth/` to `mechanics/`. It exp
 ```
 
 which returns the full scenario: every action, judge, bridge, system, hiring, deliveries and
-visits installed, in the order they're installed now. Scenarios differ only by world file and
+visits installed, in the order they were installed before. Scenarios differ only by world file and
 mock script. `claudeworth`, `claudeworth-medium`, `lodge` and the palace each become a few lines.
 (`village`, `treasure` and `quiz` are left alone: they're small examples on their own rules.)
+One option is not data from the world: `:calendar? false` leaves out the calendar and with it the
+pack's holidays (Lodge's content choice; visits work without a calendar, their rules then saying
+nothing of one).
 
 **Mechanics switch themselves off by the world, not by lists.** An action that needs a place or
 a person that the world lacks isn't offered, using the existing `:available?` hook:
 - the architect's five actions are available only when some location has the `:architect`
-  service (Lodge's `:exclude-actions` list goes);
+  service (`building/office?`; Lodge's `:exclude-actions` list is gone). As tools with an
+  `:available?` check, they now come at the end of the tool list;
 - the rules prompt and the judge brief include a mechanic's paragraph only when it applies
   (building with an office, deliveries with a shop that delivers, post with a post office),
   chosen in code as now;
 - `invite` offers `post` only when there's a post office (the doc follows; the enum can stay,
   with the existing reason).
 
-**The meeting place** moves to the world file (`:meta :meeting-place`), checked by `problems`.
+**The meeting place** is in the world file (`:meta :meeting-place`), checked by `problems`, and
+kept at `[:state :meeting-place]` (`space/meeting-place`).
 
-**The home area** (`:domain :house` today) becomes the meeting place's domain, or
-`:meta :home-domain` if a world needs to say otherwise. `"household"` stays as an internal id;
+**The home area** (Claudeworth's `:domain :house`) is the meeting place's domain, or
+`:meta :home-domain` if a world needs to say otherwise (`space/home-domain`). `"household"` stays as an internal id;
 only its display name comes from the setting.
 
 ### 3.2 Setting packs: a directory each
@@ -135,7 +140,7 @@ resources/settings/england-1904/
 overrides the pack's catalogue; architect price lists stay per world.
 
 `manor.settings/load-pack` reads `setting.edn`, `money.edn`, `positions.edn`, `calendar.edn` and every markdown
-file recursively under `prompts/`. Claudeworth's base `init` stores the resulting immutable map in
+file recursively under `prompts/`. The ruleset's `init` stores the resulting immutable map in
 `[:state :setting-pack]`: setting parameters at the top level, `:source` (classpath directory),
 `:money`, `:positions`, `:calendar` and `:prompts` (relative template path → text without one final newline).
 The initialized event therefore contains the pack snapshot, including fragment and override text;
@@ -146,8 +151,8 @@ for example `(settings/parameter world :home)` or `(settings/parameter world :cl
 `settings/parameters` excludes `:source`, `:positions`, `:calendar` and `:prompts`.
 
 Positions use an explicit `:meta :positions` catalogue first, otherwise the pack's catalogue, with
-`:roles` merged over either. `holidays/add-to` reads the snapshot's calendar; Lodge still uses the
-base init and drops the calendar. A delivering shop uses its own `:courier`, otherwise the pack's
+`:roles` merged over either. `ruleset-init/add-holidays` reads the snapshot's calendar; Lodge
+(`:calendar? false`) has no calendar. A delivering shop uses its own `:courier`, otherwise the pack's
 `:courier-position`; that position must exist in its merged catalogue. Currency formatting now
 uses `:money`; people vocabulary remains unchanged until phase 5.
 
@@ -180,8 +185,7 @@ templates: code picks which fragments to join, as `AGENTS.md` asks.
 
 ### 3.4 Money
 
-Implemented in **`manor.scenarios.claudeworth.money`** (phase 4 will move it to
-`manor.mechanics.money`): amounts are integers in the setting's smallest unit, always.
+Implemented in **`manor.mechanics.money`** (moved there in phase 4): amounts are integers in the setting's smallest unit, always.
 `(display spec n)` formats from descending positive-integer `:units`, ending at value 1
 (prefix/suffix joined directly, or singular/plural names separated by a space), omitting zero
 components, using `:zero` for zero and a leading minus sign for negatives.
@@ -375,7 +379,7 @@ next phase must know.**
 | 2 | Setting packs, neutral rewording, overrides | done 2026-10-28 (`d768180`, `d255456`, `114bac8`; reviewed and documented below) |
 | 3 | Money specs | done 2026-10-28 (`a2a1cb1`) |
 | 3b | Private accounts | done 2026-10-28 (`979f74a`) |
-| 4 | One ruleset | not started |
+| 4 | One ruleset | done 2026-10-29 (`58f1351`, `d3c13f1`, `69e5a89`, `1c2393d`; notes below) |
 | 5 | People and positions from the pack | not started |
 | 6 | Palace skeleton | not started |
 | 7 | Docs | not started |
@@ -642,6 +646,100 @@ out of the GM view. This work used only this worktree and did not touch any real
    domain from the world file; architect actions by `:available?`; Claudeworth, medium and Lodge
    become thin. Conditional judge-brief paragraphs were completed in phase 2. Diff: otherwise
    unchanged.
+
+**Phase 4, done (2026-10-29).** Commits:
+- `58f1351`: building, shop, deliveries and money move to `src/manor/mechanics/`
+  (`manor.mechanics.building` etc.); `tools/scene_claudeworth.clj` becomes
+  `tools/scene_ruleset.clj` (`manor.tools.scene-ruleset`). Event types renamed to their mechanic:
+  `:claudeworth/{consulted,prices-quoted,draft-refused,plans-drawn,plans-shown,commissioned,works-completed}`
+  → `:building/…`, `:claudeworth/{bought,goods-quoted,goods-refused}` → `:shop/…`,
+  `:claudeworth/called` → `:agent/called`. Capture diff: **empty**.
+- `d3c13f1`: `manor.ruleset` and `src/manor/ruleset/`; holidays.clj folded into
+  `ruleset.init/add-holidays`; Claudeworth's mock day moved to `resources/worlds/claudeworth-day.edn`.
+  Capture diff: **empty**.
+- `69e5a89`: Lodge gets a real visit config (below). Capture diff: Lodge only.
+- `1c2393d`: meeting place and home area from the world file; the architect's actions by
+  `:available?`. Capture diff: only the tool reordering (below).
+
+**The API.** `(ruleset/scenario {:name :doc :defaults :mock-day :mock-policy :mock-conversation
+:calendar?})`. `:defaults` must give the `:world-file` (the ruleset's `init` no longer falls back
+to Claudeworth's). `:mock-day` is a map or a classpath EDN file, run by
+`manor.ruleset.mock/scripted-policy`; `:mock-policy` replaces it (Lodge wraps the scripted policy
+to fill in its candidate). Extra keys (a test scenario's `:mock-judge`, `:mock-steward`) are
+`assoc`ed onto the result. The scenario is: `:scene` hooks, `:init` (with the pack's holidays
+unless `:calendar? false`), `:roles` (GM only) and `:agent-brief`, `:on-spawn`
+`positions/starting-events`, the actions (ruleset's, find-person, following, building, shop,
+hiring), adjudicators, bridges, offline stubs, MCP servers, `:systems [building/construction]`,
+`ruleset/items`, `ruleset/inner`, `:exclude-actions #{:move :work-on}`, speaking actions,
+`:hibernate`, `:reference`, `:observe`, then `hiring/install`, `deliveries/install`,
+`visits/install` in that order. Its parts, under `src/manor/ruleset/`: `places` (areas, bedrooms,
+the time of day), `actions` (pass, walk, call, travel, sleep, rouse), `views` (`reference`,
+`observe`), `hibernation`, `rules` (the rules prompt, judge brief, agent and GM briefs, roles,
+`find-allowed?`), `init` (`problems`, `init`, `add-holidays`), `mock`. Claudeworth, the medium
+household and Lodge are 26, 26 and 38 lines; the test scenarios `household`, `household-containers`
+and `burglary` use it too.
+
+**World data.** `:meta :meeting-place` (required, a location id; checked by `problems`) goes to
+`[:state :meeting-place]` in the ruleset's `init`; `hiring/install` takes no meeting place now.
+`:meta :home-domain` (optional, a keyword that must be some location's `:domain`) goes to
+`[:state :home-domain]` only when set, so the GM state of the bundled worlds is unchanged.
+`space/home-domain` answers "the home area": that, else the meeting place's domain. It decides the
+household's bedrooms in views, the rooms plans build onto, and the domain of rooms built:
+`:building/commissioned` and `:building/works-completed` now carry `:domain` (recorded at
+commissioning), and the scene hook reads it. All bundled worlds and the ruleset's fixture worlds
+(`household`, `household-containers`, `burglary`, `visits`) name their meeting place.
+
+**The mock's plans.** The old scripted policy hard-coded the earl: commission/show-plans used
+"lord-claudeworth"'s plan, and at 18:00 he walked into it once built. Now `commission` and
+`show-plans` use the first plan the scripted agent holds (dropped while they hold none), and a
+scripted walk to `"@plan"` goes into the room built from it (dropped until built): the 18:00 walk
+is data in `claudeworth-day.edn` and the two household fixture days. No Claudeworth id remains in
+the ruleset or mechanics outside docstrings.
+
+**Lodge (decided with the supervisor).** Lodge was `(hiring/install (assoc (dissoc cw/scenario
+:calendar) :init cw/init …))`, which threw away Claudeworth's init chain: it offered `invite`,
+`take-leave`, `schedule-visit` and `cancel-visit` but had no `[:state :visit-config]`, so its
+rules had no invitations section. Step 2 reproduced that exactly (empty diff); `69e5a89` gives it
+a real config. Lodge stays without a calendar (dropping the holidays is a content choice), so the
+visits rules' calendar sentence is now a fragment (`rules/visits-calendar.md`) rendered only with
+a calendar. A new test (`lodge-test/invitations-without-a-calendar`) invites Ward in person and
+checks he arrives, with replay. Lodge's prompt diff, in all 159 of its rules-carrying requests
+and `rendered/rules-lodge.md`: hiring's "Nobody new arrives except through send-for" → "No
+candidate arrives except through send-for" (the beside-visits wording), and a new "### Invitations
+and guests" section (Claudeworth's, with "the house", no post, no calendar sentence). Claudeworth
+and the medium household unchanged. Lodge's GM state gains only the visit config (+148
+characters).
+
+**Tool order (`1c2393d`).** `actions/available` puts tools with an `:available?` check last, so
+in Claudeworth and the medium household `consult-references`, `price-list`, (`draw-plans` for
+Pugh), `show-plans` and `commission` move from after `follow` to the end of the tool list; the
+turn-ending reminder lists `commission` after `spend-time` ("`pass`, `act-on`, `travel`, `sleep`,
+`spend-time` or `commission`"). Checked by script: every request's tools are the same set, the
+others' order unchanged, and no other text differs. A separate world-level key would have kept
+the order, but the plan asked for the existing hook. `rendered/tools-lodge.md` (which renders
+every run action, not those offered) now lists the five architect tools; Lodge's requests never
+include them (its rounds are unchanged).
+
+**Checks.** Full suite after each commit; final **481 tests, 9320 assertions**, green (new:
+`ruleset-test`, the Lodge invitation test, a domain check in the building slice). The three
+48-round mock days: 352 / 179 / 593 calls, no exceptions or pauses (the capture checks). Replay
+equality is tested for all three (`scenarios-test` smoke, `lodge-test`, `claudeworth-test`). GM
+prompt at the start (system/user characters): Claudeworth 1381/89371 and medium 1795/197612,
+identical text before and after; Lodge 1480/11699 → 1480/11847 (the visit config). No real
+models, no ports.
+
+**For phases 5–6.** A new scenario is a namespace with `(def scenario (ruleset/scenario {...}))`,
+a world file with `:meta :meeting-place` and `:meta :setting-pack`, and a mock day EDN (see
+`claudeworth-day.edn`; `request-goods`/`accept-offer`/`ask-send-up` are mock-only markers the shop
+translates, and `"@plan"` is the walk into your built plan). Add it to `bundled`. The palace's
+home is the meeting place's domain unless the gate stands in an outer domain: then set
+`:meta :home-domain :inner-court`. Surprises: the old Lodge composition (above); the medium and
+Lodge scenarios' `:init`, called without their `:defaults` (as `scene-layout-test` did), silently
+loaded Claudeworth's world (fixed: the test merges `:defaults`, and init now requires a world
+file); the shop's scripted customer still says "sent up to the house" (mock speech, not a prompt
+template). `test/manor/scene_boundary_check.sh` (a historical check against `0f7eae9`) still
+names the old files and wasn't updated. `AGENTS.md` (uncommitted user edits in the main checkout)
+was left alone: its layout section needs the same change as `CLAUDE.md`'s.
 5. **People and positions.** Standings, honorifics and name order from the pack; people-server
    data sets; reputation wording. Diff: none for England.
 6. **Palace skeleton** (section 5), and the best-effort read of its prompts.

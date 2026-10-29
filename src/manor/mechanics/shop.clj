@@ -1,7 +1,7 @@
-(ns manor.scenarios.claudeworth.shop
-  "Claudeworth's general store: a clerk obtains checked offers; customers
+(ns manor.mechanics.shop
+  "A general store: a clerk obtains checked offers; customers
   accept them. A line may be quoted for delivery at a shop that sends goods
-  out (manor.scenarios.claudeworth.deliveries), and there the clerk can send
+  out (manor.mechanics.deliveries), and there the clerk can send
   up goods left waiting at the shop. No catalogue, bulk counters, or
   model-owned money."
   (:require [clojure.string :as str]
@@ -15,9 +15,9 @@
             [manor.mechanics.space :as space]
             [manor.narrate :as n]
             [manor.prompts :as prompts]
-            [manor.scenarios.claudeworth.building :as building]
-            [manor.scenarios.claudeworth.deliveries :as deliveries]
-            [manor.scenarios.claudeworth.money :as money]
+            [manor.mechanics.building :as building]
+            [manor.mechanics.deliveries :as deliveries]
+            [manor.mechanics.money :as money]
             [manor.world :as w]))
 
 (def max-unit-price 240000) ; bound untrusted arithmetic, not a price list
@@ -138,15 +138,15 @@
                      (not= :gm (:role (w/agent world for))))
         "the customer must be an active character present at the counter")))
 
-(defmethod w/apply-event :claudeworth/goods-quoted [world {:keys [data]}]
+(defmethod w/apply-event :shop/goods-quoted [world {:keys [data]}]
   (assoc-in world [:state :quotes (:id data)] data))
 
-(defmethod w/apply-event :claudeworth/bought [world {:keys [data]}]
+(defmethod w/apply-event :shop/bought [world {:keys [data]}]
   (-> world
       (update-in [:state :accounts (:account data)] - (:price data))
       (update-in [:state :quotes] dissoc (:quote-id data))))
 
-(defmethod n/describe :claudeworth/goods-quoted [{:keys [actor data]} names]
+(defmethod n/describe :shop/goods-quoted [{:keys [actor data]} names]
   (str (n/who names actor) " offers " (n/who names (:buyer data)) " " (:qty data) " " (:item data)
        " (" (:unit data) " each) for " (money/display (get names [:money]) (:price data))
        (when-let [{:keys [lead-hours to]} (:deliver data)]
@@ -154,12 +154,12 @@
               (if (= 1 lead-hours) " hour" " hours") " of ordering"))
        "; quote " (:id data) "."))
 
-(defmethod n/describe :claudeworth/goods-refused [{:keys [actor data]} names]
+(defmethod n/describe :shop/goods-refused [{:keys [actor data]} names]
   (str (n/who names actor) " cannot offer " (:item data) " to " (n/who names (:buyer data)) ": " (:reason data)))
 
 (def amount deliveries/amount)
 
-(defmethod n/describe :claudeworth/bought [{:keys [actor data]} names]
+(defmethod n/describe :shop/bought [{:keys [actor data]} names]
   (str (n/who names actor) " buys " (:item data) " (" (amount (:qty data) (:unit data)) ") for "
        (money/display (get names [:money]) (:price data)) " at the " (n/place names (:location data))
        (if (= "leave" (:hand-over data))
@@ -176,13 +176,13 @@
       (vec (map-indexed
             (fn [i [{:keys [item deliver]} line]]
               (if (:available line)
-                {:type :claudeworth/goods-quoted :visible-to audience
+                {:type :shop/goods-quoted :visible-to audience
                  :data (cond-> (merge (select-keys line [:item :qty :unit :desc :condition :consumable :unit-price])
                                       {:id (str "quote-" (+ (:seq world) 1 i)) :buyer for :clerk clerk
                                        :location (space/location-of world clerk)
                                        :price (* (:qty line) (:unit-price line))})
                          deliver (assoc :deliver {:lead-hours (:lead-hours line) :to (deliveries/delivery-place world)}))}
-                {:type :claudeworth/goods-refused :visible-to audience
+                {:type :shop/goods-refused :visible-to audience
                  :data {:buyer for :item item :reason (:reason line)}}))
             (map vector goods (:lines result)))))))
 
@@ -240,7 +240,7 @@
                (let [quote (get-in world [:state :quotes quote-id])
                      new (if (:deliver quote)
                            [(deliveries/ordered world buyer quote-id quote audience account)]
-                           [{:type :claudeworth/bought :visible-to audience
+                           [{:type :shop/bought :visible-to audience
                              :data (assoc (select-keys quote [:location :item :unit :qty :price])
                                           :quote-id quote-id :hand-over hand-over :account account)}
                             (items/added world (parcel world buyer quote hand-over account) audience

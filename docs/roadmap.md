@@ -83,6 +83,10 @@ The scenario boundary is already clean: the engine only reads the keys listed in
     in. Scenarios can override them by name, and remove them with `:exclude-actions` (done
     2026-10-15).
   - The GM is always named "GM" with an empty persona.
+  - **Partly done (2026-10-29, `docs/settings-design.md`):** the agent preamble is now the template
+    `resources/prompts/agent/preamble.md`, and a setting pack can replace it (or any other shared
+    template) with a file at the same path under its `prompts/`. The GM preamble, the turn closing
+    and the conversation rules are still constants in `prompt.clj`.
 - **Approach:** optional scenario keys:
   - `:prompts {:agent-preamble "..." :gm-preamble "..." :turn-instruction "..."}`
   - `:gm {:name "Narrator" :persona "..."}` (used by `engine/init!`)

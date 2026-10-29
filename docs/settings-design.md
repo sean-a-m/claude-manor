@@ -1,7 +1,8 @@
 # Settings: one ruleset, many settings
 
-Status: **in progress.** See section 8 for what's done and what's next; update it as each phase
-is finished, so another agent can pick the work up. Decisions are in section 7.
+Status: **phases 0–7 done; phase 8 (a short real palace run) not started.** Section 8 records
+each phase; section 9 is the handoff for a review of the whole refactor. Decisions are in
+section 7.
 
 ## 1. Goal
 
@@ -385,8 +386,8 @@ next phase must know.**
 | 4 | One ruleset | done 2026-10-29 (`58f1351`, `d3c13f1`, `69e5a89`, `1c2393d`; notes below) |
 | 5 | People and positions from the pack | done 2026-10-29 (`b97441e`, `51bc850`; notes below) |
 | 6 | Palace skeleton | done 2026-10-29 (`850733f`, `7e6a45f`, `ef7eac2`, `1766904`; notes below) |
-| 7 | Docs | not started |
-| 8 | Short real palace run (8–12 rounds, $0.20) | not started |
+| 7 | Docs | done 2026-10-29 (AGENTS.md `1573575`, `3e3c6d4`; roadmap A3; this section and section 9) |
+| 8 | Short real palace run (8–12 rounds, $0.20) | not started: left to the user and a reviewing agent |
 
 0. **Baseline.** A REPL helper in `dev/user.clj` (or a small `dev/` namespace) that runs a mock
    day of `claudeworth`, `lodge` and `claudeworth-medium` (`{:test? true}`, fixed seed, no port)
@@ -889,3 +890,53 @@ whether the consort's messenger invitations and the noble lady's deference come 
 7. **Docs.** `scenario-authoring.md` (setting packs, `:meta :meeting-place`, money specs,
    templates and overrides), roadmap A3 (partly done by this), `AGENTS.md`'s table and layout.
 8. **Real run**, then read the transcript.
+
+**Phase 7, done (2026-10-29).** `AGENTS.md`'s documents table and layout (`1573575`, `3e3c6d4`),
+roadmap A3 (the agent preamble is a template a pack can override). `scenario-authoring.md` was
+updated by each phase. The palace's personas were then rolled for real (`7be434c`, see 9).
+
+## 9. Handoff: reviewing the refactor
+
+The user means to have a fresh agent review the whole refactor for remaining problems. Where to
+start, and what's known.
+
+**How to look.**
+- `clojure -M:run palace --mock --offline --test --port 809x` shows the palace's scripted day in
+  the panel; `clojure -M:run claudeworth-medium --mock --offline --test --port 809x` the medium
+  household. (Port 8080 is the user's.)
+- `dev/prompt_capture.clj` records every request of the four ruleset scenarios' mock days, plus
+  `rendered/` judge, writer and GM requests (`capture!`, then `diff -r` two labels). The mock
+  days never call the GM; the capture renders the palace's GM request by hand.
+- Phase 8, a real palace run, needs the user's go-ahead: the command and what to watch for are in
+  phase 6's notes above.
+
+**The palace's personas** were rolled with `roll-cast!` (seed `ef5d0ac7-be75-4efa-a465-324b7f784e5a`,
+$0.0023, record in `old-test-runs/palace-roll-cast/roll-cast.edn`), replacing the hand-written
+placeholders; situations, names, sex and positions are as authored. Worth a look:
+- several circumstances name another character ("Master Han's stall"), which the polish is told
+  not to do for existing characters' present lives;
+- the consort's rolled background (a silk-shop family by the Qianmen gate) sits awkwardly with her
+  rank and her situation; the noble lady rolled 35, the top of her position's age range.
+Re-roll one person with `(roll-cast! "worlds/palace.edn" {:only ["Sumuru Wanxia"]})`, or edit by hand.
+
+**Known and left on purpose** (details in phases 2–6 above): the scene judge's English
+illustrations ("the pantry", "polish the silver"); `sleeps: "in-house"` in views; `post` stays in
+`invite`'s enum (refused with a reason without a post office); hiring's negotiated sequence
+(decision 6); Lodge has no calendar (`:calendar? false`, a content choice); one household per
+world (decision 2); Gregorian dates and `HH:mm` (decision 4).
+
+**Loose ends noticed, not fixed.**
+- `test/manor/scene_boundary_check.sh` still names pre-phase-4 files (an old check against
+  commit `0f7eae9`).
+- The test suite prints transcript-writing warnings ("transcript of steward-… not written") from
+  passing tests; seen before this work too.
+- The full suite takes about 5 minutes on this machine (`scene-integration-test`), not the
+  15 seconds `AGENTS.md` says.
+- The GM prompt was already large before this work (about 186k characters for the medium
+  household at the start of a run: agents, map and items); unrelated to settings.
+- The setting pack is snapshotted into `[:state :setting-pack]` and kept out of the GM view
+  (`prompt/gm-state`); anything else added to `[:state]` reaches the GM's JSON unless left out.
+
+**Later, outside this work** (section 7): dispatching messages without a post office; several
+households; hiring reworked for assigned posts; lunar dates and double-hours; bartering.
+

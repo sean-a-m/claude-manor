@@ -217,7 +217,7 @@ Only `src/manor/scenarios/claudeworth.clj` gains optional `:scene` wiring and a 
 namespace require; derived households inherit it. Existing runtime definitions are untouched.
 No engine/mechanics/I/O/world/prompt/action changes, new event metadata or persisted UI state.
 
-- `manor.tools.scene-claudeworth/hooks` implements `:history`, `:toolbar`, `:badges`, `:inspect`.
+- `manor.tools.scene-ruleset/hooks` implements `:history`, `:toolbar`, `:badges`, `:inspect`.
   Funds and purses use the existing old-pence sterling formatter. People show held plans with
   price/status; rooms beside active works have an adjoining-works badge. Ghost selections show
   construction information. All output remains escaped, omniscient operator content only.

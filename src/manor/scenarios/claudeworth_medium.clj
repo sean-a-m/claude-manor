@@ -20,7 +20,7 @@
   (:require [manor.mechanics.hiring :as hiring]
             [manor.mechanics.visits :as visits]
             [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.claudeworth.deliveries :as deliveries]))
+            [manor.mechanics.deliveries :as deliveries]))
 
 (def scenario
   (visits/install

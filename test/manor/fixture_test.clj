@@ -6,7 +6,7 @@
             [manor.io.worldfile :as wf]
             [manor.mechanics.items :as items]
             [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.claudeworth.money :as money]
+            [manor.mechanics.money :as money]
             [manor.scenarios.household :as fixture]
             [manor.world :as w]))
 
@@ -60,7 +60,7 @@
             (is (= :idle (e/wait-idle fixed 120000)))
             (is (= 47 (:round (e/world fixed))))
             (is (= "lady-claudeworth" (:holder (items/item (e/world fixed) "feather-duster"))))
-            (is (some #(= :claudeworth/commissioned (:type %)) (e/events fixed)))
+            (is (some #(= :building/commissioned (:type %)) (e/events fixed)))
             (is (not-any? #(#{:action/forfeited :item/given} (:type %)) (e/events fixed)))
             (is (not-any? #(re-find #"^(error:|rejected:)" (:content % ""))
                           (mapcat :replies (store/read-llm (:dir fixed)))))

@@ -6,7 +6,7 @@
             [clojure.walk :as walk]
             [manor.mechanics.hiring :as hiring]
             [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.claudeworth.deliveries :as deliveries]))
+            [manor.mechanics.deliveries :as deliveries]))
 
 (def mock-day (edn/read-string (slurp (io/resource "worlds/lodge-day.edn"))))
 

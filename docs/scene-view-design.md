@@ -310,7 +310,7 @@ annotations are display data, not simulation events. Full contracts and limitati
 [scene-web-api.md](scene-web-api.md#temporal-seam-phase-4).
 
 Claudeworth supplies replayable works, household funds, held plans, sterling purses and adjoining
-works badges via `manor.tools.scene-claudeworth/hooks`; its derived scenarios inherit the hook.
+works badges via `manor.tools.scene-ruleset/hooks`; its derived scenarios inherit the hook.
 Closed-hours shading and evidence-based busy arcs are generic presentation features.
 
 ## 7. Phases

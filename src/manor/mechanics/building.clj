@@ -1,5 +1,5 @@
-(ns manor.scenarios.claudeworth.building
-  "Claudeworth's household money, plans and construction. All changes are events."
+(ns manor.mechanics.building
+  "The household's money, plans and construction (the architect). All changes are events."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]
@@ -10,7 +10,7 @@
             [manor.narrate :as n]
             [manor.prompts :as prompts]
             [manor.settings :as settings]
-            [manor.scenarios.claudeworth.money :as money]
+            [manor.mechanics.money :as money]
             [manor.world :as w])
   (:import (java.time LocalTime)))
 
@@ -70,42 +70,42 @@
                             (str (:name l) " (" (:id l) ")")))))))
 
 ;; Pure reducers. Monetary state is always integer base units.
-(defmethod w/apply-event :claudeworth/consulted [world _] world)
-(defmethod w/apply-event :claudeworth/prices-quoted [world _] world)
-(defmethod w/apply-event :claudeworth/draft-refused [world _] world)
-(defmethod w/apply-event :claudeworth/plans-drawn [world {:keys [data]}]
+(defmethod w/apply-event :building/consulted [world _] world)
+(defmethod w/apply-event :building/prices-quoted [world _] world)
+(defmethod w/apply-event :building/draft-refused [world _] world)
+(defmethod w/apply-event :building/plans-drawn [world {:keys [data]}]
   (assoc-in world [:state :plans (get-in data [:plan :id])] (:plan data)))
-(defmethod w/apply-event :claudeworth/plans-shown [world {:keys [data]}]
+(defmethod w/apply-event :building/plans-shown [world {:keys [data]}]
   (update-in world [:state :plans (:plan-id data) :holders] into (:to data)))
-(defmethod w/apply-event :claudeworth/commissioned [world {:keys [data]}]
+(defmethod w/apply-event :building/commissioned [world {:keys [data]}]
   (cond-> (-> world (update-in [:state :accounts (:account data)] - (:price data))
               (update-in [:state :works] conj (select-keys data [:plan-id :room :name :due :connects-to :by])))
     (:payee data) (update-in [:state :accounts (:payee data)] (fnil + 0) (:fee data))))
-(defmethod w/apply-event :claudeworth/works-completed [world {:keys [data]}]
+(defmethod w/apply-event :building/works-completed [world {:keys [data]}]
   (-> world (update-in [:state :works] #(vec (remove (fn [work] (= (:room data) (:room work))) %)))
       (assoc-in [:state :plans (:plan-id data) :built?] true)))
 
 (defn- clip [s] (subs s 0 (min query-record-limit (count s))))
 (defn- beside [names ids] (str/join ", " (map #(n/place names %) ids)))
-(defmethod n/describe :claudeworth/consulted [{:keys [actor data]} names]
+(defmethod n/describe :building/consulted [{:keys [actor data]} names]
   (str (n/who names actor) " consults the reference books about " (:query data) ": "
        (clip (str/join "; " (map #(str (:title %) ": " (:text %)) (:matches data))))))
-(defmethod n/describe :claudeworth/prices-quoted [{:keys [actor data]} names]
+(defmethod n/describe :building/prices-quoted [{:keys [actor data]} names]
   (str (n/who names actor) " receives the price list (prices in " (:authored-name (get names [:money])) "): " (clip (pr-str (:sizes data)))))
-(defmethod n/describe :claudeworth/draft-refused [{:keys [data]} _]
+(defmethod n/describe :building/draft-refused [{:keys [data]} _]
   (str "The draft could not be stored: " (:reason data)))
-(defmethod n/describe :claudeworth/plans-drawn [{:keys [actor data]} names]
+(defmethod n/describe :building/plans-drawn [{:keys [actor data]} names]
   (str (n/who names actor) " has plans drawn for " (get-in data [:plan :name])
        " (" (get-in data [:plan :id]) "), " (money/display (get names [:money]) (get-in data [:plan :price])) "; "
        (let [holders (sort (get-in data [:plan :holders]))]
          (str (str/join " and " (map #(n/who names %) holders))
               (if (next holders) " now hold them." " now holds them.")))))
-(defmethod n/describe :claudeworth/plans-shown [{:keys [actor data]} names]
+(defmethod n/describe :building/plans-shown [{:keys [actor data]} names]
   (str (n/who names actor) " spreads out the plans for " (:plan-id data) " for the room to see."))
-(defmethod n/describe :claudeworth/commissioned [{:keys [data]} names]
+(defmethod n/describe :building/commissioned [{:keys [data]} names]
   (str (n/who names (:by data)) " commissions the " (:name data) ", beside "
        (beside names (:connects-to data)) "; completion " (n/at names (:due data)) "."))
-(defmethod n/describe :claudeworth/works-completed [{:keys [data]} names]
+(defmethod n/describe :building/works-completed [{:keys [data]} names]
   (str "Builders finish the " (:name data) ", beside " (beside names (:connects-to data)) "."))
 
 ;; The offline bridge duplicates the small, deterministic server contract, not its I/O.
@@ -184,13 +184,13 @@
 
 (defn store-draft [world actor args result]
   (if-let [reason (draft-reason world args result)]
-    [{:type :claudeworth/draft-refused :visible-to #{actor} :data {:reason reason}}]
+    [{:type :building/draft-refused :visible-to #{actor} :data {:reason reason}}]
     (let [client (:for args)
           p (merge (select-keys (:plan result) [:id :name :floor :desc :connects-to])
                    {:price (money/authored->units (money/spec world) (:price result)) :build-days (:build-days result)}
                    {:size (:size args) :drawn-by actor :for client :holders (set [actor client])})
           p (update p :floor floor-key)]
-      [{:type :claudeworth/plans-drawn :visible-to (set [actor client]) :data {:plan p}}])))
+      [{:type :building/plans-drawn :visible-to (set [actor client]) :data {:plan p}}])))
 
 (defn- held-reason [world actor id]
   (when-not (contains? (:holders (plan world id)) actor) "you have not seen those plans; ask to have them shown to you"))
@@ -202,13 +202,13 @@
     :valid? (fn [world actor _] (office-reason world actor))
     :bridge :architect/references :bridge-args (fn [_ _ args] (select-keys args [:query]))
     :on-result (fn [_ actor args result]
-                 [{:type :claudeworth/consulted :visible-to #{actor} :data (assoc result :query (:query args))}])}
+                 [{:type :building/consulted :visible-to #{actor} :data (assoc result :query (:query args))}])}
    {:name :price-list :kind :query :roles :all
     :doc (prompts/doc "docs/architect/price-list.md")
     :args [:map] :valid? (fn [world actor _] (office-reason world actor))
     :query-fn (fn [world _ _ _] (price-list world))
     :on-result (fn [_ actor result-args result]
-                 [{:type :claudeworth/prices-quoted :visible-to #{actor} :data result}])}
+                 [{:type :building/prices-quoted :visible-to #{actor} :data result}])}
    {:name :draw-plans :kind :query :roles :all :needs :architect
     :doc (prompts/doc "docs/architect/draw-plans.md")
     :args [:map [:for :string] [:name [:string {:min 1 :max 60}]] [:floor :string]
@@ -222,7 +222,7 @@
               (or (held-reason world actor plan-id)
                   (when (empty? (disj (space/here world actor) actor)) "someone else must be here to see the plans")))
     :effect (fn [world actor {:keys [plan-id]}]
-              [{:type :claudeworth/plans-shown :visible-to (space/here world actor)
+              [{:type :building/plans-shown :visible-to (space/here world actor)
                 :data {:plan-id plan-id :to (vec (sort (space/here world actor)))}}])}
    {:name :commission :kind :final :roles :all
     :doc (prompts/doc "docs/architect/commission.md")
@@ -243,7 +243,7 @@
                     payee (when (positions/capable? world (:drawn-by p) :architect) (:drawn-by p))
                     room (fresh-id plan-id (concat (keys (get-in world [:space :locations]))
                                                     (map :room (get-in world [:state :works]))))]
-                [{:type :claudeworth/commissioned :visible-to :all
+                [{:type :building/commissioned :visible-to :all
                   :data {:plan-id plan-id :room room :name (:name p) :by actor :price price
                          :account (money/account actor from)
                          :due (+ (:round world) delay) :fee (if payee (quot (* price fee-percent) 100) 0)
@@ -256,7 +256,7 @@
                      (when (<= due (:round world))
                        (let [p (plan world plan-id)]
                          (concat
-                          [{:type :claudeworth/works-completed :visible-to :all
+                          [{:type :building/works-completed :visible-to :all
                             :data {:plan-id plan-id :room room :name name :connects-to connects-to}}
                            {:type :space/location-added
                             :data {:location {:id room :name name :desc (:desc p) :domain :house

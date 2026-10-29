@@ -33,7 +33,7 @@
             [manor.mechanics.visits.judge :as visits-judge]
             [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.claudeworth.shop :as shop]))
+            [manor.mechanics.shop :as shop]))
 
 (def scenarios [:claudeworth :lodge :claudeworth-medium])
 

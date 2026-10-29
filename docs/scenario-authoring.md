@@ -118,7 +118,7 @@ is processed even when no browser observed it. Later route changes update styles
 Outer region/panel packing may shift as the picture grows. The UI cache is disposable, not a
 source of geometry. There are no cancellation/deletion events in this adapter contract.
 
-Claudeworth's `manor.tools.scene-claudeworth/hooks` captures existing `plans-drawn` evidence when
+Claudeworth's `manor.tools.scene-ruleset/hooks` captures existing `plans-drawn` evidence when
 `commissioned` arrives, using the commissioned **room id**, not the plan id. On location creation
 it carries that size forward. Existing `works-completed` plus prior plan evidence can size a room
 when commissioning evidence is absent; it cannot fabricate a historical ghost. Unknown custom
@@ -326,7 +326,7 @@ count toward the normal run cost cap. One action invocation uses one query slot 
 adjudicator needs a correction. In mock runs the registered `:mock` handles these calls,
 separately from character `:mock-policy`; supply a responder for every task used offline.
 
-Claudeworth's `manor.scenarios.claudeworth.shop` is an example. Every appraisal receives the actual
+Claudeworth's `manor.mechanics.shop` is an example. Every appraisal receives the actual
 location's `:store-profile` (required, non-blank, at most 2000 characters), name/description,
 setting/date and goods/amount. It refuses unsuitable stock before pricing. The checked
 response creates a buyer-bound quote for each line of a request (`quote-goods {for goods}` takes
@@ -383,7 +383,7 @@ Claudeworth's `find-allowed?` refuses `find` there too. Their repairs, sweeping,
 `spend-time` on actual items, places or people; no paid-service or mail-transport contract is
 implied. Each resident has a bedroom and routine just like the existing shopkeepers.
 
-**Deliveries** (`manor.scenarios.claudeworth.deliveries`, design in `docs/deliveries-design.md`). A shop
+**Deliveries** (`manor.mechanics.deliveries`, design in `docs/deliveries-design.md`). A shop
 sends goods out when its location has a `:delivery-profile`: at most 400 characters, describing
 its delivery scope in general terms, never a list of goods (so it doesn't suggest purchases).
 A `quote-goods` line may set `deliver true`; at a shop without a profile such a call is refused
@@ -599,7 +599,7 @@ Event shape (returned by effects, ticks and hooks; the engine stamps `:id` and `
   the `:from-person` of an `:item/taken`, and `:person/acted-on`'s `:on` people).
   `:all`, `:gm` and `:system` are never trimmed, and the stored audience is the trimmed one, so
   replay is unaffected. Tagged so far: speech (`:agent/said`, `:agent/whispered`, Claudeworth's
-  `:claudeworth/called`) and muffled noises (`:person/muffled`) are heard; moves, departures, arrivals and placings, occupations (work
+  `:agent/called`) and muffled noises (`:person/muffled`) are heard; moves, departures, arrivals and placings, occupations (work
   starts, falling asleep), items taken, put down, put in, given, found or not found, and status
   changes and immediate acts are seen. Untagged events reach everyone in the audience who is conscious.
 - Multimethods are global. Namespace your event types (`:treasure/...`) so scenarios can't collide.
@@ -908,7 +908,7 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
   the judge or steward put the thing back; the exported map retains it. **Absorbable** means
   not fixed, not a store, and either `:consumable?` or `:drawn-from` (`items/absorbable?`).
   A watch or the family's silver cannot be absorbed or used up.
-- **`:order-id`** marks goods delivered for an order (`manor.scenarios.claudeworth.deliveries`). The nightly
+- **`:order-id`** marks goods delivered for an order (`manor.mechanics.deliveries`). The nightly
   steward never draws them as candidates, wherever they've been taken; work can still use
   them up. The exported map retains it.
 - **`:waiting {:for :keeper :at :since}`** marks goods kept for someone: whom they're for and
@@ -2114,10 +2114,10 @@ The GM/operator can see all balances. Architect fees credit the architect's ordi
 `"own"`); there is no restriction by role on shared spending and no transfer/`pay` action.
 Purchases belong to the paying owner, whether carried, left, ordered or sent up.
 
-The implementation remains `manor.scenarios.claudeworth.money` until the ruleset move:
+The implementation is `manor.mechanics.money`:
 `(money/spec world)`, `(money/display spec n)` and `(money/authored->units spec n)`.
 Narration gets the spec from `(get names [:money])`; it does not load current pack files.
-Paid events (`:claudeworth/bought`, `:deliveries/ordered`, `:claudeworth/commissioned`) record
+Paid events (`:shop/bought`, `:deliveries/ordered`, `:building/commissioned`) record
 `:account`, and delivery orders also record `:owner`. Replay uses these, not old balance keys or
 `:unit-price-pence`. World-file values and the architect's raw price list remain authored amounts;
 convert once at initialization or when storing a draft, never when replaying an event.

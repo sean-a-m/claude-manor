@@ -40,11 +40,11 @@
             [manor.narrate :as narrate]
             [manor.prompts :as prompts]
             [manor.settings :as settings]
-            [manor.scenarios.claudeworth.building :as building]
-            [manor.scenarios.claudeworth.deliveries :as deliveries]
+            [manor.mechanics.building :as building]
+            [manor.mechanics.deliveries :as deliveries]
             [manor.scenarios.claudeworth.holidays :as holidays]
-            [manor.scenarios.claudeworth.shop :as shop]
-            [manor.tools.scene-claudeworth :as scene]
+            [manor.mechanics.shop :as shop]
+            [manor.tools.scene-ruleset :as scene]
             [manor.world :as w])
   (:import (java.time LocalTime)))
 
@@ -133,13 +133,13 @@
   [world actor {:keys [text to]}]
   (let [heard-by (if (physical/impeded? world actor :speech) (space/here world actor) (hearers world actor))]
     (cond-> (physical/spoken world actor :call
-                             {:type :claudeworth/called :data (cond-> {:text text :at (space/location-of world actor)} to (assoc :to to))
+                             {:type :agent/called :data (cond-> {:text text :at (space/location-of world actor)} to (assoc :to to))
                               :visible-to heard-by})
       (and to (heard-by to) (physical/can? world to :hearing) (answers-calls? world to)) (conj (b/interrupt world to actor)))))
 
-(defmethod w/perceived-by :claudeworth/called [_] :hearing)
+(defmethod w/perceived-by :agent/called [_] :hearing)
 
-(defmethod narrate/describe :claudeworth/called [{:keys [actor data]} names]
+(defmethod narrate/describe :agent/called [{:keys [actor data]} names]
   (str (narrate/who names actor) " calls" (when-let [to (:to data)] (str " for " (narrate/who names to)))
        " from the " (str/lower-case (narrate/place names (:at data))) ": \"" (:text data) "\"" (narrate/muffled data)))
 

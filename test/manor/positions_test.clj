@@ -16,7 +16,7 @@
             [manor.mechanics.positions :as positions]
             [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.claudeworth.shop :as shop]
+            [manor.mechanics.shop :as shop]
             [manor.world :as w]))
 
 ;; Every run here lives under test-runs/.

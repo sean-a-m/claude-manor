@@ -3,9 +3,9 @@
             [manor.actions :as actions]
             [manor.io.worldfile :as worldfile]
             [manor.narrate :as narrate]
-            [manor.scenarios.claudeworth.building :as building]
-            [manor.scenarios.claudeworth.money :as money]
-            [manor.scenarios.claudeworth.shop :as shop]
+            [manor.mechanics.building :as building]
+            [manor.mechanics.money :as money]
+            [manor.mechanics.shop :as shop]
             [manor.settings :as settings]))
 
 (def england (money/spec {}))
@@ -49,6 +49,6 @@
            (actions/description (first (filter #(= :price-list (:name %)) building/actions)) world)))
     (is (.contains (shop/instructions world) "Price in integer cash."))
     (is (= "buyer buys tea (1 tin) for 1 tael 1 cash at the counter, and takes the goods away."
-           (narrate/describe {:type :claudeworth/bought :actor "buyer"
+           (narrate/describe {:type :shop/bought :actor "buyer"
                               :data {:item "tea" :qty 1 :unit "1 tin" :price 1001 :location "counter"}}
                              (narrate/names world))))))

@@ -7,7 +7,7 @@
             [manor.mechanics.hiring :as hiring]
             [manor.mechanics.visits :as visits]
             [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.claudeworth.deliveries :as deliveries]
+            [manor.mechanics.deliveries :as deliveries]
             [manor.mechanics.people :as people]
             [manor.prompt :as prompt]
             [manor.settings :as settings]))

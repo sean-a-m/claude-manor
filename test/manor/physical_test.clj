@@ -538,13 +538,13 @@
     (try
       (place! run "will" "butlers-pantry")
       (act! run "crane" :call {:text "Help!"})
-      (let [called (last (of-type run :claudeworth/called))
+      (let [called (last (of-type run :agent/called))
             muffled (last (of-type run :person/muffled))]
         (is (= #{"crane"} (:visible-to called)))
         (is (= #{"will"} (:visible-to muffled)) "not Ivy and Slade in the dining room")
         (is (= "Crane gives a muffled cry from the butler's pantry." (describe run muffled))))
       (act! run "will" :call {:text "Thieves!"})
-      (let [heard (:visible-to (last (of-type run :claudeworth/called)))]
+      (let [heard (:visible-to (last (of-type run :agent/called)))]
         (is (every? heard ["crane" "ivy" "slade"]) "a clear call carries through the house")
         (is (not (heard "mrs-bell")) "but not to the unconscious"))
       (is (replays? run))

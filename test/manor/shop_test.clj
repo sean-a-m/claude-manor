@@ -13,7 +13,7 @@
             [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.claudeworth.shop :as shop]
+            [manor.mechanics.shop :as shop]
             [manor.scenarios.household :as household]
             [manor.world :as w]))
 
@@ -95,9 +95,9 @@
         (is (= "customer" (:buyer offer)))
         (is (= "clerk" (:clerk offer)))
         (is (= "6d" (get-in (shop/observe world "customer") [:offers 0 :price])))
-        (is (some #(and (= :claudeworth/goods-quoted (:type %))
+        (is (some #(and (= :shop/goods-quoted (:type %))
                         (w/visible-to? % "customer") (w/visible-to? % "clerk")) events))
-        (is (str/includes? (n/describe (first (filter #(= :claudeworth/goods-quoted (:type %)) events))
+        (is (str/includes? (n/describe (first (filter #(= :shop/goods-quoted (:type %)) events))
                                      (n/names world)) (:id offer)))
         (rounds! run 2)
         (let [after (e/world run)]
@@ -242,12 +242,12 @@
       (rounds! run 1)
       (let [world (e/world run)
             events (e/events run)
-            quotes (filter #(= :claudeworth/goods-quoted (:type %)) events)
+            quotes (filter #(= :shop/goods-quoted (:type %)) events)
             calls (store/read-llm (:dir run))]
         (testing "one appraisal and one query for three lines"
           (is (= 1 (count (filter #(= "adjudicator/shop/appraise" (:agent %)) calls))))
-          (is (= [:claudeworth/goods-quoted :claudeworth/goods-refused :claudeworth/goods-quoted]
-                 (map :type (filter #(#{:claudeworth/goods-quoted :claudeworth/goods-refused} (:type %)) events))))
+          (is (= [:shop/goods-quoted :shop/goods-refused :shop/goods-quoted]
+                 (map :type (filter #(#{:shop/goods-quoted :shop/goods-refused} (:type %)) events))))
           (is (= [1 4] (map (comp :qty :data) quotes)))
           (is (= [5 20] (map (comp :price :data) quotes))))
         (testing "a quote's id is its event's id"
@@ -263,7 +263,7 @@
           (testing "one buy pays for both and hands over a parcel for each"
             (is (= (- 600 25) (get-in after [:state :accounts "household"])))
             (is (empty? (get-in after [:state :quotes])))
-            (is (= 2 (count (filter #(= :claudeworth/bought (:type %)) (e/events run)))))
+            (is (= 2 (count (filter #(= :shop/bought (:type %)) (e/events run)))))
             (is (= #{"1 packet" "4 × 1 packet"} (set (map #(get-in % [:aspects :amount]) parcels))))
             (is (= 2 (count (set (map :id parcels))))))
           (is (= after (w/replay (store/read-events (:dir run)))))
@@ -308,7 +308,7 @@
       (let [[after evs] (bought (e/world run) flour 20)
             names (n/names after)]
         (testing "one item for twenty pounds, the amount and the condition as aspects, consumable"
-          (is (= [:claudeworth/bought :item/added] (map :type evs)))
+          (is (= [:shop/bought :item/added] (map :type evs)))
           (is (= [{:id "plain-household-flour" :name "Plain household flour" :holder "customer" :owner "household"
                    :desc "Fine white flour in a blue paper bag." :aspects {:amount "20 × 1 lb" :state "fresh, dry, unbleached"}
                    :consumable? true}]
@@ -364,7 +364,7 @@
       (rounds! run 2)
       (let [world (e/world run)
             [it] (items/items-where world :waiting)
-            [bought] (filter #(= :claudeworth/bought (:type %)) (e/events run))
+            [bought] (filter #(= :shop/bought (:type %)) (e/events run))
             replies (map :content (mapcat :replies (filter #(= "customer" (:agent %)) (store/read-llm (:dir run)))))]
         (testing "paid for, the quote spent, and the goods left at the counter for the customer"
           (is (= 594 (get-in world [:state :accounts "household"])))
@@ -408,7 +408,7 @@
       (try
         (rounds! run 2)
         (let [world (e/world run)
-              [event] (filter #(= :claudeworth/goods-refused (:type %)) (e/events run))]
+              [event] (filter #(= :shop/goods-refused (:type %)) (e/events run))]
           (is (= reason (get-in event [:data :reason])))
           (is (= #{"customer" "clerk"} (:visible-to event)))
           (is (= 600 (get-in world [:state :accounts "household"])))
@@ -654,8 +654,8 @@
       @(e/place! run "lord-claudeworth" "village-green")
       (rounds! run 1)
       (let [evs (e/events run)
-            types [:agent/moved :agent/freed :conversation/started :claudeworth/goods-quoted
-                   :conversation/ended :claudeworth/bought]
+            types [:agent/moved :agent/freed :conversation/started :shop/goods-quoted
+                   :conversation/ended :shop/bought]
             events (map #(first (filter (fn [ev] (= % (:type ev))) evs)) types)
             quote (get-in (nth events 3) [:data :id])
             calls (store/read-llm (:dir run))
@@ -702,7 +702,7 @@
         (is (str/includes? prompt "You may first use `check-counter`, `recommend`, `quote-goods` before your line."))
         (is (str/includes? prompt "Then finish this speaking turn with exactly ONE"))
         (is (= 1 (count (filter #(= "adjudicator/shop/appraise" (:agent %)) (store/read-llm (:dir run))))))
-        (is (= 1 (count (filter #(= :claudeworth/bought (:type %)) (e/events run))))))
+        (is (= 1 (count (filter #(= :shop/bought (:type %)) (e/events run))))))
       (finally (e/stop-run run)))))
 
 (deftest buying-on-a-line-at-the-counter
@@ -727,7 +727,7 @@
             id-of (fn [t] (:id (first (filter #(= t (:type %)) evs))))
             calls (filter #(and (= "customer" (:agent %)) (:conversation %)) (store/read-llm (:dir run)))
             world (e/world run)]
-        (is (< (id-of :claudeworth/goods-quoted) (id-of :claudeworth/bought) (id-of :conversation/ended))
+        (is (< (id-of :shop/goods-quoted) (id-of :shop/bought) (id-of :conversation/ended))
             "bought on the customer's line, after the quote")
         (is (some #(some #{"buy"} (:tools %)) calls))
         (is (= 594 (get-in world [:state :accounts "household"])))
@@ -759,7 +759,7 @@
               start (:id (first (filter #(= :conversation/started (:type %)) evs)))
               end (:id (first (filter #(= :conversation/ended (:type %)) evs)))
               during (filter #(< start (:id %) end) evs)]
-          (is (some #(= :claudeworth/goods-quoted (:type %)) during))
+          (is (some #(= :shop/goods-quoted (:type %)) during))
           (is (not-any? #(#{:agent/freed :agent/resumed} (:type %)) during))
           (is (= {:activity "writing accounts" :until 5} (w/busy (e/world run) "clerk")))
           (when interrupted?

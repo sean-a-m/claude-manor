@@ -12,8 +12,8 @@
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.claudeworth.deliveries :as deliveries]
-            [manor.scenarios.claudeworth.shop :as shop]
+            [manor.mechanics.deliveries :as deliveries]
+            [manor.mechanics.shop :as shop]
             [manor.world :as w]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))

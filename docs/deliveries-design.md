@@ -7,7 +7,7 @@ the people bridges and adjudicators), not `people/...` as sketched below.
 
 Read `AGENTS.md` first, then "Internal adjudication queries", "Composed queries", `:systems`,
 "The nightly steward" and "Runtime candidates and hiring" in `docs/scenario-authoring.md`,
-`src/manor/scenarios/claudeworth/shop.clj` and `src/manor/mechanics/hiring.clj`.
+`src/manor/mechanics/shop.clj` and `src/manor/mechanics/hiring.clj`.
 
 ## Why
 
@@ -51,7 +51,7 @@ customer converses at the counter ── clerk: quote-goods {for, goods: [{item 
    └─ appraiser: counter lines as today; delivery lines against the shop's :delivery-profile,
       each with lead-hours
 customer: buy {quote-ids}       one buy, one funds check on the total
-   └─ counter quote  → :claudeworth/bought + a carried parcel (unchanged)
+   └─ counter quote  → :shop/bought + a carried parcel (unchanged)
    └─ delivery quote → :claudeworth/ordered: money paid, order kept until due
 deliveries system, at round start
    └─ compose (I/O): if a due order's shop has no courier yet, generate one (people server + polish)
@@ -118,7 +118,7 @@ positions.
 ### Ordering
 
 - `buy` takes counter and delivery quotes together. A delivery quote emits `:claudeworth/ordered`
-  instead of `:claudeworth/bought` plus a parcel, and it is visible to the counter audience. Its
+  instead of `:shop/bought` plus a parcel, and it is visible to the counter audience. Its
   reducer debits the money, spends the quote and adds `[:state :orders id]`, holding buyer, clerk,
   shop, item, unit, qty, price, desc, condition, consumable, `:due` and `:to`.
 - **Due round:** `round + rounds-for(lead-hours)`, then moved forward into the shop's `:hours` if
@@ -132,7 +132,7 @@ positions.
 
 ### Arrival
 
-`manor.scenarios.claudeworth.deliveries` adds a system, `:deliveries/arrivals`, after hiring's visits. Its tick
+`manor.mechanics.deliveries` adds a system, `:deliveries/arrivals`, after hiring's visits. Its tick
 is pure. For each shop with orders due by this round, in shop-id order:
 
 1. Each order's parcel is added at the delivery place with `items/added`: owner household,
@@ -310,7 +310,7 @@ Each phase ends with `clojure -M:test` passing and a commit.
   - `observe` adds `orders` and the delivery profile;
   - `mock-appraisal` gives delivery lines `lead-hours 2`;
   - `scripted-clerk` passes `deliver` through.
-- New `src/manor/scenarios/claudeworth/deliveries.clj`: due-round arithmetic, order reducers and narration,
+- New `src/manor/mechanics/deliveries.clj`: due-round arithmetic, order reducers and narration,
   and the system with tick only (no couriers yet). Install it from `claudeworth/scenario`, so
   Lodge gets it too.
 - `items.clj`: the `:order-id` key, and the steward skips such items.

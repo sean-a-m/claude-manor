@@ -9,7 +9,7 @@
             [manor.mechanics.space :as space]
             [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.claudeworth.building :as building]
+            [manor.mechanics.building :as building]
             [manor.world :as w]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
@@ -71,7 +71,7 @@
           (is (= "maids-room" (get-in world [:state :bedrooms id])))
           (is (= "Sunday afternoons free." (get-in world [:state :posts id :conditions]))))
         (doseq [type [:people/recommended :people/sent-for :people/arrived :people/offered
-                      :conversation/started :claudeworth/goods-quoted :claudeworth/bought
+                      :conversation/started :shop/goods-quoted :shop/bought
                       :item/put-in :item/work-done :items/steward-ran]]
           (is (some #(= type (:type %)) events) (name type)))
         (is (some #(= "judge" (:agent %)) calls))

@@ -20,8 +20,8 @@
             [manor.narrate :as narrate]
             [manor.prompt :as prompt]
             [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.claudeworth.building :as building]
-            [manor.scenarios.claudeworth.money :as money]
+            [manor.mechanics.building :as building]
+            [manor.mechanics.money :as money]
             [manor.scenarios.household :as fixture]
             [manor.world :as w]))
 
@@ -222,7 +222,7 @@
                                     "lord-claudeworth" :commission args) "no personal account"))
         (is (= after (w/apply-event world ev))))
       (rounds! run 7)
-      (is (= "lord-claudeworth" (get-in (first (of-type run :claudeworth/commissioned)) [:data :account])))
+      (is (= "lord-claudeworth" (get-in (first (of-type run :building/commissioned)) [:data :account])))
       (is (= 720000 (get-in (e/world run) [:state :accounts "household"])))
       (is (= 72000 (get-in (e/world run) [:state :accounts "lord-claudeworth"])))
       (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
@@ -290,7 +290,7 @@
                  (bb-available?) (conj {:offline? false}))]
     (let [run (start (merge {:build-rounds 6} opts))]
       (rounds! run 7)
-      (let [event (first (of-type run :claudeworth/commissioned))
+      (let [event (first (of-type run :building/commissioned))
             due (get-in event [:data :due])]
         (is (some? event) (pr-str opts))
         (is (= (money/authored->units (money/spec (e/world run)) 1200) (get-in event [:data :price])))
@@ -344,7 +344,7 @@
                  (assoc-in result [:plan :connects-to] ["unknown"]) (assoc result :price -100)
                  (assoc result :build-days 0)]]
       (let [events (building/store-draft world "pugh" args bad)]
-        (is (= [:claudeworth/draft-refused] (mapv :type events)))
+        (is (= [:building/draft-refused] (mapv :type events)))
         (is (= world (reduce w/apply-event world events)))))
     (e/stop-run run)))
 
@@ -356,12 +356,12 @@
     (doseq [id ["lord-claudeworth" "lady-claudeworth" "hale"]]
       (is (not (str/includes? (text id) "quiet reading table"))))
     (rounds! run 1)
-    (is (= 5 (:round (first (of-type run :claudeworth/consulted)))))
-    (is (= 6 (:round (first (of-type run :claudeworth/plans-drawn)))))
+    (is (= 5 (:round (first (of-type run :building/consulted)))))
+    (is (= 6 (:round (first (of-type run :building/plans-drawn)))))
     (e/stop-run run))
   (let [run (rounds! (start {:bridge-stubs {:architect/draft (fn [_ _] "bad draft")}}) 6)]
     (is (empty? (get-in (e/world run) [:state :plans])))
-    (is (= #{"pugh"} (:visible-to (first (of-type run :claudeworth/draft-refused)))))
+    (is (= #{"pugh"} (:visible-to (first (of-type run :building/draft-refused)))))
     (e/stop-run run)))
 
 (deftest building-world-file-checks
@@ -537,7 +537,7 @@
         (is (= :ended (get-in (last in-it) [:data :reason])))
         (is (= 1 (count (of-type run :conversation/started))))))
     (testing "the countess buys a feather duster on her way home, and keeps it while there is no maid"
-      (let [bought (first (by "lady-claudeworth" (of-type run :claudeworth/bought)))]
+      (let [bought (first (by "lady-claudeworth" (of-type run :shop/bought)))]
         (is (= {:item "feather duster" :qty 1 :price 18 :location "general-store"}
                (select-keys (:data bought) [:item :qty :price :location])))
         (is (= "16:30" (clock/short-label (:clock world) (:round bought) (:round bought))))

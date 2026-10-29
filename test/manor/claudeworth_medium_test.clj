@@ -11,7 +11,7 @@
             [manor.mechanics.space :as space]
             [manor.mechanics.visits :as visits]
             [manor.scenarios.claudeworth :as cw]
-            [manor.scenarios.claudeworth.building :as building]
+            [manor.mechanics.building :as building]
             [manor.world :as w]))
 
 (use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))

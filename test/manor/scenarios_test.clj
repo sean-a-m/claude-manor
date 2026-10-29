@@ -95,8 +95,8 @@
       (e/auto! run 47)
       (is (= :idle (e/wait-idle run 120000)))
       (let [world (e/world run) events (e/events run)
-            bought (filter #(= :claudeworth/bought (:type %)) events)
-            quoted (into {} (for [e events :when (= :claudeworth/goods-quoted (:type e))]
+            bought (filter #(= :shop/bought (:type %)) events)
+            quoted (into {} (for [e events :when (= :shop/goods-quoted (:type e))]
                               [(get-in e [:data :id]) (:data e)]))]
         (is (= 47 (:round world)))
         (is (seq bought))
@@ -157,7 +157,7 @@
           (let [sent (filter #(= :deliveries/sent-up (:type %)) events)
                 ids (set (map :id (mapcat (comp :orders :data) sent)))]
             (is (seq sent))
-            (is (some #(= "leave" (get-in % [:data :hand-over])) (filter #(= :claudeworth/bought (:type %)) events)))
+            (is (some #(= "leave" (get-in % [:data :hand-over])) (filter #(= :shop/bought (:type %)) events)))
             (is (every? #(contains? (:items-gone world) %) (mapcat #(map :item-id (get-in % [:data :orders])) sent)))
             (is (every? (set (mapcat (comp :orders :data) (filter #(= :deliveries/arrived (:type %)) events))) ids))
             (is (every? (set (keep :order-id (items/items-where world #(= "carriage-sweep" (:place %))))) ids)

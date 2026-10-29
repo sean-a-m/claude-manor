@@ -163,7 +163,7 @@ so the person written fits the scenario. It keeps names, sex, jobs and situation
 fresh seed, printed and recorded for reproduction; pass `{:seed 1}` for repeatable traits.
 It writes the result into the file for review with `git diff`; see "People and traits" in
 [docs/scenario-authoring.md](docs/scenario-authoring.md).
-Positions (a shared catalogue in `resources/positions/`), posts and situations are described
+Positions (a shared catalogue in `resources/settings/england-1904/positions.edn`), posts and situations are described
 under "Positions, posts and situations" there.
 
 Whenever a run stops running rounds (it pauses, `auto!`'s rounds are done, a manual step ends,

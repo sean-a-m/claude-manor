@@ -15,7 +15,7 @@
 
 (def default-ages
   "The ages rolled when a request gives none. The engine passes a position's
-  own :ages and :sex from its catalogue (resources/positions/)."
+  own :ages and :sex from its catalogue (resources/settings/<setting>/positions.edn)."
   [18 55])
 
 (def settings

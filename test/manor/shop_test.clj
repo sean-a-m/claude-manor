@@ -25,7 +25,7 @@
 (def purchase {:for "customer" :goods [{:item "packet of needles" :amount "2"}]})
 (def available {:available true :item "packet of needles" :qty 2 :unit "a paper packet of ten needles"
                 :desc "Ten steel sewing needles in a folded paper packet." :condition "new"
-                :consumable false :unit-price-pence 3})
+                :consumable false :unit-price 3})
 
 (defn policy [{:keys [world agent-id used]}]
   (cond
@@ -49,7 +49,7 @@
                     :routes [["counter" "back-room" 0]]}
             :state {:setting "Rural England, 1904." :household {:funds 600 :untouched 7}
                     :positions {:shopkeeper {:capabilities #{:shop-clerk}}}
-                    :quotes {} :money-unit :old-pence}
+                    :quotes {}}
             :items []})
    :actions shop/actions :adjudicators shop/adjudicators :items {}
    :observe shop/observe :mock-policy policy})
@@ -143,10 +143,10 @@
 (deftest checked-appraisal-output
   (is (= {:lines [available]} (:verdict (appraised available))))
   (is (= {:lines [{:available false :reason "Not stocked here."}]}
-         (:verdict (appraised {:available false :reason "Not stocked here." :unit-price-pence 10}))))
+         (:verdict (appraised {:available false :reason "Not stocked here." :unit-price 10}))))
   (doseq [bad [(dissoc available :desc) (assoc available :condition "   ")
-               (assoc available :unit-price-pence 0) (assoc available :unit-price-pence -1)
-               (assoc available :unit-price-pence 1.5) (assoc available :unit-price-pence (inc shop/max-unit-price))
+               (assoc available :unit-price 0) (assoc available :unit-price -1)
+               (assoc available :unit-price 1.5) (assoc available :unit-price (inc shop/max-unit-price))
                (assoc available :item (apply str (repeat 61 "x")))
                (assoc available :unit (apply str (repeat (inc shop/max-unit) "x")))
                (assoc available :condition (apply str (repeat (inc items/max-aspect) "x")))
@@ -158,8 +158,8 @@
   (let [verdict (:verdict (appraised (assoc available :holder "clerk" :owner "clerk" :id "stolen"
                                             :price 0 :amount "999" :fixed? true :container "open")))]
     (is (= {:lines [available]} verdict)))
-  (let [snake (-> available (dissoc :unit-price-pence) (assoc :unit_price_pence 5))]
-    (is (= 5 (get-in (appraised snake) [:verdict :lines 0 :unit-price-pence]))))
+  (let [snake (-> available (dissoc :unit-price) (assoc :unit_price 5))]
+    (is (= 5 (get-in (appraised snake) [:verdict :lines 0 :unit-price]))))
   (is (:error (shop/check 1 {:tool-calls []})))
   (testing "exactly one checked line per requested line, in order"
     (let [refused {:available false :reason "Not stocked here."}]
@@ -170,7 +170,7 @@
     (is (str/includes? (:error (shop/check 2 (response {:lines [available (dissoc available :desc)]}))) "line 2")))
   (let [answer (shop/check 1 {:tool-calls [{:id "wrong" :name "buy" :arguments {}}
                                           {:id "first" :name "appraise" :arguments {:lines [available]}}
-                                          {:id "second" :name "appraise" :arguments {:lines [(assoc available :unit-price-pence 999)]}}]})]
+                                          {:id "second" :name "appraise" :arguments {:lines [(assoc available :unit-price 999)]}}]})]
     (is (= {:lines [available]} (:verdict answer)))
     (is (= 3 (count (:replies answer))))
     (is (str/starts-with? (get-in answer [:replies 2 :content]) "ignored:")))
@@ -198,7 +198,7 @@
    :args {:lines (for [{:keys [item amount]} request]
                    (if (= "telephone" item)
                      {:available false :reason "No telephones at a village shop."}
-                     (assoc available :item item :qty (parse-long amount) :unit "1 packet" :consumable true :unit-price-pence 5)))}})
+                     (assoc available :item item :qty (parse-long amount) :unit "1 packet" :consumable true :unit-price 5)))}})
 
 (defn list-policy [{:keys [world agent-id used]}]
   (cond
@@ -275,7 +275,7 @@
   (let [run (start)
         flour {:available true :item "Plain household flour" :unit "1 lb"
                :desc "Fine white flour in a blue paper bag." :condition "fresh, dry, unbleached"
-               :consumable true :unit-price-pence 2}]
+               :consumable true :unit-price 2}]
     (try
       (let [[after evs] (bought (e/world run) flour 20)
             names (n/names after)]
@@ -294,7 +294,7 @@
                    (map (juxt :aspects :consumable?) (map #(dissoc % :touched) (items/held-by after "customer"))))))))
       (testing "the longest unit and condition the appraiser may give still fit an item's aspects"
         (let [longest (assoc flour :unit (apply str (repeat shop/max-unit "u"))
-                             :condition (apply str (repeat items/max-aspect "c")) :unit-price-pence 1)
+                             :condition (apply str (repeat items/max-aspect "c")) :unit-price 1)
               [after] (bought (e/world run) longest shop/max-quantity)
               [it] (map #(dissoc % :touched) (items/held-by after "customer"))]
           (is (= {:amount (str "20 × " (apply str (repeat shop/max-unit "u"))) :state (apply str (repeat items/max-aspect "c"))}
@@ -304,7 +304,7 @@
 (deftest the-appraiser-turns-the-amount-into-units
   (let [run (start)
         sugar {:available true :item "Lump sugar" :qty 14 :unit "1 lb" :desc "White lump sugar in a blue paper bag."
-               :condition "dry" :consumable true :unit-price-pence 3}]
+               :condition "dry" :consumable true :unit-price 3}]
     (try
       (let [world (e/world run)
             [quote] (shop/offer-events world "clerk" {:for "customer" :goods [{:item "lump sugar" :amount "a stone"}]} {:lines [sugar]})]

@@ -38,6 +38,7 @@
            :source path
            :positions (read-edn (str path "/positions.edn"))
            :calendar (read-edn (str path "/calendar.edn"))
+           :money (read-edn (str path "/money.edn"))
            :prompts (into {} (for [p (prompt-paths path)]
                                [(subs p (count prefix)) (str/replace (slurp (resource p)) #"\n$" "")])))))
 

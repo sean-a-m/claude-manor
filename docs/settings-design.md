@@ -356,7 +356,7 @@ next phase must know.**
 | 0 | Baseline prompt capture | done 2026-10-28 (`57fc5ea`) |
 | 1 | Renderer, templates moved verbatim | done 2026-10-28 (`d2425e4`, `2926604`); diff empty |
 | 2 | Setting packs, neutral rewording, overrides | done 2026-10-28 (`d768180`, `d255456`, `114bac8`; reviewed and documented below) |
-| 3 | Money specs | not started |
+| 3 | Money specs | done 2026-10-28 (implementation commit recorded below at completion) |
 | 3b | Private accounts | not started |
 | 4 | One ruleset | not started |
 | 5 | People and positions from the pack | not started |
@@ -550,6 +550,22 @@ and inherited forms of address are real, expected state rather than a prompt lea
 
 3. **Money specs.** `mechanics/money.clj` with specs; shop, building, deliveries, views and scene
    tools use the run's spec; `unit-price`. Diff: the appraiser's field and docs.
+**Phase 3, done (2026-10-28).** Money specs live in each pack's `money.edn`; the API is
+`money/spec`, `(money/display spec n)` and `(money/authored->units spec n)`, still in
+`scenarios/claudeworth/money.clj` until phase 4 moves it. No sterling constants remain in code;
+`:money-unit` and `:authored-money` are removed. Narration carries the spec in `names` at
+`[:money]`. England's authored name is `whole pounds (£)` to preserve the architect docs.
+The renderer now lets explicit string keys override keyword setting parameters too (adding
+`:money` exposed that latent collision). Full suite: **474 tests, 9239 assertions**, green.
+The three 48-round offline mock days completed with 352 / 179 / 593 calls, no pauses/exceptions.
+Reviewed capture diff: only appraiser `unit-price-pence` → `unit-price` (instructions/schema,
+Claudeworth and Lodge calls plus rendered request), and price-list narration `prices in pounds`
+→ `prices in whole pounds (£)` (Claudeworth's event memories). All other rendered docs and
+captured prompts unchanged. GM system/user character counts, before → phase 3:
+Claudeworth 1381/80163 → 1381/80138; Lodge 1480/10102 → 1480/10077;
+medium 1795/186087 → 1795/186062. The pack remains excluded; removing the money-unit marker
+accounts for the 25-character decrease in each user message. No real models or ports used.
+
 3b. **Private accounts** (3.4).
 4. **One ruleset.** `manor.ruleset`; move building, shop, deliveries; meeting place and home
    domain from the world file; architect actions by `:available?`; Claudeworth, medium and Lodge

@@ -38,7 +38,7 @@
    :args {:lines (for [{:keys [item deliver]} request]
                    (cond-> {:available true :item item :qty 1 :unit (if deliver "1 side" "1 lb")
                             :desc (str "Good " item ".") :condition "fresh"
-                            :consumable true :unit-price-pence (if deliver 120 30)}
+                            :consumable true :unit-price (if deliver 120 30)}
                      deliver (assoc :lead-hours 2)))}})
 
 (defn policy
@@ -185,7 +185,7 @@
 
 (deftest a-delivery-line-needs-a-lead-time
   (let [line {:available true :item "side of mutton" :qty 1 :unit "1 side" :desc "A side." :condition "fresh"
-              :consumable true :unit-price-pence 120}]
+              :consumable true :unit-price 120}]
     (is (str/includes? (:error (shop/check 1 #{0} (response [line]))) "lead-hours"))
     (is (:error (shop/check 1 #{0} (response [(assoc line :lead-hours 0)]))))
     (is (:error (shop/check 1 #{0} (response [(assoc line :lead-hours (inc deliveries/max-lead-hours))]))))

@@ -1,25 +1,33 @@
 (ns manor.scenarios.claudeworth.money
-  "Claudeworth's pre-decimal sterling. State uses integer old pence, never floats.
+  "Setting-owned currency. Amounts are integers in the smallest unit.
   This is unrelated to model usage costs (USD)."
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [manor.settings :as settings]))
 
-(def pence-per-pound 240)
+(defn spec
+  "The run's snapshotted money specification."
+  [world]
+  (:money (settings/pack world)))
 
-(defn pounds->pence
-  "Convert authored whole-pound amounts at the world-file or architect boundary."
-  [pounds]
-  (* pounds pence-per-pound))
+(defn authored->units
+  "Convert authored amounts at the world-file or architect boundary."
+  [spec n]
+  (* n (:authored spec)))
+
+(defn- component [{:keys [prefix suffix singular plural]} n]
+  (if singular
+    (str n " " (if (= 1 n) singular plural))
+    (str prefix n suffix)))
 
 (defn display
-  "Human-readable sterling, omitting zero components: 258 -> £1 1s 6d."
-  [pence]
-  (let [n (abs pence)
-        pounds (quot n 240)
-        shillings (quot (rem n 240) 12)
-        pennies (rem n 12)]
-    (str (when (neg? pence) "-")
-         (if (zero? n) "0d"
-             (str/join " " (cond-> []
-                             (pos? pounds) (conj (str "£" pounds))
-                             (pos? shillings) (conj (str shillings "s"))
-                             (pos? pennies) (conj (str pennies "d"))))))))
+  "Format an amount using descending units, omitting zero components."
+  [spec n]
+  (str (when (neg? n) "-")
+       (if (zero? n)
+         (:zero spec)
+         (str/join " "
+                   (second
+                    (reduce (fn [[remaining parts] {:keys [value] :as unit}]
+                              (let [q (quot remaining value)]
+                                [(rem remaining value) (cond-> parts (pos? q) (conj (component unit q)))]))
+                            [(abs n) []] (:units spec)))))))

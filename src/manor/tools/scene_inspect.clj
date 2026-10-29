@@ -8,6 +8,7 @@
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
+            [manor.scenarios.claudeworth.money :as money]
             [manor.world :as w])
   (:import (java.net URLEncoder)))
 
@@ -255,7 +256,7 @@
      (folded "Post, bedroom, routine and purse"
              [:div (fields post) [:div "Bedroom: " (or (link world "place" bedroom) "none")]
               (routine-view world routine)
-              (field "Purse (old pence, when recorded)" purse)])
+              (field "Purse (when recorded)" (when (some? purse) (money/display (money/spec world) purse)))])
      (folded "Notes and last seen"
              [:div [:ul (for [note (:notes agent)] [:li (at world (:round note)) " · " (:text note)])]
               [:ul (for [seen last-seen] [:li (link world "agent" (:id seen)) " · "

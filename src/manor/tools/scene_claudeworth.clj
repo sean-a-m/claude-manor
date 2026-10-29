@@ -39,7 +39,7 @@
 
 (defn toolbar [world]
   (when-let [funds (get-in world [:state :household :funds])]
-    [:div.scene-household [:b "Household funds: "] (money/display funds)]))
+    [:div.scene-household [:b "Household funds: "] (money/display (money/spec world) funds)]))
 
 (defn badges [world loc-id]
   (when (some #(some #{loc-id} (:connects-to %)) (get-in world [:state :works]))
@@ -56,10 +56,10 @@
           plans (filter #(contains? (:holders %) id) (sort-by :id (vals (get-in world [:state :plans]))))]
       (when (or (some? purse) (seq plans))
         [:section.scene-extra [:h3 "Household · plans and purse"]
-         (when (some? purse) [:p "Purse: " (money/display purse)])
+         (when (some? purse) [:p "Purse: " (money/display (money/spec world) purse)])
          (for [plan plans]
            [:details [:summary (:name plan) " · " (if (number? (:price plan))
-                                                    (money/display (:price plan)) "price not recorded")]
+                                                    (money/display (money/spec world) (:price plan)) "price not recorded")]
             [:p (str (:id plan) " · " (:size plan) " · " (some-> (:floor plan) name))]
             [:p (:desc plan)]
             [:p (cond (some #(= (:id plan) (:plan-id %)) (get-in world [:state :works])) "Being built"

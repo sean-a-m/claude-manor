@@ -70,7 +70,8 @@
   ([world path params]
    (let [pack (settings/pack world)
          text (or (get-in pack [:prompts path]) (template path))]
-     (fill path text (merge (settings/parameters world) params)))))
+     (fill path text (merge (settings/parameters world)
+                            (into {} (map (fn [[k v]] [(if (string? k) (keyword k) k) v])) params))))))
 
 (defn doc
   "An action's per-world description, optionally with explicit parameters."

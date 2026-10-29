@@ -86,7 +86,7 @@
 ;; characters take it up as a reference number ("order-312") in their talk.
 (defmethod n/describe :deliveries/ordered [{:keys [actor data]} names]
   (str (n/who names actor) " orders " (:item data) " (" (amount (:qty data) (:unit data)) ") for "
-       (money/display (:price data)) " at the " (n/place names (:location data)) ", to be delivered at the "
+       (money/display (get names [:money]) (:price data)) " at the " (n/place names (:location data)) ", to be delivered at the "
        (n/place names (:to data)) " by " (:due-label data) "."))
 
 (defn sent-up-id

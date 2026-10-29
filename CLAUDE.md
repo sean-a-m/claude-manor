@@ -109,16 +109,23 @@ src/manor/
   worldfile.clj  EDN world files: load + check, export live map (runs/<id>/map.edn)
   transcript.clj readable run record: <run-dir>/transcript.md from events.edn and llm.edn
   cache_report.clj  prompt-cache and cost report from llm.edn: report, simulate (offline cache model), compare
-  scenarios/     village.clj (full example), treasure.clj (small example), quiz.clj (MCP/pi),
-                 lodge.clj (Ashby Lodge, on Claudeworth mechanics), claudeworth.clj (Claudeworth Manor: daily life,
-                 the small test house, with Nellie the housemaid's work-on jobs), claudeworth_medium.clj
-                 (the larger household of docs/household-1904-proposal.md)
-    claudeworth/ Claudeworth's parts: building.clj (money, plans, architect and construction),
-                 shop.clj (Mr Briggs, store-profile-grounded adjudication, portable purchases via
-                 firm quotes), deliveries.clj (orders sent up), money.clj (sterling: integer old
-                 pence, pounds/shillings/pence formatting)
+  mechanics/     also building.clj (household money, plans, architect and construction), shop.clj
+                 (store-profile-grounded adjudication, portable purchases via firm quotes),
+                 deliveries.clj (orders sent up), money.clj (the setting pack's currency: integers
+                 in its smallest unit, formatting)
+  ruleset.clj    the shared ruleset of the household scenarios: (ruleset/scenario {:name :doc
+                 :defaults :mock-day ...}) installs every mechanic
+  ruleset/       its parts: places (areas, bedrooms), actions (walk, call, travel, sleep, rouse),
+                 views, hibernation, rules (rules prompt, judge brief, briefs), init (world-file
+                 checks, starting state, holidays), mock (the scripted mock policy)
+  scene_ruleset.clj the ruleset's scene hooks (household funds, plans, works)
+  scenarios/     village.clj (full example), treasure.clj (small example), quiz.clj (MCP/pi);
+                 on the ruleset: claudeworth.clj (Claudeworth Manor: daily life, the small test
+                 house), claudeworth_medium.clj (the larger household of
+                 docs/household-1904-proposal.md), lodge.clj (Ashby Lodge)
 resources/worlds/ world files on the classpath; claudeworth.edn is the small test world,
-                 claudeworth-medium.edn the larger household (see docs/household-1904-proposal.md)
+                 claudeworth-medium.edn the larger household (see docs/household-1904-proposal.md);
+                 claudeworth-day.edn and lodge-day.edn are mock days
 resources/settings/ setting packs; england-1904/ holds positions, calendar and prompt parameters/fragments
 resources/pricing.edn model prices, peak hours and cache block size for manor.tools.cache-report
 mcp-servers/pi/server.mjs  pi as an MCP server: send_message {session, message}; Node, no deps
@@ -129,7 +136,7 @@ config/        mcp.example.edn; mcp.edn is local and gitignored (the user's sets
 dev/user.clj     REPL helpers (start! step! auto! feed view last-prompt transcript! spawn! change-post! approve! act! roll-cast! ...)
 test/            engine, conversation, space, items, MCP, clock, world-file, panel, transcript, cache-report, Claudeworth and scenario smoke tests;
                  test scenarios prize.clj and hamlet.clj (world file test/fixtures/hamlet.edn);
-                 household.clj reuses Claudeworth mechanics with fixed household.edn / household-day.edn fixtures;
+                 household.clj is on the ruleset with fixed household.edn / household-day.edn fixtures;
                  test/fixtures/fake-pi.mjs (fake `pi --mode rpc` for free MCP tests)
 runs/            real runs (gitignored; the user's data; never delete). runs/smoke-llm is a real 5-round village run
 test-runs/       test and ad-hoc runs ({:test? true} / --test); mock runs are safe to delete

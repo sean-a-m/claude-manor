@@ -7,6 +7,7 @@
   :init returns the clock; the engine stores it in the world (:clock) through
   :world/initialized, so it is replayed like everything else. Without a
   clock, prompts and the panel show round numbers as before."
+  (:require [manor.settings :as settings])
   (:import (java.time Duration LocalDateTime LocalTime)
            (java.time.format DateTimeFormatter)
            (java.util Locale)))
@@ -48,8 +49,14 @@
 
 (defn label
   "\"Saturday 15 October 1904, 09:30\""
-  [clock round]
-  (.format (time-of clock round) long-format))
+  ([clock round] (label clock round nil))
+  ([clock round pattern]
+   (.format (time-of clock round) (if pattern (fmt pattern) long-format))))
+
+(defn world-label
+  "A time in this world's setting's clock format."
+  [world round]
+  (label (:clock world) round (settings/parameter world :clock :label)))
 
 (defn short-label
   "\"09:30\" if `round` is on the same day as `today`, else \"Sun 07:00\"."

@@ -118,7 +118,7 @@
       (let [run (e/start-run k {:llm :mock :offline? true :test? true
                                 :run-id (str (gensym (str "tools-" (name k) "-")))})]
         (doseq [action (:actions run)]
-          (is (map? (try (a/->tool action) (catch Exception ex (ex-message ex))))
+          (is (map? (try (a/->tool action (e/world run)) (catch Exception ex (ex-message ex))))
               (str (name (:name action)) " should become a tool")))
         (e/stop-run run)))))
 

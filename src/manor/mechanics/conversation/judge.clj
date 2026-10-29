@@ -105,7 +105,7 @@
      [{:role "system" :content (instructions config)}
       {:role "user"
        :content (str "# The conversation\n\n"
-                     "- Time: " (if-let [c (:clock world)] (clock/label c (:round world)) (str "round " (:round world))) "\n"
+                     "- Time: " (if-let [c (:clock world)] (clock/world-label world (:round world)) (str "round " (:round world))) "\n"
                      (when place (str "- Place: " (:name (space/location world place) place) "\n"))
                      "\n```json\n"
                      (json/write-value-as-string scene pretty)

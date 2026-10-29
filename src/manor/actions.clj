@@ -5,7 +5,7 @@
 
   Action spec:
     {:name    :plant                        ; tool name
-     :doc     \"Plant grain in your field.\"  ; tool description
+     :doc     \"Plant grain in your field.\"  ; string or (fn [world] text)
      :args    [:map [:grain pos-int?]]      ; malli schema (default [:map])
      :roles   #{:farmer} | :all             ; :all = every non-GM role
      :needs   :shop-clerk                   ; optional: a capability the agent's
@@ -153,11 +153,21 @@
   (when-let [n (when (number? (:per-turn action)) (:per-turn action))]
     (if (= 1 n) " Once per turn." (str " At most " n " times per turn."))))
 
-(defn ->tool [action]
-  {:type "function"
-   :function {:name (name (:name action))
-              :description (str (:doc action) " " (or (:hint action) (kind-hint (kind action))) (per-turn-hint action))
-              :parameters (mjs/transform (tool-schema (args-schema action)))}})
+(defn description
+  "The action's doc in this world; a fixed string or a function of the world."
+  [action world]
+  (let [doc (:doc action)]
+    (if (fn? doc) (doc world) doc)))
+
+(defn ->tool
+  "A model-facing tool, with its description rendered for this request's world.
+  The one-argument arity uses the default setting for tooling without a run."
+  ([action] (->tool action {}))
+  ([action world]
+   {:type "function"
+    :function {:name (name (:name action))
+               :description (str (description action world) " " (or (:hint action) (kind-hint (kind action))) (per-turn-hint action))
+               :parameters (mjs/transform (tool-schema (args-schema action)))}}))
 
 ;; ---------------------------------------------------------------------------
 ;; Decoding and validation

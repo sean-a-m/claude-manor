@@ -19,6 +19,7 @@
         prefix (str path "/prompts/")]
     (if (= "jar" (.getProtocol url))
       (let [conn ^java.net.JarURLConnection (.openConnection url)]
+        (.setUseCaches conn false)
         (with-open [jar (.getJarFile conn)]
           (->> (enumeration-seq (.entries jar))
                (map #(.getName ^java.util.jar.JarEntry %))
@@ -50,4 +51,9 @@
 (defn for-worldfile [wf]
   (load-pack (get-in wf [:meta :setting-pack])))
 
-(defn parameter [world & path] (get-in (pack world) path))
+(defn parameters
+  "Only setting.edn's prompt parameters, not the snapshotted catalogues or text."
+  [world]
+  (dissoc (pack world) :source :positions :calendar :prompts))
+
+(defn parameter [world & path] (get-in (parameters world) path))

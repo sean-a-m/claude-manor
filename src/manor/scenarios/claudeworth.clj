@@ -399,8 +399,8 @@
 (defn- section
   "A section of the rules, or a part of one chosen in code: the template
   rules/sections/`file`.md, filled from `params`."
-  ([file] (section file {}))
-  ([file params] (prompts/render (str "rules/sections/" file ".md") params)))
+  ([world file] (section world file {}))
+  ([world file params] (prompts/render world (str "rules/sections/" file ".md") params)))
 
 (defn rules
   "How actions work, for every role: a section for each subject, so a model
@@ -412,36 +412,36 @@
         max-queries (get-in world [:state :max-queries] 2)
         architect? (some #(contains? (:services %) :architect) (vals (get-in world [:space :locations])))
         visits? (visits/config world)]
-    (prompts/render
+    (prompts/render world
      "rules/how-things-work.md"
      {:sections
       (str/join
        "\n\n"
        (remove nil?
-               [(section "turns" {:turn turn :max-queries max-queries
-                                  :counted (section (if architect? "turns-counted-architect" "turns-counted"))})
-                (section "getting-about")
-                (section "speaking" {:speech-limit b/speech-limit :max-others conversation/max-others
-                                     :passes conversation/passes})
-                (section "sleep")
-                (section "work" {:max-work-hours items/max-work-hours})
-                (section "things" {:find-for-sale (section (if (find-everywhere? world)
-                                                              "things-find-everywhere"
-                                                              "things-find-not-at-trade"))})
-                (section "people" {:physical physical/rules})
-                (section "shopping" {:paid (section (if architect? "shopping-paid-commissions" "shopping-paid"))})
+               [(section world "turns" {:turn turn :max-queries max-queries
+                                        :counted (section world (if architect? "turns-counted-architect" "turns-counted"))})
+                (section world "getting-about")
+                (section world "speaking" {:speech-limit b/speech-limit :max-others conversation/max-others
+                                           :passes conversation/passes})
+                (section world "sleep")
+                (section world "work" {:max-work-hours items/max-work-hours})
+                (section world "things" {:find-for-sale (section world (if (find-everywhere? world)
+                                                                          "things-find-everywhere"
+                                                                          "things-find-not-at-trade"))})
+                (section world "people" {:physical (physical/rules world)})
+                (section world "shopping" {:paid (section world (if architect? "shopping-paid-commissions" "shopping-paid"))})
                 (when architect?
-                  (section "building" {:sizes (str/join ", " (map :size (get-in world [:state :architect-prices :sizes])))
-                                       :fee-percent building/fee-percent}))
-                (section "hiring" {:hiring (if visits? hiring/rules-beside-visits hiring/rules)})
-                (when visits? (section "invitations" {:visits visits/rules}))]))})))
+                  (section world "building" {:sizes (str/join ", " (map :size (get-in world [:state :architect-prices :sizes])))
+                                             :fee-percent building/fee-percent}))
+                (section world "hiring" {:hiring ((if visits? hiring/rules-beside-visits hiring/rules) world)})
+                (when visits? (section world "invitations" {:visits (visits/rules world)}))]))})))
 
 (defn- setting [world] (get-in world [:state :setting]))
 
 (defn- judge-brief
   "The setting, and that everyday things are to hand."
   [world]
-  (prompts/render "judges/brief.md" {:setting (or (setting world) "")}))
+  (prompts/render world "judges/brief.md" {:setting (or (setting world) "")}))
 
 (defn- about [world role] (get-in world [:state :positions role :about]))
 

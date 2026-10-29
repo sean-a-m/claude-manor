@@ -813,7 +813,7 @@
   {:name :invite :kind :free :roles :all :per-turn 1
    :kind-for (fn [args] (if (:person args) :query :free))
    :hint "Free: does not end your turn. With person, it's a query and counts towards your queries this turn."
-   :doc (prompts/render "docs/visits/invite.md" {:max-person max-person})
+   :doc (prompts/doc "docs/visits/invite.md" {:max-person max-person})
    :args (into [:map [:by [:enum "in-person" "post" "messenger"]]
                 [:who {:optional true} :string]
                 [:person {:optional true} [:string {:min 1 :max max-person}]]
@@ -839,7 +839,7 @@
   "The GM's `schedule-visit` (a query: someone new is written first) and `cancel-visit`."
   [scenario]
   [{:name :schedule-visit :roles #{:gm} :kind :query
-    :doc (prompts/render "docs/visits/schedule-visit.md")
+    :doc (prompts/doc "docs/visits/schedule-visit.md")
     :args (-> [:map [:who {:optional true} :string]]
               (into (map (fn [[k schema]] [k {:optional true} schema])) judge/new-person-fields)
               (conj [:known-to {:optional true} [:vector :string]])
@@ -864,9 +864,10 @@
   [scenario]
   (into [(invite-action scenario) (take-leave (first (filter #(= :take-leave (:name %)) hiring/actions)))] (gm-actions scenario)))
 
-(def rules
+(defn rules
   "The rules paragraph, from the design's section 9."
-  (prompts/render "rules/visits.md"))
+  [world]
+  (prompts/render world "rules/visits.md" {}))
 
 (defn- merged
   "Configs merged in order, the :lead-hours map key by key."

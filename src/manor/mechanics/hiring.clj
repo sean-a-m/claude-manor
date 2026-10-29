@@ -49,10 +49,10 @@
       :knows {:temperament (vec (take 1 (:temperament person))) :faculties [] :circumstances []}})})
 
 (def adjudicators
-  {:people/appearance {:request (fn [_ _ {:keys [record]}] (people/appearance-request record))
+  {:people/appearance {:request (fn [world _ {:keys [record]}] (people/appearance-request world record))
                        :mock (fn [_] {:tool :appearance :args {:appearance "A young figure in plain working clothes and spectacles."}})}
    :people/polish {:request (fn [world _ {:keys [record appearance notes]}]
-                              (people/polish-request {:setting (get-in world [:state :setting])
+                              (people/polish-request world {:setting (get-in world [:state :setting])
                                                       :position (:position record) :record record
                                                       :notes (str (when-not (str/blank? notes) (str notes "\n\n"))
                                                                   "Keep these visible physical facts consistent: " appearance)}))
@@ -515,7 +515,7 @@
               entries))))))
 (def actions
   [{:name :recommend :kind :query :roles :all
-    :doc (prompts/render "docs/hiring/recommend.md")
+    :doc (prompts/doc "docs/hiring/recommend.md")
     :args [:map [:position :string] [:for :string]] :valid? recommend-reason
     :query-fn recommend! :on-result recommendation-events
     :reply (fn [_ _ _ {:keys [events]}]
@@ -626,12 +626,13 @@
 (defn- rules-text
   "Hiring's rules, step by step for each side, with the template `arrivals`
   saying who may arrive."
-  [arrivals]
-  (prompts/render "rules/hiring.md" {:arrivals (prompts/render arrivals)}))
+  [world arrivals]
+  (prompts/render world "rules/hiring.md" {:arrivals (prompts/render world arrivals {})}))
 
-(def rules (rules-text "rules/hiring-arrivals.md"))
+(defn rules [world] (rules-text world "rules/hiring-arrivals.md"))
 
-(def rules-beside-visits
+(defn rules-beside-visits
   "Hiring's rules for a world with visits (manor.mechanics.visits), where
   guests arrive by invitation too."
-  (rules-text "rules/hiring-arrivals-beside-visits.md"))
+  [world]
+  (rules-text world "rules/hiring-arrivals-beside-visits.md"))

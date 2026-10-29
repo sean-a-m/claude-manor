@@ -121,8 +121,8 @@
 
 (defn- all-tools
   "Every tool of a run, its actions as a/->tool makes them."
-  [run]
-  (str/join "\n" (map (comp tool-text a/->tool) (:actions run))))
+  [run world]
+  (str/join "\n" (map #(tool-text (a/->tool % world)) (:actions run))))
 
 (def ^:private judge-brief @#'cw/judge-brief)
 
@@ -131,41 +131,41 @@
   []
   (let [[run world] (start-world :claudeworth)
         [lodge-run lodge-world] (start-world :lodge)
-        tool #(tool-text (a/->tool (first (filter (comp #{%} :name) (:actions run)))))]
-    {"agent-preamble.md" prompt/agent-preamble
+        tool #(tool-text (a/->tool (first (filter (comp #{%} :name) (:actions run))) world))]
+    {"agent-preamble.md" (prompt/agent-preamble world)
      "rules-claudeworth.md" (cw/rules world)
      "rules-claudeworth-no-find-at-shops.md" (cw/rules (assoc-in world [:state :find-everywhere?] false))
      "rules-claudeworth-no-visits.md" (cw/rules (update world :state dissoc :visit-config))
      "rules-lodge.md" (cw/rules lodge-world)
      "judge-brief.md" (judge-brief world)
      "judge-brief-lodge.md" (judge-brief lodge-world)
-     "physical-rules.md" physical/rules
-     "find-person-instructions.md" find-person/instructions
+     "physical-rules.md" (physical/rules world)
+     "find-person-instructions.md" (find-person/instructions world)
      "find-person-request.md" (request-text "find-person" (find-person/seek-request world "hale" {:who "the housemaid" :recent []}))
-     "hiring-rules.md" hiring/rules
-     "hiring-rules-beside-visits.md" hiring/rules-beside-visits
-     "visits-rules.md" visits/rules
-     "invitation-judge-instructions.md" visits-judge/instructions
+     "hiring-rules.md" (hiring/rules world)
+     "hiring-rules-beside-visits.md" (hiring/rules-beside-visits world)
+     "visits-rules.md" (visits/rules world)
+     "invitation-judge-instructions.md" (visits-judge/instructions world)
      "invitation-request.md" (request-text "invitee" (visits-judge/invitation-request
                                                       world "lord-claudeworth"
                                                       {:person "my brother, Captain Arthur Vane" :reason "to shoot" :recent []}))
-     "polish-instructions.md" people/instructions
-     "polish-request.md" (request-text "polish" (people/polish-request
+     "polish-instructions.md" (people/instructions world)
+     "polish-request.md" (request-text "polish" (people/polish-request world
                                                  {:setting "England, 1904." :position "housemaid"
                                                   :record {:name "Ann Lee" :age 20 :sex "female" :position "housemaid"
                                                            :temperament [{:axis "openness" :level "high"}]
                                                            :faculties [{:group "Senses" :faculty "Sight" :size "small"}]}}))
-     "appearance-request.md" (request-text "appearance" (people/appearance-request
+     "appearance-request.md" (request-text "appearance" (people/appearance-request world
                                                          {:age 20 :sex "female" :position "housemaid"
                                                           :faculties [{:faculty "Sight" :size "small"}]}))
-     "shop-instructions.md" shop/instructions
+     "shop-instructions.md" (shop/instructions world)
      "shop-request.md" (request-text "appraise" (shop/request world "briggs"
                                                               {:goods [{:item "tin of silver polish" :amount "1"}
                                                                        {:item "sack of flour" :amount "1" :deliver true}]}))
      "tools-docs.md" (str/join "\n" (map tool [:find-person :recommend :invite :schedule-visit :quote-goods :buy :send-up
                                                :consult-references :price-list :draw-plans :show-plans :commission]))
-     "tools-claudeworth.md" (all-tools run)
-     "tools-lodge.md" (all-tools lodge-run)}))
+     "tools-claudeworth.md" (all-tools run world)
+     "tools-lodge.md" (all-tools lodge-run lodge-world)}))
 
 ;; ---------------------------------------------------------------------------
 

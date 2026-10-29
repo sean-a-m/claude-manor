@@ -165,7 +165,7 @@
     (cond->
       (if-let [{:keys [from to arrives]} (:travel a)]
         {:travelling (cond-> {:from from :to to :to-name (loc-name to)}
-                       c (assoc :arrives (clock/label c arrives))
+                       c (assoc :arrives (clock/world-label world arrives))
                        (not c) (assoc :arrives-round arrives))}
         (let [loc (:location a)]
           {:here (select-keys (location world loc) [:id :name :desc :aspects])

@@ -15,7 +15,9 @@
   so a template renders as the text it holds. Templates are read once and
   kept."
   (:require [clojure.java.io :as io]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [manor.settings :as settings]
+            [manor.clock :as clock]))
 
 (def ^:private placeholder #"\{\{([^{}]+)\}\}")
 
@@ -59,6 +61,26 @@
                    (str v)))))
 
 (defn render
-  "The template at `path` (under resources/prompts/) filled from `params`."
-  ([path] (render path {}))
-  ([path params] (fill path (template path) params)))
+  "Render for a world: its snapshotted pack overrides shared templates and
+  supplies setting parameters. Explicit params win. The shorter arities
+  use England, for callers without a run (including old tooling). Only
+  shared templates are cached; pack text is already held in state."
+  ([path] (render {} path {}))
+  ([path params] (render {} path params))
+  ([world path params]
+   (let [pack (settings/pack world)
+         text (or (get-in pack [:prompts path]) (template path))]
+     (fill path text (merge (settings/parameters world) params)))))
+
+(defn doc
+  "An action's per-world description, optionally with explicit parameters."
+  ([path] (doc path {}))
+  ([path params] (fn [world] (render world path params))))
+
+(defn example-date
+  "The run's start date, stable across requests; a format example without
+  a clock uses the Gregorian epoch, never the machine's current date."
+  [world]
+  (if-let [c (:clock world)]
+    (str (.toLocalDate (clock/time-of c 1)))
+    "1970-01-01"))

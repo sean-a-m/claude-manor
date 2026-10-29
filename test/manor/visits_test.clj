@@ -154,7 +154,7 @@
           (is (= :free (a/kind (action run :invite))))
           (is (= 1 (:per-turn (action run :invite))))
           (is (= #{:gm} (:roles (action run :schedule-visit))))
-          (is (str/includes? (cw/agent-brief world "hale") visits/rules)))
+          (is (str/includes? (cw/agent-brief world "hale") (visits/rules world))))
         (testing "structural checks, with reasons that say what to do"
           (is (= "you can't invite yourself" (check run world "lord-claudeworth" :invite (invite "post" "lord-claudeworth" "10:00"))))
           (is (= "no one has the id gm" (check run world "lord-claudeworth" :invite (invite "post" "gm" "10:00"))))
@@ -760,7 +760,7 @@
       (is (= :free (a/kind invite {:who "mrs-bell"})))
       (is (= :query (a/kind invite {:person "Mrs Bell"})))
       (is (str/includes? (get-in (a/->tool invite) [:function :description]) "my father, Sir Henry Vane"))
-      (is (str/includes? visits/rules "my father, Sir Henry Vane"))
+      (is (str/includes? (visits/rules {}) "my father, Sir Henry Vane"))
       (let [world (e/world run)]
         (testing "hiring's rules limit only candidates to send-for, as guests arrive by invitation"
           (is (str/includes? (cw/rules world) "No candidate arrives except through send-for."))

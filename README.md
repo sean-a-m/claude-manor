@@ -283,6 +283,7 @@ pi --session 01a12968-b2b6-7261-b605-398d6a6b43df| `:find-everywhere?` | `true` 
 | `:max-steps` / `:max-queries` | 10 / 2 | model calls and bridge/adjudication queries per turn (a cost guard, not game time) |
 | `:event-window` | 30 | recent events in each prompt: at least this many and fewer than twice as many (the window's start jumps forward every this many events, so the provider's prompt cache can reuse it) |
 | `:gm-check-in-every` | 0 | rounds between GM check-ins (0 = only when triggered) |
+| `:goals-every` | 16 | rounds between asking each agent to review their private goals with `set-goals` (CLI: `--goals-every`; 0 = never) |
 | `:reasoning` / `:max-tokens` | `{:effort "low"}` / 4000 | passed to OpenRouter |
 | `:mcp-servers` | | per-server overrides, e.g. `{:pi {:env {"PI_MCP_TOOLS" "read"}}}` |
 

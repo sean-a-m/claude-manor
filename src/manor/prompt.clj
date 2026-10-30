@@ -1,7 +1,7 @@
 (ns manor.prompt
   "Builds every model request from scratch each turn. An agent's prompt is
   made only from: its role brief, its persona and its own traits, how it is
-  addressed, its own situation, its own notes, the scenario's `reference` and
+  addressed, its own situation, its own goals and notes, the scenario's `reference` and
   `observe` projections for that agent, and the events visible to it. The
   full world never goes into an agent prompt.
 
@@ -11,13 +11,14 @@
   role, who they are, their situation and the reference), then the tools,
   then the optional daily calendar and recent events (a window that only
   grows between jumps), and last what changes every call: the time, the
-  view, the notes and what is asked
+  view, the goals, the notes and what is asked
   of them now."
   (:require [clojure.string :as str]
             [jsonista.core :as json]
             [manor.clock :as clock]
             [manor.mechanics.calendar :as calendar]
             [manor.mechanics.conversation :as conversation]
+            [manor.mechanics.goals :as goals]
             [manor.mechanics.items :as items]
             [manor.mechanics.items.views :as item-views]
             [manor.mechanics.people :as people]
@@ -129,9 +130,12 @@
   (prompts/render world "agent/preamble.md" {}))
 
 (defn turn-closing
-  "The closing of an agent's turn request: how to act, and to act now."
-  [world]
-  (prompts/render world "agent/turn-closing.md" {}))
+  "The closing of an agent's turn request: how to act, and to act now.
+  With `goals-due?`, it first asks them to review their goals."
+  ([world] (turn-closing world false))
+  ([world goals-due?]
+   (prompts/render world "agent/turn-closing.md"
+                   {:goals-review (if goals-due? (str (goals/review-request world) "\n\n") "")})))
 
 (defn agent-view
   "Everything an agent is shown about the world: the scenario's `observe`
@@ -195,12 +199,26 @@
   (when-let [reference (some-> (:reference scenario) (apply [world agent-id]) not-empty)]
     (str "\n\n## Reference\nFacts that rarely change:\n```json\n" (->json reference) "\n```")))
 
+(defn- goals-section
+  "\"## Your goals\", when they have some or (`offered?`) can set them: the
+  list, and when they last reviewed it."
+  [world agent-id offered?]
+  (let [a (w/agent world agent-id)
+        gs (goals/goals world agent-id)]
+    (when (or (seq gs) offered?)
+      (str "\n\n## Your goals\n"
+           (if (seq gs)
+             (str "Last reviewed " (stamp world (:goals-reviewed a)) ".\n"
+                  (str/join "\n" (map #(str "- " %) gs)))
+             "(none yet)")))))
+
 (defn- agent-request
   "An agent's request. The system message: the preamble, their role, who
   they are, their situation and the reference. The user message: the recent
-  events, then the time, their view and notes, and `closing`. Their role's
-  :brief comes from the scenario's :roles, or else its :agent-brief."
-  [scenario world events agent-id {:keys [event-window]} closing]
+  events, then the time, their view, goals and notes, and `closing`. Their
+  role's :brief comes from the scenario's :roles, or else its :agent-brief.
+  Opts `:goals?` (they have `set-goals`) shows their goals even when empty."
+  [scenario world events agent-id {:keys [event-window] :as opts} closing]
   (let [a (w/agent world agent-id)
         brief (or (get-in scenario [:roles (:role a) :brief]) (:agent-brief scenario))
         view (agent-view scenario world agent-id)
@@ -218,6 +236,7 @@
                                  (narrate/names world))
                     "\n\n# Now: " (heading world)
                     "\n\n## Your view\n```json\n" (->json view) "\n```"
+                    (goals-section world agent-id (:goals? opts))
                     "\n\n## Your notes\n"
                     (if (seq notes)
                       (str/join "\n" (map #(str "- " (stamp world (:round %)) " " (:text %)) (take-last 15 notes)))
@@ -225,8 +244,9 @@
                     "\n\n" closing)}]))
 
 (defn agent-messages
+  "An agent's turn request. Opts `:goals-due?` asks them to review their goals."
   [scenario world events agent-id opts]
-  (agent-request scenario world events agent-id opts (turn-closing world)))
+  (agent-request scenario world events agent-id opts (turn-closing world (:goals-due? opts))))
 
 (defn- how-to-answer-speechless
   "The rules of a speaking turn for someone who can't speak

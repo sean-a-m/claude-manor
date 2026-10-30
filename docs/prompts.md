@@ -36,7 +36,8 @@ template uses them.
 | Template | Used for | Rendered by | Parameters |
 |---|---|---|---|
 | `agent/preamble.md` | The start of every agent's system message, turns and conversations alike (so they share the prompt cache) | `prompt/agent-preamble` | |
-| `agent/turn-closing.md` | The end of a turn request: how to act, and to act now | `prompt/turn-closing` | |
+| `agent/turn-closing.md` | The end of a turn request: how to act, and to act now | `prompt/turn-closing` | `goals-review` (the review request, or empty) |
+| `agent/goals-review.md` | Asks for a review of the agent's goals with `set-goals`, every `:goals-every` rounds; goes into the turn closing | `goals/review-request` | `goals-max` |
 | `agent/reminder-early.md` | Reminder after two calls without a turn-ending action | `engine.turn/turn-reminder` | `actions` (an or-list), `wait` (`" "` + `reminder-pass.md`, or `""`) |
 | `agent/reminder-last.md` | Reminder before the last call of a turn | ″ | ″ |
 | `agent/reminder-pass.md` | Fragment: `pass` is a fine way to wait (only when `pass` is offered) | ″ | |
@@ -79,6 +80,7 @@ for the action's kind and its per-turn limit (`docs/hints/`).
 | `docs/hints/speaking-turn.md` | The hint of the speaking-turn tools | `conversation` | |
 | `docs/hints/invite.md` | `invite`'s own hint (free, or a query with `person`) | `visits` | |
 | `docs/builtins/carry-on.md`, `pass.md`, `note.md`, `say.md`, `whisper.md`, `pray.md` | Every scenario's agent actions | `builtins/agent-actions` | `note-limit` (note), `speech-limit` (say, whisper) |
+| `docs/builtins/set-goals.md` | The `set-goals` action | `goals/actions` | `goals-max`, `goal-limit` |
 | `docs/gm/spawn-agent.md`, `retire-agent.md`, `announce.md`, `ask-human.md`, `done.md` | The GM's actions | `builtins/gm-actions` | |
 | `docs/gm/add-location.md`, `open-route.md`, `close-route.md` | The GM's map actions | `space/actions` | |
 | `docs/gm/add-calendar-entry.md`, `update-calendar-entry.md`, `cancel-calendar-entry.md` | The GM's calendar actions | `calendar/actions` | |

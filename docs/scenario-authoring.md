@@ -541,6 +541,7 @@ it isn't an event, so anything that must be remembered or replayed belongs in `:
 | `pass` | all | final | does nothing |
 | `carry-on` | all | final | only offered to an interrupted agent: keep the occupation and ignore the interruption |
 | `note` | all | free | private note, shown to the agent every round (last 15); told 400 characters, accepts 500 |
+| `set-goals` | all | free | replaces the agent's private `:goals` (at most 10, each told 200 characters, accepts 300; empty clears), shown only to them under `## Your goals` with when they last reviewed it; once per turn. Every `:goals-every` rounds (default 16; 0 = never) and until they first set some, their turn closing asks them to review the list (`manor.mechanics.goals`). Drop it with `:exclude-actions [:set-goals]` |
 | `say` | all | free | heard by everyone in the same place (everyone, without locations); told 1000 characters, accepts 1500; once per turn, shared with `whisper` (`:limit-key :speech`) |
 | `whisper` | all | free | private to one agent; requires being together if both have locations; same limits, and shares `say`'s once per turn |
 | `converse` | all | converse (free) | draws up to 3 people here into a conversation within the turn (see Conversations); once per turn and per round; not offered in a simultaneous group |
@@ -670,7 +671,7 @@ the input price for the shared start. So requests are laid out with what rarely 
    they are, their situation, and `## Reference`, the agent's `:reference` as JSON;
 2. the tools, in declaration order, with actions that have an `:available?` check last;
 3. the user message: the recent events (oldest first), then `# Now:` with the time, the
-   `:observe` view, the notes, and last what is asked now (`## Your turn`, or `## The
+   `:observe` view, the goals (when they have some or can set them), the notes, and last what is asked now (`## Your turn`, or `## The
    conversation` with how to answer).
 
 The event window shows at least `:event-window` events and fewer than twice that: its start

@@ -84,6 +84,9 @@ These came from the design conversation; respect them unless told otherwise.
   it gets fixed rather than played around. This isn't about a model's bad answers, which the
   checked-answer retry handles, or the cost cap, which can still stop calls.
 - The user wants to try **generating other scenarios**. The prerequisites are roadmap section A.
+- **Don't worry about backwards compatbility with old runs for major changes** Loading old runs is
+  rarely used at the present, so this shouldn't be an obstacle to new features or incur significant
+  additional complexity.
 
 ## Layout
 

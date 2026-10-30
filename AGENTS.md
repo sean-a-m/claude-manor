@@ -22,7 +22,7 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/people-and-hiring-design.md` | phased plan: the people server and traits, positions, a small test world, hiring |
 | `docs/scene-view-design.md` | graphical scene page: phases 1–5 implemented and integration-checked; independent review pending |
 | `docs/inner-state-design.md` | proposal: private inner state, changed by the work judge, a conversation judge and the steward |
-| `docs/relations-design.md` | per-person relations: a capped queue of judged feelings toward each other person, the user's decisions of 2026-10-29; not started |
+| `docs/relations-design.md` | per-person relations: a capped queue of judged feelings toward each other person, the user's decisions of 2026-10-29; built and mock-tested |
 | `docs/events-design.md` | in-world calendar contract and outcome: private/public entries and pre-turn GM review |
 | `docs/visits-design.md` | guests and visits (invitations by post, messenger or in person, GM visits, guests from the village or elsewhere, authored visits in world files); phases 1–3 implemented |
 | `docs/physical-status-design.md` | physical status (bound, gagged, blind, deaf, unconscious, dead), impediments, the immediate `act-on`; built and mock/offline-tested, ordinary real-model compatibility smoke checked |
@@ -121,6 +121,8 @@ src/manor/
                    address, bedroom and routine events
     hiring.clj     candidate records, private recommendations and event-owned hiring
     inner.clj      inner state: private keyed phrases judges change (checks, judge view, :person/inner-changed)
+    relations.clj  relations: per person, a capped queue of judged feelings toward each other person (checks,
+                   views, :person/relations-changed)
     physical.clj   physical status: faculties and levels, death, impediments, views, reducers, the perception
                    filter emit! applies; physical/changes.clj makes its events and the interrupts they cause
     visits.clj     visits: invite, GM/operator visits, the tick, calendar entries it manages, keeps-awake?,

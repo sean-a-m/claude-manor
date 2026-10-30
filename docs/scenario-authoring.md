@@ -12,7 +12,7 @@ examples include:
 The household scenarios (`claudeworth`, `claudeworth-medium`, `lodge`) are a few lines each over
 the **shared ruleset**, `manor.ruleset`: every household mechanic (walk/call/travel/sleep/rouse,
 items, hiring, the shop and deliveries, building, visits, physical status, inner state,
-hibernation, the rules prompt and briefs) installed once. A scenario on it is its world file and
+relations, hibernation, the rules prompt and briefs) installed once. A scenario on it is its world file and
 its mock script:
 
 ```clojure
@@ -88,6 +88,7 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :items         {:judge-brief (fn [world] "...")}   ; optional, turns on items (see Items)
    :calendar      {:lookahead-days 30}     ; optional, in-world schedule (requires a clock)
    :inner         {:keys {:mood "gloss" ...} :open 2}  ; optional, turns on inner state (see Inner state)
+   :relations     {:keep 20}               ; optional, needs :inner: turns on relations (see Relations)
    :hibernate     (fn [world agent-id] {:activity .. :location ..} or nil)  ; optional, see Hibernation
    :reference     (fn [world agent-id] {...})   ; optional: facts that rarely change, in the system prompt
    :observe       (fn [world agent-id] {...})   ; strongly recommended
@@ -1674,6 +1675,64 @@ reads it. Opt in with a scenario `:inner` entry:
   what's said to you and how you sleep. Let it colour what you do and say, as anyone's would.*
   Don't invite them to manage or improve it.
 
+### Relations (`manor.mechanics.relations`)
+
+A person's relations are how they have felt toward each other person, and why: for each other
+person, a queue of judged entries, oldest first, the last being how they feel now. Only judges add
+entries, never the person; nobody edits or removes one, and the oldest goes when the queue is
+full. Opt in with a scenario `:relations` entry beside `:inner` (the engine refuses `:relations`
+without `:inner`, since the same judges change both):
+
+```clojure
+:relations {:keep 20}     ; entries kept toward each other person (default 20)
+```
+
+- **Shape:** `[:agents id :relations]` is `{other-id [{:feeling :because :round :source}]}`.
+  `feeling` is the holder's own feeling, a word or a short phrase (at most 40 characters);
+  `because` says why, written to the holder: "you" is them and the other person is named
+  ("Mrs Thorne scolded you for spilling the sugar"), at most 160 characters. A queue starts
+  the first time an entry names someone, so people who come during the run need nothing set up.
+  Any agent but the holder and the GM can be named, whatever their status. Code checks only
+  structure, never the wording.
+- **How much is shown** is two constants in `manor.mechanics.relations`: `view-entries` (3),
+  the latest entries the holder's view shows toward each person, and `judge-entries` (5), the
+  latest a judge sees toward each other judged person.
+- **Where it comes from:** a world-file agent or an `:init` agent spec may give starting
+  `:relations`, by character id: `{"cal" [{:feeling "wary" :because "Cal read your letters"}]}`,
+  oldest first. `worldfile/problems` checks the shape; the engine refuses them in a scenario
+  without `:relations`, and once the cast is spawned checks that they name other people of the
+  cast and hold at most `:keep` entries toward each. They're given after the whole cast is
+  spawned, at round 0 with the source `{:start true}`. The ruleset drops starting relations
+  toward people left out with `:leave-out`. The exported `map.edn` writes the live relations
+  back to the file's agents, feelings and reasons only, toward people of the starting cast.
+- **Who sees it:** the holder, under `:you :feelings-toward` in their view, only for the people
+  in their `people-here` (so not for people elsewhere, and nobody's when they can't see), keyed
+  `"Mrs Thorne (mrs-thorne)"`, each `{at, feeling, because}`. Also the GM (the default GM view's
+  agents have `:feelings-toward`, the latest entry toward each person), the operator (the panel's
+  agent page and the scene inspector) and the judges. Never anyone else's request.
+- **What adds to it:** the work judge (for `spend-time` and `act-on`) and the conversation
+  judge, only among the people they already judge: `person` and `toward` are both judged people
+  (the worker and the people named who are still there, or the conversation's members). Each
+  judged person's entry in their requests has `feelings_toward` (`{other-id [{at, feeling,
+  because}]}`, only toward the other judged people), the tool has `relations: [{person, toward,
+  feeling, because}]`, and the instructions a "Relations" section
+  (`resources/prompts/judges/relations.md`). Checks (`relations/checked-entries`): both ids are
+  judged and differ, the holder isn't dead, at most one entry per pair, and the lengths; a bad
+  answer is sent back once. The nightly steward never touches relations, and nothing adds them
+  for overheard talk or people only talked about.
+- **The event:** GM-only `:person/relations-changed {:person id :source src :keep k :entries
+  [{:toward :feeling :because}]}`, one per holder per verdict, after the inner-state changes;
+  `src` is `{:job id}`, `{:act id}`, `{:conversation id}` or `{:start true}`. It carries `:keep`
+  so the reducer, which appends with the event's round and trims, needs no configuration. The
+  holder gets no line in their event window; the transcript reads `Lady Ashby, toward others
+  (job job-21): Dawson: pleased, because Dawson dressed your hair.`
+- **Mock runs:** the default mock judges add none. A scenario's `:mock-judge` and
+  `:mock-conversation-judge` may return `:relations` in their args (the dressing fixture's do).
+- **What to tell agents,** in this sense (the ruleset's `rules/sections/people.md` has it):
+  *Also under `you`, `feelings-toward` says how you have felt lately toward people here with
+  you, and why, oldest first; the last is how you feel now. They're your own feelings toward
+  them, not theirs toward you, and nobody else knows them unless you show it.*
+
 ### Physical status (`manor.mechanics.physical`)
 
 People's bodies can be hindered, and people can die (docs/physical-status-design.md). Every
@@ -1789,6 +1848,7 @@ in `:init`:
  :agents [{:name "Ada" :role :resident :location "hall"
            :aspects {:hands "inky"}                 ; optional (see People's aspects)
            :inner {:mind "the unanswered letter"}   ; optional (see Inner state)
+           :relations {"cal" [{:feeling "wary" :because "Cal read your letters"}]}  ; optional (see Relations)
            :away? true                            ; optional: away from the start (below)
            :physical {:grasp {:level :impeded :cause "a sprained wrist"}}}  ; optional (see Physical status),
           {:name "Cal" :role :resident :status :dead :died {:cause "a fall"}}] ; as are :impediments, :status :dead

@@ -59,7 +59,7 @@ the rules of individual mechanics that it joins in.
 | `rules/sections/speaking.md` | `say`, `whisper`, `converse` | ″ | `speech-limit`, `max-others`, `passes` |
 | `rules/sections/work.md` | `spend-time` | ″ | `max-work-hours` |
 | `rules/sections/things.md` | Items and `find` | ″ | `find-for-sale` (`things-find-everywhere.md` or `things-find-not-at-trade.md`) |
-| `rules/sections/people.md` | Aspects of people, the body | ″ | `physical` (`rules/physical.md`) |
+| `rules/sections/people.md` | Aspects of people, inner state, feelings toward others, the body | ″ | `physical` (`rules/physical.md`) |
 | `rules/sections/shopping.md` | Money and shopping | ″ | `paid` (`shopping-paid[-commissions].md`), `spending-tools` (`shopping-spending-tools[-commissions].md`), `money` (the pack's `money.md`) |
 | `rules/sections/building.md` | Building, only with an architect | ″ | `sizes`, `fee-percent` |
 | `rules/sections/hiring.md` | Hiring | ″ | `hiring` (`rules/hiring.md`) |
@@ -117,12 +117,14 @@ must call.
 | `judges/steward-inner.md` | The steward's lines on sleepers' inner state | `items.steward` | `advised-value`, `keys` |
 | `judges/finder.md` | The finder: the odds of finding something with `find` | `items.find/finder-instructions` | `advised-aspect` |
 | `judges/conversation.md` | The conversation judge: how a conversation left its members' inner state | `conversation.judge/instructions` | `advised-value`, `max-summary`, `keys` |
+| `judges/relations.md` | The work and conversation judges' lines on relations, after their other instructions | `relations/instructions` | `max-feeling`, `max-because` |
 | `judges/find-person.md` | Whom a `find-person` seeker means | `find-person/instructions` | |
 | `judges/invitation.md` | Whom an `invite` means | `visits.judge/instructions` | `invitation-examples` (the pack's fragment) |
 | `judges/shop-appraiser.md` | The shop's appraisal of requested goods | `shop/instructions` | `max-lead-hours`, `max-quantity`; the pack's `money-pricing.md` |
-| `judges/tools/judge.md` | The scene judge's `judge` tool | `items.judge/judge-tool` | `activity` (act or work), `advised-aspect`, `max-summary`, `inner` (`judge-inner.md` + `" "`, or `""`), `effects` (`judge-act.md` or `judge-work.md`, which takes `max-made`) |
+| `judges/tools/judge.md` | The scene judge's `judge` tool | `items.judge/judge-tool` | `activity` (act or work), `advised-aspect`, `max-summary`, `inner` (`judge-inner.md` + `" "`, or `""`), `relations` (`tools/relations.md` + `" "`, or `""`), `effects` (`judge-act.md` or `judge-work.md`, which takes `max-made`) |
 | `judges/tools/steward.md` | The `steward` tool | `items.steward/steward-tool` | `inner` (`steward-inner.md` or `""`) |
-| `judges/tools/react.md` | The conversation judge's `react` tool | `conversation.judge/react-tool` | `advised-value`, `max-summary` |
+| `judges/tools/react.md` | The conversation judge's `react` tool | `conversation.judge/react-tool` | `advised-value`, `max-summary`, `relations` (as the judge's) |
+| `judges/tools/relations.md` | Fragment: the `relations` field, for the `judge` and `react` tools | `relations/tool-text` | |
 | `judges/tools/finder.md`, `seek.md`, `invitee.md`, `appraise.md` | The finder's, find-person's, invitation judge's and shop's tools | their request functions | |
 | `judges/tools/polish.md`, `appearance.md` | The persona writers' tools | `people/polish-request`, `people/appearance-request` | |
 

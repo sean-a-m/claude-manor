@@ -1,8 +1,32 @@
 # Relations: how one person feels toward another
 
-Status: **designed**, not started. The user settled the open questions on 2026-10-29
-(section 7); sections 3–6 are written to those decisions. It takes up the follow-up "How people regard
+Status: **built**, mock-tested only (`test/manor/relations_test.clj`, the dressing fixture); no
+real run yet. The user settled the open questions on 2026-10-29 (section 7); sections 3–6 are
+written to those decisions. The contract is under Relations in `scenario-authoring.md`. It takes up the follow-up "How people regard
 each other" in roadmap B13 and decision 8 of `inner-state-design.md`.
+
+Where the build differs in detail, or fills a gap:
+
+- The stored key is `:because`, as in the view (the user's choice), not `:reason`.
+- The view's key is `feelings-toward`, hyphenated like the view's other keys (`people-here`);
+  the judges' JSON has `feelings_toward`, snake_case like theirs (`set_at`, `heard_by`).
+- The view's people are those in the holder's `people-here` after `physical/view-by-sight`, so
+  someone who can't see is shown nobody's (section 5 thought it would work for them; showing it
+  would tell them who is there).
+- There's no `:show` setting: `view-entries` (3) and `judge-entries` (5) are constants in
+  `manor.mechanics.relations` (decisions 2 and 5).
+- The engine refuses a scenario with `:relations` but no `:inner`, and a starting `:relations`
+  in a scenario without them. Starting relations name people by character id, and are given by
+  `:person/relations-changed` events with the source `{:start true}` once the whole cast is
+  spawned, since they name others; the ruleset drops those toward people left out.
+- A dead person can't be given an entry (toward the dead is fine).
+- The default GM view shows only the latest entry toward each person, as `{id {:feeling
+  :because}}`; the panel's agent page shows the latest too, and the scene inspector all of them.
+- Every ruleset scenario (Claudeworth, its medium household, the lodge, the palace) has
+  `:relations {:keep 20}`, and the ruleset's rules (`rules/sections/people.md`) have the sentence
+  of section 5.
+- In a 20-round mock day of the dressing fixture, the work judge added one entry and the
+  conversation judge two; nobody else's requests held any of them.
 
 ## 1. The want
 
@@ -48,7 +72,7 @@ On the holder's agent:
 
 ```clojure
 :relations {"mrs-thorne" [{:feeling "stung"
-                           :reason "Mrs Thorne scolded you for spilling the sugar"
+                           :because "Mrs Thorne scolded you for spilling the sugar"
                            :round 14
                            :source {:conversation "conv-7"}}
                           ...]          ; oldest first, at most :keep (20) entries
@@ -80,7 +104,7 @@ On the holder's agent:
 
   It doesn't require `:inner`, but the build assumes the scenarios that use one use both.
 - **The event:** `{:type :person/relations-changed :visible-to :gm :data {:person holder
-  :source src :entries [{:toward id :feeling f :reason r}]}}`, one per holder per verdict. The
+  :source src :entries [{:toward id :feeling f :because b}]}}`, one per holder per verdict. The
   reducer appends each entry with the event's round and source and trims to `:keep`. The
   reducer needs `:keep`, but reducers don't see the scenario, so the event carries it
   (`:keep 20`) and replay stays pure (decision 8).

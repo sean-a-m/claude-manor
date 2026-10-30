@@ -118,7 +118,7 @@
                             :condition "new" :consumable false :unit-price 18}
                      deliver (assoc :lead-hours 2)))}})
 
-(def adjudicators {:shop/appraise {:request request :mock mock-appraisal}})
+(def adjudicators {:shop/appraise {:request (fn [world clerk args _] (request world clerk args)) :mock mock-appraisal}})
 
 (defn service-reason [world clerk]
   (let [loc (space/location world (space/location-of world clerk))]

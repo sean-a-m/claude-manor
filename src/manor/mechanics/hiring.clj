@@ -49,9 +49,9 @@
       :knows {:temperament (vec (take 1 (:temperament person))) :faculties [] :circumstances []}})})
 
 (def adjudicators
-  {:people/appearance {:request (fn [world _ {:keys [record]}] (people/appearance-request world record))
+  {:people/appearance {:request (fn [world _ {:keys [record]} _] (people/appearance-request world record))
                        :mock (fn [_] {:tool :appearance :args {:appearance "A young figure in plain working clothes and spectacles."}})}
-   :people/polish {:request (fn [world _ {:keys [record appearance notes]}]
+   :people/polish {:request (fn [world _ {:keys [record appearance notes]} _]
                               (people/polish-request world {:setting (get-in world [:state :setting])
                                                       :position (:position record) :record record
                                                       :notes (str (when-not (str/blank? notes) (str notes "\n\n"))

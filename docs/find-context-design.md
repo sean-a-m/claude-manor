@@ -1,7 +1,7 @@
 # `find` context and the find judge: design
 
-**Status:** Phase 1 implemented and checked with mocks and two real-model historical probes;
-Phase 2 deferred. Extends `docs/stores-and-aspects-design.md` phases 4 and 7.
+**Status:** Phases 1 and 2 implemented. Phase 1 was checked with mocks and two real-model
+historical probes; Phase 2 is mock-tested only (no real run yet). Extends `docs/stores-and-aspects-design.md` phases 4 and 7.
 
 Read `AGENTS.md` first (invariants, run directories, cost rules), then "Finding" in
 `docs/scenario-authoring.md` and `src/manor/mechanics/items/find.clj`. The work judge
@@ -187,8 +187,39 @@ failure was an invalid store source followed by an unlucky roll, not thin identi
 context. A later user-approved check should still watch the store-source correction and
 confirm a successful find.
 
-**Phase 2 - the asker's recent lines.** Add items 2 and 3 above and `:recent`. Do this only if
-Phase 1's real run shows identification still failing when notes are thin.
+**Phase 2 - the searcher's recent lines and the place's history (done, mock-tested).** The user
+asked for it: in real runs letters and papers routinely vanished, and a searcher with no notes
+gave the finder nothing to go on (`runs/claudeworth-medium-20261029-181746`: Bessie's request had
+empty notes, no place aspects and no history). Built, with the user's decisions:
+
+- **Both histories.** `searcher.recent` is the last 20 lines of the searcher's own view
+  (`prompt/recent-lines`, which now takes `n`). `history` is the last 20 narrated item events at
+  this place after the world began, *whoever saw them* (`find/place-history`): added, taken, put
+  down, put in (placed by where the container is now), work done, acted on, stewarded, found and
+  not found. The user accepted the leak this departs from F2 for: the finder may now be swayed by
+  what others know is here. That matters less than things vanishing for good, and the reply
+  still never reports another place.
+- **The contract change (item 3)** is simpler than proposed: an adjudicator's `:request` gets the
+  run's events as a fourth argument (`(fn [world actor args events])`); the other adjudicators
+  wrap their request functions and ignore it. `finder-request` keeps a three-argument arity
+  (no events) for tests.
+- **Candidates include everything here**, closed containers and people here included, before the
+  60 most recently touched. A thing put away here days ago could drop off the recent 60, and then
+  the finder could only invent a second copy. `existing` for one of these replies where it is,
+  as the deterministic search would.
+- **The prompt:** the asker is `searcher` (the tool keeps the name `finder`); the injection guard
+  went (the user doesn't want prompt-level guarding); "stolen or hidden" became "if someone else
+  has concealed it, the searcher is unlikely to come on it"; "do not make a thing be here" became
+  "don't raise the odds because the searcher expects it or the story would be better for it";
+  field names are consistently in backticks.
+
+- **People are refused.** Agents still used `find` for people after `find-person` existed
+  (`runs/claudeworth-medium-20261027-000440`, round 14: Pugh's `find "her ladyship, Lady
+  Claudeworth"` in an empty morning room was rated `unlikely`, rolled 9 and made a "half-written
+  note in her ladyship's hand"). The finder now answers `person: true` for a person; the reply
+  points to `find-person`, with no roll, item or event.
+
+Still to check: a short real run where someone searches for a paper put away earlier.
 
 ## Tests
 

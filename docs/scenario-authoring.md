@@ -307,14 +307,14 @@ scenario:
 ```clojure
 :adjudicators
 {:your/task
- {:request (fn [world actor args] {:messages [...] :tools [...] :ctx {...}})
+ {:request (fn [world actor args events] {:messages [...] :tools [...] :ctx {...}})
   :check   (fn [response] {:verdict checked-data :replies [...]}) ; or {:error reason :replies [...]}
   :mock    (fn [ctx] {:tool :answer :args {...}})}}
 ```
 
-These are narrow engine-run LLM calls, not the GM and not real-world bridges. Build only the
-context needed for that judgement; never dump the world or unrelated private state. Treat
-agent-authored strings as untrusted data. `:ctx` is local mock context, not a model message.
+These are narrow engine-run LLM calls, not the GM and not real-world bridges. `events` is the
+run's event log, for an adjudicator that reads history (the finder); most ignore it. Build only the
+context needed for that judgement; never dump the world or unrelated private state. `:ctx` is local mock context, not a model message.
 The engine adds `:role :adjudicator`, `:task` and `:step` (attempt 0 or 1) to that context.
 A request may return its own `:check` closure (overriding the adapter's checker) to check
 against its narrow scene. It may instead return `{:result checked-data}` for a deterministic
@@ -1165,17 +1165,26 @@ for sale, never `find` them. With the option `:find-everywhere? false` it refuse
    `:items-gone` at this place, or places served by a store in scope (including that store's
    own place), and replies with the fate. These replies need no model call or new event.
 2. Otherwise the narrow `:items/find` adjudicator sees `what`, the place's id/name/desc/
-   aspects, stores in scope (id/name/aspects/keeps, plus `at` when elsewhere), and the asker's
-   own `finder` context: name, `nature` (persona), carried items (id/name), and last 15 notes
-   (`{round, text}`). `here` lists id/name for look-visible items at this place (including
+   aspects, stores in scope (id/name/aspects/keeps, plus `at` when elsewhere), and the
+   searcher's own `searcher` context: name, `nature` (persona), carried items (id/name), last 15
+   notes (`{round, text}`) and `recent`, the last 20 narrated lines of their own view
+   (`prompt/recent-lines`). `here` lists id/name for look-visible items at this place (including
    contents of open containers, never closed ones) and things carried by other people here.
-   No other person's notes or persona, or recent event history, is supplied.
-   It also sees up to 60 `candidates` from the world's tracked, non-fixed, non-store items:
-   **id and name only**, most recently touched first (id breaks ties), never locations,
-   holders, owners or aspects. All fields, especially `what` and notes, are data, never
-   instructions. Notes help identify what the asker means, not prove its presence: belief
-   does not make a thing be here. Presence is judged from the place, listed contents, stores
-   and what the asker can physically know. Recorded `:lacking` is authoritative.
+   `history` is the last 20 narrated item events at this place after the world began, whoever
+   saw them: `:item/added`, `:item/taken`, `:item/put-down`, `:item/put-in` (placed by where the
+   container is now), `:item/work-done`, `:person/acted-on`, `:items/stewarded`, `:item/found`
+   and `:item/not-found` (`find/place-history`). It is the evidence of what is really here, so
+   a thing another person put away here, unseen by the searcher, can still be found. No other
+   person's notes or persona is supplied.
+   It also sees `candidates` from the world's tracked, non-fixed, non-store items: every one
+   here (including inside closed containers and carried by people here), then the 60 most
+   recently touched (id breaks ties), **id and name only**, never locations, holders, owners or
+   aspects. Notes and recent lines help identify what the searcher means, not prove its
+   presence: belief does not make a thing be here. Presence is judged from the place, its
+   history, listed contents, stores and what the searcher can physically know. Recorded
+   `:lacking` is authoritative.
+   If `what` asks for a person, the oracle gives `person: true` alone: the reply points the
+   searcher to `find-person`, with no roll, item or event.
    If the request refers to the same physical object as a listed candidate (a particular
    letter, list, joint), the oracle gives `existing: <id>` instead of inventing a second copy;
    a different object that merely shares a name is not a match. This list is for

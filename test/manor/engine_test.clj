@@ -552,7 +552,7 @@
   (assoc (e/load-scenario :prize)
          :bridges {:compose-test/name {:call bridge-fn}}
          :adjudicators {:compose-test/judge
-                        {:request (fn [_ _ {:keys [name]}]
+                        {:request (fn [_ _ {:keys [name]} _]
                                     {:messages [{:role "user" :content (str "Judge " name)}]
                                      :tools [{:type "function" :function {:name "answer" :parameters {:type "object"}}}]
                                      :ctx {:name name}})

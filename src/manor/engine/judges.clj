@@ -83,12 +83,13 @@
 
 (defn adjudicate
   "Ask the scenario's adjudicator for `task` about `args`, on `world`:
-  {:verdict v}, or {:failure reason}. A request that already holds a
+  {:verdict v}, or {:failure reason}. The request also gets the run's
+  events, for adjudicators that read history. A request that already holds a
   :result needs no call. `call-opts` add to the call, e.g. :model and
   :before-call (see `ask-structured!`)."
   [run task world actor args call-opts]
   (let [spec (get-in run [:scenario :adjudicators task])
-        {:keys [messages tools ctx result check] :as request} ((:request spec) world actor args)]
+        {:keys [messages tools ctx result check] :as request} ((:request spec) world actor args (run/events run))]
     (if (contains? request :result)
       {:verdict result}
       (ask-structured! run (str "adjudicator/" (subs (str task) 1))

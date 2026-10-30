@@ -109,7 +109,7 @@
         match (first (filter #(or (mentions? (:id %)) (mentions? (:name %)) (mentions? (surname (:name %)))) people))]
     {:tool :seek :args (if match {:person (:id match) :likelihood "certain"} {:nobody true})}))
 
-(def adjudicators {:people/find-person {:request seek-request :mock mock-judge}})
+(def adjudicators {:people/find-person {:request (fn [world actor args _] (seek-request world actor args)) :mock mock-judge}})
 
 ;; ---------------------------------------------------------------------------
 ;; The action

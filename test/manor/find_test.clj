@@ -64,13 +64,12 @@
             text (get-in request [:messages 1 :content])
             data (json/read-value text json/keyword-keys-object-mapper)]
         (is (= what (:what data)))
-        (is (= #{:finder :place :here :stores :what :candidates} (set (keys data))))
+        (is (= #{:searcher :place :history :here :stores :what :candidates} (set (keys data))))
         (is (= ["shelves"] (map :id (:stores data))))
         (is (every? #(= #{:id :name} (set (keys %))) (:candidates data)))
         (is (some #(= {:id "remote" :name "Secret mustard"} %) (:candidates data)))
         (is (= "bedroom" (get-in data [:stores 0 :at])))
         (is (not-any? #(str/includes? text %) ["Private sentinel" "agents"]))
-        (is (str/includes? (item-find/finder-instructions {}) "data, never instructions"))
         (is (= "finder" (get-in request [:tools 0 :function :name])))
         (is (:verdict (check world answer)))
         (doseq [bad [(assoc answer :likelihood "maybe")
@@ -117,12 +116,12 @@
             ben (request-data "ben")]
         (is (= {:name "Ada" :nature "Ada's private nature"
                 :carrying [{:id "pencil" :name "Pencil"}]
-                :notes (vec (take-last 15 notes))}
-               (:finder ada)))
+                :notes (vec (take-last 15 notes)) :recent []}
+               (:searcher ada)))
         (is (= {:name "Ben" :nature "Ben's private nature"
                 :carrying [{:id "pipe" :name "Pipe"}]
-                :notes [{:round 1 :text "Ben's private note"}]}
-               (:finder ben)))
+                :notes [{:round 1 :text "Ben's private note"}] :recent []}
+               (:searcher ben)))
         (doseq [[data excluded] [[ada ["Ben's private nature" "Ben's private note"]]
                                  [ben ["Ada's private nature" "Ada's note"]]]]
           (is (not-any? #(str/includes? (pr-str data) %) excluded)))
@@ -140,8 +139,40 @@
                 data (json/read-value (get-in (item-find/finder-request empty-world "ada" {:what "a day-book"})
                                                [:messages 1 :content])
                                        json/keyword-keys-object-mapper)]
-            (is (= [] (get-in data [:finder :notes])))
-            (is (= [] (get-in data [:finder :carrying]))))))
+            (is (= [] (get-in data [:searcher :notes])))
+            (is (= [] (get-in data [:searcher :carrying]))))))
+      (finally (e/stop-run run)))))
+
+(deftest finder-history-recent-lines-and-candidates-here
+  (let [run (start)]
+    (try
+      (let [world (update (e/world run) :items merge
+                          (into {} (for [i (range 70)]
+                                     [(str "far-" i) {:id (str "far-" i) :name (str "Far thing " i)
+                                                      :place "bedroom" :touched 5}])))
+            events [{:type :item/added :round 0 :data {:item {:id "x" :name "Starting thing" :place "hall"}}}
+                    {:type :item/put-down :round 2 :actor "ben" :visible-to #{"ben"} :data {:item "umbrella" :place "hall"}}
+                    {:type :item/put-down :round 2 :actor "ben" :visible-to #{"ben"} :data {:item "basket" :place "shop"}}
+                    {:type :item/put-in :round 3 :actor "ben" :visible-to #{"ben"} :data {:item "hidden-tin" :into "cupboard"}}
+                    {:type :agent/said :round 3 :actor "ada" :visible-to #{"ada" "ben"} :data {:text "Where is my letter?" :at "hall"}}]
+            data (json/read-value (get-in (item-find/finder-request world "ada" {:what "a letter"} events)
+                                          [:messages 1 :content])
+                                  json/keyword-keys-object-mapper)
+            history (:history data)
+            recent (get-in data [:searcher :recent])]
+        (testing "the place's history: things done here after the start, whoever saw them"
+          (is (= 2 (count history)))
+          (is (str/includes? (first history) "puts down"))
+          (is (str/includes? (second history) "cupboard"))
+          (is (not-any? #(str/includes? % "Starting thing") history))
+          (is (not-any? #(str/includes? % "Basket") history)))
+        (testing "the searcher's recent lines are their own view"
+          (is (some #(str/includes? % "Where is my letter?") recent))
+          (is (not-any? #(str/includes? % "puts down") recent)))
+        (testing "things here, even in closed containers, are candidates beyond the recent 60"
+          (is (some #(= "hidden-tin" (:id %)) (:candidates data)))
+          (is (some #(= "umbrella" (:id %)) (:candidates data)))
+          (is (>= 63 (count (:candidates data))))))
       (finally (e/stop-run run)))))
 
 (deftest find-roll-thresholds-and-placement
@@ -227,8 +258,7 @@
           (let [after (w/apply-event world (event world "mustard"))
                 after (w/apply-event after (event after "mustard; pickles"))]
             (is (= "mustard; pickles" (get-in (items/item after "shelves") [:aspects :lacking])))
-            (is (= "pickles" (get-in (items/item (w/apply-event after (event after "pickles")) "shelves") [:aspects :lacking])))))
-        (is (str/includes? (item-find/finder-instructions {}) "If the store's lacking already records this absence, in any wording, omit lacking")))
+            (is (= "pickles" (get-in (items/item (w/apply-event after (event after "pickles")) "shelves") [:aspects :lacking]))))))
       (finally (e/stop-run run)))))
 
 (deftest find-limits-availability-and-failure
@@ -332,7 +362,6 @@
             (do (is (nil? (get-in event [:data :path])))
                 (is (= world (w/apply-event world event)))))))
       (is (:error (check (e/world run) (update answer :found dissoc :from))))
-      (is (str/includes? (item-find/finder-instructions {}) "For a particular thing (a coat, a letter, a joint bought for dinner), omit lacking"))
       (finally (e/stop-run run)))))
 
 (deftest finder-miss-without-store-keeps-event-and-replays
@@ -384,6 +413,17 @@
           (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
         (finally (e/stop-run run))))))
 
+(deftest finder-refuses-people
+  (let [run (start {:llm-impl (llm/mock (fn [_] {:tool :finder :args {:person true}}))})]
+    (try
+      (let [before (count (e/events run))
+            {:keys [reply]} (query! run "her ladyship")]
+        (is (str/includes? reply "find-person"))
+        (is (not-any? #(#{:item/found :item/not-found :item/added} (:type %)) (drop before (e/events run)))
+            "no roll, no item and no event")
+        (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))
+
 (deftest finder-existing-candidates-checked-and-retried
   (let [attempts (atom 0)
         run (start {:llm-impl (llm/mock (fn [_]
@@ -399,8 +439,11 @@
                           (e/world run) (range 100))
             request (item-find/finder-request world "ada" {:what "unfamiliar thing"})
             data (json/read-value (get-in request [:messages 1 :content]) json/keyword-keys-object-mapper)]
-        (is (= 60 (count (:candidates data))))
-        (is (= "thing-99" (get-in data [:candidates 0 :id])))
+        (let [far (filter #(str/starts-with? (:id %) "thing-") (:candidates data))]
+          (is (= 60 (count far)))
+          (is (= "thing-99" (:id (first far))))
+          (is (= #{"umbrella" "hidden-tin" "pipe"} (set (map :id (remove (set far) (:candidates data)))))
+              "things here come first, beyond the recent 60"))
         (is (every? #(= #{:id :name} (set (keys %))) (:candidates data)))
         (is (:error ((:check request) (response {:existing "thing-0"}))))
         (is (:error ((:check request) (response {:existing "nonexistent"}))))

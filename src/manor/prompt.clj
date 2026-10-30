@@ -99,14 +99,20 @@
                                         (= id (get-in % [:data :id])))) events))]
     (shared-recent-lines world (vec since) actor)))
 
+(defn narrated-lines
+  "`events` as the stamped lines a prompt shows, whoever saw them."
+  [world events]
+  (if (seq events)
+    (str/split-lines (event-lines world events (narrate/names world)))
+    []))
+
 (defn recent-lines
-  "At most ten narrated lines `actor` saw last, as their prompt shows them:
-  their own view, for a judge reading what they mean (the invitation judge)."
-  [world events actor]
-  (let [shown (take-last 10 (visible-events events actor 10 true))]
-    (if (seq shown)
-      (vec (take-last 10 (str/split-lines (event-lines world shown (narrate/names world)))))
-      [])))
+  "At most `n` (default ten) narrated lines `actor` saw last, as their prompt
+  shows them: their own view, for a judge reading what they mean (the
+  invitation judge, the finder)."
+  ([world events actor] (recent-lines world events actor 10))
+  ([world events actor n]
+   (vec (take-last n (narrated-lines world (take-last n (visible-events events actor n true)))))))
 
 (defn- heading
   "\"Round 3\", or with a clock \"Saturday 15 October 1904, 09:30\"."

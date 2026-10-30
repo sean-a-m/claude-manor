@@ -211,4 +211,4 @@
                                            (subs s 0 (min 600 (count s))))}})}))
 
 (def adjudicators
-  {:visits/invitee {:request invitation-request :mock mock-judge}})
+  {:visits/invitee {:request (fn [world actor args _] (invitation-request world actor args)) :mock mock-judge}})

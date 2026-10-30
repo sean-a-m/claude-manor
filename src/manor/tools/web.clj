@@ -243,6 +243,69 @@ button:disabled{opacity:.5;cursor:default}")]]
 (defn- keyed-phrases [m]
   (str/join "; " (for [[k v] m] (str (name k) ": " v))))
 
+;; ---------------------------------------------------------------------------
+;; Relations (manor.mechanics.relations): operator views of judged feelings
+
+(defn- when-said [world round]
+  (if (:clock world) (clock/world-label world round) (str "r" round)))
+
+(defn- agent-name [world id] (:name (w/agent world id) id))
+
+(defn- feeling-line [world {:keys [round feeling because]}]
+  [:div [:b feeling] ", because " because " " [:span.vis (when-said world round)]])
+
+(defn- feelings-section
+  "An agent's feelings toward others, every kept entry latest first, and the
+  latest feeling each other person has toward them."
+  [world id]
+  (let [toward (sort-by #(agent-name world (key %)) (:relations (w/agent world id)))
+        from (sort-by first (for [ag (w/agents-in-order world)
+                                  :let [entries (get-in ag [:relations id])]
+                                  :when (seq entries)]
+                              [(:name ag) (:id ag) (peek entries)]))]
+    [:section [:h2 "Feelings · private, judged"]
+     [:h3 "Toward others"]
+     (if (seq toward)
+       [:table (for [[other entries] toward]
+                 [:tr [:th [:a {:href (str "/agent/" other)} (agent-name world other)]]
+                  [:td (map #(feeling-line world %) (reverse entries))]])]
+       [:div.vis "None yet."])
+     [:h3 "Others toward them (latest)"]
+     (if (seq from)
+       [:table (for [[nm other entry] from]
+                 [:tr [:th [:a {:href (str "/agent/" other)} nm]] [:td (feeling-line world entry)]])]
+       [:div.vis "None yet."])]))
+
+(defn- relations-page
+  "Everyone's latest feeling toward everyone else: rows feel, columns are
+  felt toward, each only those with any entry. A cell's title holds the
+  earlier entries."
+  [run]
+  (let [world (e/world run)
+        holders (filter #(seq (:relations %)) (w/agents-in-order world))
+        felt (set (mapcat (comp keys :relations) holders))
+        people (filter #(felt (:id %)) (w/agents-in-order world))]
+    (page "manor - relations"
+          [:header [:a {:href "/panel"} "back"] [:b "relations"]
+           [:span.vis "row feels toward column; latest entry, earlier ones on hover"]]
+          [:main {:style "grid-template-columns:1fr"}
+           [:section.scroll-x
+            (if (empty? holders)
+              [:div.vis "Nobody has any judged feelings yet."]
+              [:table
+             [:tr [:th] (for [p people] [:th [:a {:href (str "/agent/" (:id p))} (:name p)]])]
+             (for [holder holders]
+               [:tr [:th [:a {:href (str "/agent/" (:id holder))} (:name holder)]]
+                (for [p people
+                      :let [entries (get-in holder [:relations (:id p)])]]
+                  [:td {:style "vertical-align:top;min-width:12em"
+                        :title (str/join "\n" (for [{:keys [round feeling because]} (reverse (butlast entries))]
+                                                 (str (when-said world round) ": " feeling ", because " because)))}
+                   (cond (= (:id p) (:id holder)) [:span.vis "—"]
+                         (seq entries) (list (feeling-line world (peek entries))
+                                             (when (next entries) [:div.vis (str (count entries) " entries")]))
+                         :else "")])])])]])))
+
 (defn- status-fragment [run]
   (let [world (e/world run)
         {:keys [state mode remaining acting awaiting pause-reasons error last-human-feedback]} (e/status run)
@@ -322,6 +385,7 @@ button:disabled{opacity:.5;cursor:default}")]]
           [:header [:b "manor"] [:span (name (:name (:scenario run)))]
            [:a {:href "/"} "scene"]
            [:a {:href "/world"} "world state"]
+           (when (:relations (:scenario run)) [:a {:href "/relations"} "relations"])
            [:form.inline {:method "get"}
             "feed as: "
             [:select {:name "as" :onchange "this.form.submit()"}
@@ -358,7 +422,8 @@ button:disabled{opacity:.5;cursor:default}")]]
     (page (str "manor scene - " (:id run))
           [:link {:rel "stylesheet" :href "/static/scene.css"}]
           [:header [:b "manor"] [:span (name (:name (:scenario run)))]
-           [:a {:href "/panel"} "panel"] [:a {:href "/world"} "world state"]]
+           [:a {:href "/panel"} "panel"] [:a {:href "/world"} "world state"]
+           (when (:relations (:scenario run)) [:a {:href "/relations"} "relations"])]
           [:main#scene-page {:data-inspect-base "/partial/inspect/"}
            [:div#scene-toolbar (h/raw (:toolbar fragments))]
            [:div#scene-client-error {:role "status"}]
@@ -401,13 +466,10 @@ button:disabled{opacity:.5;cursor:default}")]]
                   (controller-switch ag "fetch(this.action,{method:'POST',body:new URLSearchParams(new FormData(this))}).then(()=>location.reload());return false")]]
                 [:tr [:th "model"] [:td (or (:model ag) (str "run default (" (get (:opts run) (if (= :gm (:role ag)) :gm-model :model)) ")"))]]
                 (when (seq (:aspects ag)) [:tr [:th "aspects"] [:td (keyed-phrases (:aspects ag))]])
-                (when (seq (:inner ag)) [:tr [:th "inner"] [:td (keyed-phrases (:inner ag))]])
-                (when (seq (:relations ag))
-                  [:tr [:th "feelings toward"]
-                   [:td (str/join "; " (for [[id entries] (:relations ag)
-                                             :let [{:keys [feeling because]} (peek entries)]]
-                                         (str (:name (w/agent world id) id) ": " feeling ", because " because)))]])]
+                (when (seq (:inner ag)) [:tr [:th "inner"] [:td (keyed-phrases (:inner ag))]])]
                [:div.vis "A switch lands between rounds; a seat waiting for your input stays yours until you end its turn."]]
+              (when (and (:relations (:scenario run)) (not= :gm (:role ag)))
+                (feelings-section world id))
               [:section [:h2 "Their view of the world"]
                [:pre (if (= :gm (:role ag))
                        "The GM sees the full world state."
@@ -533,6 +595,7 @@ button:disabled{opacity:.5;cursor:default}")]]
                                  :body (status-fragment run)}
       (= uri "/stream") (stream run req)
       (= uri "/world") (world-page run)
+      (= uri "/relations") (relations-page run)
       (str/starts-with? uri "/agent/") (if-let [id (decode-path-id (subs uri 7))]
                                          (agent-page run id)
                                          {:status 404 :body "no such agent"})

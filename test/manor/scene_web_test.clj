@@ -28,7 +28,7 @@
           (let [before (scene/snapshot run)
                 views (into {} (for [ag (w/active-agents (:world before))]
                                  [(:id ag) (prompt/agent-view (:scenario run) (:world before) (:id ag))]))]
-            (doseq [uri ["/" "/panel" "/partial/scene" "/partial/scene-state" "/static/scene.js" "/static/scene.css" "/static/panel.js" "/world"]]
+            (doseq [uri ["/" "/panel" "/partial/scene" "/partial/scene-state" "/static/scene.js" "/static/scene.css" "/static/panel.js" "/world" "/relations"]]
               (let [response (request uri)]
                 (is (= 200 (:status response)) uri)
                 (is (seq (:body response)) uri)))

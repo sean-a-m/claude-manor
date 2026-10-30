@@ -190,7 +190,10 @@ action ends it. The tool list refreshes after each call. Use **See their view** 
 the form does not guess IDs from parameter names. Commands still use normal engine validation.
 
 The roster is kept narrow (who, where, controller, cost); each person's page at `/agent/<id>` has
-their seat (role, controller, model, aspects, inner state), view, notes, tools and last model call.
+their seat (role, controller, model, aspects, inner state), their judged feelings toward others
+(every kept entry) and others' latest toward them, view, notes, tools and last model call. In a
+scenario with relations, `/relations` (linked from the panel and scene headers) is a grid of
+everyone's latest feeling toward everyone else, with earlier entries on hover.
 The **→ human** / **→ llm** button, in the roster and on that page, switches a seat between a
 model and you during a run (an `:agent/updated` operator event, visible to the GM). It lands
 between rounds; a seat already waiting for your input stays yours until you take a turn-ending

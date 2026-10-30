@@ -22,7 +22,8 @@ Where the build differs in detail, or fills a gap:
   spawned, since they name others; the ruleset drops those toward people left out.
 - A dead person can't be given an entry (toward the dead is fine).
 - The default GM view shows only the latest entry toward each person, as `{id {:feeling
-  :because}}`; the panel's agent page shows the latest too, and the scene inspector all of them.
+  :because}}`; the panel's agent page shows them all toward others and the latest from others, `/relations`
+  a grid of everyone's latest, and the scene inspector all of them.
 - Every ruleset scenario (Claudeworth, its medium household, the lodge, the palace) has
   `:relations {:keep 20}`, and the ruleset's rules (`rules/sections/people.md`) have the sentence
   of section 5.

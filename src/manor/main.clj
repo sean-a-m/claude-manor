@@ -9,7 +9,8 @@
     clojure -M:run village --mock --offline --test     store under test-runs/ (disposable)
     clojure -M:run claudeworth --mock --test --start 1904-10-15T21:00
     clojure -M:run lodge --max-rounds 6 --test    a short real check (then Auto in the panel)
-    clojure -M:run claudeworth --no-address        no forms of address in prompts"
+    clojure -M:run claudeworth --no-address        no forms of address in prompts
+    clojure -M:run claudeworth --goals-every 8     ask agents to review their goals every 8 rounds (0: never)"
   (:require [manor.engine :as e]
             [manor.tools.web :as web])
   (:gen-class))
@@ -29,6 +30,7 @@
       (= a "--max-rounds") (recur (rest more) (assoc-in acc [:opts :max-rounds] (parse-long (first more))))
       (= a "--tool-choice") (recur (rest more) (assoc-in acc [:opts :tool-choice] (first more)))
       (= a "--start") (recur (rest more) (assoc-in acc [:opts :start] (first more)))
+      (= a "--goals-every") (recur (rest more) (assoc-in acc [:opts :goals-every] (parse-long (first more))))
       :else (recur more (assoc acc :scenario (keyword a))))))
 
 (defn -main [& args]

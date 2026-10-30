@@ -42,6 +42,7 @@
             [manor.mechanics.calendar :as calendar]
             [manor.mechanics.conversation :as conversation]
             [manor.mechanics.conversation.judge :as conversation-judge]
+            [manor.mechanics.goals :as goals]
             [manor.mechanics.inner :as inner]
             [manor.mechanics.items :as items]
             [manor.mechanics.items.actions :as item-actions]
@@ -71,6 +72,7 @@
    :gm-max-actions 4
    :event-window 90                 ; recent events shown to each agent
    :gm-check-in-every 0             ; 0 = only when triggered
+   :goals-every 16                  ; rounds between asking each agent to review their goals; 0 = never
    :max-cost 5.0                    ; USD; pauses the run when reached
    :max-rounds nil
    :start nil                       ; e.g. "1904-10-15T21:00": start the scenario's clock then
@@ -97,7 +99,7 @@
   [scenario]
   (let [excluded (set (:exclude-actions scenario))]
     (remove #(excluded (:name %))
-            (a/merge-actions (b/agent-actions) [conversation/converse] (space/actions)
+            (a/merge-actions (b/agent-actions) (goals/actions) [conversation/converse] (space/actions)
                              (when (:items scenario) (item-actions/actions (:items scenario)))
                              (b/gm-actions scenario) (when (:calendar scenario) (calendar/actions)) (:actions scenario)))))
 

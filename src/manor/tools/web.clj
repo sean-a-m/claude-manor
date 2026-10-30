@@ -407,6 +407,10 @@ button:disabled{opacity:.5;cursor:default}")]]
                [:pre (if (= :gm (:role ag))
                        "The GM sees the full world state."
                        (prompt/->pretty-json (prompt/agent-view (:scenario run) world id)))]]
+              (when (seq (:goals ag))
+                [:section [:h2 "Goals"]
+                 [:pre (str "reviewed r" (:goals-reviewed ag) "\n"
+                            (str/join "\n" (map #(str "- " %) (:goals ag))))]])
               [:section [:h2 "Notes"]
                [:pre (str/join "\n" (map #(str "[r" (:round %) "] " (:text %)) (:notes ag)))]]
               [:section [:h2 "Tools"]

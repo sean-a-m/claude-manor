@@ -7,6 +7,7 @@
             [manor.engine.talk :as talk]
             [manor.engine.turn :as turn]
             [manor.mechanics.builtins :as b]
+            [manor.mechanics.goals :as goals]
             [manor.mechanics.positions :as positions]
             [manor.prompt :as prompt]
             [manor.world :as w]))
@@ -18,6 +19,14 @@
   (cond->> (a/available (a/for-role (:actions run) role (positions/capabilities world agent-id)) world agent-id)
     simultaneous? (remove #(= :converse (a/kind %)))))
 
+(defn- goals-opts
+  "Whether `agent-id` can set goals this turn (`actions` has `set-goals`),
+  and if so whether it's time to ask them to review them."
+  [opts snapshot agent-id actions]
+  (let [offered? (boolean (some #(= :set-goals (:name %)) actions))]
+    {:goals? offered?
+     :goals-due? (and offered? (goals/due? snapshot agent-id (:goals-every opts)))}))
+
 (defn- activate-llm [run snapshot agent-id {:keys [role reasons calendar-due max-finals commit] :as turn}]
   (let [{:keys [scenario opts]} run
         gm? (= role :gm)
@@ -28,7 +37,8 @@
                     {:model (or (:model agent) (when gm? (:gm-model opts)) (:model opts))
                      :messages (if gm?
                                  (prompt/gm-messages scenario snapshot @(:events run) reasons (assoc opts :calendar-due calendar-due))
-                                 (prompt/agent-messages scenario snapshot @(:events run) agent-id opts))
+                                 (prompt/agent-messages scenario snapshot @(:events run) agent-id
+                                                        (merge opts (goals-opts opts snapshot agent-id actions))))
                      :actions actions
                      :refresh-actions #(turn-actions run @(:world run) agent-id turn)
                      :max-steps max-steps

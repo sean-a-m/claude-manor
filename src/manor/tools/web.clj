@@ -288,23 +288,30 @@ button:disabled{opacity:.5;cursor:default}")]]
     (page "manor - relations"
           [:header [:a {:href "/panel"} "back"] [:b "relations"]
            [:span.vis "row feels toward column; latest entry, earlier ones on hover"]]
+          ;; The table keeps its natural width, fixed-width cells and all, so the section scrolls
+          ;; sideways; the names column stays put.
+          [:style (h/raw "
+table.relations{width:max-content} .relations td>div,.relations th>div{width:16em}
+.relations th,.relations td{vertical-align:top}
+.relations tr>th:first-child{position:sticky;left:0;background:#20232b;z-index:1}
+.relations tr>th:first-child>div{width:10em}")]
           [:main {:style "grid-template-columns:1fr"}
            [:section.scroll-x
             (if (empty? holders)
               [:div.vis "Nobody has any judged feelings yet."]
-              [:table
-             [:tr [:th] (for [p people] [:th [:a {:href (str "/agent/" (:id p))} (:name p)]])]
-             (for [holder holders]
-               [:tr [:th [:a {:href (str "/agent/" (:id holder))} (:name holder)]]
-                (for [p people
-                      :let [entries (get-in holder [:relations (:id p)])]]
-                  [:td {:style "vertical-align:top;min-width:12em"
-                        :title (str/join "\n" (for [{:keys [round feeling because]} (reverse (butlast entries))]
-                                                 (str (when-said world round) ": " feeling ", because " because)))}
-                   (cond (= (:id p) (:id holder)) [:span.vis "—"]
-                         (seq entries) (list (feeling-line world (peek entries))
-                                             (when (next entries) [:div.vis (str (count entries) " entries")]))
-                         :else "")])])])]])))
+              [:table.relations
+               [:tr [:th [:div]] (for [p people] [:th [:div [:a {:href (str "/agent/" (:id p))} (:name p)]]])]
+               (for [holder holders]
+                 [:tr [:th [:div [:a {:href (str "/agent/" (:id holder))} (:name holder)]]]
+                  (for [p people
+                        :let [entries (get-in holder [:relations (:id p)])]]
+                    [:td {:title (str/join "\n" (for [{:keys [round feeling because]} (reverse (butlast entries))]
+                                                  (str (when-said world round) ": " feeling ", because " because)))}
+                     [:div
+                      (cond (= (:id p) (:id holder)) [:span.vis "—"]
+                            (seq entries) (list (feeling-line world (peek entries))
+                                                (when (next entries) [:div.vis (str (count entries) " entries")]))
+                            :else "")]])])])]])))
 
 (defn- status-fragment [run]
   (let [world (e/world run)

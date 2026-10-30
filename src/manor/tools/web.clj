@@ -401,7 +401,12 @@ button:disabled{opacity:.5;cursor:default}")]]
                   (controller-switch ag "fetch(this.action,{method:'POST',body:new URLSearchParams(new FormData(this))}).then(()=>location.reload());return false")]]
                 [:tr [:th "model"] [:td (or (:model ag) (str "run default (" (get (:opts run) (if (= :gm (:role ag)) :gm-model :model)) ")"))]]
                 (when (seq (:aspects ag)) [:tr [:th "aspects"] [:td (keyed-phrases (:aspects ag))]])
-                (when (seq (:inner ag)) [:tr [:th "inner"] [:td (keyed-phrases (:inner ag))]])]
+                (when (seq (:inner ag)) [:tr [:th "inner"] [:td (keyed-phrases (:inner ag))]])
+                (when (seq (:relations ag))
+                  [:tr [:th "feelings toward"]
+                   [:td (str/join "; " (for [[id entries] (:relations ag)
+                                             :let [{:keys [feeling because]} (peek entries)]]
+                                         (str (:name (w/agent world id) id) ": " feeling ", because " because)))]])]
                [:div.vis "A switch lands between rounds; a seat waiting for your input stays yours until you end its turn."]]
               [:section [:h2 "Their view of the world"]
                [:pre (if (= :gm (:role ag))

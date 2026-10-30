@@ -143,6 +143,7 @@
        :systems [building/construction]
        :items items
        :inner inner
+       :relations {:keep 20}
        :exclude-actions #{:move :work-on}
        :speaking-actions speaking-actions-and-following
        :hibernate hibernation/hibernate

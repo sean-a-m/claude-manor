@@ -71,7 +71,7 @@
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"agent \"X\": \{:inner"
                             (#'e/check-agents! dressing/scenario [{:name "X" :inner {:mood ""}}])))
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"agent \"X\": this scenario has no inner state"
-                            (#'e/check-agents! (dissoc dressing/scenario :inner) [{:name "X" :inner {:mood "low"}}]))))))
+                            (#'e/check-agents! (dissoc dressing/scenario :inner :relations) [{:name "X" :inner {:mood "low"}}]))))))
 
 (deftest people-start-empty-unless-given
   (let [run (start)]
@@ -475,8 +475,8 @@
 
 (deftest no-call-without-inner-state
   (let [plain (-> dressing/scenario
-                  (dissoc :inner)
-                  (assoc :init (fn [opts] (update ((:init dressing/scenario) opts) :agents #(mapv (fn [a] (dissoc a :inner)) %)))))
+                  (dissoc :inner :relations)
+                  (assoc :init (fn [opts] (update ((:init dressing/scenario) opts) :agents #(mapv (fn [a] (dissoc a :inner :relations)) %)))))
         run (with-redefs [e/load-scenario (constantly plain)]
               (start {:llm-impl (scripted (talks ["dawson"]) :speak (answers "Yes, my lady."))}))]
     (try
@@ -615,8 +615,8 @@
 
 (deftest the-steward-without-inner-state
   (let [plain (-> dressing/scenario
-                  (dissoc :inner)
-                  (assoc :init (fn [opts] (update ((:init dressing/scenario) opts) :agents #(mapv (fn [a] (dissoc a :inner)) %)))))
+                  (dissoc :inner :relations)
+                  (assoc :init (fn [opts] (update ((:init dressing/scenario) opts) :agents #(mapv (fn [a] (dissoc a :inner :relations)) %)))))
         run (with-redefs [e/load-scenario (constantly plain)] (night-run))]
     (try
       (rounds! run 2)

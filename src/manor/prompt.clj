@@ -24,6 +24,7 @@
             [manor.mechanics.people :as people]
             [manor.mechanics.physical :as physical]
             [manor.mechanics.positions :as positions]
+            [manor.mechanics.relations :as relations]
             [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
             [manor.prompts :as prompts]
@@ -137,6 +138,14 @@
    (prompts/render world "agent/turn-closing.md"
                    {:goals-review (if goals-due? (str (goals/review-request world) "\n\n") "")})))
 
+(defn- with-feelings
+  "`view` with the agent's feelings toward the people here they can see
+  (manor.mechanics.relations) under :you :feelings-toward, if they have any."
+  [world agent-id view]
+  (if-let [feelings (relations/view world agent-id (map :id (get-in view [:location :people-here])))]
+    (assoc-in view [:you :feelings-toward] feelings)
+    view))
+
 (defn agent-view
   "Everything an agent is shown about the world: the scenario's `observe`
   projection, plus identity, their own aspects, inner state (see
@@ -144,28 +153,29 @@
   manor.mechanics.physical), (when the world has locations) where they are,
   and (when it has items) what they carry and the things around them.
   Someone who can't see doesn't see the people and things around them
-  (physical/view-by-sight)."
+  (physical/view-by-sight). Their feelings toward the people around them
+  that they can see (manor.mechanics.relations) are under :you."
   [scenario world agent-id]
   (let [a (w/agent world agent-id)
         observe (:observe scenario (fn [_ _] {}))]
-    (physical/view-by-sight
-     world agent-id
-     (cond-> (-> (merge (if-let [c (:clock world)]
-                          {:time (clock/world-label world (:round world))}
-                          {:round (:round world)})
-                        (observe world agent-id))
-                 (update :you #(merge {:id agent-id :name (:name a) :role (name (:role a))} %)))
-       (seq (:aspects a)) (assoc-in [:you :aspects] (:aspects a))
-       (seq (:inner a)) (assoc-in [:you :inner] (:inner a))
-       (seq (:physical a)) (assoc-in [:you :physical] (physical/shown a))
-       (seq (:impediments a)) (assoc-in [:you :impediments] (:impediments a))
-       (get-in a [:busy :interrupted-by])
-       (assoc-in [:you :busy] (cond-> {:activity (get-in a [:busy :activity])
-                                       :interrupted-by (:name (w/agent world (get-in a [:busy :interrupted-by])))}
-                                (get-in a [:busy :until])
-                                (assoc :until (narrate/at (narrate/names world) (get-in a [:busy :until])))))
-       (space/enabled? world) (assoc :location (space/view world agent-id))
-       (items/enabled? world) (item-views/add-to-view world agent-id)))))
+    (->> (cond-> (-> (merge (if-let [c (:clock world)]
+                              {:time (clock/world-label world (:round world))}
+                              {:round (:round world)})
+                            (observe world agent-id))
+                     (update :you #(merge {:id agent-id :name (:name a) :role (name (:role a))} %)))
+           (seq (:aspects a)) (assoc-in [:you :aspects] (:aspects a))
+           (seq (:inner a)) (assoc-in [:you :inner] (:inner a))
+           (seq (:physical a)) (assoc-in [:you :physical] (physical/shown a))
+           (seq (:impediments a)) (assoc-in [:you :impediments] (:impediments a))
+           (get-in a [:busy :interrupted-by])
+           (assoc-in [:you :busy] (cond-> {:activity (get-in a [:busy :activity])
+                                           :interrupted-by (:name (w/agent world (get-in a [:busy :interrupted-by])))}
+                                    (get-in a [:busy :until])
+                                    (assoc :until (narrate/at (narrate/names world) (get-in a [:busy :until])))))
+           (space/enabled? world) (assoc :location (space/view world agent-id))
+           (items/enabled? world) (item-views/add-to-view world agent-id))
+         (physical/view-by-sight world agent-id)
+         (with-feelings world agent-id))))
 
 (defn- brief-text
   "A role's :brief: a string, or a function of the world (and, for agents,
@@ -358,10 +368,12 @@
       (seq positions) (assoc :positions positions))))
 
 (defn default-gm-view
-  "What the GM is shown of the world unless a scenario sets :gm-view."
+  "What the GM is shown of the world unless a scenario sets :gm-view: with
+  each agent's relations, only the latest feeling toward each person."
   [world]
   (cond-> {:state (gm-state world)
-           :agents (mapv #(select-keys % [:id :name :role :status :died :persona :appearance :aspects :impediments :physical :inner :situation :location :travel :busy])
+           :agents (mapv #(cond-> (select-keys % [:id :name :role :status :died :persona :appearance :aspects :impediments :physical :inner :situation :location :travel :busy])
+                            (seq (:relations %)) (assoc :feelings-toward (relations/latest (:relations %))))
                          (w/agents-in-order world))}
     (space/enabled? world) (assoc :space (:space world))
     (items/enabled? world) (assoc :items (item-views/gm-view world))

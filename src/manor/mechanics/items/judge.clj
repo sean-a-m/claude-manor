@@ -13,6 +13,7 @@
             [manor.mechanics.items.work :as item-work]
             [manor.mechanics.physical :as physical]
             [manor.mechanics.physical.changes :as physical-changes]
+            [manor.mechanics.relations :as relations]
             [manor.mechanics.space :as space]
             [manor.prompts :as prompts]
             [manor.world :as w]))
@@ -66,28 +67,34 @@
 (defn answer-schema
   "The judge's answer: `judge-schema` with `physical-entries` before the
   summary, and with inner state (the scenario's :inner, see
-  manor.mechanics.inner) an `inner` list beside `changes`. For an
-  immediate act (`act?`), nothing used up, absorbed or made, and `moved`
-  instead. The steward's schema comes from it."
+  manor.mechanics.inner) an `inner` list beside `changes`, and with
+  relations (the scenario's :relations, see manor.mechanics.relations) a
+  `relations` list after it. For an immediate act (`act?`), nothing used
+  up, absorbed or made, and `moved` instead. The steward's schema comes
+  from it, without relations."
   ([inner-config] (answer-schema inner-config false))
-  ([inner-config act?]
+  ([inner-config act?] (answer-schema inner-config act? nil))
+  ([inner-config act? relations-config]
    (let [[m changes & more] judge-schema
          summary (last more)
          more (cond->> (butlast more) act? (remove #(not-in-acts (first %))))]
-     (into [m changes] (concat (when inner-config [inner/answer-entry]) more physical-entries
+     (into [m changes] (concat (when inner-config [inner/answer-entry])
+                               (when relations-config [relations/answer-entry])
+                               more physical-entries
                                (when act? [moved-entry]) [summary])))))
 
-(defn- judge-tool [world inner-config act?]
+(defn- judge-tool [world inner-config act? relations-config]
   {:type "function"
    :function {:name "judge"
               :description (prompts/render world "judges/tools/judge.md"
                                            {:activity (if act? "act" "work")
                                             :advised-aspect items/advised-aspect :max-summary items/max-summary
                                             :inner (if inner-config (str (prompts/render world "judges/tools/judge-inner.md" {}) " ") "")
+                                            :relations (relations/tool-text world relations-config)
                                             :effects (if act?
                                                        (prompts/render world "judges/tools/judge-act.md" {})
                                                        (prompts/render world "judges/tools/judge-work.md" {:max-made items/max-made}))})
-              :parameters (mjs/transform (answer-schema inner-config act?))}})
+              :parameters (mjs/transform (answer-schema inner-config act? relations-config))}})
 
 (defn judge-instructions
   "The scene judge's instructions, before the suggested aspect keys, inner
@@ -119,17 +126,21 @@
   appearance and aspects, marked :person, and for an act what they carry;
   others by name only; everyone with their physical statuses, impediments
   and whether they're dead. With inner state (`inner-config`), everyone's is
-  shown, and the judged people's temperament, persona and situation too."
-  [world inner-config people]
-  (mapv (fn [{:keys [id person?] :as p}]
-          (cond-> (select-keys p (if person?
-                                   [:id :name :appearance :aspects :physical :impediments :dead :doing :carrying]
-                                   [:name :physical :impediments :dead :doing]))
-            (:physical p) (assoc :physical (physical/judge-view world id))
-            (and inner-config person?) (merge (select-keys (w/agent world id) [:temperament :persona :situation]))
-            inner-config (assoc :inner (inner/judge-view inner-config world id))
-            person? (assoc :person true)))
-        people))
+  shown, and the judged people's temperament, persona and situation too.
+  With relations (`relations-config`), each judged person's feelings toward
+  the other judged people."
+  [world inner-config relations-config people]
+  (let [judged (map :id (filter :person? people))]
+    (mapv (fn [{:keys [id person?] :as p}]
+            (cond-> (select-keys p (if person?
+                                     [:id :name :appearance :aspects :physical :impediments :dead :doing :carrying]
+                                     [:name :physical :impediments :dead :doing]))
+              (:physical p) (assoc :physical (physical/judge-view world id))
+              (and inner-config person?) (merge (select-keys (w/agent world id) [:temperament :persona :situation]))
+              inner-config (assoc :inner (inner/judge-view inner-config world id))
+              (and relations-config person?) (assoc :feelings_toward (relations/judge-view world id judged))
+              person? (assoc :person true)))
+          people)))
 
 (defn judge-request
   "The scene judge's request, including only the worker's shared recent lines
@@ -140,14 +151,15 @@
         brief (when-let [f (get-in scenario [:items :judge-brief])] (f world))
         suggested (get-in scenario [:items :aspect-keys])
         inner-config (:inner scenario)
+        relations-config (:relations scenario)
         {:keys [place focus also-here stores people]} (item-work/scene world job)
         scene-json {:place (dissoc place :room?)
                     :focus (judged-json focus)
                     :also_here (judged-json also-here)
                     :stores (mapv #(assoc (items/store-view (:place job) %) :keeps (get-in % [:store :keeps])) stores)
-                    :people (people-json world inner-config people) :recent (vec (take-last 10 recent))}
+                    :people (people-json world inner-config relations-config people) :recent (vec (take-last 10 recent))}
         scene-json (cond-> scene-json (:reference job) (assoc :reference (:reference job)))]
-    {:tools [(judge-tool world inner-config act?)]
+    {:tools [(judge-tool world inner-config act? relations-config)]
      :messages
      [{:role "system"
        :content (str (judge-instructions world)
@@ -155,6 +167,7 @@
                        (str "\n\n## Suggested aspect keys\n"
                             (str/join "\n" (for [[k gloss] (sort-by key suggested)] (str "- " (name k) ": " gloss)))))
                      (when inner-config (str "\n\n" (inner/instructions world inner-config)))
+                     (when relations-config (str "\n\n" (relations/instructions world)))
                      (when-not (str/blank? brief) (str "\n\n## The setting\n" brief)))}
       {:role "user"
        :content (str "# The activity\n\n"
@@ -401,14 +414,23 @@
       {:error p}
       (cond-> v (seq changes) (assoc :physical changes) (seq moved) (assoc :moved moved)))))
 
-(defn- verdict [world arguments things inner-config act?]
-  (let [{:keys [args error]} (a/decode-args {:args (answer-schema inner-config act?)} arguments)
+(defn- with-relations
+  "`v` (a checked verdict) with the checked relations entries among the
+  people in `things` (marked :person?) under :relations, or the reason they
+  won't do."
+  [v relations-config world things answers]
+  (let [checked (relations/checked-entries relations-config world (map :id (filter :person? things)) answers)]
+    (if (:error checked) checked (merge v checked))))
+
+(defn- verdict [world arguments things inner-config act? relations-config]
+  (let [{:keys [args error]} (a/decode-args {:args (answer-schema inner-config act? relations-config)} arguments)
         place (:id (first (filter :room? things)))
         v (when-not error (checked-verdict world args things (items/stores-for world place) false))
-        v (if (or error (:error v)) v (with-physical v world things args act?))]
+        v (if (or error (:error v)) v (with-physical v world things args act?))
+        v (if (or error (:error v) (nil? inner-config)) v (with-inner v inner-config world things (:inner args)))]
     (cond error {:error error}
-          (or (:error v) (nil? inner-config)) v
-          :else (with-inner v inner-config world things (:inner args)))))
+          (or (:error v) (nil? relations-config)) v
+          :else (with-relations v relations-config world things (:relations args)))))
 
 (defn judgement
   "Read a judge response: {:verdict v :replies [...]} or {:error reason
@@ -416,13 +438,16 @@
   each tool call, or a reminder if it made none). Only the first `judge`
   call counts. `things` are the judged things (see `judged-things`). With
   the scenario's :inner as `inner-config`, the verdict's :inner holds the
-  checked changes to the judged people's inner state. The verdict's
-  :physical holds the changes to bodies (see `physical-changes`), and for
-  an immediate act (a `job` with :act?) :moved the things it moved."
+  checked changes to the judged people's inner state, and with the
+  scenario's :relations as `relations-config` its :relations the entries
+  added among them ({:keep :entries}, see relations/checked-entries). The
+  verdict's :physical holds the changes to bodies (see `physical-changes`),
+  and for an immediate act (a `job` with :act?) :moved the things it moved."
   ([response world things] (judgement response world things nil nil))
   ([response world things inner-config] (judgement response world things inner-config nil))
-  ([response world things inner-config job]
-   (adjudication/answer "judge" response #(verdict world % things inner-config (:act? job)))))
+  ([response world things inner-config job] (judgement response world things inner-config job nil))
+  ([response world things inner-config job relations-config]
+   (adjudication/answer "judge" response #(verdict world % things inner-config (:act? job) relations-config))))
 
 (defn- mock-put-away
   "Absorb deposited consumables whose contents can go too; clear matching

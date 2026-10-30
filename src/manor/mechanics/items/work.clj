@@ -7,6 +7,7 @@
             [manor.mechanics.items :as items]
             [manor.mechanics.physical :as physical]
             [manor.mechanics.physical.changes :as physical-changes]
+            [manor.mechanics.relations :as relations]
             [manor.mechanics.space :as space]
             [manor.rng :as rng]
             [manor.world :as w]))
@@ -228,11 +229,12 @@
 
 (defn result-events
   "The events of a judged job or act: `event` (its :item/work-done or
-  :person/acted-on), then the GM-only changes to inner state, then the
+  :person/acted-on), then the GM-only changes to inner state and relations, then the
   changes to bodies (manor.mechanics.physical.changes), with the
   interruptions they cause by the worker, and if the judgement failed, why."
   [world {:keys [id actor act?] :as job} event {:keys [verdict failure]}]
   (cond-> [event]
     (seq (:inner verdict)) (into (inner/changed-events {(if act? :act :job) id} (:inner verdict)))
+    (:relations verdict) (into (relations/changed-events {(if act? :act :job) id} (:relations verdict)))
     (seq (:physical verdict)) (into (physical-changes/judged-events world (:physical verdict) actor))
     failure (conj (judge-failed job failure))))

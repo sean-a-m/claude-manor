@@ -155,6 +155,16 @@
      (or (case kind "agent" (:name (w/agent world id)) "place" (:name (space/location world id))
                "item" (or (:name (items/item world id)) (get-in world [:items-gone id :name])) nil)
          (str id))]))
+(defn- feelings-view
+  "An agent's relations (manor.mechanics.relations): each person they feel
+  something toward, with every entry kept, latest first."
+  [world relations]
+  (if (seq relations)
+    [:dl (for [[id entries] (sort-by #(:name (w/agent world (key %))) relations)]
+           (list [:dt (link world "agent" id)]
+                 [:dd (for [{:keys [round feeling because]} (reverse entries)]
+                        [:div (at world round) ": " feeling ", because " because])]))]
+    [:p "None recorded."]))
 (defn- events-view [world events]
   (if (seq events)
     [:ul (for [event events]
@@ -252,6 +262,7 @@
      [:h3 "Recently"] (recent-view world recently)
      [:h3 "Appearance and aspects"] (field "Appearance" (:appearance agent)) (fields (:aspects agent))
      [:h3 "Current inner state · private"] (fields (:inner agent))
+     (folded "Feelings toward others · private" (feelings-view world (:relations agent)))
      (folded "Carrying" (trees world carrying))
      (folded "Post, bedroom, routine and purse"
              [:div (fields post) [:div "Bedroom: " (or (link world "place" bedroom) "none")]

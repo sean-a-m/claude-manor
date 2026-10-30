@@ -48,7 +48,8 @@
 (defn ask-judge
   "Ask the judge what `job` did to the judged `things` (see
   items/judged-things): {:summary :changes}, with :inner when the scenario
-  has inner state and it changed, :physical for changes to bodies and, for
+  has inner state and it changed, :relations when it has relations and the
+  judge added any, :physical for changes to bodies and, for
   an immediate act (a job with :act?), :moved, or {:failure reason}. An
   act's recent lines are the actor's last, not those since a job began. A bad
   answer is sent back with the reason and asked once more. Each call is
@@ -63,23 +64,26 @@
                        :ctx (assoc (select-keys work [:minutes :stopped-early? :luck])
                                    :role :judge :world world :job job :things things
                                    :focus (item-work/focus-things world job)))
-        {:keys [verdict] :as result} (ask-structured! run "judge" request #(item-judge/judgement % world things (get-in run [:scenario :inner]) job))]
+        {:keys [verdict] :as result} (ask-structured! run "judge" request #(item-judge/judgement % world things (get-in run [:scenario :inner]) job
+                                                                                   (get-in run [:scenario :relations])))]
     (assoc result :verdict verdict)))
 
 (defn ask-conversation-judge
   "Ask the conversation judge how conversation `conv` ({:id :initiator
   :members}) left its members, from `events` (the conversation's, at least):
-  {:verdict {:summary :inner}}, or {:failure reason}. A bad answer is sent
+  {:verdict {:summary :inner}}, with :relations when the scenario has them
+  and the judge added any, or {:failure reason}. A bad answer is sent
   back once. Each call is recorded in llm.edn as agent
   \"conversation-judge\", and its usage counts towards the run's cost."
   [run world conv events]
   (let [config (get-in run [:scenario :inner])
+        relations-config (get-in run [:scenario :relations])
         lines (conversation-judge/lines events (:id conv))
-        request (assoc (conversation-judge/judge-request config world conv lines)
+        request (assoc (conversation-judge/judge-request config world conv lines relations-config)
                        :label "conversation judge"
                        :ctx {:role :conversation-judge :world world :conversation conv :lines lines})]
     (ask-structured! run "conversation-judge" request
-                     #(conversation-judge/judgement % world config (:members conv)))))
+                     #(conversation-judge/judgement % world config (:members conv) relations-config))))
 
 (defn adjudicate
   "Ask the scenario's adjudicator for `task` about `args`, on `world`:

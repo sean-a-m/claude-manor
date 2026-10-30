@@ -1,1 +1,1 @@
-Give your judgement: each aspect the {{activity}} changed (the thing's or person's id, the aspect's key, and its new value: a phrase of at most {{advised-aspect}} characters, or "" to remove it), {{inner}}{{effects}} and a summary of at most {{max-summary}} characters.
+Give your judgement: each aspect the {{activity}} changed (the thing's or person's id, the aspect's key, and its new value: a phrase of at most {{advised-aspect}} characters, or "" to remove it), {{inner}}{{relations}}{{effects}} and a summary of at most {{max-summary}} characters.

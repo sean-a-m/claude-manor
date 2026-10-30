@@ -57,9 +57,17 @@
            :when (not (by-id place))]
        (str "position " id ": :workplace names unknown location " (pr-str place))))))
 
+(defn- without-relations-toward
+  "Agent spec `a` without its starting relations toward the people `ids`."
+  [ids a]
+  (if-let [rs (not-empty (apply dissoc (:relations a) ids))]
+    (assoc a :relations rs)
+    (dissoc a :relations)))
+
 (defn init
-  "The world file, its agents (without any whose id is in :leave-out, and
-  without anything they hold), its items and authored visits (dropping
+  "The world file, its agents (without any whose id is in :leave-out,
+  without anything they hold, and without others' starting relations toward
+  them), its items and authored visits (dropping
   left-out guests and removing left-out ids from :known-to), and in :state
   the positions (without forms of address if :addressed-as? is false), the
   setting, the meeting place, the home area if the world names one
@@ -73,7 +81,9 @@
     (when-let [ps (seq (problems wf))]
       (throw (ex-info (str "world file " source " has problems:\n- " (str/join "\n- " ps)) {:problems (vec ps)})))
     (let [left-out (set (filter (set leave-out) (map (comp b/slug :name) (:agents loaded))))
-          agents (remove #(left-out (b/slug (:name %))) (:agents loaded))
+          agents (->> (:agents loaded)
+                      (remove #(left-out (b/slug (:name %))))
+                      (map #(without-relations-toward left-out %)))
           ids (set (map (comp b/slug :name) agents))
           table (positions/table wf opts)
           pack (settings/for-worldfile wf)]

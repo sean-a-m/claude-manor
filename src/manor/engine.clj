@@ -44,6 +44,7 @@
             [manor.mechanics.conversation.judge :as conversation-judge]
             [manor.mechanics.goals :as goals]
             [manor.mechanics.inner :as inner]
+            [manor.mechanics.relations :as relations]
             [manor.mechanics.items :as items]
             [manor.mechanics.items.actions :as item-actions]
             [manor.mechanics.items.find :as item-find]
@@ -409,13 +410,33 @@
 (defn- check-agents!
   "Throw if a starting agent's :aspects or :impediments aren't well formed
   (see items/Aspects and items/Impediments), its :physical either (see
-  physical/Starting), or its :inner doesn't fit the scenario's (see inner/problem)."
+  physical/Starting), its :inner doesn't fit the scenario's (see inner/problem),
+  or its :relations aren't well formed (see relations/shape-problem; whom they
+  name is checked once the cast is spawned, by `check-relations!`). A
+  scenario's :relations need its :inner: the same judges change both."
   [scenario agents]
+  (when (and (:relations scenario) (not (:inner scenario)))
+    (throw (ex-info "the scenario has :relations without :inner" {})))
   (when-let [ps (seq (for [{:keys [name aspects inner] :as a} agents
                            p [(when (contains? a :aspects) (items/aspects-problem aspects))
                               (when (contains? a :impediments) (items/impediments-problem (:impediments a)))
                               (when (contains? a :physical) (physical/shape-problem (:physical a)))
-                              (when (contains? a :inner) (inner/problem (:inner scenario) inner))]
+                              (when (contains? a :inner) (inner/problem (:inner scenario) inner))
+                              (when (contains? a :relations)
+                                (if (:relations scenario)
+                                  (relations/shape-problem (:relations a))
+                                  "this scenario has no relations"))]
+                           :when p]
+                       (str "agent " (pr-str name) ": " p)))]
+    (throw (ex-info (str "bad :agents from :init: " (str/join "; " ps)) {:problems (vec ps)}))))
+
+(defn- check-relations!
+  "Throw if a starting agent's :relations name anyone but other people of
+  the spawned cast, or hold too many entries (see relations/problem).
+  `holders` are [[name id relations] ...]."
+  [scenario world holders]
+  (when-let [ps (seq (for [[name id rs] holders
+                           :let [p (relations/problem (:relations scenario) world id rs)]
                            :when p]
                        (str "agent " (pr-str name) ": " p)))]
     (throw (ex-info (str "bad :agents from :init: " (str/join "; " ps)) {:problems (vec ps)}))))
@@ -439,7 +460,8 @@
   run option :start overrides the clock's start time. If the scenario has
   :items, the starting items are added after the agents. Authored visits
   (:visits, see manor.mechanics.visits/authored-events) are made last, after
-  the cast and the calendar."
+  the cast and the calendar. Starting relations are given once the whole
+  cast is spawned, since they name other people."
   [run]
   (let [{:keys [scenario opts]} run
         {:keys [state agents clock world-file items] :as init} ((:init scenario) opts)
@@ -453,8 +475,15 @@
                              clock (assoc :clock clock))}])
     (run/emit! run (space/init-events (:space init)))
     (check-agents! scenario agents)
-    (doseq [spec (cons {:name "GM" :role :gm :model (:gm-model opts) :controller (:gm opts)} agents)]
-      (run/emit! run (spawn-at-start scenario @(:world run) (into {} (remove (comp nil? val)) spec))))
+    (let [spawn! (fn [spec]
+                   (let [evs (spawn-at-start scenario @(:world run) (into {} (remove (comp nil? val)) spec))]
+                     (run/emit! run evs)
+                     [(:name spec) (get-in (first evs) [:data :agent :id]) (:relations spec)]))
+          spawned (mapv spawn! (cons {:name "GM" :role :gm :model (:gm-model opts) :controller (:gm opts)} agents))
+          holders (filterv #(seq (nth % 2)) spawned)]
+      (when (seq holders)
+        (check-relations! scenario @(:world run) holders)
+        (run/emit! run (relations/starting-events (:relations scenario) (map rest holders)))))
     (when (:items scenario)
       (check-items! @(:world run) items)
       (run/emit! run (items/init-events items)))

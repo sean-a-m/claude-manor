@@ -1,6 +1,6 @@
 (ns manor.mechanics.goals
-  "Goals: an agent's private aims for the next day or two (aspirations,
-  plans, things to see to), kept on the agent as :goals, a vector of at most
+  "Goals: an agent's aspirations, plans, and long term desires, kept on the 
+   agent as :goals, a vector of at most
   `limit` short texts, with :goals-reviewed the round they last set them.
   Only they see them, in their own prompt. `set-goals` (free) replaces the
   whole list whenever they like, and once every `:goals-every` rounds (an

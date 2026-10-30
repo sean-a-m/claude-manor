@@ -674,9 +674,11 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   2026-10-29. Each person keeps, per other person, a queue of the last 20 judged feelings
   (`{feeling, because}`), added (never edited) by the conversation judge and the work judge
   among the people they already judge. The view shows the latest 3 toward each person present,
-  under `you.feelings-toward`. No new calls. **Built, mock-tested only;** next, a short real
-  Claudeworth run (with the user's go-ahead) to read how the judges write `because`, whether
-  direction is ever confused, how often entries are added and what it costs.
+  under `you.feelings-toward`. No new calls. **Built;** first real run
+  `old-test-runs/claudeworth-relations-morning` (6 rounds): no leaks or failures, about 80
+  tokens a view. Open from it: the judges add an entry for nearly every civil exchange, and
+  `because` sometimes calls the holder "her" instead of "you" (3 of 26) or mixes the two up
+  (1 of 26). See the design's "The first real run".
 - Follow-ups:
   - **`recall`:** a tool for looking up more about someone: at first every entry toward them,
     later more (where they were last seen, what was said). It would cover people who aren't

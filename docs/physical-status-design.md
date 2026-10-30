@@ -428,6 +428,13 @@ stamping:
 - **The posts of the dead:** vacancies, wages, mourning, the household's reaction.
 - **Dragging or carrying people.**
 - **Combat resolution** beyond one judge call.
+- **Who a blind person knows is there.** `physical/view-by-sight` drops `people-here` for
+  someone who can't see, so their relations (`you.feelings-toward`, see
+  `relations-design.md`) show nobody either. That isn't quite right: someone who can't see
+  still hears who speaks, knows who they're talking with, and could be told who's in the room,
+  so they'd know some of the people there and how they feel about them. A fix would give them
+  the people they've heard or are in a conversation with. Noted by the user (2026-10-29); not
+  worth changing yet.
 
 ## 14. Phases and checks
 

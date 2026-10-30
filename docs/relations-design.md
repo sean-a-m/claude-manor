@@ -1,7 +1,7 @@
 # Relations: how one person feels toward another
 
-Status: **built**, mock-tested only (`test/manor/relations_test.clj`, the dressing fixture); no
-real run yet. The user settled the open questions on 2026-10-29 (section 7); sections 3–6 are
+Status: **built**; mock-tested (`test/manor/relations_test.clj`, the dressing fixture) and
+checked in one short real run (below). The user settled the open questions on 2026-10-29 (section 7); sections 3–6 are
 written to those decisions. The contract is under Relations in `scenario-authoring.md`. It takes up the follow-up "How people regard
 each other" in roadmap B13 and decision 8 of `inner-state-design.md`.
 
@@ -12,7 +12,8 @@ Where the build differs in detail, or fills a gap:
   the judges' JSON has `feelings_toward`, snake_case like theirs (`set_at`, `heard_by`).
 - The view's people are those in the holder's `people-here` after `physical/view-by-sight`, so
   someone who can't see is shown nobody's (section 5 thought it would work for them; showing it
-  would tell them who is there).
+  would tell them who is there). The user finds this not quite right, since they'd know whom
+  they hear; it's noted in `physical-status-design.md` section 13 and not changed now.
 - There's no `:show` setting: `view-entries` (3) and `judge-entries` (5) are constants in
   `manor.mechanics.relations` (decisions 2 and 5).
 - The engine refuses a scenario with `:relations` but no `:inner`, and a starting `:relations`
@@ -27,6 +28,33 @@ Where the build differs in detail, or fills a gap:
   of section 5.
 - In a 20-round mock day of the dressing fixture, the work judge added one entry and the
   conversation judge two; nobody else's requests held any of them.
+
+### The first real run
+
+`old-test-runs/claudeworth-relations-morning`: Claudeworth from 08:00, capped at $0.20, which
+it reached after 6 rounds ($0.21, all at peak prices; $0.11 off-peak). 22 conversations, 19
+judged (the 3 cut short by the cost limit were skipped, as designed), no judge failures.
+
+- **Volume:** the conversation judge added 26 entries in 14 of the 19 conversations, nearly
+  always one for each member toward the other. The work judge (16 calls) added none. The
+  entries are all mild and positive ("quietly approving", "well-disposed respect",
+  "gratefully relieved") because the morning was civil, so the queues fill with
+  near-repeats. The instructions no longer say that most conversations add none (the user's
+  edit), and the judges add one for almost any polite exchange.
+- **Direction:** `feeling` was always the holder's own, toward the right person. `because`
+  varied:
+  - Most entries used "she"/"he" for the other person instead of their name. The reading
+    stays clear because the entry sits under that person.
+  - 3 called the holder "her" instead of "you", e.g. Mrs Finch toward Briggs: "He had her
+    list put up, priced it plain and fair, and told her straight there were no geese".
+  - 1 was confused: Daisy toward Mrs Finch: "You told her the vegetables would be in your
+    charge after the sweeping, and called you a good girl", where it was Mrs Finch who did
+    the telling.
+- **Privacy:** no agent's request held anyone else's `because`.
+- **Size:** 43 agent calls showed `feelings-toward`, on average about 320 characters (about
+  80 tokens), at most about 1,000.
+- **Not looked at yet:** whether agents act on these feelings. A run with friction (a rebuke,
+  a mistake) would test it better than a civil morning.
 
 ## 1. The want
 

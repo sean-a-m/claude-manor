@@ -87,12 +87,18 @@
       (is (= "earls-bedroom" (space/location-of world "lord-claudeworth")))
       (is (= "architects-office" (space/location-of world "pugh")))
       (is (= "Saturday 15 October 1904, 08:00" (:time (prompt/agent-view (:scenario run) world "hale")))))
+    (testing "starting sleeping rooms may be ordinary home rooms, not arbitrary off-home locations"
+      (is (empty? (ruleset-init/problems
+                   (update world-file :agents update-entry :name "Lord Claudeworth" #(assoc % :bedroom "study")))))
+      (let [ps (str/join "\n" (ruleset-init/problems
+                                (update world-file :agents update-entry :name "Lord Claudeworth" #(assoc % :bedroom "unknown"))))]
+        (is (str/includes? ps ":bedroom \"unknown\" is not a location"))))
     (testing "bad bedrooms and opening hours are named"
       (let [closed-store (fn [ls] (mapv #(if (= "general-store" (:id %)) (assoc % :hours ["8am" "18:00"]) %) ls))
             ps (str/join "\n" (ruleset-init/problems (-> world-file
-                                               (update :agents update-entry :name "Lord Claudeworth" #(assoc % :bedroom "study"))
+                                               (update :agents update-entry :name "Lord Claudeworth" #(assoc % :bedroom "general-store"))
                                                (update :locations closed-store))))]
-        (is (str/includes? ps "agent \"Lord Claudeworth\": :bedroom \"study\" is not a bedroom"))
+        (is (str/includes? ps "agent \"Lord Claudeworth\": :bedroom \"general-store\" must be a bedroom or a location in the household's home area"))
         (is (str/includes? ps "location \"general-store\": :hours must be two times")))
       (let [ps (str/join "\n" (ruleset-init/problems (-> world-file (update :meta dissoc :setting) (assoc-in [:roles :earl :about] nil))))]
         (is (str/includes? ps ":meta :setting must be a paragraph"))

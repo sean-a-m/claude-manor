@@ -438,8 +438,8 @@
         (str "reason must be 1 to " max-reason " characters")))
 
 (defn- bedroom-reason [world bedroom]
-  (when (and bedroom (not= :bedroom (:kind (space/location world bedroom))))
-    "bedroom must be the id of a bedroom"))
+  (when (and bedroom (not (space/home-location? world bedroom)))
+    "bedroom must be the id of an existing location in the household's home area; any room there may be assigned"))
 
 (defn- post-offices [world]
   (sort-by :id (filter #(contains? (:services %) :post-office) (vals (get-in world [:space :locations])))))

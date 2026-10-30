@@ -169,8 +169,10 @@
                  (check run world "lord-claudeworth" :invite (assoc (invite "post" "mrs-bell" "22:00") :date "1904-10-15"))))
           (is (= "give the date like \"1904-10-15\" and the time like \"19:00\""
                  (check run world "lord-claudeworth" :invite (invite "post" "mrs-bell" "teatime"))))
-          (is (= "bedroom must be the id of a bedroom"
-                 (check run world "lord-claudeworth" :invite (invite "post" "mrs-bell" "10:00" :bedroom "drawing-room"))))
+          (is (nil? (check run world "lord-claudeworth" :invite (invite "post" "mrs-bell" "10:00" :bedroom "drawing-room"))))
+          (doseq [bedroom ["post-office" "postmistress-room" "unknown"]]
+            (is (= "bedroom must be the id of an existing location in the household's home area; any room there may be assigned"
+                   (check run world "lord-claudeworth" :invite (invite "post" "mrs-bell" "10:00" :bedroom bedroom)))))
           (is (str/starts-with? (check run world "lord-claudeworth" :invite (invite "in-person" "mrs-bell" "10:00"))
                                 "Mrs Bell must be here with you"))
           (is (= "name who carries the message with via: the id of someone here"
@@ -502,6 +504,26 @@
             (is (= ["Captain Hart"] (sleeps "captain-hart")))
             (doseq [id ["hale" "lord-claudeworth"]]
               (is (= ["Captain Hart"] (sleeps id)) id)))))
+      (replay! run)
+      (finally (e/stop-run run)))))
+
+(deftest guest-can-stay-and-sleep-in-an-ordinary-home-room
+  (let [run (start {} {})]
+    (try
+      @(e/schedule-visit! run {:who "captain-hart" :date "1904-10-15" :time "21:00"
+                               :stay "overnight" :bedroom "drawing-room"})
+      (until! run 3)
+      (let [world (e/world run)]
+        (is (= "drawing-room" (get-in world [:state :bedrooms "captain-hart"])))
+        (is (not= :bedroom (:kind (space/location world "drawing-room"))))
+        (doseq [id ["captain-hart" "hale"]]
+          (is (= ["Captain Hart"]
+                 (:sleeps (first (filter #(= "drawing-room" (:id %))
+                                         (get-in (prompt/agent-view (:scenario run) world id) [:household :bedrooms]))))))))
+      (e/emit! run [{:type :agent/placed :data {:id "captain-hart" :to "drawing-room"}}])
+      (let [world (e/world run)]
+        (e/emit! run (effect run world "captain-hart" :sleep {:until "07:00"})))
+      (is (:asleep? (w/busy (e/world run) "captain-hart")))
       (replay! run)
       (finally (e/stop-run run)))))
 
@@ -1077,7 +1099,7 @@
     (doseq [[spec expected] [[(assoc homecoming :who "nobody") "no one has the id nobody"]
                              [(assoc homecoming :known_to []) "unknown keys :known_to"]
                              [(assoc homecoming :stay "") "stay must be"]
-                             [(assoc homecoming :bedroom "drawing-room") "bedroom must be"]
+                             [(assoc homecoming :bedroom "post-office") "bedroom must be"]
                              [(assoc homecoming :known-to ["nobody"]) "unknown: nobody"]
                              [(assoc homecoming :known-to "hale") ":known-to must be a vector"]
                              [(assoc homecoming :date "1904-99-99") "give the date like"]]]

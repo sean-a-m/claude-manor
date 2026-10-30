@@ -21,6 +21,7 @@
             [manor.prompt :as prompt]
             [manor.ruleset :as ruleset]
             [manor.ruleset.actions :as ruleset-actions]
+            [manor.ruleset.views :as ruleset-views]
             [manor.world :as w]))
 
 (use-fixtures :once support/with-runs)
@@ -52,10 +53,11 @@
             {:agents [{:name "Employer" :role :mistress :location "gate"}
                       {:name "Recommender" :role :shopkeeper :location "gate"}
                       {:name "Bystander" :role :none :location "gate"}]
-             :space {:locations [{:id "gate" :name "Gate"} {:id "room" :name "Bedroom" :kind :bedroom}]
+             :space {:locations [{:id "gate" :name "Gate" :domain :village}
+                                 {:id "room" :name "Bedroom" :kind :bedroom :domain :house}]
                      :routes [["gate" "room" 0]]}
              :state {:positions (positions/read-catalogue "settings/england-1904/positions.edn") :setting "England, 1904."
-                     :meeting-place "gate"}})
+                     :meeting-place "gate" :home-domain :house}})
     :actions h/actions :adjudicators h/adjudicators :bridges h/bridges
     :offline-stubs h/offline-stubs :mcp-servers people/mcp-servers
     :reference (fn [world _] (h/reference world)) :observe h/observe :mock-policy policy}))
@@ -344,6 +346,54 @@
         (is (h/engage-reason (assoc-in world [:state :positions :gm] {:title "GM"}) "employer" {:who id :position "gm"}))
         (is (h/recommend-reason (assoc-in world [:state :positions :gm] {:title "GM"}) "employer" {:position "gm" :for "employer"}))
         (is (h/engage-reason world "employer" {:who id :position "housemaid" :bedroom "gate"})))
+      (finally (e/stop-run run)))))
+
+(deftest answer-the-offer-together-and-sleep-in-an-assigned-room
+  (let [init (:init (scenario))
+        run (start {:init (fn [opts]
+                            (-> (init opts)
+                                (assoc :clock {:start "1904-10-15T08:00" :minutes-per-round 30})
+                                (assoc-in [:state :accounts] {"household" 0})
+                                (update-in [:space :locations] conj
+                                           {:id "box-room" :name "Box room" :kind :room :domain :house})))}
+                   {})]
+    (try
+      (rounds! run 3)
+      (let [world (e/world run)
+            id (:agent-id (first-person world))
+            args {:who id :position "housemaid" :bedroom "box-room"}
+            sleep (first (filter #(= :sleep (:name %)) ruleset-actions/actions))
+            emit-action! (fn [spec actor args]
+                           (let [world (e/world run)]
+                             (is (nil? (a/check spec world actor args)))
+                             (e/emit! run (a/effect-events spec world actor args))))]
+        (testing "only existing home locations may be assigned"
+          (is (nil? (h/engage-reason world "employer" args)))
+          (doseq [bedroom ["gate" "unknown"]]
+            (is (str/includes? (h/engage-reason world "employer" (assoc args :bedroom bedroom))
+                               "household's home area"))))
+        (emit-action! (action :engage) "employer" args)
+        (e/emit! run [{:type :agent/placed :data {:id "employer" :to "room"}}])
+        (testing "both answers explain how to reach the named offerer"
+          (doseq [tool [:accept-place :decline-place]]
+            (let [reason (a/check (action tool) (e/world run) id {})]
+              (is (str/includes? reason "Employer (employer)"))
+              (is (str/includes? reason "find-person and walk"))
+              (is (str/includes? reason "accept-place")))))
+        (e/emit! run [{:type :agent/placed :data {:id "employer" :to "gate"}}])
+        (emit-action! (action :accept-place) id {})
+        (is (= "box-room" (get-in (e/world run) [:state :bedrooms id])))
+        (is (= :engaged (:status (first-person (e/world run)))))
+        (e/emit! run [{:type :agent/placed :data {:id id :to "box-room"}}])
+        (let [world (e/world run)
+              bedrooms (get-in (ruleset-views/observe world id) [:household :bedrooms])]
+          (is (= {:id "box-room" :name "Box room" :sleeps [(:name (w/agent world id))]}
+                 (first (filter #(= "box-room" (:id %)) bedrooms))))
+          (is (some? (a/check sleep world "employer" {:until "12:00"}))
+              "an unassigned non-bedroom isn't a place to sleep"))
+        (emit-action! sleep id {:until "12:00"})
+        (is (:asleep? (w/busy (e/world run) id))))
+      (replay! run)
       (finally (e/stop-run run)))))
 
 (deftest departure-return-memory-and-conversation-grace

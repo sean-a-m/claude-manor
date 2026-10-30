@@ -1,1 +1,1 @@
-Say the request is for a person, identify an existing candidate, or rate the odds and supply a new item, optionally what it was taken from when it was only an aspect here, and optionally the store's new lacking value.
+Say the request is for a person, identify one or several existing candidates with a list of ids in existing, or rate the odds and supply a new item, optionally what it was taken from when it was only an aspect here, and optionally the store's new lacking value.

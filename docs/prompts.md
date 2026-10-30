@@ -115,7 +115,7 @@ must call.
 | `judges/inner-keys.md` | Fragment: the inner-state keys every person has, and how many more | `inner/key-instructions` | `open`, `keys` (the scenario's keys and glosses, one line each) |
 | `judges/steward.md` | The nightly steward | `items.steward/steward-instructions` | `advised-aspect` |
 | `judges/steward-inner.md` | The steward's lines on sleepers' inner state | `items.steward` | `advised-value`, `keys` |
-| `judges/finder.md` | The finder: the odds of finding something with `find` | `items.find/finder-instructions` | `advised-aspect` |
+| `judges/finder.md` | The finder: identify one or several existing things, or rate the odds of finding something with `find` | `items.find/finder-instructions` | `advised-aspect`, `max-existing` |
 | `judges/conversation.md` | The conversation judge: how a conversation left its members' inner state | `conversation.judge/instructions` | `advised-value`, `max-summary`, `keys` |
 | `judges/relations.md` | The work and conversation judges' lines on relations, after their other instructions | `relations/instructions` | `max-feeling`, `max-because` |
 | `judges/find-person.md` | Whom a `find-person` seeker means | `find-person/instructions` | |

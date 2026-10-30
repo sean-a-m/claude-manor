@@ -146,8 +146,10 @@
     :valid? (fn [world actor {:keys [until]}]
               (let [c (:clock world)
                     round (:round world)
-                    bed (places/bedroom-of world actor)]
-                (cond (not= :bedroom (:kind (space/location world (space/location-of world actor))))
+                    bed (places/bedroom-of world actor)
+                    here (space/location-of world actor)]
+                (cond (not (or (= :bedroom (:kind (space/location world here)))
+                               (and bed (= bed here))))
                       (str "go to a bedroom first"
                            (when bed (str "; yours is " (places/loc-name world bed) " (" bed ")")))
                       (not (clock/hh-mm? until)) "until must be a time of day like \"07:00\""

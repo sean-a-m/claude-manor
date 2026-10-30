@@ -626,7 +626,7 @@ limits, and putting away is instruction-only. The user chose **not** to add movi
    Claudeworth has the Draft order of works (id)"). Otherwise the oracle also sees up to 60
    tracked non-fixed, non-store candidates, most recently touched first, **id and name only**.
    If the request plausibly refers to a listed particular thing (letter, list, joint), it
-   gives `existing: <id>` instead of inventing a new thing; the list is for identification
+   gives `existing: [<id> ...]` instead of inventing new things (expanded in phase 9); the list is for identification
    only and never mentioned. Code rejects ids outside that request's candidates. If here,
    reply where it is without an event. If elsewhere, give the ordinary miss and record
    `:item/not-found` with `:existing` only in its data, never narrated; same audience and
@@ -768,6 +768,26 @@ everything into a container; listing such cases in the instructions would never 
 9. **The steward uses `gone: [{thing, fate}]`** without hosts; its behaviour is unchanged.
 10. **The room view isn't changed:** a thing kept as an aspect shows through `look` and `find`.
     If agents miss such things, remind them first that `look` shows a room's details.
+11. **The finder may identify several existing things.** Follow-up from
+    `runs/claudeworth-medium-20261030-142908`: "the joints of meat and birds I am carrying"
+    caused a new combined item duplicating carried meat and inventing a goose. `existing`
+    now takes 1–8 candidate ids (a string decodes as a one-id list). The prompt encourages
+    all matching ids for a request spanning several things, without banning combinations.
+    The reply gives each local hit on its own line, once, in answer order; elsewhere ids
+    add nothing when there are local hits. All-elsewhere answers record only an ordinary
+    not-found event, with the ids as a vector, never locations or holders. An unknown id
+    anywhere rejects the answer for correction. Existing identification never rolls,
+    creates items, moves them or changes aspects. Mock tests cover multi-hit and mixed
+    local/remote answers, duplicate ids, bounds, an unknown id with a successful retry,
+    privacy and replay.
+12. **Summary and outcome:** the scene judge gets one short instruction to ensure the summary
+    roughly matches `changes`, `gone` and `made` in its structured outcome. This is prompt
+    guidance only, not a code check on prose.
+
+**Follow-up verification:** `clojure -M:test` passes: 522 tests, 10,031 assertions, no failures
+or errors. Mock/offline only; no new real-model runs. The suite also checks actionable hiring
+answers when apart, an offer accepted within a conversation, ordinary home-room assignments
+for staff and guests, sleeping there, off-home refusals, starting assignments, views and replay.
 
 Event data: `:item/work-done` and `:items/stewarded` carry `:gone [{:item :name :fate}]` instead
 of `:used-up`; the host's aspect is an ordinary entry in `:changes`. `:item/found` may carry

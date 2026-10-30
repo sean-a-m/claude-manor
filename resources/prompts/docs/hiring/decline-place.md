@@ -1,1 +1,1 @@
-Decline your current offer. Discuss another offer or take-leave. You can use it on your line in a conversation, before you speak.
+Decline your current offer while the person who made it is present to hear your answer. If apart, use find-person and walk to them, or ask them to come. Discuss another offer or take-leave. You can use it on your line in a conversation, before you speak.

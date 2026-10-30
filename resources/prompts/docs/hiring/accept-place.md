@@ -1,1 +1,1 @@
-Accept the place offered to you, with any conditions in free text. These are recorded, not enforced. You can use it on your line in a conversation, before you speak.
+Accept the place offered to you, with any conditions in free text. The person who made the offer must be present to hear your answer. If apart, use find-person and walk to them, or ask them to come; once together, accept-place to settle the offer. These are recorded, not enforced. You can use it on your line in a conversation, before you speak.

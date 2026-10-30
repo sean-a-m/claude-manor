@@ -434,13 +434,47 @@
               (is (= 1 (count events)))
               (is (= :item/not-found (:type event)))
               (is (= #{"ada"} (:visible-to event)))
-              (is (= {:what "my friend's smoking utensil" :place "hall" :existing "pipe" :outcome :not-found}
+              (is (= {:what "my friend's smoking utensil" :place "hall" :existing ["pipe"] :outcome :not-found}
                      (:data event)))
               (is (= before (w/apply-event before event)))
               (is (= "Ada looks for my friend's smoking utensil: there's none here."
                      (n/describe event (n/names (e/world run)))))))
           (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
         (finally (e/stop-run run))))))
+
+(deftest finder-identifies-several-existing-things
+  (let [run (start {:llm-impl (llm/mock (constantly {:tool :finder
+                                                   :args {:existing ["pipe" "hidden-tin" "umbrella" "remote" "pipe"]}}))})]
+    (try
+      (let [before (e/world run)
+            reply (with-redefs [rng/roll (fn [& _] (throw (Exception. "no roll for existing")))]
+                    (:reply (query! run "the smoking things and umbrella")))]
+        (is (= (str "Ben has the Pipe (pipe).\n"
+                    "The Dripping tin is here (hidden-tin), in the Cupboard (cupboard).\n"
+                    "The Umbrella is here (umbrella).") reply))
+        (is (= (:items before) (:items (e/world run))))
+        (is (= (:space before) (:space (e/world run))))
+        (is (not-any? #(#{:item/found :item/not-found :adjudication/failed} (:type %)) (e/events run)))
+        (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))
+
+(deftest finder-existing-lists-have-bounds-and-no-remote-disclosure
+  (let [run (start)]
+    (try
+      (let [world (e/world run)]
+        (doseq [existing [[] (vec (repeat (inc item-find/max-existing) "pipe")) [42] nil]]
+          (is (:error (check world {:existing existing}))))
+        (e/emit! run [{:type :agent/placed :data {:id "ben" :to "bedroom"}}])
+        (let [world (e/world run)
+              verdict (:verdict (check world {:existing ["pipe" "remote"]}))
+              [event] (with-redefs [rng/roll (fn [& _] (throw (Exception. "no roll for existing")))]
+                        (item-find/find-events world "ada" {:what "the things"} verdict))]
+          (is (= {:hits [] :existing ["pipe" "remote"]} verdict))
+          (is (= ["pipe" "remote"] (get-in event [:data :existing])))
+          (is (= :item/not-found (:type event)))
+          (is (= world (w/apply-event world event)))
+          (is (= "You don't find it." (item-find/find-reply world "ada" {} (assoc verdict :events [event]))))))
+      (finally (e/stop-run run)))))
 
 (deftest finder-refuses-people
   (let [run (start {:llm-impl (llm/mock (fn [_] {:tool :finder :args {:person true}}))})]
@@ -456,12 +490,13 @@
 (deftest finder-existing-candidates-checked-and-retried
   (let [attempts (atom 0)
         run (start {:llm-impl (llm/mock (fn [_]
-                                          {:tool :finder :args {:existing (if (= 1 (swap! attempts inc)) "cupboard" "pipe")}}))})]
+                                          {:tool :finder :args {:existing (if (= 1 (swap! attempts inc)) ["pipe" "cupboard"] ["pipe" "umbrella"])}}))})]
     (try
-      (is (= "Ben has the Pipe (pipe)." (:reply (query! run "smoking utensil"))))
+      (is (= "Ben has the Pipe (pipe).\nThe Umbrella is here (umbrella)."
+             (:reply (query! run "smoking utensil and umbrella"))))
       (is (= 2 @attempts))
       (is (not-any? #(#{:item/found :item/not-found :adjudication/failed} (:type %)) (e/events run)))
-      (is (str/includes? (pr-str (store/read-llm (:dir run))) "existing must name one of the listed candidates"))
+      (is (str/includes? (pr-str (store/read-llm (:dir run))) "existing must name only listed candidates, not cupboard"))
       (let [world (reduce (fn [world i]
                             (assoc-in world [:items (str "thing-" i)]
                                       {:id (str "thing-" i) :name (str "Thing " i) :place "bedroom" :touched i}))

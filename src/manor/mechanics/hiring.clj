@@ -389,13 +389,15 @@
       (when (= actor who) "you cannot offer yourself a place")
       (when-let [r (not-a-post-reason world position)]
         (if (= :guest (keyword position)) r "use a position id from the catalogue"))
-      (when (and bedroom (not= :bedroom (:kind (space/location world bedroom)))) "name an existing bedroom")))
+      (when (and bedroom (not (space/home-location? world bedroom)))
+        "bedroom must name an existing location in the household's home area; any room there may be assigned")))
 (defn- offer-reason [world actor _]
   (let [offer (get-in world [:state :place-offers actor])]
     (or (when-not offer "nobody has offered you a place")
         (present-candidate-reason world actor actor)
         (when-not (and (w/active? world (:employer offer)) (space/together? world actor (:employer offer)))
-          "the person offering must be here to hear your answer"))))
+          (str (:name (w/agent world (:employer offer))) " (" (:employer offer) ") made the offer and must be present to hear your answer. "
+               "Use find-person and walk to them, or ask them to come to you; once together, accept-place to take the place or decline-place to refuse it.")))))
 
 (defn accept [world actor {:keys [conditions]}]
   (let [{:keys [position household terms bedroom employer]} (get-in world [:state :place-offers actor])
@@ -413,7 +415,8 @@
 (defmethod n/describe :people/offered [{:keys [data]} names]
   (str (n/who names (:employer data)) " offers " (n/who names (:who data)) " the " (name (:position data))
        " place" (when (:terms data) (str ": " (:terms data)))
-       ". Answer with accept-place (optional conditions) or decline-place; you may discuss a different offer."))
+       ". Answer with accept-place (optional conditions) or decline-place while together; you may discuss a different offer. "
+       "The offerer must stay with the candidate until they answer; making the offer in a conversation with them lets them accept there."))
 (defmethod n/describe :people/declined [{:keys [actor data]} names]
   (str (n/who names actor) " declines the place" (when (:reason data) (str ": " (:reason data))) "."))
 
@@ -532,7 +535,8 @@
                 :data (assoc args :position (keyword (:position args)) :employer actor
                              :household (or (get-in world [:state :posts actor :household]) positions/household))}])
     :reply (fn [world _ {:keys [who position]}]
-             (str "You have offered " (:name (w/agent world who)) " the " position " place. They answer with accept-place or decline-place."))}
+             (str "You have offered " (:name (w/agent world who)) " the " position " place. Stay with them until they answer with accept-place or decline-place: you must be present to hear it. "
+                  "Making the offer in a conversation with them lets them accept there."))}
    {:name :accept-place :kind :free :roles :all
     :available? (fn [world actor] (some? (get-in world [:state :place-offers actor])))
     :doc (prompts/doc "docs/hiring/accept-place.md")

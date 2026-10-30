@@ -19,15 +19,18 @@
   they work."
   [{:keys [locations agents meta] :as wf}]
   (let [by-id (into {} (map (juxt :id identity)) locations)
+        home (or (:home-domain meta) (:domain (by-id (:meeting-place meta))))
         table (positions/table wf {})
         pack (settings/for-worldfile wf)]
     (concat
      (building/problems wf)
      (shop/problems wf)
      (for [{:keys [name bedroom]} agents
-           :when (not= :bedroom (:kind (by-id bedroom)))]
+           :let [loc (by-id bedroom)]
+           :when (not (and loc (or (= :bedroom (:kind loc))
+                                  (and home (= home (:domain loc))))))]
        (str "agent " (pr-str name) ": :bedroom " (pr-str bedroom)
-            (if (by-id bedroom) " is not a bedroom (:kind :bedroom)" " is not a location")))
+            (if loc " must be a bedroom or a location in the household's home area" " is not a location")))
      (for [{:keys [id hours]} locations
            :when (and (some? hours)
                       (not (and (vector? hours) (= 2 (count hours)) (every? clock/hh-mm? hours))))]

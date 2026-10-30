@@ -1197,14 +1197,19 @@ and its replies by fate kept things that were only aspects from ever being found
    know. Recorded `:lacking` is authoritative.
    If `what` asks for a person, the oracle gives `person: true` alone: the reply points the
    searcher to `find-person`, with no roll, item or event.
-   If the request refers to the same physical object as a listed candidate (a particular
-   letter, list, joint), the oracle gives `existing: <id>` instead of inventing a second copy;
-   a different object that merely shares a name is not a match. This list is for
-   identification only and must never be mentioned. Only listed ids are accepted; an unknown
-   or capped-out id is refused and corrected once as usual. If the item is here (lying,
-   in a container here, or carried by someone here), reply where it is without a new event
-   or moving it. Otherwise give the ordinary "You don't find it." and emit an ordinary
-   `:item/not-found` with `:existing` in its data, never narrated, and no aspect path/change.
+   If the request refers to the same physical objects as listed candidates (particular
+   letters, lists, joints), the oracle gives `existing: [<id> ...]` instead of inventing
+   second copies: 1–8 ids (`items.find/max-existing`), with a bare string decoded as a one-id
+   list. When a request covers several listed things ("the birds", "what I am carrying"),
+   the prompt encourages all their ids rather than a new combined item; combining isn't
+   categorically forbidden. A different object that merely shares a name is not a match.
+   This list is for identification only and must never be mentioned. Only listed ids are
+   accepted; an unknown or capped-out id anywhere in the list is refused and corrected once
+   as usual. Duplicate ids are reported once, in answer order. For each item here (lying,
+   in a container here, or carried by someone here), reply on its own line where it is,
+   without a new event or moving it. If any are here, ids elsewhere add nothing to the reply
+   or events. If all are elsewhere, give the ordinary "You don't find it." and emit an ordinary
+   `:item/not-found` with the vector `:existing` in its data, never narrated, and no aspect path/change.
    Its visibility and narration are identical to any ordinary storeless miss; nobody learns
    anything about other rooms. No new item or `:lacking` is recorded; no roll is needed.
    Otherwise its `finder` tool returns `likelihood` (`certain`, `likely`, `even`, `unlikely`,
@@ -1239,7 +1244,7 @@ and its replies by fate kept things that were only aspects from ever being found
    when an absence could not be recorded.
 
 Both rolled outcome events record `what`, place, likelihood, roll key, roll and outcome,
-visible to finder and people here. An existing-item miss records `what`, place, `:existing`
+visible to finder and people here. An existing-item miss records `what`, place, the `:existing` vector
 and outcome only. Success records the complete item and source; failure records its
 chosen aspect path and resulting aspects. Pure reducers apply them without calling or
 rolling; replay equals live state. Replies give the found id and whether carried/lying here,
@@ -1318,7 +1323,8 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   `{:job :actor :place :doing :minutes :stopped-early? :luck :summary :changes [..]}`, plus
   `:gone [{:item :name :fate}]`, `:absorbed [{:item :name :into}]`, `:made [item ...]`
   (complete new items), and `:fetched [id ...]` (which made entries were drawn from stores)
-  when there are some.
+  when there are some. The judge is instructed to ensure its summary roughly matches
+  `changes`, `gone` and `made` in the structured outcome; code does not judge the prose.
   Each change is `{:item id :aspect k :from s :to s}`, `{:place id ...}` for the room or
   `{:person id ...}` for a person; `:from` is nil for a new aspect and `:to` nil for one removed.
   Its reducer sets or removes each aspect (on the item, on the location under `[:space :locations
@@ -2178,8 +2184,13 @@ or promised. It does not select an existing villager.
   conversation), so the offer and the answer can be made as the bargain is agreed; the hiring
   rules tell characters that saying they'll take someone on engages nobody. Acceptance changes role/post,
   marks the pool entry engaged, records employer, terms and conditions, and optionally assigns
-  the named bedroom. A bedroom must exist and be a bedroom, but occupancy and the need for a
-  bed are not enforced. No wages or conditions are mechanically enforced. Both parties can
+  the named bedroom. The offerer must be present for either answer: replies, narration and
+  prompts tell them to stay until the candidate answers, preferably within their conversation.
+  If apart, a rejection names the offerer (name and id) and directs the candidate to
+  `find-person` and walk to them, or ask them to come, then accept or decline together.
+  An assigned bedroom may be any existing location in the household's home area
+  (`space/home-domain`), regardless of its `:kind`; off-home and unknown locations are refused.
+  Occupancy and the need for a bed are not enforced. No wages or conditions are mechanically enforced. Both parties can
   see the agreed post later; a candidate's temporary situation becomes their appointment.
 - `send-away {who}` and the candidate's `take-leave` are final and end an unengaged visit.
   `take-leave {return-date? return-time?}` may say when the candidate will be back, both or
@@ -2432,9 +2443,16 @@ records optional `:employer` and `:conditions`; there is no general in-game post
 set by `:people/bedroom-assigned` and `:people/routine-set`. Claudeworth's `:on-spawn` sets an
 agent's post, bedroom and routine from their spawn spec, so `(spawn! {:role :footman :name "James
 Ward" :location "entrance-hall" :bedroom "maids-room"})` gets the footman's brief, a post in the
-household and a bed. Members of the household see the house's bedrooms (`:kind :bedroom`, `:domain
-:house`) and who sleeps in each under `household.bedrooms` in their view. The sleepers shown are
-all active assigned sleepers, guests included: bedroom lists may reveal even secret visitors.
+household and a bed. Members of the household see the home area's bedrooms (`:kind :bedroom`)
+and other locations assigned to active sleepers, with who sleeps in each, under
+`household.bedrooms` in their view. The home area is `space/home-domain` (not a hard-coded
+`:house`). Hiring and guest invitations may assign any existing home-area location, so a box
+room need not change its kind to become someone's bedroom. `sleep` permits any `:bedroom`-kind
+location or the actor's own assigned sleeping room; an unassigned ordinary room is still refused.
+Starting world-file assignments accept any home-area location too, or a `:bedroom`-kind location
+elsewhere (for residents who live out, such as shopkeepers); unknown locations and ordinary
+off-home locations are refused. Routines and bedtime already follow the assigned id, not its kind.
+The sleepers shown are all active assigned sleepers, guests included: bedroom lists may reveal even secret visitors.
 Invitation and calendar privacy is otherwise unchanged. The rules say someone who
 lives in needs a bed; nothing enforces it, and sharing is the agents' call.
 
@@ -2604,7 +2622,8 @@ invitation judge, which matches someone in the world or writes someone new.
   with you, anyone but yourself, the invitee included; `date`/`time` parse and are at least the
   channel's lead time from now, plus `:from-away-hours` when the guest is away ("by post, the
   earliest they can be here is Saturday 15 October, 23:00"); `bedroom`, if given, is a
-  `:bedroom`. `who` isn't checked against whom the inviter knows. With `person`, the checks that
+  location in the household's home area, of any kind (the same rule as hiring).
+  `who` isn't checked against whom the inviter knows. With `person`, the checks that
   need the guest (in person, the lead time from away, "they live here") wait for the judge. Its
   reply says who is expected when, or for someone described why nothing is arranged. Events: `:visits/scheduled` (GM-only, the record), the host's calendar entry at once, and
   one per channel: `:visits/invited` (in person, seen by both), `:visits/posted` ("posts a

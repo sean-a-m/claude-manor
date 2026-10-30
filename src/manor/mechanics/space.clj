@@ -51,6 +51,13 @@
   [world]
   (or (get-in world [:state :home-domain]) (:domain (location world (meeting-place world)))))
 
+(defn home-location?
+  "Is this an existing location in the household's home area?"
+  [world loc-id]
+  (when-let [home (home-domain world)]
+    (when-let [loc (location world loc-id)]
+      (= home (:domain loc)))))
+
 (defn in-transit? [world agent-id] (some? (:travel (w/agent world agent-id))))
 
 (defn present

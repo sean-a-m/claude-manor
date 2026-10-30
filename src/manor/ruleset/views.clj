@@ -44,13 +44,14 @@
             :arrive (clock/short-label c (+ (max 1 round) d) round)}))))
 
 (defn- home-bedrooms
-  "The home area's bedrooms (manor.mechanics.space/home-domain) and all
+  "The home area's bedrooms and other rooms assigned for sleeping, with all
   active assigned sleepers, guests included. [{:id :name :sleeps [names]}]."
   [world]
   (let [sleepers (group-by #(places/bedroom-of world (:id %)) (w/active-agents world))
         home (space/home-domain world)]
     (vec (for [l (sort-by :id (vals (get-in world [:space :locations])))
-               :when (and (= :bedroom (:kind l)) (= home (:domain l)))]
+               :when (and (= home (:domain l))
+                          (or (= :bedroom (:kind l)) (seq (get sleepers (:id l)))))]
            {:id (:id l) :name (:name l) :sleeps (mapv :name (get sleepers (:id l)))}))))
 
 (defn reference

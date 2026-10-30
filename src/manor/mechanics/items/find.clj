@@ -16,10 +16,14 @@
             [manor.rng :as rng]
             [manor.world :as w]))
 
+(def max-existing
+  "How many existing things one `find` may identify."
+  8)
+
 (def finder-schema
   [:map
    [:person {:optional true} :boolean]
-   [:existing {:optional true} :string]
+   [:existing {:optional true} [:vector {:min 1 :max max-existing :decode/json #(if (string? %) [%] %)} :string]]
    [:likelihood {:optional true} [:enum "certain" "likely" "even" "unlikely" "impossible"]]
    [:found {:optional true} [:map
                              [:name [:string {:min 1 :max items/max-name}]]
@@ -34,7 +38,7 @@
 (defn finder-instructions
   "The finder's system message."
   [world]
-  (prompts/render world "judges/finder.md" {:advised-aspect items/advised-aspect}))
+  (prompts/render world "judges/finder.md" {:advised-aspect items/advised-aspect :max-existing max-existing}))
 
 (defn- mock-match?
   "For the mock finder only: does `item-name` contain `what`, without a
@@ -118,11 +122,11 @@
        (cond
          error {:error error}
          (:person args) {:person true}
-         existing (if (some #(= existing (:id %)) candidates)
-                    (if-let [hit (find-hit world actor (items/item world existing))]
-                      {:hit hit}
-                      {:existing existing})
-                    {:error "existing must name one of the listed candidates"})
+         existing (let [ids (vec (distinct existing))]
+                    (if-let [unknown (seq (remove (set (map :id candidates)) ids))]
+                      {:error (str "existing must name only listed candidates, not " (str/join ", " unknown))}
+                      (let [hits (vec (keep #(find-hit world actor (items/item world %)) ids))]
+                        {:hits hits :existing (vec (remove (set (map :id hits)) ids))})))
          :else
          (if-let [problem (or (when-not (and (:likelihood args) found) "give existing, or likelihood and found")
                               (when (or (str/blank? (:name found)) (str/blank? (:desc found)))
@@ -178,7 +182,7 @@
 
 (defn mock-finder [{:keys [world place what]}]
   (if-let [existing (first (filter #(mock-match? what (:name %)) (finder-candidates world)))]
-    {:tool :finder :args {:existing (:id existing)}}
+    {:tool :finder :args {:existing [(:id existing)]}}
     (let [store (first (items/stores-for world place))
           recorded (get-in store [:aspects :lacking])]
       {:tool :finder
@@ -207,11 +211,11 @@
   "Record oracle odds, seeded roll and decided outcome, never re-rolled by
   reducers. A thing found that was only an aspect (`taken`) changes that
   aspect as it's found. Things identified here and requests for a person
-  have no world effects."
-  [world actor {:keys [what]} {:keys [hit person existing found likelihood lacking taken]}]
+  have no world effects; things identified only elsewhere are not found."
+  [world actor {:keys [what]} {:keys [hits person existing found likelihood lacking taken]}]
   (cond
-    (or hit person) nil
-    existing [{:type :item/not-found :actor actor :visible-to (space/here world actor)
+    (or (seq hits) person) nil
+    (seq existing) [{:type :item/not-found :actor actor :visible-to (space/here world actor)
                :data {:what what :place (space/location-of world actor) :existing existing :outcome :not-found}}]
     :else
     (let [place (space/location-of world actor)
@@ -235,14 +239,17 @@
             :data (cond-> (assoc base :from source)
                     set? (assoc :path [:items source] :aspects (assoc (:aspects store) :lacking lacking)))}))])))
 
-(defn find-reply [world _ _ {:keys [hit person events]}]
+(defn- hit-reply [world hit]
+  (str (if (:holder hit)
+         (str (:name (w/agent world (:holder hit))) " has the " (:name hit))
+         (str "The " (:name hit) " is here"))
+       " (" (:id hit) ")"
+       (when (:in hit) (str ", in the " (:name (items/item world (:in hit))) " (" (:in hit) ")")) "."))
+
+(defn find-reply [world _ _ {:keys [hits person events]}]
   (cond
     person "`find` looks for things, not people: to look for someone, use `find-person`."
-    hit (str (if (:holder hit)
-               (str (:name (w/agent world (:holder hit))) " has the " (:name hit))
-               (str "The " (:name hit) " is here"))
-             " (" (:id hit) ")"
-             (when (:in hit) (str ", in the " (:name (items/item world (:in hit))) " (" (:in hit) ")")) ".")
+    (seq hits) (str/join "\n" (map #(hit-reply world %) hits))
     :else (let [event (last events)
                 it (get-in event [:data :item])]
             (if it

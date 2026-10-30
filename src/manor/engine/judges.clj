@@ -1,7 +1,7 @@
 (ns manor.engine.judges
   "The narrow model calls that answer one checked question: the work judge,
   the conversation judge, the nightly steward and scenario adjudicators.
-  Each gets a checked answer, one correction attempt and a safe failure;
+  Each gets a checked answer, up to three correction attempts and a safe failure;
   the domain code (manor.mechanics.items, manor.mechanics.conversation.judge,
   the scenario) owns the prompts and the checks."
   (:require [manor.engine.models :as models]
@@ -12,8 +12,12 @@
             [manor.mechanics.items.work :as item-work]
             [manor.prompt :as prompt]))
 
+(def max-attempts
+  "Total attempts for a checked model answer: the initial call plus corrections."
+  4)
+
 (defn ask-structured!
-  "Shared narrow model-call lifecycle: checked answer, one correction attempt,
+  "Shared narrow model-call lifecycle: checked answer, up to three corrections,
   usage/transcript logging and safe failure. The domain owns prompts/checks."
   [run identity {:keys [messages tools ctx label defer-records? model before-call] :or {label "adjudicator"}} check]
   (let [records (atom [])
@@ -39,8 +43,9 @@
                            (throw t)))]
                 (record! models/record-call! run identity request response replies)
                 (cond verdict {:verdict verdict}
-                      (zero? attempt) (recur (into (models/conj-reply messages (:message response)) replies) 1)
-                      :else {:failure (str "a second bad answer: " error)})))
+                      (< (inc attempt) max-attempts)
+                      (recur (into (models/conj-reply messages (:message response)) replies) (inc attempt))
+                      :else {:failure (str "no valid answer after " max-attempts " attempts: " error)})))
             (catch Throwable t
               {:failure (str "the " label " call failed: " (ex-message t))}))]
       (cond-> result defer-records? (assoc :records @records)))))
@@ -52,7 +57,7 @@
   judge added any, :physical for changes to bodies and, for
   an immediate act (a job with :act?), :moved, or {:failure reason}. An
   act's recent lines are the actor's last, not those since a job began. A bad
-  answer is sent back with the reason and asked once more. Each call is
+  answer is sent back with the reason, up to four total attempts. Each call is
   recorded in llm.edn as agent \"judge\", and its usage counts towards the
   run's cost."
   [run world job work things]
@@ -73,7 +78,7 @@
   :members}) left its members, from `events` (the conversation's, at least):
   {:verdict {:summary :inner}}, with :relations when the scenario has them
   and the judge added any, or {:failure reason}. A bad answer is sent
-  back once. Each call is recorded in llm.edn as agent
+  back with its reason, up to four total attempts. Each call is recorded in llm.edn as agent
   \"conversation-judge\", and its usage counts towards the run's cost."
   [run world conv events]
   (let [config (get-in run [:scenario :inner])

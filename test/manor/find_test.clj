@@ -17,6 +17,8 @@
             [manor.world :as w]))
 
 (use-fixtures :once support/with-runs)
+;; Retry assertions use a fixed budget, not the production default.
+(use-fixtures :each (partial support/with-structured-attempts 4))
 
 (def supplies
   [{:id "shelves" :name "Pantry shelves" :desc "Stout shelves." :place "bedroom"
@@ -309,7 +311,10 @@
             st (step st)
             again (step (assoc st :replies []))]
         (is (= "you don't find it" (:content (last (:replies st)))))
-        (is (= 2 @attempts))
+        (is (= 4 @attempts))
+        (is (= 4 (count (store/read-llm (:dir run)))))
+        (is (str/starts-with? (get-in (last (e/events run)) [:data :reason])
+                             "no valid answer after 4 attempts:"))
         (is (= 1 (:queries st)))
         (is (= 1 (get-in st [:uses :find])))
         (is (str/includes? (:content (last (:replies again))) "only once per turn"))
@@ -329,6 +334,42 @@
                         (update-in [:agents "ada"] dissoc :location))]
           (is (empty? (a/available [(action run)] world "ada")))
           (is (= "you can't find things while travelling" (a/check (action run) world "ada" {:what "mustard"})))))
+      (finally (e/stop-run run)))))
+
+(deftest finder-can-correct-several-errors-and-omit-taken-on-the-fourth-attempt
+  (let [attempts (atom [])
+        rolls (atom 0)
+        run (start {:llm-impl
+                    (llm/mock
+                     (fn [{:keys [step]}]
+                       (swap! attempts conj step)
+                       {:tool :finder
+                        :args (cond-> (assoc answer :likelihood "certain")
+                                (< step 3)
+                                (assoc :taken {:thing (case step 0 "Hall" 1 "cupboard" 2 "shelves")
+                                               :aspect "hat and stick" :value ""}))}))})]
+    (try
+      (let [before (e/world run)]
+        (is (= "You find Mustard (mustard); you now carry it."
+               (with-redefs [rng/roll (fn [& _] (swap! rolls inc) 0)]
+                 (:reply (query! run "mustard")))))
+        (is (= [0 1 2 3] @attempts))
+        (is (= 1 @rolls) "only a checked answer rolls")
+        (let [calls (store/read-llm (:dir run))
+              errors (map #(get-in % [:replies 0 :content]) (take 3 calls))]
+          (is (= [2 4 6 8] (mapv #(count (:messages %)) calls))
+              "each correction keeps all preceding answers and feedback")
+          (is (str/includes? (second errors) "it has none"))
+          (is (str/includes? (nth errors 2) "stock"))
+          (doseq [error (rest errors)]
+            (is (str/includes? error "Omitting taken is valid")))
+          (is (= "ok" (get-in (last calls) [:replies 0 :content]))))
+        (is (= (:space before) (:space (e/world run))))
+        (is (= (:aspects (items/item before "shelves"))
+               (:aspects (items/item (e/world run) "shelves"))))
+        (is (= 1 (count (filter #(= :item/found (:type %)) (e/events run)))))
+        (is (not-any? #(= :adjudication/failed (:type %)) (e/events run)))
+        (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
       (finally (e/stop-run run)))))
 
 (deftest finder-correction-and-no-store-mock

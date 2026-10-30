@@ -3,6 +3,7 @@
   JVMs because test doubles use with-redefs. Artifacts are kept for inspection."
   (:require [clojure.java.io :as io]
             [manor.engine :as e]
+            [manor.engine.judges :as judges]
             [manor.io.store :as store])
   (:import (java.util.concurrent ExecutorService TimeUnit)))
 
@@ -13,6 +14,13 @@
     (when-not (.awaitTermination exec 10 TimeUnit/SECONDS)
       (throw (ex-info "Test run did not stop within 10 seconds"
                       {:run-id (:id run) :dir (str (:dir run))})))))
+
+(defn with-structured-attempts
+  "A fixture with an explicit checked-answer attempt budget, independent of
+  the production default. JVM-local redefinition also reaches engine threads."
+  [n f]
+  (with-redefs [judges/max-attempts n]
+    (f)))
 
 (defn with-runs
   "A :once fixture: isolate directly invoked tests too, wait for stop-run's

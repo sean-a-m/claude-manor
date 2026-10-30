@@ -21,6 +21,8 @@
             [manor.world :as w]))
 
 (use-fixtures :once support/with-runs)
+;; Exercise correction and exhaustion without depending on the production budget.
+(use-fixtures :each (partial support/with-structured-attempts 2))
 
 (def profile "A tiny rural English general store, 1904. Household necessities and simple tools; not a specialist dealer.")
 (def agents [{:name "Customer" :role :secretary :location "counter"}

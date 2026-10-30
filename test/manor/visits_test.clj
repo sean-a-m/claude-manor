@@ -32,6 +32,8 @@
   (:import (java.time LocalDateTime)))
 
 (use-fixtures :once support/with-runs)
+;; Retry assertions use a fixed budget, not the production default.
+(use-fixtures :each (partial support/with-structured-attempts 4))
 
 (def world-file "test/fixtures/visits.edn")
 
@@ -941,7 +943,7 @@
                                             {:by "post" :person "Mrs Bell" :date "1904-10-16" :time "10:00" :stay "x"})]
     (try
       (is (= "The enquiry failed; try again later." error))
-      (is (= 2 (count (judge-calls run))) "one correction")
+      (is (= 4 (count (judge-calls run))) "three corrections")
       (is (empty? (visits/visits (e/world run))))
       (is (= [:system] (map :visible-to (of-type run :adjudication/failed))))
       (finally (e/stop-run run)))))

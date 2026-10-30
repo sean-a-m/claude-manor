@@ -152,7 +152,7 @@ Defaults taken where nothing was decided, to confirm when the build starts:
   and only for sleepers with aspects).
 - The request lists `sleepers [{id name appearance aspects}]`, with instructions to remove the
   aspects that wouldn't last the night and leave the rest. A change to a sleeper must have the
-  value `""`; setting anything is refused and corrected once, as usual.
+  value `""`; setting anything is refused and corrected up to three times, as usual.
 - Changes come out in `:items/stewarded` (GM-only) as `{:person id :aspect k :from v :to nil}`.
   The sleeper finds them gone from their view on waking; nobody is told.
 - The default `item-steward/mock-steward` removes nothing from sleepers, so existing mock days don't

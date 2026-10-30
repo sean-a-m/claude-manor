@@ -163,7 +163,7 @@ It answers with one of:
 | `{:new {:name :sex :age :from :known-as :situation}}` | someone not in the world | name ≤ 40; sex `male`/`female`; age 1–110; `from` ≤ 80; `known-as` ≤ 120, a public description with nothing private ("a curate from Ely"); `situation` ≤ 600, second person, who they are and how they stand with the inviter |
 | `{:impossible "reason"}` | the person physically can't come (below) | reason ≤ 300 |
 
-A malformed answer gets the usual single correction, then the action fails with a neutral
+A malformed answer gets the usual up to three corrections (four total attempts), then the action fails with a neutral
 reply and no events. The judge decides who is meant, never whether they'll come: willingness
 is not its business.
 
@@ -805,7 +805,7 @@ the checked answer, the mock), `visits.clj` (`invitee!`, `described-invite-event
 - **Where someone lives** is their `:lives`, the house for its household, a candidate's home, or
   their bedroom's name, whichever comes first.
 - **A new name already listed** is refused to the judge ("answer existing with that id if they're
-  meant"), using the one correction; a retired namesake doesn't count, as spawning gives a fresh
+  meant"), using the correction loop; a retired namesake doesn't count, as spawning gives a fresh
   id. The `new` map's keys are normalised like top-level ones (`known_as`), as models write them.
 - **Order of checks.** Before the query: the channel (except in person), the lead time without the
   journey from away, and the bedroom. After the judge: `existing` gets all of `invite`'s checks;

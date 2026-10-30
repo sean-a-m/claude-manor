@@ -326,7 +326,7 @@ Each phase ends with `clojure -M:test` passing and a commit.
   - Quoting:
     - a delivery line gets a quote with lead hours;
     - a deliver line at a shop with no profile is rejected before any model call;
-    - an available delivery line without `lead-hours` gets one correction, then fails neutrally;
+    - an available delivery line without `lead-hours` gets up to three corrections, then fails neutrally;
     - lead hours out of bounds are refused.
   - Buying and orders:
     - one `buy` of a counter quote and a delivery quote: a parcel carried, an order kept, funds

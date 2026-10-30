@@ -14,6 +14,8 @@
             [manor.world :as w]))
 
 (use-fixtures :once support/with-runs)
+;; Retry assertions use a fixed budget, not the production default.
+(use-fixtures :each (partial support/with-structured-attempts 4))
 
 (defn- start [& [opts]]
   (e/start-run :burglary (merge {:llm :mock :offline? true :test? true
@@ -169,12 +171,12 @@
                                                                  {:person "crane" :faculty :sight :level :impeded}]}}))})]
     (try
       (at-steward-time! run)
-      ;; Only Crane is eligible, so one call and its single correction attempt.
+      ;; Only Crane is eligible, so one call and its three correction attempts.
       (let [world (e/world run)
             hindered (get (steward/steward-hindered world) "butlers-pantry")]
         (with-redefs [steward/steward-hindered (constantly {"butlers-pantry" hindered})]
           (work/run-steward! run))
-        (is (= 2 @attempts))
+        (is (= 4 @attempts))
         (is (= (:physical (w/agent world "crane")) (:physical (w/agent (e/world run) "crane"))))
         (is (= 1 (count (filter #(= :items/steward-failed (:type %)) (e/events run)))))
         (is (= (e/world run) (w/replay (store/read-events (:dir run))))))

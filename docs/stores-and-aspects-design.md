@@ -783,9 +783,21 @@ everything into a container; listing such cases in the instructions would never 
 12. **Summary and outcome:** the scene judge gets one short instruction to ensure the summary
     roughly matches `changes`, `gone` and `made` in its structured outcome. This is prompt
     guidance only, not a code check on prose.
+13. **Finder corrections:** after the failed hat-and-stick search in
+    `runs/claudeworth-medium-20261030-172326`, a nonexistent `taken` aspect now gets the
+    available keys (or "it has none") and explicit guidance that omitting `taken` is valid
+    when no recorded aspect is being extracted. The shared structured-call runner allows
+    four total attempts rather than two, keeping all previous answers and feedback; success,
+    exceptions and existing budget checks still stop it early. This applies to the finder,
+    scene/conversation judges, steward and other engine adjudicators, not the separate
+    cast-polish loop. Regression tests are updated for exhaustion at four and recovery on
+    the fourth answer after successive host/aspect errors. Retry-sensitive tests inject an
+    explicit attempt budget with `test-support/with-structured-attempts`, so future changes
+    to the production default do not change their expected call counts.
 
-**Follow-up verification:** `clojure -M:test` passes: 522 tests, 10,031 assertions, no failures
-or errors. Mock/offline only; no new real-model runs. The suite also checks actionable hiring
+**Follow-up verification:** `clojure -M:test` passes: 523 tests, 10,047 assertions, no failures
+or errors. Mock/offline only; no new real-model runs. Finder correction and exhaustion tests
+use explicit attempt budgets. The suite also checks actionable hiring
 answers when apart, an offer accepted within a conversation, ordinary home-room assignments
 for staff and guests, sleeping there, off-home refusals, starting assignments, views and replay.
 

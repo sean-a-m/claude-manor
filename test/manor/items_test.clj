@@ -27,6 +27,8 @@
 
 ;; All runs here use {:test? true}, so they live under test-runs/.
 (use-fixtures :once support/with-runs)
+;; Retry assertions use a fixed budget, not the production default.
+(use-fixtures :each (partial support/with-structured-attempts 4))
 
 (def hamlet-file "test/fixtures/hamlet.edn")
 
@@ -687,15 +689,15 @@
         (is (= (:replies first-call) [(last (:messages second-call))]))
         (is (empty? (of-type run :item/judge-failed)))
         (e/stop-run run)))
-    (testing "a second bad answer: no changes, a neutral summary, and a :system event with the reason"
+    (testing "four bad answers: no changes, a neutral summary, and a :system event with the reason"
       (let [[run judged] (run-with (constantly {:tool :judge :args {:changes [{:thing "clock" :aspect "state"}] :summary "x"}}))
             [done] (of-type run :item/work-done)
             [failed] (of-type run :item/judge-failed)]
-        (is (= 2 (count @judged) (count (judge-calls run))))
+        (is (= 4 (count @judged) (count (judge-calls run))))
         (is (= clock-as-found (aspects run "clock")))
         (is (= {:summary "Ben finishes winding the clock." :changes []} (select-keys (:data done) [:summary :changes])))
         (is (= :system (:visible-to failed)))
-        (is (str/starts-with? (get-in failed [:data :reason]) "a second bad answer: invalid arguments"))
+        (is (str/starts-with? (get-in failed [:data :reason]) "no valid answer after 4 attempts: invalid arguments"))
         (is (= "Ben finishes winding the clock." (n/describe done (n/names (e/world run)))))
         (is (empty? (filter #(= :run/pause-requested (:type %)) (e/events run))) "the run isn't paused")
         (e/stop-run run)))

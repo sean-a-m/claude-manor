@@ -20,6 +20,8 @@
             [manor.world :as w]))
 
 (use-fixtures :once support/with-runs)
+;; Retry assertions use a fixed budget, not the production default.
+(use-fixtures :each (partial support/with-structured-attempts 4))
 
 (defn- start [& [opts]]
   (e/start-run :burglary (merge {:llm :mock :offline? true :test? true
@@ -254,14 +256,14 @@
             after (turn/handle-call run "slade" {"act-on" act} opts st call)]
         (is (:done? st))
         (is (= 0 (:queries st)))
-        (is (= 2 @calls) "one correction attempt, no repeated acts")
+        (is (= 4 @calls) "three correction attempts, no repeated acts")
         (is (= "ignored: your turn is already over" (:content (last (:replies after)))))
         (is (= 1 (count (events-of run :person/acted-on))))
         (is (= 1 (count (events-of run :item/judge-failed))))
         (is (w/active? (e/world run) "will")))
       (doseq [id ["albert" "mrs-bell"]]
         (is (:rejected (resolve/resolve! run id act {:on ["ivy"] :doing "helping her up"}))))
-      (is (= 2 @calls) "dead and unconscious actors cause no judge calls or effects")
+      (is (= 4 @calls) "dead and unconscious actors cause no judge calls or effects")
       (is (replays? run))
       (finally (stop! run)))))
 

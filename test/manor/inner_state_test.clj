@@ -31,6 +31,8 @@
             [manor.world :as w]))
 
 (use-fixtures :once support/with-runs)
+;; Retry assertions use a fixed budget, not the production default.
+(use-fixtures :each (partial support/with-structured-attempts 4))
 
 (defn- start [& [opts]]
   (e/start-run :dressing (merge {:llm :mock :test? true :run-id (str (gensym "inner-"))} opts)))
@@ -429,9 +431,9 @@
         run (rounds! (start {:llm-impl (scripted (talks ["dawson"]) :speak (answers "Yes, my lady.") :react react)}) 1)
         [failed] (of-type run :conversation/judge-failed)]
     (try
-      (is (= 2 (count (judge-calls run))))
+      (is (= 4 (count (judge-calls run))))
       (is (= :system (:visible-to failed)))
-      (is (str/starts-with? (get-in failed [:data :reason]) "a second bad answer: you may change the inner state only of"))
+      (is (str/starts-with? (get-in failed [:data :reason]) "no valid answer after 4 attempts: you may change the inner state only of"))
       (is (empty? (of-type run :conversation/judged)))
       (is (empty? (of-type run :person/inner-changed)))
       (is (= {:mood "impatient for dinner"} (inner-of run "lady-ashby")))

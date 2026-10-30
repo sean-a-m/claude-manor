@@ -108,7 +108,9 @@
   (if-let [host (first (filter #(= thing (:id %)) hosts))]
     (when-not (contains? (:aspects host) (a/kebab-key aspect))
       (str "taken must name an aspect " thing " has: "
-           (if (seq (:aspects host)) (str/join ", " (map name (keys (:aspects host)))) "it has none") "; not " aspect))
+           (if (seq (:aspects host)) (str/join ", " (sort (map name (keys (:aspects host))))) "it has none") "; not " aspect
+           ". Use taken only to extract something already recorded in an existing aspect. "
+           "Omitting taken is valid: if no recorded aspect is being extracted, omit taken and give likelihood and found as usual"))
     (str "taken must name the place or a thing or store here: " (str/join ", " (map :id hosts)) "; not " thing)))
 
 (defn- finder-check [world actor place candidates response]

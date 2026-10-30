@@ -317,7 +317,7 @@ scenario:
 These are narrow engine-run LLM calls, not the GM and not real-world bridges. `events` is the
 run's event log, for an adjudicator that reads history (the finder); most ignore it. Build only the
 context needed for that judgement; never dump the world or unrelated private state. `:ctx` is local mock context, not a model message.
-The engine adds `:role :adjudicator`, `:task` and `:step` (attempt 0 or 1) to that context.
+The engine adds `:role :adjudicator`, `:task` and `:step` (attempt 0–3) to that context.
 A request may return its own `:check` closure (overriding the adapter's checker) to check
 against its narrow scene. It may instead return `{:result checked-data}` for a deterministic
 answer: no model call is made, and that result goes straight to `:on-result`. With `:items`
@@ -325,7 +325,9 @@ enabled the engine registers `item-find/adjudicators` automatically; scenario ad
 entries with the same key.
 
 The engine uses `:judge-model` (falling back to `:model`), with the run's reasoning, token and
-tool-choice options. It asks once more after an invalid answer, using the checker's replies.
+tool-choice options. A checked call allows four total attempts (`engine.judges/max-attempts`):
+the initial answer plus up to three corrections, each retaining the prior answers and the checker's
+replies. Success stops immediately; exceptions and the existing budget checks can stop it sooner.
 `manor.mechanics.adjudication/answer` implements first-tool-call selection and replies; domain code
 supplies the tool name and raw-argument checker. The work judge uses the same runner/parser,
 but keeps its own prompts and domain checks (round-start work and immediate `act-on`), as does the
@@ -484,7 +486,7 @@ view), for a judge that reads what they mean (the invitation judge).
 They throw on failure, check the run budget before each component, and record all calls and
 usage. Intermediate bridge events are **operator-only**, not visible to the calling character.
 Composed adjudicators use the run's `:model` (candidate generation must not inherit a work
-judge override). One composed action uses one query slot; each model may have one correction.
+judge override). One composed action uses one query slot; each adjudicator allows four total attempts.
 
 The function must not mutate world state or do I/O directly. Its result goes to the usual
 `:on-result`, and its `:reply` should project only what the caller may know. An exception
@@ -1204,8 +1206,8 @@ and its replies by fate kept things that were only aspects from ever being found
    the prompt encourages all their ids rather than a new combined item; combining isn't
    categorically forbidden. A different object that merely shares a name is not a match.
    This list is for identification only and must never be mentioned. Only listed ids are
-   accepted; an unknown or capped-out id anywhere in the list is refused and corrected once
-   as usual. Duplicate ids are reported once, in answer order. For each item here (lying,
+   accepted; an unknown or capped-out id anywhere in the list is refused and sent back for
+   correction, within the usual four total attempts. Duplicate ids are reported once, in answer order. For each item here (lying,
    in a container here, or carried by someone here), reply on its own line where it is,
    without a new event or moving it. If any are here, ids elsewhere add nothing to the reply
    or events. If all are elsewhere, give the ordinary "You don't find it." and emit an ordinary
@@ -1228,7 +1230,9 @@ and its replies by fate kept things that were only aspects from ever being found
    When the thing was only an aspect here, the oracle also gives `taken: {thing, aspect,
    value}`: the place, a thing lying here or a store in scope, one of its aspects, and that
    aspect's new value once the thing is taken ("" if nothing of it remains there). Code checks
-   that the thing is one of those and has the aspect.
+   that the thing is one of those and has the aspect. A nonexistent aspect is refused with
+   the available aspect keys (or an explicit statement that there are none), plus guidance
+   that omitting `taken` is valid when no recorded aspect is being extracted.
    Found names/descriptions/aspects
    have the normal item bounds; `consumable` is required, `portable` defaults true.
 2. On the live world the engine rolls `rng/roll world [:find next-event-seq] 100` (0–99)
@@ -1249,7 +1253,7 @@ and outcome only. Success records the complete item and source; failure records 
 chosen aspect path and resulting aspects. Pure reducers apply them without calling or
 rolling; replay equals live state. Replies give the found id and whether carried/lying here,
 or "You don't find it." Narration is short: "Daisy looks for mustard: there's none in the
-pantry shelves." A bad answer is checked and corrected once; repeated failure emits only
+pantry shelves." Bad answers receive up to three corrections (four total attempts); exhaustion emits only
 system-visible `:adjudication/failed` (`:task :items/find`), plus usage, and replies neutrally
 "you don't find it" without changing items/aspects. Calls log as
 `adjudicator/items/find`, counted against cost. The default mock is certain, a plain item
@@ -1487,8 +1491,8 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   A `taken` must name a judged thing that stays and an aspect it has.
   With `:inner`, the `inner` list is checked too (see Inner state). Without it, an `inner` list
   is dropped like any unknown key.
-  A bad answer is sent back with the reason and asked once more. A second bad answer, or an
-  exception, gives `:item/work-done` with no changes and a
+  A bad answer is sent back with the reason, up to four total attempts. Exhausting those
+  attempts, or an exception, gives `:item/work-done` with no changes and a
   neutral summary ("Hale finishes dusting the china cabinet."), plus an `:item/judge-failed`
   event (`:visible-to :system`) with the reason. The run isn't paused.
 - **Mock runs:** a call with role `:judge` goes to the scenario's `:mock-judge` if it has one,
@@ -1592,7 +1596,7 @@ Only candidates can change; never room or store aspects. A sleeper's aspects may
 removed: the steward is told to remove those that wouldn't last the night (hair let down,
 evening dress taken off) and leave the rest (a grease-stained apron stays stained), which is its
 judgement; a change that sets one is refused ("a sleeper's aspects can only be removed, with the
-value \"\"; ...") and corrected once, as usual. Container checks use all world
+value \"\"; ...") and corrected up to three times, as usual. Container checks use all world
 contents as for work. Unknown fields are dropped; they cannot create anything.
 
 With inner state the tool also has `inner: [{person, key, value}]`, and the instructions add

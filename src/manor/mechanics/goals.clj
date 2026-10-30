@@ -4,7 +4,9 @@
   `limit` short texts, with :goals-reviewed the round they last set them.
   Only they see them, in their own prompt. `set-goals` (free) replaces the
   whole list whenever they like, and once every `:goals-every` rounds (an
-  engine option; 0 turns it off) their turn asks them to review it."
+  engine option; 0 turns it off) their turn asks them to review it. A world
+  file or spawn spec may give starting :goals (`Goals`), which count as
+  reviewed in the round they were spawned."
   (:require [manor.narrate :as narrate]
             [manor.prompts :as prompts]
             [manor.world :as w]))
@@ -17,6 +19,10 @@
   "The length `set-goals` tells models to keep each goal to. Its schema
   allows up to 300 characters, as slack, and advises longer goals down to this."
   200)
+
+(def Goals
+  "A list of goals, as a world file or spawn spec gives it."
+  [:vector {:max limit} [:string {:min 1 :max 300}]])
 
 (defn goals
   "`agent-id`'s current goals, a vector (empty if none)."

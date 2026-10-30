@@ -13,6 +13,7 @@
               [\"cliff\" \"beach\" 1 :one-way]]
      :agents [{:name \"Hale\" :role :secretary :location \"study\"
                :inner {:mind \"the unanswered letter\"}      ; optional, see manor.mechanics.inner
+               :goals [\"Get the lease signed by Lady Day\"]  ; optional, see manor.mechanics.goals
                :relations {\"albert\" [{:feeling \"wary\"        ; optional, by character id,
                                         :because \"Albert read your letters\"}]}  ;   see manor.mechanics.relations
                :physical {:grasp {:level :impeded}}}       ; optional, see manor.mechanics.physical,
@@ -42,6 +43,7 @@
             [manor.clock :as clock]
             [manor.mechanics.builtins :as b]
             [manor.mechanics.calendar :as calendar]
+            [manor.mechanics.goals :as goals]
             [manor.mechanics.inner :as inner]
             [manor.mechanics.items :as items]
             [manor.mechanics.physical :as physical]
@@ -63,7 +65,9 @@
   and nothing rewrites it. An optional :appearance is public at a glance,
   and optional :aspects (see manor.mechanics.items) say how they differ from it at
   the start. An optional :inner (see manor.mechanics.inner) is how they are
-  inside at the start, private like :situation, and optional :relations
+  inside at the start, private like :situation, optional :goals (see
+  manor.mechanics.goals) the aims they start with, private too and theirs to
+  change, and optional :relations
   (see manor.mechanics.relations) how they feel toward others of the cast
   (by character id), oldest first. Optional :physical and
   :impediments, and :status :dead with an optional :died {:cause}, are their
@@ -84,6 +88,7 @@
    [:appearance {:optional true} [:string {:min 1 :max 600}]]
    [:aspects {:optional true} :any]          ; checked by `problems`, for a readable message
    [:inner {:optional true} :any]            ; checked by `problems`, and its open keys when a run starts
+   [:goals {:optional true} goals/Goals]
    [:relations {:optional true} :any]        ; checked by `problems`, and whom they name when a run starts
    [:physical {:optional true} :any]         ; checked by `problems`, for a readable message
    [:impediments {:optional true} :any]      ; checked by `problems`, for a readable message
@@ -274,7 +279,7 @@
              (agent-name (:owner it)) (update :owner agent-name))))))
 
 (defn- export-agents
-  "`start`'s agents, each with the live :aspects, :inner, :impediments,
+  "`start`'s agents, each with the live :aspects, :inner, :goals, :impediments,
   :relations (feelings and reasons only, see relations/exported) and
   :physical (levels and causes) of the agent of that name, or none if they
   have none now, and dead if they've died. People who came during the run
@@ -286,7 +291,7 @@
                   physical (some-> (:physical live) (update-vals #(select-keys % [:level :cause])))
                   related (not-empty (relations/exported (select-keys (:relations live) cast)))]
               (cond-> (reduce (fn [a k] (if-let [v (get live k)] (assoc a k v) (dissoc a k)))
-                              (dissoc a :physical :relations) [:aspects :inner :impediments])
+                              (dissoc a :physical :relations) [:aspects :inner :goals :impediments])
                 physical (assoc :physical physical)
                 related (assoc :relations related)
                 (= :dead (:status live)) (assoc :status :dead :died (select-keys (:died live) [:cause])))))
@@ -295,7 +300,7 @@
 (defn export
   "The world file `start` with its :locations and :routes replaced by the
   live world's map, its :items by the live items if the world has items,
-  and its agents' :aspects, :inner, :relations and physical state by theirs now, without :visits.
+  and its agents' :aspects, :inner, :goals, :relations and physical state by theirs now, without :visits.
   Locations, routes and items keep their original order; new ones follow.
   Closed routes are left out."
   [world start]

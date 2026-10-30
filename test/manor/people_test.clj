@@ -247,6 +247,31 @@
     ;; A model cannot overwrite the rolled traits through extra output keys.
     (is (= good (check (assoc good :temperament [] :faculties [] :money 100))))))
 
+(deftest goals-and-aspects-are-optional-and-checked
+  (let [check #(people/check-polish record (polish-response %))
+        verdict (comp :verdict check)
+        error (comp :error check)]
+    (testing "given, they're kept, trimmed, with aspects as a person's map"
+      (is (= (assoc good :goals ["Save enough to buy a cob."] :aspects {:boots "caked with mud"})
+             (verdict (assoc good :goals [" Save enough to buy a cob. "]
+                                  :aspects [{:key "boots" :value " caked with mud "}])))))
+    (testing "empty lists are the same as none"
+      (is (= good (verdict (assoc good :goals [] :aspects [])))))
+    (testing "only structure is checked"
+      (is (error (assoc good :goals ["  "])))
+      (is (error (assoc good :goals ["a" "b" "c" "d"])))
+      (is (error (assoc good :goals [(apply str (repeat 301 "x"))])))
+      (is (error (assoc good :aspects [{:key "Muddy Boots" :value "caked"}])))
+      (is (error (assoc good :aspects [{:key "boots" :value "a"} {:key "hands" :value "b"} {:key "face" :value "c"}]))))
+    (testing "the schema advises goal and aspect lengths"
+      (let [props (get-in (people/polish-request {:record record}) [:tools 0 :function :parameters :properties])]
+        (is (= 200 (get-in props [:goals :items :maxLength])))
+        (is (= 80 (get-in props [:aspects :items :properties :value :maxLength])))))
+    (testing "earlier goals reach the writer only when there are some"
+      (let [sent #(json/read-value (get-in (people/polish-request %) [:messages 1 :content]) json/keyword-keys-object-mapper)]
+        (is (= ["Mend the gate."] (:goals (sent {:record record :goals ["Mend the gate."]}))))
+        (is (not (contains? (sent {:record record :goals []}) :goals)))))))
+
 (deftest character-writing-budget-covers-corrections
   (let [requests (atom [])
         model (reify llm/LLM
@@ -450,6 +475,19 @@
         (is (= (dissoc template :agents) (dissoc after :agents)))
         (roll {:seed 7})
         (is (= expected (input (second @requests)))))
+      (testing "earlier goals go to the writer; its goals and aspects replace the old, or remove them"
+        (spit file (pr-str (update template :agents #(mapv (fn [a] (assoc a :goals ["Old aim."] :aspects {:hands "inky"})) %))))
+        (let [answer (assoc good :goals ["A new aim."] :aspects [{:key "boots" :value "muddy"}])
+              model (reify llm/LLM
+                      (complete [_ request] (swap! requests conj request) (polish-response answer)))]
+          (people/roll-cast! (str file) {:llm model :dir dir :only ["Ada"] :seed 7})
+          (is (= ["Old aim."] (:goals (input (last @requests)))))
+          (let [ada (first (:agents (edn/read-string (slurp file))))]
+            (is (= ["A new aim."] (:goals ada)))
+            (is (= {:boots "muddy"} (:aspects ada)))))
+        (roll {:seed 7})
+        (let [ada (first (:agents (edn/read-string (slurp file))))]
+          (is (not-any? #(contains? ada %) [:goals :aspects]))))
       (testing "absent sketch does not make the existing persona a fallback input"
         (spit file (pr-str (update template :agents #(mapv (fn [a] (dissoc a :sketch)) %))))
         (roll {:seed 7})

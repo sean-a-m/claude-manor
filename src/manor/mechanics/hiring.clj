@@ -156,7 +156,7 @@
 (defn write-person
   "The second half: a public appearance and a private polish for person `p`
   from `person-record`, adding :persona :manner :appearance and the record's
-  circumstances. `notes`, if given, go to the polish (who they are, for a
+  circumstances, and the polish's :goals and :aspects if it gave any. `notes`, if given, go to the polish (who they are, for a
   guest written to order)."
   ([services p] (write-person services p nil))
   ([{:keys [adjudicate]} {:keys [record] :as p} notes]
@@ -164,20 +164,22 @@
          polish (adjudicate :people/polish (cond-> {:record record :appearance (:appearance public)}
                                              notes (assoc :notes notes)))]
      (merge (assoc-in p [:record :circumstances] (:circumstances polish))
-            (select-keys polish [:persona :manner]) public))))
+            (select-keys polish [:persona :manner :goals :aspects]) public))))
 
 (defn new-person
   "A fresh person for `position`, made through the composed-query services:
-  {:name :record :lives | :candidate-home :persona :manner :appearance}. Candidates and couriers
+  {:name :record :lives | :candidate-home :persona :manner :appearance}, with
+  any :goals and :aspects. Candidates and couriers
   are both made here, so a change to how people are written reaches both."
   [world services opts]
   (write-person services (person-record world services opts)))
 
 (defn spawn-spec
-  "What an agent spawned from person `p` is made of: their hidden traits and
-  the prose written for them. Merge in :role, :location and :situation."
+  "What an agent spawned from person `p` is made of: their hidden traits, the
+  prose written for them, and any goals and aspects. Merge in :role,
+  :location and :situation."
   [p]
-  (merge (people/traits (:record p)) (select-keys p [:name :persona :manner :appearance])))
+  (merge (people/traits (:record p)) (select-keys p [:name :persona :manner :appearance :goals :aspects])))
 
 (defn idle-rounds
   "Rounds since `id` arrived (in round `arrived`) or last conversed, whichever is later."

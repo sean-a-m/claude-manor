@@ -26,10 +26,12 @@
   :situation is kept: only their own prompt shows it. The public
   :appearance is kept too, and :aspects if there are any (manor.mechanics.items).
   A starting :inner (manor.mechanics.inner) is private like :situation, and
-  its entries count as set in this round. So do a starting :physical's, and
+  its entries count as set in this round. Starting :goals
+  (manor.mechanics.goals) are private too, and count as reviewed in this
+  round. A starting :physical's entries count as set in it as well, and
   :impediments are kept; with :status :dead (and optionally :died {:cause})
   they start dead (manor.mechanics.physical)."
-  [scenario world {:keys [role name persona model controller location situation appearance aspects inner
+  [scenario world {:keys [role name persona model controller location situation appearance aspects inner goals
                           physical impediments status died] :as spec}]
   (let [id (unique-id world (slug name))
         location (or location (get-in scenario [:roles role :start-location]))
@@ -42,6 +44,7 @@
                 appearance (assoc :appearance appearance)
                 (seq aspects) (assoc :aspects aspects)
                 (seq inner) (assoc :inner inner :inner-at (zipmap (keys inner) (repeat (:round world))))
+                (seq goals) (assoc :goals (vec goals) :goals-reviewed (:round world))
                 (seq physical) (assoc :physical (physical/starting-entries world physical))
                 (seq impediments) (assoc :impediments impediments)
                 (= :dead status) (assoc :status :dead :died (assoc (or died {}) :round (:round world))))

@@ -178,8 +178,9 @@ option keys pass through, e.g. the village reads `:start-date`.
   with a `-2` suffix on collisions). `:location` defaults to the role's `:start-location`.
   A spec may also carry a person's hidden traits, `:sex :manner :temperament :faculties
   :circumstances`, a public `:appearance` (see "People and traits" under World files), starting
-  `:aspects` (see People's aspects, under Items; checked, so a bad one stops the run) and a
-  `:situation` (see "Positions, posts and situations"). Other keys stay off the agent, but the scenario's `:on-spawn` sees
+  `:aspects` (see People's aspects, under Items; checked, so a bad one stops the run), starting
+  `:goals` (see `set-goals` under Built-in actions: private, theirs to change, counted as reviewed
+  in the round they're spawned) and a `:situation` (see "Positions, posts and situations"). Other keys stay off the agent, but the scenario's `:on-spawn` sees
   them all (Claudeworth's reads `:bedroom`, `:routine` and `:household`).
 
 - `:clock`: optional game time, `{:start "1904-10-15T08:00" :minutes-per-round 30}` (see Time).
@@ -542,7 +543,7 @@ it isn't an event, so anything that must be remembered or replayed belongs in `:
 | `pass` | all | final | does nothing |
 | `carry-on` | all | final | only offered to an interrupted agent: keep the occupation and ignore the interruption |
 | `note` | all | free | private note, shown to the agent every round (last 15); told 400 characters, accepts 500 |
-| `set-goals` | all | free | replaces the agent's private `:goals` (at most 10, each told 200 characters, accepts 300; empty clears), shown only to them under `## Your goals` with when they last reviewed it; once per turn. Every `:goals-every` rounds (default 16; 0 = never) and until they first set some, their turn closing asks them to review the list (`manor.mechanics.goals`). Drop it with `:exclude-actions [:set-goals]` |
+| `set-goals` | all | free | replaces the agent's private `:goals` (at most 10, each told 200 characters, accepts 300; empty clears), shown only to them under `## Your goals` with when they last reviewed it; once per turn. Every `:goals-every` rounds (default 16; 0 = never) and until they first set some, their turn closing asks them to review the list (`manor.mechanics.goals`). A world file or spawn spec may give starting `:goals` (at most 10, each at most 300 characters), counted as reviewed in the round they're spawned; the exported `map.edn` writes the live ones back. Put a character's standing aims there rather than in their situation, persona or circumstances. Drop it with `:exclude-actions [:set-goals]` |
 | `say` | all | free | heard by everyone in the same place (everyone, without locations); told 1000 characters, accepts 1500; once per turn, shared with `whisper` (`:limit-key :speech`) |
 | `whisper` | all | free | private to one agent; requires being together if both have locations; same limits, and shares `say`'s once per turn |
 | `converse` | all | converse (free) | draws up to 3 people here into a conversation within the turn (see Conversations); once per turn and per round; not offered in a simultaneous group |
@@ -1054,8 +1055,9 @@ things in it as habits ("usually in a print frock and apron").
 
 - **Where they come from:** a world-file agent or an `:init` agent spec may give `:aspects`
   (`worldfile/problems` and the engine check them), and the exported `map.edn` writes the live
-  ones back to the file's agents. People made during a run (hired candidates, couriers, the GM's
-  spawns) start with none, and routines don't change them. Only work changes them (see Work and
+  ones back to the file's agents. People made during a run start with none, unless the people
+  writer gave them some (hired candidates, couriers and guests from elsewhere, see People and
+  traits), and routines don't change them. Only work changes them (see Work and
   the judge).
 - **Who sees them:** everyone present, every turn: `:aspects` beside `:appearance` on each of
   `:location :people-here` and on `look`'s people, and the person's own under `:you :aspects`;
@@ -1848,6 +1850,7 @@ in `:init`:
  :agents [{:name "Ada" :role :resident :location "hall"
            :aspects {:hands "inky"}                 ; optional (see People's aspects)
            :inner {:mind "the unanswered letter"}   ; optional (see Inner state)
+           :goals ["Get the lease signed by Lady Day."]   ; optional: starting goals (see set-goals)
            :relations {"cal" [{:feeling "wary" :because "Cal read your letters"}]}  ; optional (see Relations)
            :away? true                            ; optional: away from the start (below)
            :physical {:grasp {:level :impeded :cause "a sprained wrist"}}}  ; optional (see Physical status),
@@ -1860,7 +1863,7 @@ in `:init`:
 
 - `load-world` takes a file path or a classpath resource name. It checks the file and throws a
   list of readable problems (unknown locations, duplicate ids, bad routes, bad clock, bad items,
-  bad agent aspects or inner state). The file must hold exactly one form, the world map: a
+  bad agent aspects, inner state or goals). The file must hold exactly one form, the world map: a
   second form after it is refused rather than ignored, because `edn/read-string` would otherwise
   silently drop whole sections (a missing `]` once left `:items` and `:agents` out of a file
   that appeared to load).
@@ -2019,11 +2022,15 @@ data, so there's one source and no call.
   is unchanged. The candidate's home is generated once, retained in their base/pool record,
   and passed to the private writer for consistency. It is background, not a new map location.
 - The **character writer**, still called the **polish** (`manor.mechanics.people/polish!`), returns
-  `{circumstances persona manner appearance}` in one checked model call. It receives only
-  setting, position, basic identity/readings and optional authored notes; legacy descriptors,
-  circumstances and prose are stripped from its record and mock context.
+  `{circumstances persona manner appearance}` in one checked model call, and optionally `goals`
+  (at most 3, the aims the person starts with) and `aspects` (at most 2, how they look just now,
+  as `[{key value}]`). It receives only setting, position, basic identity/readings, optional
+  authored notes and optional earlier `goals`; legacy descriptors, circumstances and prose are
+  stripped from its record and mock context. Its instructions put each fact in one field: aims
+  in goals, passing looks in aspects, lasting character in persona, fixed features in appearance.
   Circumstances are **one or two external personal facts**, inspired by the whole record
-  including role, not dispositions or enduring habits (which belong in persona/manner).
+  including role, not dispositions or enduring habits (which belong in persona/manner), nor aims
+  (which belong in goals).
   Ordinary lives are allowed. Off-stage relatives and past employment may be invented;
   connections to existing named characters, present jobs/authority/capabilities, money,
   items, property and actionable assets may not. Background prose grants no engine state.
@@ -2034,7 +2041,8 @@ data, so there's one source and no call.
   to replace the underlying data with stock habits.
 - Validation checks structure only: one/two nonblank circumstance strings (at most 480
   characters each), persona advised 900/accepted 1200, manner at most 400, appearance advised
-  400/accepted 600, all nonblank. One correction is allowed. No phrase/regex checks judge
+  400/accepted 600, all nonblank; goals nonblank (advised 200, accepted 300 each), aspects
+  well formed as a person's. One correction is allowed. No phrase/regex checks judge
   prose. Basic readings stay from the server; written circumstances are stored with them.
   `mock-polish` is a free deterministic fixture, not another production generator.
 - `reputation {person knower relation seed}` (relations `by-sight`, `neighbour`, `acquaintance`,
@@ -2046,12 +2054,15 @@ data, so there's one source and no call.
 - `(roll-cast! "worlds/claudeworth.edn")` at the REPL (`clj -M:dev`;
   `{:llm :mock}` for free) writes the file in place, comments/layout kept. Names, sex, roles,
   situations, bedrooms, routines and other setup stay. Persona, manner, appearance,
-  temperament, faculties and circumstances are replaced together on success; failed/unselected
+  temperament, faculties and circumstances are replaced together on success, and so are
+  `:goals` and `:aspects` (removed when the polish gives none); failed/unselected
   characters stay unchanged. Age/origin are newly generated; generated home is omitted because
   housing is authored. Old persona, manner, appearance, traits and circumstances never feed
   back; the agent's `:situation` does, as the polish's notes, so the person written fits what
   the scenario says about them (the polish's instructions say to keep the authored identity
-  and directions and take character from the new traits). Successful rolls remove legacy
+  and directions and take character from the new traits). Their `:goals` go too, as earlier
+  goals: the polish keeps those that follow from the notes or fit the new person, so check the
+  diff for an authored aim it dropped. Successful rolls remove legacy
   sketches. Since the age comes from the position's `:ages`, set that range where the
   character's age matters; narrowing it also narrows who may be hired into the position. A fresh seed is returned and saved in
   `roll-cast.edn`; an explicit `:seed` reproduces basic readings, not necessarily model prose.
@@ -2091,6 +2102,8 @@ or promised. It does not select an existing villager.
   recommender, who then chooses what to say. `:none`, `:gm` and `:guest` (a visitor, see Visits)
   aren't posts: `recommend` and `engage` refuse them ("guest is not a post"), and
   `hiring/reference` doesn't list them.
+- A written person's polish `goals` and `aspects` go with them when they're spawned
+  (`hiring/spawn-spec`: hires, couriers and guests from elsewhere).
 - Runtime appearance uses `people/appearance-request`: **only** age, sex, position and small
   sense names reach it, including mock context. It never sees private readings, circumstances or prose.
   The private polish sees the approved appearance for consistency; its own appearance output

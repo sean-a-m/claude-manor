@@ -132,7 +132,7 @@ must call.
 
 | Template | Used for | Rendered by | Parameters |
 |---|---|---|---|
-| `writers/persona.md` | The polish: circumstances, persona, manner and appearance from a person's traits | `people/instructions` | `max-circumstance`, `advised-persona`, `max-persona`, `max-manner`, `advised-appearance`, `max-appearance` |
+| `writers/persona.md` | The polish: circumstances, persona, manner and appearance from a person's traits, and optional starting goals and aspects | `people/instructions` | `max-circumstance`, `advised-persona`, `max-persona`, `max-manner`, `advised-appearance`, `max-appearance`, `max-goals`, `goal-limit`, `max-aspects`, `advised-aspect` |
 | `writers/appearance.md` | A runtime candidate's appearance | `people/appearance-request` | `advised-appearance`, `max-appearance` |
 
 ## The GM (`gm/`)

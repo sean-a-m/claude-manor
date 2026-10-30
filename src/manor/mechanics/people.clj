@@ -13,7 +13,10 @@
     :faculties {\"Acquisitiveness\" :large \"Cautiousness\" :small ...}  ; one per group
     :circumstances [\"Your mother lives in another parish and expects your letters.\"]
 
-  A public :appearance describes only what a stranger can see.
+  A public :appearance describes only what a stranger can see, and always.
+  The polish may also give the person starting :goals (manor.mechanics.goals),
+  the aims they hold, and :aspects (manor.mechanics.items), how they look
+  just now unlike their appearance.
   The agent knows all its traits; a recommender may know a sampled subset. The
   polish is one narrow checked model call, like the shop's appraiser; the server makes no
   model calls and has no key."
@@ -28,6 +31,8 @@
             [manor.io.mcp :as mcp]
             [manor.io.worldfile :as worldfile]
             [manor.mechanics.adjudication :as adjudication]
+            [manor.mechanics.goals :as goals]
+            [manor.mechanics.items :as items]
             [manor.mechanics.positions :as positions]
             [manor.prompts :as prompts]
             [manor.settings :as settings]))
@@ -99,8 +104,9 @@
       (str "### Your nature (known only to you)\n" (str/join "\n" sections)))))
 
 ;; ---------------------------------------------------------------------------
-;; The polish: a base record (plus the setting, the position and any authored
-;; notes) -> {:circumstances :persona :manner :appearance}, checked before storage.
+;; The polish: a base record (plus the setting, the position, any authored
+;; notes and earlier goals) -> {:circumstances :persona :manner :appearance},
+;; with :goals and :aspects when it gives them, checked before storage.
 
 (def max-circumstance 480)
 (def max-persona 1200)
@@ -110,36 +116,56 @@
 (def max-manner 400)
 (def advised-appearance 400)
 (def max-appearance 600)
+;; Starting goals and aspects: optional, and few.
+(def max-goals 3)
+(def max-polish-aspects 2)
 
 (def polish-schema
   [:map
    [:circumstances [:vector {:min 1 :max 2} [:string {:min 1 :max max-circumstance}]]]
    [:persona [:string {:min 1 :max max-persona :json-schema/maxLength advised-persona}]]
    [:manner [:string {:min 1 :max max-manner}]]
-   [:appearance [:string {:min 1 :max max-appearance :json-schema/maxLength advised-appearance}]]])
+   [:appearance [:string {:min 1 :max max-appearance :json-schema/maxLength advised-appearance}]]
+   [:goals {:optional true} [:vector {:max max-goals} [:string {:min 1 :max 300 :json-schema/maxLength goals/goal-limit}]]]
+   [:aspects {:optional true} [:vector {:max max-polish-aspects}
+                               [:map [:key :string] [:value [:string {:min 1 :max items/max-aspect :json-schema/maxLength items/advised-aspect}]]]]]])
 
 (defn instructions [world]
   (prompts/render world "writers/persona.md"
                   {:max-circumstance max-circumstance :advised-persona advised-persona :max-persona max-persona
-                   :max-manner max-manner :advised-appearance advised-appearance :max-appearance max-appearance}))
+                   :max-manner max-manner :advised-appearance advised-appearance :max-appearance max-appearance
+                   :max-goals max-goals :goal-limit goals/goal-limit
+                   :max-aspects max-polish-aspects :advised-aspect items/advised-aspect}))
+
+(defn- answer-aspects
+  "The polish's aspects list ([{:key :value}]) as a person's aspects map, or nil."
+  [entries]
+  (not-empty (into {} (for [{k :key v :value} entries]
+                        [(keyword (str/trim k)) (str/trim v)]))))
 
 (defn- checked-polish
   "Raw tool arguments -> character prose and one or two circumstances, trimmed,
-  or {:error}. Basic traits stay from input; circumstances come from this answer.
-  Only structure is checked (counts, lengths, nothing blank): point of view,
-  wording and what an appearance may say are left to the instructions and to
-  review, never to phrase or pattern checks (AGENTS.md)."
+  with any :goals and :aspects, or {:error}. Basic traits stay from input;
+  circumstances come from this answer. Only structure is checked (counts,
+  lengths, nothing blank, aspect keys): point of view, wording and what an
+  appearance may say are left to the instructions and to review, never to
+  phrase or pattern checks (AGENTS.md)."
   [record raw]
   (let [{:keys [args error]} (a/decode-args {:args polish-schema} raw)
-        {:keys [persona manner appearance circumstances] :as answer}
+        {:keys [persona manner appearance circumstances goals aspects] :as answer}
         (when-not error
-          (-> (select-keys args [:persona :manner :appearance])
-              (update-vals str/trim)
-              (assoc :circumstances (mapv str/trim (:circumstances args)))))]
+          (cond-> (-> (select-keys args [:persona :manner :appearance])
+                      (update-vals str/trim)
+                      (assoc :circumstances (mapv str/trim (:circumstances args))))
+            (seq (:goals args)) (assoc :goals (mapv str/trim (:goals args)))
+            (seq (:aspects args)) (assoc :aspects (answer-aspects (:aspects args)))))]
     (cond
       error {:error error}
-      (some str/blank? (concat [persona manner appearance] circumstances))
-      {:error "give non-blank circumstances, persona, manner and appearance"}
+      (some str/blank? (concat [persona manner appearance] circumstances goals))
+      {:error "give non-blank circumstances, persona, manner, appearance and goals"}
+      (and aspects (items/aspects-problem aspects))
+      {:error (str "aspects: each key a word of lower-case letters and hyphens (dress, hands), each value a short phrase, no key twice: "
+                   (items/aspects-problem aspects))}
       :else answer)))
 
 (defn check-polish
@@ -149,12 +175,14 @@
 
 (defn polish-request
   "The polish call for one person. Only the setting, the position, the base
-  record and any authored notes reach the model."
+  record, any authored notes and any earlier goals (`goals`, to keep those
+  that still fit) reach the model."
   ([input] (polish-request {} input))
-  ([world {:keys [setting position record notes]}]
+  ([world {:keys [setting position record notes goals]}]
   (let [record (base-record record)
         data (cond-> {:setting setting :position position :record record}
-               (not (str/blank? notes)) (assoc :notes notes))]
+               (not (str/blank? notes)) (assoc :notes notes)
+               (seq goals) (assoc :goals (vec goals)))]
     {:messages [{:role "system" :content (instructions world)}
                 {:role "user" :content (json/write-value-as-string data)}]
      :tools [{:type "function"
@@ -214,7 +242,7 @@
   "Make the polish call for `input` (see `polish-request`) with `llm`, with
   one correction attempt. `opts` gives :model, :max-tokens, :reasoning and
   :tool-choice, plus optional :max-cost. Returns a :polish containing circumstances,
-  persona, manner and appearance, or {:failure reason},
+  persona, manner and appearance, and any goals and aspects, or {:failure reason},
   with :calls (each call's messages, response and replies) and :cost (USD)."
   [llm opts input]
   (let [{:keys [messages tools ctx check]} (polish-request (:world opts {}) input)
@@ -267,7 +295,7 @@
 (defn- roll-one
   "Roll and polish one agent of the world file `wf`, whose positions are
   `table`. Returns what happened, with the :edits to write if it worked."
-  [conn llm opts wf table {agent-name :name :keys [role sex situation]} seed]
+  [conn llm opts wf table {agent-name :name :keys [role sex situation goals]} seed]
   (let [entry (get table role)
         position (or (some-> (:title entry) str/lower-case) (str/replace (name role) "-" " "))
         args (generate-args role entry {:dataset (dataset (settings/for-worldfile wf))
@@ -280,10 +308,13 @@
         ;; The authored :situation is the one thing the author wrote about this
         ;; person, so the polish is told it as notes (see `instructions`): the
         ;; persona and circumstances must fit it. Old descriptions still don't.
+        ;; Earlier :goals go too: the author may have written some, and the
+        ;; polish keeps those that fit the person it writes.
         result (try (polish! llm (assoc opts :world {:state {:setting-pack (settings/for-worldfile wf)}}) {:setting (get-in wf [:meta :setting])
                                        :position position
                                        :record authored
-                                       :notes situation})
+                                       :notes situation
+                                       :goals goals})
                     (catch Exception e {:failure (str "the polish call failed: " (ex-message e))}))
         record (cond-> record (:polish result) (assoc :circumstances (get-in result [:polish :circumstances])))
         t (traits record)]
@@ -295,7 +326,12 @@
                                               [:sex (:sex t)]
                                               [:temperament (:temperament t)]
                                               [:faculties (:faculties t)]
-                                              [:circumstances (:circumstances t)]])))))
+                                              [:circumstances (:circumstances t)]]
+                                             (for [k [:aspects :goals]
+                                                   :let [v (get-in result [:polish k])]
+                                                   :when v]
+                                               [k v]))
+                              :dropped (remove #(contains? (:polish result) %) [:aspects :goals])))))
 
 (defn roll-cast!
   "Roll every agent in the world file at `path` afresh with the people
@@ -305,9 +341,11 @@
   Basic traits are rolled and circumstances written; nothing is pinned. Names, sex (or the position's
   default), positions, situations and other setup stay. Age and origin come
   from the new record; the world's homes stay, so generated :lives is omitted.
-  No previous persona, sketch, manner, appearance or traits reach the polish;
+  No previous persona, sketch, manner, appearance, aspects or traits reach the polish;
   the agent's :situation does, as the polish's notes, so the person written
-  fits what the scenario says about them.
+  fits what the scenario says about them, and so do their :goals, of which
+  the polish keeps those that fit. The polish's :goals and :aspects replace
+  the old ones, and an agent it gives none loses theirs.
   A successful roll removes any legacy :sketch rather than preserving it.
 
   opts: :llm (a manor.io.llm/LLM), :model, :max-tokens, :reasoning,
@@ -338,9 +376,9 @@
                         (recur more (conj results result) (+ spent (or (:cost result) 0))))))
                   (finally (mcp/close! conn)))
         rolled (filter :edits results)]
-    (spit file (reduce (fn [text {:keys [name edits]}]
+    (spit file (reduce (fn [text {:keys [name edits dropped]}]
                          (-> text
-                             (worldfile/remove-agent-keys name [:sketch])
+                             (worldfile/remove-agent-keys name (cons :sketch dropped))
                              (worldfile/set-agent-keys name edits)))
                        text rolled))
     (spit (io/file dir "roll-cast.edn") (with-out-str (pp/pprint {:path (str file) :seed seed :max-cost (:max-cost opts) :results results})))

@@ -1,11 +1,14 @@
 (ns manor.goals-test
-  (:require [clojure.string :as str]
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
+            [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
             [manor.engine :as e]
             [manor.test-support :as support]
             [manor.io.llm :as llm]
             [manor.io.store :as store]
+            [manor.io.worldfile :as wf]
             [manor.mechanics.goals :as goals]
             [manor.prompt :as prompt]
             [manor.world :as w]))
@@ -84,3 +87,39 @@
     (is (:args (a/decode-args action (n-goals 10))))
     (is (:args (a/decode-args action (n-goals 0))) "an empty list clears them")
     (is (str/includes? (:error (a/decode-args action (n-goals 11))) "the limit is 10"))))
+
+(deftest world-files-give-starting-goals
+  (let [hamlet (edn/read-string (slurp "test/fixtures/hamlet.edn"))
+        with-goals #(assoc-in hamlet [:agents 0 :goals] %)]
+    (testing "they're checked"
+      (is (empty? (wf/problems (with-goals ["Mend the gate."]))))
+      (is (seq (wf/problems (with-goals [""]))))
+      (is (seq (wf/problems (with-goals "Mend the gate."))))
+      (is (seq (wf/problems (with-goals (mapv #(str "goal " %) (range 11)))))))
+    (let [dir (doto (store/run-dir (test-id "goals-file") true) .mkdirs)
+          file (io/file dir "hamlet.edn")
+          _ (spit file (pr-str (with-goals ["Mend the gate." "Learn the fiddle."])))
+          texts (atom [])
+          scripted (reify llm/LLM
+                     (complete [_ {:keys [messages]}]
+                       (swap! texts conj (user-text messages))
+                       (call "pass" {})))
+          run (e/start-run :hamlet {:llm :mock :llm-impl scripted :test? true :run-id (test-id "goals-start")
+                                    :world-file (str file)})]
+      (try
+        (let [world (e/world run)]
+          (testing "they start on the agent, counted as reviewed as the run starts"
+            (is (= ["Mend the gate." "Learn the fiddle."] (goals/goals world "ada")))
+            (is (= 0 (get-in world [:agents "ada" :goals-reviewed])))
+            (is (empty? (goals/goals world "ben"))))
+          (testing "the export writes them back"
+            (is (= ["Mend the gate." "Learn the fiddle."]
+                   (:goals (first (:agents (wf/export world (edn/read-string (slurp file))))))))))
+        (e/step! run)
+        (is (= :idle (e/wait-idle run 60000)))
+        (testing "Ada sees them and isn't asked to review them yet; Ben, with none, is"
+          (is (some #(and (str/includes? % "## Your goals\nLast reviewed") (str/includes? % "- Mend the gate.")
+                          (not (str/includes? % review-asked)))
+                    @texts))
+          (is (some #(and (str/includes? % "(none yet)") (str/includes? % review-asked)) @texts)))
+        (finally (e/stop-run run))))))

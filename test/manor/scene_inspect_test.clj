@@ -2,11 +2,11 @@
   (:refer-clojure :exclude [agent])
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [clojure.test :refer [deftest is testing]]
+            [clojure.test :refer [deftest is testing use-fixtures]]
             [hiccup2.core :as h]
             [jsonista.core :as json]
             [manor.engine :as e]
-            [manor.io.store :as store]
+            [manor.test-support :as support]
             [manor.mechanics.items :as items]
             [manor.mechanics.space :as space]
             [manor.prompt :as prompt]
@@ -15,6 +15,8 @@
             [manor.tools.scene-inspect :as inspect]
             [manor.tools.web :as web]
             [manor.world :as w]))
+
+(use-fixtures :once support/with-runs)
 
 (defn- html [x] (str (h/html x)))
 (defn- request [uri & [query]] (#'web/handler {:uri uri :query-string query :request-method :get}))

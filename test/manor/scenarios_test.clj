@@ -4,6 +4,7 @@
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.store :as store]
             [manor.mechanics.items :as items]
             [manor.mechanics.space :as space]
@@ -13,7 +14,7 @@
 
 (def bundled [:village :treasure :quiz :claudeworth :claudeworth-medium :lodge :palace :dressing :burglary])
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (deftest bundled-scenarios-run-offline
   (doseq [k bundled]

@@ -820,15 +820,19 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
     something over. Not yet checked in a real run: watch for promised things being found and
     given after the talk, and for `find` used for stock at a shop or the bar.
 
-15. **`roll-cast!` records live where a test run wipes them.** The REPL helper writes its log and
-    every call under `test-runs/roll-cast-<time>/`, and any test run's fixture deletes
-    `test-runs/` wholesale (`store/delete-test-runs!`). A paid roll is therefore lost if the
-    suite runs before the operator moves it, which happened while building
-    `claudeworth-medium`: two rolls ($0.012) left only the personas in the world file, not the
-    seeds, prompts and costs. *Fix:* either write rolls outside `test-runs/` (a `rolls/`
-    directory beside `runs/`), or have the helper move the finished record to
-    `old-test-runs/` itself (it is the one thing that knows the roll is finished and paid).
-    Until then, move a roll record the moment it finishes, before running anything else.
+15. **Tests no longer wipe `roll-cast!` records or other runs.** Done: the wholesale deletion
+    fixtures are removed. The test runner retains each invocation and JVM worker under
+    `test-runs/tests/<invocation>/worker-N/`; engine fixtures wait for final writes and stop
+    forgotten runs, without deleting evidence. Cleanup is manual, after stopping active runs
+    and preserving paid records. This removes the race with asynchronous shutdown as well as
+    the earlier loss of two paid cast-generation records. The suite uses up to four isolated
+    JVMs, not in-process parallelism (`with-redefs` mocks are global). Generated world files
+    now use plain EDN serialization, with semantic round-trip/export tests rather than
+    formatting assertions; repeated live-map pretty printing was the largest serialization
+    bottleneck. Concurrent model-call log writes are also serialized per run, preventing
+    multi-buffer EDN entries from interleaving when seats or judges finish together; a
+    concurrent-writer regression covers it. See README's Tests section for serial/parallel
+    commands and retained logs.
 
 16. **A world file with more than one form is now refused.** Done with the `claudeworth-medium`
     work: `read-file` reads a second form and throws, instead of letting `edn/read-string`

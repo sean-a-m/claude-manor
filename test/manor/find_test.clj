@@ -5,6 +5,7 @@
             [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.engine.resolve :as resolve]
             [manor.engine.turn :as turn]
             [manor.io.llm :as llm]
@@ -15,7 +16,7 @@
             [manor.rng :as rng]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (def supplies
   [{:id "shelves" :name "Pantry shelves" :desc "Stout shelves." :place "bedroom"

@@ -6,6 +6,7 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.engine.resolve :as resolve]
             [manor.io.llm :as llm]
             [manor.io.store :as store]
@@ -15,7 +16,7 @@
             [manor.prompt :as prompt]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (defn- start
   "A household run with the earl, the countess and Hale in the dining room."

@@ -8,6 +8,7 @@
             [jsonista.core :as json]
             [manor.actions]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.llm :as llm]
             [manor.io.store :as store]
             [manor.io.worldfile :as wf]
@@ -21,7 +22,7 @@
             [manor.scenarios.dressing :as dressing]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (defn- scripted
   "A mock: `script` maps agent id -> round -> the calls of that turn, in

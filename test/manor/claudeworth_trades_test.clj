@@ -5,6 +5,7 @@
             [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.store :as store]
             [manor.mechanics.builtins :as b]
             [manor.mechanics.hiring :as hiring]
@@ -19,7 +20,7 @@
             [manor.mechanics.shop :as shop]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (deftest claudeworth-village-residents-and-counters
   (let [run (e/start-run :claudeworth {:llm :mock :offline? true :test? true :start "1904-10-15T08:00"

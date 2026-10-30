@@ -57,12 +57,13 @@
 (defn capture
   "Capture initial + each completed round, with optional read-only rendering.
   hook-mode is :keep or :remove; removing happens before run initialization.
-  Deletes only the mock directory this invocation successfully created."
+  Keeps each capture in its own directory, including repeated comparisons."
   [scenario rounds hook-mode render!]
   (let [requests (atom [])
         complete! models/complete!
         load-scenario e/load-scenario]
-    (with-redefs [e/load-scenario (fn [key] (cond-> (load-scenario key)
+    (with-redefs [store/test-runs-root (str (io/file store/test-runs-root "scene-boundary" (str (random-uuid))))
+                  e/load-scenario (fn [key] (cond-> (load-scenario key)
                                             (= :remove hook-mode) (dissoc :scene)))
                   models/complete! (fn [run request]
                                      (swap! requests conj (request-data request))
@@ -89,8 +90,9 @@
             {:prefixes prefixes :requests @requests})
           (finally
             (e/stop-run run)
-            (doseq [file (reverse (file-seq (io/file (:dir run))))]
-              (io/delete-file file))))))))
+            (when-not (.awaitTermination ^java.util.concurrent.ExecutorService (:exec run)
+                                        10 java.util.concurrent.TimeUnit/SECONDS)
+              (throw (ex-info "Scene probe run did not stop" {:run-id (:id run)})))))))))
 
 (defn -main [output mode]
   (try

@@ -2,6 +2,7 @@
   "Regression coverage for the boundary between test conditions and bundled content."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.store :as store]
             [manor.io.worldfile :as wf]
             [manor.mechanics.items :as items]
@@ -11,7 +12,7 @@
             [manor.scenarios.household :as fixture]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (defn- start [scenario]
   (e/start-run scenario {:llm :mock :offline? true :test? true

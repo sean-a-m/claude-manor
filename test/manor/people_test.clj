@@ -6,6 +6,7 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [jsonista.core :as json]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.llm :as llm]
             [manor.io.mcp :as mcp]
             [manor.io.store :as store]
@@ -16,7 +17,7 @@
             [manor.settings :as settings]))
 
 ;; Everything here lives under test-runs/.
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (defn- bb-available? []
   (try (zero? (:exit (shell/sh "bb" "-e" ""))) (catch Exception _ false)))

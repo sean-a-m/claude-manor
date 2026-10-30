@@ -3,10 +3,10 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.engine :as e]
-            [manor.io.store :as store]
+            [manor.test-support :as support]
             [manor.tools.web :as web]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (def ^:private status-html #'web/status-fragment)
 

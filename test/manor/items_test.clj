@@ -8,6 +8,7 @@
             [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.engine.work :as work]
             [manor.io.llm :as llm]
             [manor.io.store :as store]
@@ -25,7 +26,7 @@
             [manor.world :as w]))
 
 ;; All runs here use {:test? true}, so they live under test-runs/.
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (def hamlet-file "test/fixtures/hamlet.edn")
 

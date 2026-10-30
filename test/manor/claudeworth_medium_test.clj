@@ -4,6 +4,7 @@
   as the design describes it, and a whole mock day, all offline."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.store :as store]
             [manor.io.worldfile :as worldfile]
             [manor.mechanics.items :as items]
@@ -14,7 +15,7 @@
             [manor.mechanics.building :as building]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (def world-file "worlds/claudeworth-medium.edn")
 

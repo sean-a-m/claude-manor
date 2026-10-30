@@ -14,8 +14,9 @@
   during a replay.
 
   Real runs live under runs/. Runs started with the option :test? true
-  (tests, ad-hoc checks, experiments) live under test-runs/, which is always
-  safe to delete wholesale: `rm -rf test-runs/` or (delete-test-runs!)."
+  (tests, ad-hoc checks, experiments) live under test-runs/. The test runner
+  isolates each invocation below test-runs/tests/ and never deletes runs.
+  Clean up manually when no runs are active, keeping any paid model evidence."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str])
@@ -25,8 +26,9 @@
 (def runs-root "runs")
 
 (def test-runs-root
-  "Where :test? runs go. Everything in here is disposable."
-  "test-runs")
+  "Where :test? runs go. The test runner sets this JVM property for isolation;
+  ordinary mock/ad-hoc runs still use test-runs/."
+  (System/getProperty "manor.test-runs-root" "test-runs"))
 
 (defn root [test?] (if test? test-runs-root runs-root))
 
@@ -80,7 +82,8 @@
     (spit f text)))
 
 (defn delete-test-runs!
-  "Delete everything under test-runs/."
+  "Operator-only cleanup of the configured test root. Stop active runs and
+  preserve paid model evidence first. Never called by the test suite."
   []
   (letfn [(delete [f]
             (when (.isDirectory f) (run! delete (.listFiles f)))

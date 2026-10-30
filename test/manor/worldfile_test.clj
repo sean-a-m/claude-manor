@@ -4,13 +4,14 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.store :as store]
             [manor.io.worldfile :as wf]
             [manor.mechanics.items :as items]
             [manor.mechanics.space :as space]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (def hamlet "test/fixtures/hamlet.edn")
 
@@ -71,6 +72,14 @@
         (is (thrown-with-msg? clojure.lang.ExceptionInfo #"has problems:\n- "
                               (wf/load-world (str (io/file dir "bad.edn")))))))))
 
+(deftest serialization-keeps-all-data-regardless-of-repl-print-settings
+  (let [data {:meta {:name "Tiny world"}
+              :locations [{:id "hall" :name "Hall" :custom {:nested [1 2 3]}}]
+              :items [{:id "cup" :custom-field "kept"}]
+              :scenario/extra #{:one :two}}]
+    (binding [*print-length* 1 *print-level* 1 *print-meta* true *print-readably* false]
+      (is (= data (edn/read-string (wf/->edn-string data)))))))
+
 (deftest export-round-trip
   (let [run (hamlet-run)
         start (wf/read-file hamlet)
@@ -82,16 +91,19 @@
       (is (empty? (wf/problems exported))))
     (testing "the printed form reads back as the same data"
       (is (= exported (edn/read-string (wf/->edn-string exported)))))
-    (testing "a location's :detail is kept and printed last, after :desc"
-      (is (= "Coats on pegs, a worn rug, and a smell of pipe smoke." (:detail (first (:locations exported)))))
-      (is (str/includes? (wf/->edn-string exported)
-                         ":desc \"A small hall.\" :detail \"Coats on pegs, a worn rug, and a smell of pipe smoke.\"}")))
+    (testing "a location's description and detail survive serialization"
+      (is (= {:desc "A small hall."
+              :detail "Coats on pegs, a worn rug, and a smell of pipe smoke."}
+             (select-keys (first (:locations (edn/read-string (wf/->edn-string exported))))
+                          [:desc :detail]))))
     (testing "other sections are kept"
       (is (= (:notices start) (:notices exported))))
-    (testing "aspects of places and items are kept and printed; :touched is the run's, not the map's"
+    (testing "aspects of places and items survive export; :touched is the run's, not the map's"
       (is (= {:cleanliness "muddy boot prints by the door" :hearth "cold ash in the grate"} (:aspects (first (:locations exported)))))
-      (is (str/includes? (wf/->edn-string exported)
-                         "{:id \"clock\" :name \"Grandfather clock\" :place \"hall\" :owner \"Ada\" :fixed? true :aspects {:state \"ticking loudly\"} :desc"))
+      (is (= {:id "clock" :name "Grandfather clock" :place "hall" :owner "Ada"
+              :fixed? true :aspects {:state "ticking loudly"}
+              :desc "A tall oak clock that strikes the hours."}
+             (first (:items (edn/read-string (wf/->edn-string exported))))))
       (let [changed (reduce w/apply-event (assoc (e/world run) :round 3)
                             [{:type :item/taken :actor "ada" :data {:item "umbrella" :from-place "hall"}}
                              {:type :item/work-done :actor "ben"

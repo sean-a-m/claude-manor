@@ -5,6 +5,7 @@
             [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.engine.resolve :as resolve]
             [manor.engine.turn :as turn]
             [manor.io.llm :as llm]
@@ -18,7 +19,7 @@
             [manor.prompt :as prompt]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (defn- start [& [opts]]
   (e/start-run :burglary (merge {:llm :mock :offline? true :test? true

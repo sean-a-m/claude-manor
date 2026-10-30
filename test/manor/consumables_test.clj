@@ -10,6 +10,7 @@
             [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.llm :as llm]
             [manor.io.store :as store]
             [manor.io.worldfile :as wf]
@@ -23,7 +24,7 @@
             [manor.world :as w]))
 
 ;; All runs here use {:test? true}, so they live under test-runs/.
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (def consumables
   "In the hall: a roasted rib of beef (Ada's), an open saucepan, a paper bag
@@ -226,7 +227,8 @@
             by-id (into {} (map (juxt :id identity)) (:items (wf/read-file path)))]
         (is (not (contains? by-id "beef")))
         (is (= {:in "saucepan" :consumable? true} (select-keys (by-id "beef-stock") [:in :consumable?])))
-        (is (str/includes? (slurp path) "{:id \"beef-stock\" :name \"Beef stock\" :in \"saucepan\" :owner \"Ada\" :consumable? true"))
+        (is (= {:id "beef-stock" :name "Beef stock" :in "saucepan" :owner "Ada" :consumable? true}
+               (select-keys (by-id "beef-stock") [:id :name :in :owner :consumable?])))
         (let [r2 (start {:world-file path})]
           (is (= (map #(dissoc % :touched) (items/all world)) (map #(dissoc % :touched) (items/all (e/world r2)))))
           (e/stop-run r2))))

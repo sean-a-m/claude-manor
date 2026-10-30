@@ -95,7 +95,7 @@ Open the panel and click **Auto**. Lodge starts at 08:00 with the vacancy alread
 and defaults to a $0.10 cost cap. Three characters for six rounds should take roughly 1–2 minutes
 and cost about $0.04–$0.08 including modest conversation/judging; this is an estimate, not a
 measured real run. Read `test-runs/<id>/transcript.md` afterwards and keep the paid run by moving
-its directory to `old-test-runs/<descriptive-name>` before running the tests. Use `--port N` if
+its directory to `old-test-runs/<descriptive-name>` before any manual cleanup. Use `--port N` if
 8080 is occupied; never send commands to an unrelated panel.
 
 Claudeworth's architect bridge is an MCP server: with `--offline` the engine uses a stub with the
@@ -255,9 +255,11 @@ clojure -M:cache compare test-runs/<a> test-runs/<b> [--order ...] [--tier ...]
 ## Real runs and test runs
 
 Runs are stored under `runs/<id>/`. Pass `:test? true` (CLI: `--test`) to store a run under
-`test-runs/` instead. That directory is for tests, checks and experiments, and is always safe to
-delete wholesale (`rm -rf test-runs/` or `(clean-test-runs!)` at the REPL). The test suite uses it.
-Loading a test run needs `{:test? true}` too: `(load! id {:test? true})`.
+`test-runs/` instead. That directory is for tests, checks and experiments. The test suite keeps
+its artifacts in unique subdirectories under `test-runs/tests/` and never deletes runs. Cleanup
+is manual (`rm -rf test-runs/tests/`, or `(clean-test-runs!)` for the whole test root): stop active
+runs first, and preserve any paid model runs or cast-generation records before deleting them.
+Loading an ad-hoc test run needs `{:test? true}` too: `(load! id {:test? true})`.
 
 ## Options
 
@@ -293,8 +295,24 @@ error and requests a run pause; its error message includes the number of attempt
 ## Tests
 
 ```sh
-clojure -M:test
+clojure -M:test                                      # full suite, up to four JVM workers
+clojure -M:test --workers 1                          # serial, for comparison or debugging
+clojure -M:test -n manor.items-test                  # one namespace
+clojure -M:test -v manor.engine-test/branching        # one test
+clojure -X:test :workers 2 :nses '[manor.items-test]'  # exec API
 ```
+
+Each worker runs its tests serially. Separate JVMs isolate the suite's global `with-redefs`
+mocks; do not parallelize tests inside one JVM. Workers inherit the supervisor's heap limit
+(the test alias defaults to 2 GiB per JVM; override with e.g. `-J-Xmx1g`) and share no run directory.
+The runner retains manifests, per-worker `output.log`, `summary.edn` and engine run files under
+`test-runs/tests/<invocation>/worker-N/`. It prints that path and an aggregate test count and time.
+Repeated or concurrent invocations get different directories, with no automatic deletion.
+Existing `-d`, `-n`, `-r`, `-v`, `-i` and `-e` selection options are supported; `--test-help` lists them.
+A worker crash, failed assertion or selection matching no tests makes the command fail.
+Engine tests use `manor.test-support/with-runs` to wait for shutdown and close forgotten runs,
+including on assertion errors, without removing evidence. Direct REPL test invocations also get
+isolated directories through that fixture. Artifacts can accumulate; cleanup is the operator's choice.
 
 Mechanics tests use the test-only `:household` scenario with fixed world and mock-day data in
 `test/fixtures/household.edn` and `household-day.edn`. These preserve controlled test conditions;

@@ -1,15 +1,18 @@
 (ns manor.scene-temporal-test
   "Presentation history survives missed refreshes, reload and disposable caches."
   (:require [clojure.string :as str]
-            [clojure.test :refer [deftest is testing]]
+            [clojure.test :refer [deftest is testing use-fixtures]]
             [hiccup2.core :as h]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.prompt :as prompt]
             [manor.tools.scene :as scene]
             [manor.tools.scene-ruleset :as household]
             [manor.tools.scene-inspect :as inspect]
             [manor.tools.scene-time :as time]
             [manor.world :as w]))
+
+(use-fixtures :once support/with-runs)
 
 (defn- html [x] (str (h/html x)))
 (defn- location [id & [extra]]

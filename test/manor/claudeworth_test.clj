@@ -8,6 +8,7 @@
             [manor.actions :as a]
             [manor.clock :as clock]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.engine.resolve :as resolve]
             [manor.io.llm :as llm]
             [manor.io.mcp :as mcp]
@@ -30,7 +31,7 @@
             [manor.world :as w]))
 
 ;; All runs here use {:test? true}, so they live under test-runs/.
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 ;; Mechanics tests never inherit the bundled world's content or cast defaults.
 (defn- start [& [opts]]

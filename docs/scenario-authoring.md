@@ -1814,7 +1814,7 @@ in `:init`:
   household's son, at school).
 - `:visits` (optional) are **authored visits**, made when a fresh run starts (see Visits): each
   names its guest in `:who` and its `:known-to` by **character id**, as calendar audiences do.
-- `:items` (optional) lists items as in Items, one per line, with `:holder`, an agent `:owner`
+- `:items` (optional) lists items as in Items, with `:holder`, an agent `:owner`
   and a `:waiting` marker's `:for` and `:keeper` given by agent **name**, as `:agents` does; loading turns those into ids (other owners, such as
   `"household"`, are kept). Each item is checked: its fields and lengths, a unique id, exactly one
   of `:place` (a location of the file) and `:holder` (an agent of the file). A scenario that leaves
@@ -1847,6 +1847,10 @@ in `:init`:
   names again) whenever an item changes hands, and the file's agents with their live `:aspects`
   and `:inner` (people who came during the run aren't added). A run can start from an exported map
   (`{:world-file "runs/<id>/map.edn"}`), and `(export-map! path)` at the REPL writes one anywhere.
+  Generated world files are compact, machine-readable EDN, not pretty-printed documents.
+  Whitespace and map-key order are not a contract: inspect them with an EDN parser or the world
+  browser. Serialization preserves the data without changing hand-authored templates or the
+  comment-preserving cast editor.
 
 A ruleset world (`manor.ruleset`) names its **meeting place** in `:meta :meeting-place`, a
 location id: where candidates, guests from elsewhere and deliveries arrive (`problems` refuses a
@@ -2848,7 +2852,7 @@ with its own rules.
 7. A mock policy. Add the scenario to `test/manor/scenarios_test.clj` and run `clojure -M:test`.
 8. Run offline at the REPL: `(start! :<name> {:llm :mock :offline? true :test? true}) (step! 5) (feed)`.
    Check `(feed 40 "some-agent")` shows nothing it shouldn't. (`:test? true` keeps experiments
-   under `test-runs/`, which can always be deleted.)
+   under `test-runs/`; clean up manually after stopping active runs and preserving paid evidence.)
 9. Try real models cheaply and briefly: `(start! :<name> {:max-cost 0.20 :max-rounds 10 :test? true})`
    (a few rounds expose most problems; see "Real runs are short by default" in `AGENTS.md`). To
    check something late in the day, start near it with `:start` (see Time) instead of playing up

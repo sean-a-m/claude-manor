@@ -6,10 +6,10 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
             [manor.engine :as e]
-            [manor.io.store :as store]
+            [manor.test-support :as support]
             [manor.prompt :as prompt]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (defn- said [n] {:type :say :visible-to :all :round 1 :data {:n n}})
 

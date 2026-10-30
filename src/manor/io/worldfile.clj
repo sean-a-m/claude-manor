@@ -34,7 +34,6 @@
   back in the same format (map.edn) whenever the map changes, see `export`."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [clojure.pprint :as pp]
             [clojure.string :as str]
             [malli.core :as m]
             [malli.error :as me]
@@ -305,25 +304,6 @@
       (:calendar world) (assoc :calendar (vec (remove :managed-by (calendar/export-entries world))))
       (:agents start) (assoc :agents (export-agents world start)))))
 
-(def ^:private key-order [:id :name])
-
-(def ^:private item-key-order [:id :name :place :in :holder :owner :fixed? :consumable? :drawn-from :candidate-id :order-id :container :store :aspects :desc])
-
-(defn- location-str
-  "One location per line: :id and :name first, :connects-to, :desc and
-  :detail last."
-  [loc]
-  (let [last-keys [:connects-to :desc :detail]
-        ks (concat key-order
-                   (sort (remove (set (concat key-order last-keys)) (keys loc)))
-                   last-keys)]
-    (str "{" (str/join " " (for [k ks :when (contains? loc k)] (str (pr-str k) " " (pr-str (get loc k))))) "}")))
-
-(defn- item-str
-  "One item per line: :id and :name first, :aspects and :desc last."
-  [it]
-  (str "{" (str/join " " (for [k item-key-order :when (contains? it k)] (str (pr-str k) " " (pr-str (get it k))))) "}"))
-
 ;; ---------------------------------------------------------------------------
 ;; Editing a world file's text in place, so its comments and layout survive
 
@@ -436,18 +416,8 @@
                  kvs)))
 
 (defn ->edn-string
-  "A world file as readable EDN: sections in a fixed order, one location and
-  one item per line."
+  "Serialize a world file as EDN. Generated files have no formatting contract."
   [wf]
-  (binding [*print-namespace-maps* false]
-    (let [pretty #(str/replace (str/trim (with-out-str (pp/pprint %))) "\n" "\n ")
-          section (fn [k]
-                    (case k
-                      :locations (str ":locations\n [" (str/join "\n  " (map location-str (:locations wf))) "]")
-                      :routes (str ":routes\n " (pr-str (vec (:routes wf))))
-                      :items (str ":items\n [" (str/join "\n  " (map item-str (:items wf))) "]")
-                      (str (pr-str k) "\n " (pretty (get wf k)))))
-          fixed [:meta :locations :routes :agents :items]
-          ks (concat (filter #(contains? wf %) fixed)
-                     (sort (remove (set fixed) (keys wf))))]
-      (str "{" (str/join "\n\n " (map section ks)) "}\n"))))
+  (binding [*print-length* nil *print-level* nil *print-meta* false
+            *print-readably* true *print-namespace-maps* false]
+    (str (pr-str wf) "\n")))

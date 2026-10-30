@@ -4,6 +4,7 @@
             [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.llm :as llm]
             [manor.io.store :as store]
             [manor.mechanics.builtins :as b]
@@ -22,7 +23,7 @@
             [manor.ruleset.actions :as ruleset-actions]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (defn first-person [world] (first (sort-by :created (vals (h/pool world)))))
 (defn action [tool] (first (filter #(= tool (:name %)) h/actions)))

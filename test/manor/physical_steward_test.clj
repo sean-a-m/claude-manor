@@ -4,6 +4,7 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [jsonista.core :as json]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.engine.work :as work]
             [manor.io.llm :as llm]
             [manor.io.store :as store]
@@ -12,7 +13,7 @@
             [manor.mechanics.physical.changes :as changes]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (defn- start [& [opts]]
   (e/start-run :burglary (merge {:llm :mock :offline? true :test? true

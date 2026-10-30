@@ -3,13 +3,14 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.store :as store]
             [manor.tools.transcript :as transcript])
   (:import (java.time Instant)
            (java.util.concurrent TimeUnit)))
 
 ;; All runs here use {:test? true}, so they live under test-runs/.
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (deftest transcript-of-a-mock-run
   (let [run (e/start-run :household {:llm :mock :offline? true :test? true :run-id (str (gensym "transcript-"))})]

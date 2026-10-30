@@ -5,6 +5,7 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [jsonista.core :as json]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.engine.work :as work]
             [manor.io.llm :as llm]
             [manor.io.store :as store]
@@ -15,7 +16,7 @@
             [manor.narrate :as n]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (def config {:at "02:00" :idle-hours 6 :max-per-call 8})
 
@@ -61,7 +62,9 @@
       (testing "taking, putting down, or finishing work protects handled things"
         (e/emit! run [{:type :item/taken :actor "ben" :data {:item "tin"}}])
         (e/emit! run [{:type :item/put-down :actor "ben" :data {:item "tin" :place "hall"}}])
-        (e/emit! run [{:type :item/work-begun :data {:id "job-test" :actor "ben" :place "hall" :items ["loaf-sugar"]}}])
+        (e/emit! run [{:type :item/work-begun :actor "ben"
+                       :data {:id "job-test" :actor "ben" :place "hall" :items ["loaf-sugar"]
+                              :doing "dusting" :started 13 :due 14}}])
         (e/emit! run [(item-work/work-done (e/world run) (items/job (e/world run) "job-test") {:minutes 30} nil)])
         (is (= ["visible"] (map :id (get (item-steward/steward-candidates (e/world run) config) "hall"))))
         (is (= 13 (:touched (items/item (e/world run) "loaf-sugar")))))

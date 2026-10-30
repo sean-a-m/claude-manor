@@ -5,6 +5,7 @@
             [manor.actions :as a]
             [manor.clock :as clock]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.llm :as llm]
             [manor.io.store :as store]
             [manor.mechanics.adjudication :as adjudication]
@@ -14,7 +15,7 @@
             [manor.world :as w]))
 
 ;; All runs here use {:test? true}, so they live under test-runs/.
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (defn- test-id [base] (str (gensym (str base "-"))))
 
@@ -129,7 +130,7 @@
   (let [run (rounds! (mock-village) 5)
         branch (e/branch-run run 3)]
     (testing "a branch of a test run is also a test run"
-      (is (= "test-runs" (.getName (.getParentFile (:dir branch))))))
+      (is (= (io/file store/test-runs-root) (.getParentFile (:dir branch)))))
     (testing "the branch starts at the end of round 3"
       (is (= 3 (:round (e/world branch))))
       (is (= (e/world branch)
@@ -144,7 +145,7 @@
 (deftest run-directories
   (testing "test runs live under test-runs/"
     (let [run (mock-village)]
-      (is (= "test-runs" (.getName (.getParentFile (:dir run)))))
+      (is (= (io/file store/test-runs-root) (.getParentFile (:dir run))))
       (testing "an existing run directory is never reused"
         (is (thrown-with-msg? clojure.lang.ExceptionInfo #"already exists"
                               (mock-village {:run-id (:id run)}))))

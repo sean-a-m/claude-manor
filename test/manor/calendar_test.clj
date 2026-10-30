@@ -1,14 +1,17 @@
 (ns manor.calendar-test
   (:require [clojure.string :as str]
-            [clojure.test :refer [deftest is testing]]
+            [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.llm :as llm]
             [manor.io.store :as store]
             [manor.io.worldfile :as worldfile]
             [manor.mechanics.calendar :as c]
             [manor.prompt :as p]
             [manor.world :as w]))
+
+(use-fixtures :once support/with-runs)
 
 (def day {:id "holiday" :date "1904-10-15" :description "A holiday." :visible-to :all})
 (defn- start [& [opts]]

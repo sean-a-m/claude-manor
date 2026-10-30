@@ -3,13 +3,13 @@
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
             [manor.engine :as e]
-            [manor.io.store :as store]
+            [manor.test-support :as support]
             [manor.io.worldfile :as worldfile]
             [manor.mechanics.space :as space]
             [manor.ruleset.init :as ruleset-init]
             [manor.ruleset.views :as views]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (def architect-actions #{:consult-references :price-list :draw-plans :show-plans :commission})
 

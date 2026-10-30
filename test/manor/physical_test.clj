@@ -8,6 +8,7 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.engine.turn :as turn]
             [manor.io.llm :as llm]
             [manor.io.store :as store]
@@ -32,7 +33,7 @@
             [manor.ruleset.init :as ruleset-init]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (defn- scripted
   "A mock: `script` maps agent id -> round -> the calls of that turn, in

@@ -6,6 +6,7 @@
             [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.engine.resolve :as resolve]
             [manor.io.llm :as llm]
             [manor.io.store :as store]
@@ -15,7 +16,7 @@
             [manor.rng :as rng]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (defn- start [& [opts]]
   (e/start-run :household (merge {:llm :mock :offline? true :test? true :run-id (str (gensym "find-person-"))} opts)))

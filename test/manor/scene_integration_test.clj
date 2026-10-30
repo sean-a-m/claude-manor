@@ -1,9 +1,10 @@
 (ns manor.scene-integration-test
   "Cross-seam, read-only rendering and optional-hook regression checks."
   (:require [clojure.java.io :as io]
-            [clojure.test :refer [deftest is testing]]
+            [clojure.test :refer [deftest is testing use-fixtures]]
             [jsonista.core :as json]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.mechanics.items :as items]
             [manor.scene-boundary-probe :as probe]
             [manor.tools.scene :as scene]
@@ -11,6 +12,8 @@
             [manor.tools.scene-preview :as preview]
             [manor.tools.web :as web]
             [manor.world :as w]))
+
+(use-fixtures :once support/with-runs)
 
 (defn- request [uri & [query]]
   (#'web/handler {:uri uri :query-string query :request-method :get}))

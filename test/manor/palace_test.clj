@@ -5,6 +5,7 @@
             [manor.actions :as a]
             [manor.clock :as clock]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.store :as store]
             [manor.io.worldfile :as worldfile]
             [manor.mechanics.items :as items]
@@ -17,7 +18,7 @@
             [manor.settings :as settings]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (def architects-tools #{:consult-references :price-list :draw-plans :show-plans :commission})
 

@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.store :as store]
             [manor.mechanics.calendar :as calendar]
             [manor.prompt :as prompt]
@@ -9,7 +10,7 @@
             [manor.settings :as settings]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (defn- with-run [scenario opts f]
   (let [run (e/start-run scenario (merge {:llm :mock :offline? true :test? true

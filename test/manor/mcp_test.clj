@@ -6,11 +6,12 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.mcp :as mcp]
             [manor.io.store :as store]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (def fake-pi (.getAbsolutePath (io/file "test/fixtures/fake-pi.mjs")))
 

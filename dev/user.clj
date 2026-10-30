@@ -66,10 +66,16 @@
   ([test?] (store/list-runs test?)))
 
 (defn clean-test-runs!
-  "Delete everything under test-runs/ (stopping the current run if it lives there)."
+  "Manual cleanup of test-runs/. Stop other runs and preserve paid records first.
+  Stops the current test run and waits for its final writes before deleting."
   []
   (when-let [r @current]
-    (when (:test? (:opts r)) (e/stop-run r) (reset! current nil)))
+    (when (:test? (:opts r))
+      (e/stop-run r)
+      (when-not (.awaitTermination ^java.util.concurrent.ExecutorService (:exec r)
+                                  10 java.util.concurrent.TimeUnit/SECONDS)
+        (throw (ex-info "Test run is still stopping; cleanup refused" {:run-id (:id r)})))
+      (reset! current nil)))
   (store/delete-test-runs!))
 
 (defn serve!

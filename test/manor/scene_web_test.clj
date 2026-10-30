@@ -5,14 +5,14 @@
             [hiccup2.core :as h]
             [jsonista.core :as json]
             [manor.engine :as e]
-            [manor.io.store :as store]
+            [manor.test-support :as support]
             [manor.prompt :as prompt]
             [manor.scenarios-test :refer [bundled]]
             [manor.tools.scene :as scene]
             [manor.tools.web :as web]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 (defn- request [uri & [query]] (#'web/handler {:uri uri :query-string query :request-method :get}))
 (defn- html [x] (str (h/html x)))
 (defn- run-of [scenario]

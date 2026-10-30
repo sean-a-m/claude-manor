@@ -2,13 +2,14 @@
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.store :as store]
             [manor.mechanics.space :as space]
             [manor.prompt :as prompt]
             [manor.world :as w]))
 
 ;; All runs here use {:test? true}, so they live under test-runs/.
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (defn- village []
   (e/start-run :village {:llm :mock :offline? true :test? true :run-id (str (gensym "space-village-"))}))

@@ -6,6 +6,7 @@
             [manor.actions :as a]
             [manor.clock :as clock]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.store :as store]
             [manor.mechanics.hiring :as hiring]
             [manor.mechanics.items :as items]
@@ -21,7 +22,7 @@
             [manor.mechanics.shop :as shop]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (def profile "A tiny rural English butcher's and grocer's, 1904. Meat and household groceries over the counter.")
 (def delivery-profile "Larger orders are sent up to houses in the neighbourhood.")

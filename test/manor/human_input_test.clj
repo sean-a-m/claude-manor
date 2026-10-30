@@ -5,14 +5,14 @@
             [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
-            [manor.io.store :as store]
+            [manor.test-support :as support]
             [manor.tools.human-input :as human]
             [manor.tools.web :as web]
             [manor.world :as w])
   (:import (java.io ByteArrayInputStream)
            (java.net URLEncoder)))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (def form-action
   {:name :form-test :kind :free :roles #{:player}

@@ -9,6 +9,7 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [jsonista.core :as json]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.llm :as llm]
             [manor.io.store :as store]
             [manor.io.worldfile :as wf]
@@ -29,7 +30,7 @@
             [manor.tools.transcript :as transcript]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (defn- start [& [opts]]
   (e/start-run :dressing (merge {:llm :mock :test? true :run-id (str (gensym "inner-"))} opts)))

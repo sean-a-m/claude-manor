@@ -7,6 +7,7 @@
             [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.llm :as llm]
             [manor.io.store :as store]
             [manor.io.worldfile :as wf]
@@ -23,7 +24,7 @@
             [manor.world :as w]))
 
 ;; Every run here lives under test-runs/.
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (def catalogue-source "settings/england-1904/positions.edn")
 

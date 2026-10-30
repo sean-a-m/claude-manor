@@ -3,6 +3,7 @@
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.io.store :as store]
             [manor.io.worldfile :as worldfile]
             [manor.mechanics.hiring :as hiring]
@@ -16,7 +17,7 @@
             [manor.mechanics.building :as building]
             [manor.world :as w]))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (deftest worlds-with-and-without-an-office
   (let [wf (:world-file (worldfile/load-world "worlds/lodge.edn"))

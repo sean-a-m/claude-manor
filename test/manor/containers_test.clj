@@ -9,6 +9,7 @@
             [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.engine.work :as work]
             [manor.io.llm :as llm]
             [manor.io.store :as store]
@@ -23,7 +24,7 @@
             [manor.world :as w]))
 
 ;; All runs here use {:test? true}, so they live under test-runs/.
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (def containers
   "In the hall: an open shelf with a cup and an open tray (holding a spoon),
@@ -324,7 +325,8 @@
             by-id (into {} (map (juxt :id identity)) (:items m))]
         (is (= {:in "box"} (select-keys (by-id "pipe") [:in :holder :place])))
         (is (= :closed (:container (by-id "cupboard"))))
-        (is (str/includes? (slurp path) "{:id \"shelf\" :name \"Shelf\" :place \"hall\" :fixed? true :container :open"))
+        (is (= {:id "shelf" :name "Shelf" :place "hall" :fixed? true :container :open}
+               (select-keys (by-id "shelf") [:id :name :place :fixed? :container])))
         (let [r2 (start {:world-file path})]
           (is (= (map #(dissoc % :touched) (items/all world)) (map #(dissoc % :touched) (items/all (e/world r2)))))
           (e/stop-run r2))))

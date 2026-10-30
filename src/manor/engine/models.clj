@@ -44,8 +44,11 @@
                         (:provider response) (assoc :provider (:provider response))
                         (:generation-id response) (assoc :generation-id (:generation-id response)))
                       extra)]
-     (store/append-llm! (:dir run) entry)
-     (swap! (:last-calls run) assoc agent-id entry))))
+     ;; Seats and judges can finish together. A single append can span several
+     ;; writer buffers, so serialize the log write and publication per run.
+     (locking (:last-calls run)
+       (store/append-llm! (:dir run) entry)
+       (swap! (:last-calls run) assoc agent-id entry)))))
 
 (defn conj-reply
   "Add the model's reply to the conversation, unless it has neither content

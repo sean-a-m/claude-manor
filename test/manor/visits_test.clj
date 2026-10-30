@@ -11,6 +11,7 @@
             [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
+            [manor.test-support :as support]
             [manor.engine.resolve :as resolve]
             [manor.io.store :as store]
             [manor.io.worldfile :as worldfile]
@@ -30,7 +31,7 @@
             [manor.world :as w])
   (:import (java.time LocalDateTime)))
 
-(use-fixtures :once (fn [t] (try (t) (finally (store/delete-test-runs!)))))
+(use-fixtures :once support/with-runs)
 
 (def world-file "test/fixtures/visits.edn")
 

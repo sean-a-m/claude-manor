@@ -146,7 +146,8 @@ old-test-runs/   kept real-model test runs (gitignored); never delete
 ## Working on it
 
 ```sh
-clojure -M:test                               # all tests (about 15 seconds, free, offline)
+clojure -M:test                               # all tests, up to four isolated JVMs (free, offline)
+clojure -M:test --workers 1                   # serial; -n namespace / -v namespace/test select tests
 clojure -M:run village --mock --offline --test --port 8091   # panel at http://localhost:8091, free, disposable
 clj -M:dev                                    # REPL; see dev/user.clj docstring
 clojure -M:cache report runs/<id>             # cache hits and cost by kind and agent; also simulate, compare (README)
@@ -184,9 +185,12 @@ clojure -M:cache report runs/<id>             # cache hits and cost by kind and 
 - Every new scenario goes in `bundled` in `test/manor/scenarios_test.clj`.
 - **Run directories:** `runs/` holds the user's real runs. **Never delete anything there.**
   Anything you start for testing or checking must use `{:test? true}` (CLI: `--test`), which puts
-  it under `test-runs/`. That directory is always safe to delete wholesale (`rm -rf test-runs/`,
-  `(clean-test-runs!)` at the REPL, or `manor.io.store/delete-test-runs!`). The test suite uses it and
-  cleans it up. `start-run` refuses to reuse an existing run directory.
+  it under `test-runs/`. The suite keeps each invocation and worker under a unique
+  `test-runs/tests/<invocation>/worker-N/` directory and **never deletes runs**. Tests use
+  `manor.test-support/with-runs` to isolate mocks and wait for final writes and shutdown.
+  Cleanup is manual: stop active runs first, then remove disposable artifacts as needed
+  (`rm -rf test-runs/tests/`, or `(clean-test-runs!)` for the entire test root). Preserve paid
+  model and cast-generation evidence before any cleanup. `start-run` never reuses an existing run directory.
 - **Keep every real-model run.** A run that called a real model costs money and is evidence the
   user may want to read. When it finishes, move its directory from `test-runs/` to
   `old-test-runs/<descriptive-name>` (`mv test-runs/<id> old-test-runs/<name>`), say where it is

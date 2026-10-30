@@ -568,4 +568,14 @@
           (is (= ["Hobbs"] rolled))
           (is (= (remove #(= "Hobbs" (:name %)) (:agents after)) (remove #(= "Hobbs" (:name %)) (:agents again))))
           (is (not= (first (filter #(= "Hobbs" (:name %)) (:agents after)))
-                    (first (filter #(= "Hobbs" (:name %)) (:agents again))))))))))
+                    (first (filter #(= "Hobbs" (:name %)) (:agents again)))))))
+      (testing ":keep-traits? keeps the file's temperament and faculties and rewrites the prose from them"
+        (let [hobbs #(first (filter (comp #{"Hobbs"} :name) (:agents (edn/read-string (slurp file)))))
+              traits (select-keys (hobbs) [:temperament :faculties])]
+          (people/roll-cast! (str file) {:llm (llm/mock people/mock-polish) :dir dir
+                                         :only ["Hobbs"] :seed 3 :keep-traits? true})
+          (is (= traits (select-keys (hobbs) [:temperament :faculties])))
+          (is (str/includes? (:persona (hobbs))
+                             (str/join "; " (for [[axis level] (:temperament traits)] (str (name axis) ": " (name level))))))
+          (is (= (people/record-traits traits)
+                 (people/record-traits (people/traits (people/base-record (people/record-traits traits)))))))))))

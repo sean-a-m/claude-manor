@@ -2067,7 +2067,10 @@ data, so there's one source and no call.
   character's age matters; narrowing it also narrows who may be hired into the position. A fresh seed is returned and saved in
   `roll-cast.edn`; an explicit `:seed` reproduces basic readings, not necessarily model prose.
   The default model/settings are the runs' (`deepseek/deepseek-v4.1-flash`, manor key).
-  `{:only ["Hobbs"]}` selects characters. The REPL helper defaults to `:max-cost 0.20`,
+  `{:only ["Hobbs"]}` selects characters. `{:keep-traits? true}` keeps each agent's
+  world-file `:temperament` and `:faculties` instead of the rolled ones, so traits set by
+  hand get prose written to fit; pass the earlier roll's `:seed` to keep age and origin too.
+  The REPL helper defaults to `:max-cost 0.20`,
   checked before each model call across the cast, including corrections. An in-flight call
   may cross the threshold, as in engine runs. Logs and all calls live under
   `test-runs/roll-cast-<time>/`; preserve paid records under `old-test-runs/`.

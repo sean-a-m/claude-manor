@@ -65,6 +65,18 @@
   "Faculty -> what the reading measures: {\"Alimentiveness\" \"appetite for food\"}."
   (into {} (for [g (:groups (server-data "faculties.edn")) f (:faculties g)] [(:faculty f) (:means f)])))
 
+(def ^:private faculty-group
+  "Faculty -> its group: {\"Alimentiveness\" \"Propensities\"}."
+  (into {} (for [g (:groups (server-data "faculties.edn")) f (:faculties g)] [(:faculty f) (:group g)])))
+
+(defn record-traits
+  "An agent's world-file :temperament and :faculties in the people server's
+  record form, the inverse of `traits` for those two keys."
+  [{:keys [temperament faculties]}]
+  {:temperament (mapv (fn [[axis level]] {:axis (name axis) :level (name level)}) temperament)
+   :faculties (mapv (fn [[faculty size]] {:group (faculty-group faculty) :faculty faculty :size (name size)})
+                    faculties)})
+
 (defn base-record
   "Only basic identity and trait readings may reach the character writer.
   Strip legacy descriptors, circumstances and prose, including from mock context.
@@ -295,13 +307,15 @@
 (defn- roll-one
   "Roll and polish one agent of the world file `wf`, whose positions are
   `table`. Returns what happened, with the :edits to write if it worked."
-  [conn llm opts wf table {agent-name :name :keys [role sex situation goals]} seed]
+  [conn llm opts wf table {agent-name :name :keys [role sex situation goals] :as agent} seed]
   (let [entry (get table role)
         position (or (some-> (:title entry) str/lower-case) (str/replace (name role) "-" " "))
         args (generate-args role entry {:dataset (dataset (settings/for-worldfile wf))
                                         :sex sex :seed (str seed "/" agent-name)
                                         :taken-names (map :name (:agents wf))})
-        record (-> (mcp/call-tool conn "generate_people" args 20000) :value :people first base-record)
+        record (cond-> (-> (mcp/call-tool conn "generate_people" args 20000) :value :people first)
+                 (:keep-traits? opts) (merge (record-traits agent))
+                 true base-record)
         ;; Keep identity and the world's existing home, not old descriptions.
         ;; Age, origin and all traits come from the freshly generated record.
         authored (-> record (assoc :name agent-name) (dissoc :lives))
@@ -351,6 +365,9 @@
   opts: :llm (a manor.io.llm/LLM), :model, :max-tokens, :reasoning,
   :tool-choice, :max-cost (checked before each model call across the cast),
   :seed (fresh UUID by default; pass a seed to reproduce basic traits),
+  :keep-traits? (keep each agent's world-file :temperament and :faculties
+  instead of the rolled ones, so the polish rewrites the prose to fit
+  traits set by hand; with the earlier roll's :seed, age and origin stay too),
   :only (agent names to roll; default
   all), and :dir, where the server's log (mcp-people.log) and every call
   (roll-cast.edn) are written. An agent whose polish fails is left as it

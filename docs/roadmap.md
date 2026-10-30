@@ -547,8 +547,7 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
     their inner state. It has the same shape as B2's rolling summary, so one call could do
     both, and later update situations (people open question 7) or suggest small goals. About
     4% more per run at once every 6 rounds per agent.
-  - **How people regard each other:** a separate structure for how one person regards another
-    (liking, resentment, trust), later. For now an entry's text may mention a person.
+  - **How people regard each other:** B18 (relations).
   - **Overhearing:** whether the conversation judge should also change people present who
     weren't members.
   - **Serious harm** (plots, fights, injury, illness, death): no special guidance or limits for
@@ -665,6 +664,26 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   conversation rules), replies, rejection reasons, narration and view text are still code.
 - **Approach:** `docs/prompt-extraction-design.md`: the framing as templates first, then
   message catalogues for short strings if wanted. It has open questions for the user.
+
+### B18. Relations
+
+- **Why:** nothing records how one person feels toward another. A rebuke can set someone's
+  `mood`, but not who it was toward or why, and that fades from view once the events window
+  moves on.
+- **Design:** [relations-design.md](relations-design.md), with the user's decisions of
+  2026-10-29. Each person keeps, per other person, a queue of the last 20 judged feelings
+  (`{feeling, because}`), added (never edited) by the conversation judge and the work judge
+  among the people they already judge. The view shows the latest 3 toward each person present,
+  under `you.feelings_toward`. No new calls. Not started.
+- Follow-ups:
+  - **`recall`:** a tool for looking up more about someone: at first every entry toward them,
+    later more (where they were last seen, what was said). It would cover people who aren't
+    present, whom the view doesn't show.
+  - **Cleaning up descriptions:** once starting relations exist, move feelings toward
+    particular people out of personas and situations into them.
+  - **Third parties and overhearing:** feelings toward people only talked about, or from
+    witnessing others (a quarrel in the next room), are out of scope for now (B13's periodic
+    reflection would be the natural place).
 
 ---
 

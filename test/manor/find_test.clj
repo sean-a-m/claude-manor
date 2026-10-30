@@ -1,5 +1,5 @@
 (ns manor.find-test
-  "Finding (manor.mechanics.items): local facts, checked oracle, seeded outcomes and replay."
+  "Finding (manor.mechanics.items): the checked oracle, seeded outcomes, things taken from aspects and replay."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [jsonista.core :as json]
@@ -40,20 +40,54 @@
 (defn- check [world args]
   ((:check (item-find/finder-request world "ada" {:what "mustard"})) (response args)))
 
-(deftest find-local-hit-and-fate-without-oracle
-  (let [calls (atom 0)
-        run (start {:llm-impl (llm/mock (fn [_] (swap! calls inc) (throw (Exception. "no model needed"))))})]
+(deftest find-always-asks-the-finder
+  (let [calls (atom [])
+        answers {"my old dripping tin" {:existing "hidden-tin"}
+                 "the umbrella" {:existing "umbrella"}
+                 "dripping" {:likelihood "impossible" :found {:name "Dripping tin" :desc "A tin." :consumable false}}}
+        run (start {:llm-impl (llm/mock (fn [{:keys [what]}] (swap! calls conj what) {:tool :finder :args (answers what)}))})]
     (try
-      (is (= "The Dripping tin is here (hidden-tin), in the Cupboard (cupboard)." (:reply (query! run "DRIPPING"))))
-      (is (= "The Umbrella is here (umbrella)." (:reply (query! run "umbrella"))))
-      (is (= "The Umbrella is here (umbrella)." (:reply (query! run "an umbrella"))) "a leading article is ignored")
-      (e/emit! run [{:type :items/stewarded :data {:used-up [{:item "hidden-tin" :name "Dripping tin" :fate "worn out and discarded"}
-                                                             {:item "remote" :name "Secret mustard" :fate "eaten at supper"}]}}])
-      (is (= "The Dripping tin was worn out and discarded." (:reply (query! run "dripping"))))
-      (is (= "The Secret mustard was eaten at supper." (:reply (query! run "mustard"))))
-      (is (zero? @calls))
-      (is (empty? (filter #(#{:item/found :item/not-found} (:type %)) (e/events run))))
+      (testing "things here are identified by the finder, however they're asked for"
+        (is (= "The Dripping tin is here (hidden-tin), in the Cupboard (cupboard)." (:reply (query! run "my old dripping tin"))))
+        (is (= "The Umbrella is here (umbrella)." (:reply (query! run "the umbrella")))))
+      (testing "something gone is judged from the place's history, not answered by name"
+        (e/emit! run [{:type :items/stewarded :data {:place "hall" :summary "Tidied."
+                                                     :gone [{:item "hidden-tin" :name "Dripping tin" :fate "worn out and discarded"}]}}])
+        (is (= "Steward at Hall: Tidied. Dripping tin: worn out and discarded."
+               (n/describe (last (e/events run)) (n/names (e/world run)))))
+        (is (= "You don't find it." (:reply (query! run "dripping")))))
+      (is (= ["my old dripping tin" "the umbrella" "dripping"] @calls))
       (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+      (finally (e/stop-run run)))))
+
+(deftest finding-a-thing-kept-as-an-aspect
+  (let [hooks {:id "hooks" :name "Game hooks" :desc "An iron rail of hooks." :place "hall" :fixed? true
+               :aspects {:state "one goose hanging on the third hook" :cleanliness "wiped"}}
+        found {:likelihood "certain" :found {:name "Goose" :desc "A plucked goose, hung a day." :consumable true}
+               :taken {:thing "hooks" :aspect "state" :value ""}}
+        run (start {:llm-impl (llm/mock (constantly {:tool :finder :args found}))})]
+    (try
+      (e/emit! run (items/init-events [hooks]))
+      (let [world (e/world run)
+            request (item-find/finder-request world "ada" {:what "the goose"})
+            data (json/read-value (get-in request [:messages 1 :content]) json/keyword-keys-object-mapper)]
+        (testing "the finder sees the aspects of the things here"
+          (is (= {:state "one goose hanging on the third hook" :cleanliness "wiped"}
+                 (:aspects (first (filter #(= "hooks" (:id %)) (:here data)))))))
+        (testing "taken names the place or a thing or store here, and an aspect it has"
+          (is (nil? (:error ((:check request) (response found)))))
+          (is (str/starts-with? (:error ((:check request) (response (assoc-in found [:taken :aspect] "hook")))) "taken must name an aspect hooks has: "))
+          (is (str/starts-with? (:error ((:check request) (response (assoc-in found [:taken :thing] "pipe")))) "taken must name the place or a thing or store here"))
+          (is (str/starts-with? (:error ((:check request) (response (assoc found :taken {:thing "hall" :aspect "x" :value ""}))))
+                                "taken must name an aspect hall has: "))))
+      (is (= "You find Goose (goose); you now carry it." (:reply (query! run "the goose"))))
+      (let [world (e/world run)
+            [event] (filter #(= :item/found (:type %)) (e/events run))]
+        (testing "the goose is an item again, and the hooks no longer hold it"
+          (is (= "ada" (:holder (items/item world "goose"))))
+          (is (= {:cleanliness "wiped"} (:aspects (items/item world "hooks")))))
+        (is (= "Ada looks for the goose and finds it. (Game hooks: no longer state)." (n/describe event (n/names world))))
+        (is (= world (w/replay (store/read-events (:dir run))))))
       (finally (e/stop-run run)))))
 
 (deftest finder-scope-and-checks
@@ -131,7 +165,8 @@
         (is (= #{"clock" "cupboard" "umbrella" "tray" "dish" "inner-box" "pencil"}
                (set (map :id (:here ben)))))
         (doseq [data [ada ben]]
-          (is (every? #(= #{:id :name} (set (keys %))) (concat (:here data) (:candidates data))))
+          (is (every? #(= #{:id :name} (set (keys %))) (:candidates data)))
+          (is (every? #(#{#{:id :name} #{:id :name :aspects}} (set (keys %))) (:here data)))
           (is (not (str/includes? (pr-str data) "Private pencil details"))))
         (testing "missing notes and carrying produce empty lists"
           (let [empty-world (-> world
@@ -378,13 +413,6 @@
           (is (nil? (get-in event [:data :path]))))
         (is (not-any? #(= :adjudication/failed (:type %)) (e/events run)))
         (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
-      (finally (e/stop-run run)))))
-
-(deftest find-carried-local-name-hit
-  (let [run (start {:llm-impl (llm/mock (fn [_] (throw (Exception. "no oracle"))))})]
-    (try
-      (is (= "Ben has the Pipe (pipe)." (:reply (query! run "the pipe"))))
-      (is (not-any? #(#{:item/found :item/not-found} (:type %)) (e/events run)))
       (finally (e/stop-run run)))))
 
 (deftest finder-existing-identification-and-privacy

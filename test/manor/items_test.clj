@@ -561,16 +561,18 @@
         scene (request-scene request)]
     (is (= ["judge"] (map #(get-in % [:function :name]) (:tools request))))
     (doseq [instruction ["work can't turn a vase into gold" "Most activities change little"
-                         "a pastime often changes nothing" "Empty changes, used-up, absorbed and made lists are normal"
+                         "a pastime often changes nothing" "Empty changes, gone, absorbed and made lists are normal"
                          "Do not invent events" "A store holds everything it `keeps`"
                          "Change only the aspects the activity affected" "- cleanliness: how clean"
-                         "An activity happens in one place and you cannot move things"
+                         "An activity happens in one place, and nothing is carried elsewhere by it"
                          "When leftovers or supplies are put away into a store in scope"
                          "absorb them into that store: they join its stock and get a put-away fate"
                          "Adjust the store's aspects if its stock or lacking changes"
-                         "Never describe a thing as moved or put away in its aspects while leaving it where it is"
-                         "If something isn't put away or consumed, leave it as it is"
-                         "`Carrying` lists the notable things the worker holds"
+                         "Never describe a thing as moved, hung up or put away in an aspect while leaving it a separate thing where it was"
+                         "If nothing became of it, leave it as it is"
+                         "`Carrying` lists the notable things the worker holds; those the activity didn't name are under `carried`"
+                         "Ask whether someone could pick it up again as it was"
+                         "A made entry may give `taken: {thing, aspect, value}`"
                          "A store still holds the everyday supplies it keeps"]]
       (is (str/includes? (:content system) instruction)))
     (is (str/ends-with? (:content system) "## The setting\nA small house."))
@@ -786,7 +788,7 @@
           [done] (of-type run :item/work-done)]
       (is (= 1 (count @judged) (count (judge-calls run))))
       (is (empty? (:focus (first @judged))))
-      (is (= ["hall" "clock" "ben"] (map :id (:things (first @judged)))))
+      (is (= ["hall" "pipe" "clock" "ben"] (map :id (:things (first @judged)))) "with the pipe Ben carries")
       (is (empty? (:changes (:data done))))
       (is (= #{"ben"} (:visible-to done)) "Ada took it to the porch, so only Ben is in the hall")
       (is (= "Ben finishes drying the umbrella." (n/describe done (n/names (e/world run)))))
@@ -846,8 +848,8 @@
   (testing "the place and visible scene are judged even when no focus remains"
     (let [run (start)
           world (e/world run)]
-      (is (= ["porch" "ben"] (map :id (item-work/judged-things world {:items ["umbrella"] :place "porch" :actor "ben"})))
-          "the worker is judged wherever they are")
+      (is (= ["porch" "pipe" "ben"] (map :id (item-work/judged-things world {:items ["umbrella"] :place "porch" :actor "ben"})))
+          "the worker, and what they carry, are judged wherever they are")
       (is (= ["hall" "clock" "umbrella" "ada"] (map :id (item-work/judged-things world {:items ["hall" "basket"] :place "hall" :actor "ada"})))
           "the room is judged even when its items have gone")
       (is (= ["hall" "umbrella" "clock" "ada"] (map :id (item-work/judged-things world {:items ["umbrella"] :place "hall" :actor "ada"}))))

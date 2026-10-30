@@ -82,11 +82,11 @@
         (testing "each candidate may be absorbed, used up, changed, or left; no other things may change"
           (doseq [args [{:absorbed [{:thing "clock" :into "pantry"}]}
                         {:absorbed [{:thing "tin" :into "closed"}]}
-                        {:used-up ["hidden"]}
+                        {:gone [{:thing "hidden" :fate "thrown out"}]}
                         {:changes [{:thing "pantry" :aspect "stock" :value "full"}]}
                         {:changes [{:thing "hall" :aspect "cleanliness" :value "clean"}]}]]
             (is (:error (check args))))
-          (let [verdict (:verdict (check {:used-up ["tin"] :fates {"tin" "worn out and discarded"}
+          (let [verdict (:verdict (check {:gone [{:thing "tin" :fate "worn out and discarded"}]
                                           :absorbed [{:thing "loaf-sugar" :into "pantry"}]
                                           :changes [{:thing "visible" :aspect "state" :value "stale"}]
                                           :made [{:name "Impossible invention"}]}))
@@ -185,15 +185,15 @@
         (is (not-any? #(= "bag" (:thing %)) (get-in mock [:args :absorbed])))
         (is (nil? (:error (check (:args mock)))))
         (is (:error (check {:absorbed [{:thing "bag" :into "pantry"}]})))
-        (is (:error (check {:used-up ["bag"]}))))
+        (is (:error (check {:gone [{:thing "bag" :fate "thrown out"}]}))))
       (finally (e/stop-run run)))))
 
 (deftest steward-retries-and-counts-cost
   (let [attempts (atom 0)
         mock (llm/mock (fn [_]
                          (if (= 1 (swap! attempts inc))
-                           {:tool :steward :args {:used-up ["hidden"] :summary "Invalid."}}
-                           {:tool :steward :args {:used-up ["loaf-sugar"] :fates {"loaf-sugar" "eaten by the staff"}
+                           {:tool :steward :args {:gone [{:thing "hidden" :fate "thrown out"}] :summary "Invalid."}}
+                           {:tool :steward :args {:gone [{:thing "loaf-sugar" :fate "eaten by the staff"}]
                                                   :summary "The sugar was eaten."}})))
         run (start {:llm-impl (reify llm/LLM
                                 (complete [_ request]

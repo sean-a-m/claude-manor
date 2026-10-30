@@ -115,9 +115,12 @@
 (defn- answer-schema
   "The steward's answer: the judge's (see item-judge/answer-schema, with
   `inner` when the scenario has inner state), without `made` or deaths,
-  and with faculties only cleared or eased (`eased-entry`)."
+  with things only used up, never left on others, and with faculties only
+  cleared or eased (`eased-entry`)."
   [inner-config]
-  (let [entries (remove #(#{:made :died :physical} (first %)) (rest (item-judge/answer-schema inner-config)))]
+  (let [entries (->> (rest (item-judge/answer-schema inner-config))
+                     (remove #(#{:made :died :physical} (first %)))
+                     (map #(if (= :gone (first %)) (item-judge/gone-entry false) %)))]
     (into [:map] (concat (butlast entries) [eased-entry (last entries)]))))
 
 (defn steward-instructions
@@ -274,7 +277,7 @@
   {:type :items/stewarded :visible-to :gm
    :data (merge {:place place :changes (vec (:changes verdict))
                  :summary (or (:summary verdict) "Everything was left as it was.")}
-                (item-work/removal-data world "the nightly tidying" verdict))})
+                (item-work/removal-data world verdict))})
 
 (defn mock-steward
   "Put candidates into the first store in scope, except containers whose

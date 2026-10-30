@@ -79,6 +79,14 @@ These came from the design conversation; respect them unless told otherwise.
   checked at all. Code checks only structure (schemas, lengths, ids that exist, values from a
   list). Shape behaviour with instructions, and review generated content at the point it's made
   (`git diff` after `roll-cast!`). Regexes on identifiers and formats are fine.
+- **Item identity only where a mechanic needs it.** Code depends on a particular item only for
+  hiring references (`:candidate-id`), goods sent up by a shop (`:order-id`) and goods waiting at
+  a shop (`:waiting`): shortcuts that remind agents of timelines and ownership, so they don't
+  spin out over people they can't meet or things they can't find (`items/identity-bound?`).
+  Don't add mechanics that depend on a particular item's identity unless there's no other way.
+  Elsewhere things may be promoted from and demoted into aspects and stores (a goose hung on the
+  game hooks is an aspect of the hooks until someone takes it down), and two similar things
+  getting mixed up is acceptable, not a catastrophe.
 - **Don't design around server outages.** The MCP servers (people, architect, pi) run on the
   same machine as the engine, so don't add fallbacks, retries or degraded modes for one being
   down. If one fails, the existing error handling (a neutral error reply, a pause) is enough;

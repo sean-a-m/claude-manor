@@ -139,8 +139,8 @@
       (is (nil? (get-in (answer world (assoc job :people ["ivy"]) {:moved [{:item "pantry-keys" :to "slade"}]}) [:verdict])))
       (is (nil? (get-in (answer world (dissoc job :act?) {:moved [{:item "sack" :to "ivy"}]}) [:verdict :moved]))
           "unknown answer fields are dropped, as in all tool decoders")
-      (let [v (:verdict (answer world job {:used-up ["sack"] :made [{:name "X" :desc "X" :consumable false}]}))]
-        (is (nil? (:used-up v)))
+      (let [v (:verdict (answer world job {:gone [{:thing "sack" :fate "used up"}] :made [{:name "X" :desc "X" :consumable false}]}))]
+        (is (nil? (:gone v)))
         (is (nil? (:made v))))
       (finally (stop! run)))))
 

@@ -718,6 +718,66 @@ check whether values drift long now that 81–200 is accepted. When a supply is 
 twice, the second miss should omit `lacking` (or restate the same list), and a new absence
 should keep the earlier ones.
 
+### Phase 9: things kept as aspects (`gone`), and `find` without a name match
+
+**Status: done (mock-tested; no real-model run).** From `runs/claudeworth-medium-20261030-112905`
+and the user's decisions of 2026-10-30.
+
+**Evidence.** At 11:00 Mrs Thorne, carrying the goose she had bought, spent an hour "hanging
+the goose on the pantry game hook, then counting the pantry". The judge could neither move the
+goose (phase 7 kept the judge from moving things) nor use it up in good conscience, so it wrote
+`game-hooks :state "one goose hung on the third hook"` and left the goose in her hands, where it
+stayed for the rest of the run. Mrs Thorne told Bertha it hung on the third hook, and Bertha set
+off to take it down from a hook it had never been on. Game hooks aren't a container or a store.
+Making them, a piano or a door into containers so things could be placed on them would turn
+everything into a container; listing such cases in the instructions would never end.
+
+**Decisions:**
+
+1. **One list, `gone`, replaces `used-up` and `fates`** in the work judge's answer:
+   `gone: [{thing, fate, on?, aspect?, value?}]`, the things that stop being separate things,
+   each with a required fate. Without `on` the thing is used up and leaves no trace: only
+   consumables, as before. With `on`, `aspect` and `value` it's **left on** the place, a judged
+   thing or a judged person, which records it in that aspect (the goose on the hooks, holly over
+   the pictures, a note nailed to a door, an apron put on). The judge asks whether someone could
+   pick it up again as it was; the instructions accept that the two shade into each other, since
+   a wrong choice costs little: both remove the item, and a host aspect keeps what's still there
+   findable. The field name is the judge's only; agents read the fate.
+2. **What can be left on something:** any movable thing (not fixed, not a store) lying at the
+   job's place or carried by the worker while there, consumable or not, except things whose
+   identity a mechanic needs. A container goes only with all it holds.
+3. **Item identity only where a mechanic needs it** (`items/identity-bound?`: `:candidate-id`,
+   `:order-id`, `:waiting`). The rule is recorded in `AGENTS.md`. Two similar geese getting mixed
+   up is acceptable; new identity dependencies need a strong reason.
+4. **The worker's carried things are judged even when unnamed** (scene key `carried`), so work
+   can use them up or leave them somewhere without the agent having named them.
+5. **Hosts include people.** Putting on a clean apron no longer leaves the wearer carrying it.
+6. **Coming back is always judged.** `find` can return a thing that is only an aspect:
+   `here` now shows the aspects of the things here, and the finder's answer may give
+   `taken: {thing, aspect, value}` (the place, a thing lying here or a store in scope),
+   rewriting or clearing that aspect as the thing is found. Work can do the same with a `made`
+   entry's `taken` (Bertha taking the goose down with `spend-time`). The judge describes what
+   comes back as it is now (faded garlands, not fresh holly); nothing assumes it's the same object.
+7. **`local-find` is removed**, both its item-name and its fate replies. In every real run on
+   record (134 runs, 387 finds) it answered 9 finds; the finder answered the rest, including 17
+   paraphrases of things here ("the quarter's account book" for the estate ledgers). Its fate
+   replies would also have kept a thing kept as an aspect from ever being found, since the fate
+   ("hung on the third game hook") was matched by name before the finder was asked.
+8. **Narration names each thing by its fate**, with no "Used up:" label: "Rib of beef: eaten at
+   supper. Goose: hung on the third game hook." The steward's narration does too.
+9. **The steward uses `gone: [{thing, fate}]`** without hosts; its behaviour is unchanged.
+10. **The room view isn't changed:** a thing kept as an aspect shows through `look` and `find`.
+    If agents miss such things, remind them first that `look` shows a room's details.
+
+Event data: `:item/work-done` and `:items/stewarded` carry `:gone [{:item :name :fate}]` instead
+of `:used-up`; the host's aspect is an ordinary entry in `:changes`. `:item/found` may carry
+`:changes`. Old runs aren't migrated.
+
+**What to watch in the next real run:** whether the judge leaves carried things on hosts when the
+activity says so (and not when it doesn't: dishes carried through, letters still in hand),
+whether hosted aspects read well and keep what the host's aspect already said, whether `find`
+and work bring such things back with `taken`, and whether the steward tidies them sensibly.
+
 ### Later, by need
 
 - GM tools to change aspects and stores (roadmap B7's "GM tools to create or alter items"), so

@@ -42,12 +42,28 @@
   "An act's things moved: each to a judged person's id, or \"place\"."
   [:moved {:optional true} [:vector [:map [:item :string] [:to :string]]]])
 
+(def aspect-value
+  "An aspect's new value: a phrase, or \"\" to remove it."
+  [:string {:max items/max-aspect :json-schema/maxLength items/advised-aspect}])
+
+(def taken-entry
+  "Where a thing came from when it was only an aspect: that aspect of a
+  judged thing, and its new value."
+  [:taken {:optional true} [:map [:thing :string] [:aspect :string] [:value aspect-value]]])
+
+(defn gone-entry
+  "Things that stop being separate things, each with its fate. With
+  `hosts?`, one may be left `on` a judged thing, kept as one of its aspects."
+  [hosts?]
+  [:gone {:optional true}
+   [:vector (into [:map [:thing :string] [:fate [:string {:min 1 :max items/max-aspect :json-schema/maxLength items/advised-aspect}]]]
+                  (when hosts? [[:on {:optional true} :string] [:aspect {:optional true} :string] [:value {:optional true} aspect-value]]))]])
+
 (def judge-schema
   [:map
-   [:changes {:optional true} [:vector [:map [:thing :string] [:aspect :string] [:value [:string {:max items/max-aspect :json-schema/maxLength items/advised-aspect}]]]]]
-   [:used-up {:optional true} [:vector :string]]
+   [:changes {:optional true} [:vector [:map [:thing :string] [:aspect :string] [:value aspect-value]]]]
+   (gone-entry true)
    [:absorbed {:optional true} [:vector [:map [:thing :string] [:into :string]]]]
-   [:fates {:optional true} [:map-of :keyword :string]]
    [:made {:optional true} [:vector {:max items/max-made}
                             [:map
                              [:name [:string {:min 1 :max items/max-name}]]
@@ -57,12 +73,13 @@
                              [:consumable :boolean]
                              [:from {:optional true} :string]
                              [:held {:optional true} :boolean]
-                             [:in {:optional true} :string]]]]
+                             [:in {:optional true} :string]
+                             taken-entry]]]
    [:summary [:string {:min 1 :max items/max-summary}]]])
 
 (def ^:private not-in-acts
-  "What an immediate act can't do: use up, absorb or make things."
-  #{:used-up :absorbed :fates :made})
+  "What an immediate act can't do: make things gone, absorb or make them."
+  #{:gone :absorbed :made})
 
 (defn answer-schema
   "The judge's answer: `judge-schema` with `physical-entries` before the
@@ -152,12 +169,14 @@
         suggested (get-in scenario [:items :aspect-keys])
         inner-config (:inner scenario)
         relations-config (:relations scenario)
-        {:keys [place focus also-here stores people]} (item-work/scene world job)
-        scene-json {:place (dissoc place :room?)
-                    :focus (judged-json focus)
-                    :also_here (judged-json also-here)
-                    :stores (mapv #(assoc (items/store-view (:place job) %) :keeps (get-in % [:store :keeps])) stores)
-                    :people (people-json world inner-config relations-config people) :recent (vec (take-last 10 recent))}
+        {:keys [place focus carried also-here stores people]} (item-work/scene world job)
+        scene-json (cond-> {:place (dissoc place :room?)
+                            :focus (judged-json focus)}
+                     (seq carried) (assoc :carried (judged-json carried)))
+        scene-json (assoc scene-json
+                          :also_here (judged-json also-here)
+                          :stores (mapv #(assoc (items/store-view (:place job) %) :keeps (get-in % [:store :keeps])) stores)
+                          :people (people-json world inner-config relations-config people) :recent (vec (take-last 10 recent)))
         scene-json (cond-> scene-json (:reference job) (assoc :reference (:reference job)))]
     {:tools [(judge-tool world inner-config act? relations-config)]
      :messages
@@ -231,13 +250,11 @@
                    (str/join ", " (map name (keys (after crowded)))) "); a thing has at most " items/max-aspects
                    ": change one it has instead, or remove one with the value \"\""))))
 
-(defn- use-up-problem
-  "Why the judge can't use up `gone`: only consumables in the scene, not fixed,
-  with all real descendants used up too, including any hidden or beyond the cap."
+(defn- contents-problem
+  "Why the things in `gone` can't go as a batch, or nil: a container goes
+  only with everything inside it, including things not shown in `reach`."
   [world reach gone]
-  (let [usable (filter #(and (:consumable? %) (not (:fixed? %))) reach)
-        bad (remove (set (map :id usable)) gone)
-        gone? (set gone)
+  (let [gone? (set gone)
         shown? (set (map :id reach))
         [box left] (first (for [it reach
                                 :when (gone? (:id it))
@@ -245,12 +262,80 @@
                                 :when (seq left)]
                             [it left]))]
     (cond
-      (seq bad) (str "you may use up only consumable items among these: " (ids-or-none usable)
-                     "; not " (str/join ", " bad))
       (some #(not (shown? (:id %))) left)
       (str "the " (:name box) " (" (:id box) ") still holds things not shown here; leave it, or name it with `on` next time")
       box (str "the " (:name box) " (" (:id box) ") still holds " (ids-or-none left)
-               ": use those up too, or don't use it up"))))
+               ": say what became of those too, or leave it"))))
+
+(defn- with-job?
+  "Is `it` with the job: lying at its place, or carried by its worker while
+  they're there?"
+  [world {:keys [place actor]} it]
+  (let [o (items/outermost world it)]
+    (or (= place (:place o))
+        (and (= actor (:holder o)) (= place (space/location-of world actor))))))
+
+(defn- left-on-problem
+  "Why the thing `it` can't be left on something, kept only as an aspect,
+  or nil: it must be movable, not one a mechanic tracks, and with the job."
+  [world job it]
+  (cond
+    (or (:fixed? it) (items/store? it)) (str "the " (:name it) " (" (:id it) ") is fixed in place; leave it as it is and change its aspects instead")
+    (items/identity-bound? it) (str "the " (:name it) " (" (:id it) ") must stay a separate thing; leave it as it is")
+    (and job (not (with-job? world job it))) (str "the " (:name it) " (" (:id it) ") isn't here, so it can't be left on anything here")))
+
+(defn- gone-problem
+  "Why the judge's `gone` entries won't do, or nil. Each names a thing in
+  the scene once. One without `on` is used up: only `usable` things (the
+  consumables, or for the steward its candidates). One with `on` is left on
+  a thing that stays, given with its aspect and value (see
+  `left-on-problem`, with the `job` when there is one). A container goes
+  only with all it holds."
+  [world things usable steward? job entries]
+  (let [by-id (into {} (map (juxt :id identity)) things)
+        items-here (filter #(and (not (:room? %)) (not (:person? %)) (items/item world (:id %))) things)
+        ids (map :thing entries)
+        gone (set ids)
+        usable? (set (map :id (filter #(and (:consumable? %) (not (:fixed? %))) usable)))
+        hosted (filter #(some % [:on :aspect :value]) entries)
+        stays (remove (comp gone :id) things)]
+    (cond
+      (not= (count ids) (count gone)) "say what became of each thing only once"
+      (seq (remove (set (map :id items-here)) ids))
+      (str "gone may name only these things: " (ids-or-none items-here) "; not " (str/join ", " (remove (set (map :id items-here)) ids)))
+      :else
+      (or (first (for [{:keys [thing]} (remove (set hosted) entries) :when (not (usable? thing))]
+                   (cond
+                     steward? (str "you may use up only these: " (ids-or-none (filter (comp usable? :id) things)) "; not " thing)
+                     (or (:fixed? (by-id thing)) (items/store? (by-id thing))) (left-on-problem world nil (by-id thing))
+                     :else
+                     (str "the " (:name (by-id thing)) " (" thing ") isn't consumable, so it can't be used up: if it's now part of "
+                          "something here, give `on`, `aspect` and `value`; otherwise leave it as it is"))))
+          (first (for [{:keys [on aspect value]} hosted
+                       :when (not (and on aspect (not (str/blank? value))))]
+                   "to leave a thing on something, give `on` (its id), `aspect` (the key) and `value` (the phrase there that records it)"))
+          (first (for [{:keys [thing on]} hosted :when (not (some #(= on (:id %)) stays))]
+                   (str "on must name the place, a thing or a judged person that stays: " (ids-or-none stays) "; not " on)))
+          (first (keep #(left-on-problem world job (by-id (:thing %))) hosted))
+          (contents-problem world things (vec gone))))))
+
+(defn- taken-problem
+  "Why the `taken` of things made won't do, or nil: each names a thing that
+  stays and an aspect it has."
+  [things removed made]
+  (let [by-id (into {} (map (juxt :id identity)) things)
+        stays (remove (comp removed :id) things)]
+    (first (for [{:keys [taken]} made
+                 :when taken
+                 :let [{:keys [thing aspect]} taken
+                       it (by-id thing)]]
+             (cond
+               (or (nil? it) (removed thing))
+               (str "taken must name the place, a thing or a judged person that stays: " (ids-or-none stays) "; not " thing)
+               (not (contains? (:aspects it) (a/kebab-key aspect)))
+               (str "taken must name an aspect the " (:name it) " (" thing ") has: "
+                    (if (seq (:aspects it)) (str/join ", " (map name (keys (:aspects it)))) "it has none")
+                    "; not " aspect))))))
 
 (defn made-problem
   "Why the judge can't make `made`, or nil: optional from names a store,
@@ -287,48 +372,52 @@
         removing (set ids)]
     (cond
       (not= (count ids) (count removing)) "absorb each thing only once"
-      (some (set gone) ids) "a thing cannot be both used up and absorbed"
+      (some (set gone) ids) "a thing cannot be both gone and absorbed"
       (some #(not (items/absorbable? (by-id %))) ids) "absorb only unfixed consumable or drawn-from things in focus or also_here"
       (some #(not (store-ids (:into %))) absorbed) (str "into must name a store in scope: " (ids-or-none stores))
       (some (fn [id] (some #(not (removing (:id %))) (items/within world id))) ids)
       "a container still holds things; absorb all its contents too, or leave it")))
 
 (defn checked-verdict
-  "Check decoded effects against this narrow scene. The steward may use up
+  "Check decoded effects against this narrow scene. Things left on others
+  (`gone` with `on`) and things made from an aspect (`taken`) become changes
+  to those aspects, checked with the rest. The steward (no `job`) may use up
   any absorbable candidate, but may change only candidates, never the room,
   and may only remove sleepers' aspects."
-  [world args things stores steward?]
-  (let [changes (decoded-changes (:changes args))
-        by-id (into {} (map (juxt :id identity)) things)
-        gone (vec (distinct (:used-up args)))
-        absorbed (:absorbed args)
-        removed (into (set gone) (map :thing absorbed))
-        made (made-entries (:made args))
-        fates (update-keys (:fates args) name)
-        usable (if steward? (map #(assoc % :consumable? (items/absorbable? %)) things) things)
-        set-on-sleeper (when steward? (first (filter #(and (:to %) (:person? (by-id (:thing %)))) changes)))]
-    (if-let [problem (or (change-problem things changes)
-                         (when set-on-sleeper
-                           (str "a sleeper's aspects can only be removed, with the value \"\"; not "
-                                (:thing set-on-sleeper) " " (name (:aspect set-on-sleeper)) " " (pr-str (:to set-on-sleeper))))
-                         (use-up-problem world usable gone)
-                         (absorption-problem world things stores gone absorbed)
-                         (made-problem (remove #(some #{(:id %)} (map :thing absorbed)) things) stores gone made)
-                         (when (some #(not ((set gone) %)) (keys fates)) "fates may name only used-up things")
-                         (when (some str/blank? (vals fates)) "a fate must not be blank"))]
-      {:error problem}
-      (cond-> {:summary (:summary args)
-               :changes (vec (for [{:keys [thing aspect to]} changes
-                                   :let [from (get-in by-id [thing :aspects aspect])
-                                         kind (cond (:room? (by-id thing)) :place
-                                                    (:person? (by-id thing)) :person
-                                                    :else :item)]
-                                   :when (and (not= from to) (not (removed thing)))]
-                               {kind thing :aspect aspect :from from :to to}))}
-        (seq gone) (assoc :used-up gone)
-        (seq fates) (assoc :fates fates)
-        (seq absorbed) (assoc :absorbed (vec absorbed))
-        (seq made) (assoc :made made)))))
+  ([world args things stores steward?] (checked-verdict world args things stores steward? nil))
+  ([world args things stores steward? job]
+   (let [entries (vec (:gone args))
+         made (made-entries (:made args))
+         changes (decoded-changes (concat (:changes args)
+                                          (keep :taken made)
+                                          (for [{:keys [on aspect value]} entries :when (and on aspect)]
+                                            {:thing on :aspect aspect :value value})))
+         by-id (into {} (map (juxt :id identity)) things)
+         gone (mapv :thing entries)
+         absorbed (:absorbed args)
+         removed (into (set gone) (map :thing absorbed))
+         usable (if steward? (map #(assoc % :consumable? (items/absorbable? %)) things) things)
+         set-on-sleeper (when steward? (first (filter #(and (:to %) (:person? (by-id (:thing %)))) changes)))]
+     (if-let [problem (or (gone-problem world things usable steward? job entries)
+                          (change-problem things changes)
+                          (when set-on-sleeper
+                            (str "a sleeper's aspects can only be removed, with the value \"\"; not "
+                                 (:thing set-on-sleeper) " " (name (:aspect set-on-sleeper)) " " (pr-str (:to set-on-sleeper))))
+                          (absorption-problem world things stores gone absorbed)
+                          (taken-problem things removed made)
+                          (made-problem (remove #(some #{(:id %)} (map :thing absorbed)) things) stores gone made))]
+       {:error problem}
+       (cond-> {:summary (:summary args)
+                :changes (vec (for [{:keys [thing aspect to]} changes
+                                    :let [from (get-in by-id [thing :aspects aspect])
+                                          kind (cond (:room? (by-id thing)) :place
+                                                     (:person? (by-id thing)) :person
+                                                     :else :item)]
+                                    :when (and (not= from to) (not (removed thing)))]
+                                {kind thing :aspect aspect :from from :to to}))}
+         (seq entries) (assoc :gone (mapv #(select-keys % [:thing :fate]) entries))
+         (seq absorbed) (assoc :absorbed (vec absorbed))
+         (seq made) (assoc :made made))))))
 
 (defn with-inner
   "`v` (a checked verdict) with the checked changes to the inner state of
@@ -422,10 +511,11 @@
   (let [checked (relations/checked-entries relations-config world (map :id (filter :person? things)) answers)]
     (if (:error checked) checked (merge v checked))))
 
-(defn- verdict [world arguments things inner-config act? relations-config]
-  (let [{:keys [args error]} (a/decode-args {:args (answer-schema inner-config act? relations-config)} arguments)
+(defn- verdict [world arguments things inner-config job relations-config]
+  (let [act? (:act? job)
+        {:keys [args error]} (a/decode-args {:args (answer-schema inner-config act? relations-config)} arguments)
         place (:id (first (filter :room? things)))
-        v (when-not error (checked-verdict world args things (items/stores-for world place) false))
+        v (when-not error (checked-verdict world args things (items/stores-for world place) false job))
         v (if (or error (:error v)) v (with-physical v world things args act?))
         v (if (or error (:error v) (nil? inner-config)) v (with-inner v inner-config world things (:inner args)))]
     (cond error {:error error}
@@ -447,7 +537,7 @@
   ([response world things inner-config] (judgement response world things inner-config nil))
   ([response world things inner-config job] (judgement response world things inner-config job nil))
   ([response world things inner-config job relations-config]
-   (adjudication/answer "judge" response #(verdict world % things inner-config (:act? job) relations-config))))
+   (adjudication/answer "judge" response #(verdict world % things inner-config job relations-config))))
 
 (defn- mock-put-away
   "Absorb deposited consumables whose contents can go too; clear matching

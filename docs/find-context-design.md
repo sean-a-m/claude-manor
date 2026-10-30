@@ -276,6 +276,10 @@ Two consequences for this work:
   aspect. Loosening this - letting the judge make a named, plausible household object that the
   work really uses - is a separate decision for the work judge, not this document.
 
+Since `stores-and-aspects-design.md` phase 9 (2026-10-30), work can keep a thing as an aspect
+of another (`gone` with `on`), `find` has no deterministic name match, `here` shows aspects, and
+both the finder and work can bring such a thing back (`taken`).
+
 ## Follow-ups (not this document)
 
 - **The work judge promoting a named, assumed object.** The user wants this allowed; it is the

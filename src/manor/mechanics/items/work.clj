@@ -76,19 +76,30 @@
   [world id]
   (mapv #(select-keys % [:id :name]) (items/by-name (items/held-by world id))))
 
+(defn carried-things
+  "What the worker holds that the job didn't name, with what's inside it:
+  work may still use it or leave it somewhere."
+  [world {:keys [actor] :as job}]
+  (let [named (set (map :id (focus-things world job)))]
+    (->> (items/by-name (items/held-by world actor))
+         (mapcat #(cons % (items/within world (:id %))))
+         (remove #(named (:id %)))
+         distinct vec)))
+
 (defn scene
   "The activity's local scene: place, named focus (including container contents),
-  at most twelve other visible items, stores in scope, and people: those
-  present and the dead lying here, with the judged people (see
-  `judged-people`) as person things, and the others by id and name; all
-  with their physical statuses. For an act (:act?), the judged people's
-  :carrying too."
+  for work the worker's other carried things (see `carried-things`), at most
+  twelve other visible items, stores in scope, and people: those present and
+  the dead lying here, with the judged people (see `judged-people`) as
+  person things, and the others by id and name; all with their physical
+  statuses. For an act (:act?), the judged people's :carrying instead."
   [world {:keys [place act?] :as job}]
   (let [focus (focus-things world job)
         named (set (map :id focus))
         judged (set (judged-people world job))]
     {:place (assoc (select-keys (space/location world place) [:id :name :desc :aspects]) :room? true)
      :focus focus
+     :carried (if act? [] (carried-things world job))
      :also-here (vec (take 12 (remove #(or (named (:id %)) (items/store? %)) (items/visible-at world place))))
      :stores (vec (items/stores-for world place))
      :people (mapv (fn [id]
@@ -100,12 +111,13 @@
                    (sort (-> (space/present world place) (into (physical/dead-at world place)) (into judged))))}))
 
 (defn judged-things
-  "Everything the scene judge may change, once each: place, focus, other
-  visible items (at most twelve), stores in scope and the judged people. A
-  person whose id is also a thing's isn't judged."
+  "Everything the scene judge may change, once each: place, focus, the
+  worker's other carried things, other visible items (at most twelve),
+  stores in scope and the judged people. A person whose id is also a
+  thing's isn't judged."
   [world job]
-  (let [{:keys [place focus also-here stores people]} (scene world job)]
-    (->> (concat [place] focus also-here stores (filter :person? people))
+  (let [{:keys [place focus carried also-here stores people]} (scene world job)]
+    (->> (concat [place] focus carried also-here stores (filter :person? people))
          (reduce (fn [its it] (if (some #(= (:id it) (:id %)) its) its (conj its it))) [])
          vec)))
 
@@ -161,11 +173,11 @@
              [world []] made))))
 
 (defn removal-data
-  "Checked ids and fates as named event data; default fates describe the activity."
-  [world doing {:keys [used-up absorbed fates]}]
+  "Checked removals as named event data: what's gone with its fate, and
+  what's absorbed with its store."
+  [world {:keys [gone absorbed]}]
   (cond-> {}
-    (seq used-up) (assoc :used-up (mapv #(hash-map :item % :name (:name (items/item world %))
-                                                   :fate (or (get fates %) (str "used up while " doing))) used-up))
+    (seq gone) (assoc :gone (mapv (fn [{:keys [thing fate]}] {:item thing :name (:name (items/item world thing)) :fate fate}) gone))
     (seq absorbed) (assoc :absorbed (mapv (fn [{:keys [thing into]}]
                                             {:item thing :name (:name (items/item world thing)) :into into}) absorbed))))
 
@@ -175,7 +187,7 @@
   :on names only people with public changes, who perceive the result even
   without sight; named context and private inner changes grant no audience."
   [world job {:keys [minutes stopped-early? luck]} verdict]
-  (let [gone (keep #(items/item world %) (:used-up verdict))
+  (let [gone (keep #(items/item world (:thing %)) (:gone verdict))
         made (made-items world job gone (:made verdict))
         fetched (mapv :id (keep (fn [[entry it]] (when (:from entry) it)) (map vector (:made verdict) made)))
         on (vec (distinct (concat (keep :person (:changes verdict)) (map first (:physical verdict)))))]
@@ -184,7 +196,7 @@
                            :minutes minutes :stopped-early? stopped-early? :luck luck
                            :summary (or (:summary verdict) (neutral-summary world job stopped-early?))
                            :changes (vec (:changes verdict))}
-                          (removal-data world (:doing job) verdict))
+                          (removal-data world verdict))
              (seq made) (assoc :made made)
              (seq fetched) (assoc :fetched fetched)
              (seq on) (assoc :on on))}))

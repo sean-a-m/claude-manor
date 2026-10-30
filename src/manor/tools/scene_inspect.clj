@@ -99,7 +99,7 @@
                           (or (= id (:item data)) (= id (get-in data [:item :id]))
                               (= id (:into data)) (some #{id} (:items data)) (some #{id} focus)
                               (= [:items id] (:path data))
-                              (some #(= id (:item %)) (concat (:changes data) (:used-up data) (:absorbed data)))
+                              (some #(= id (:item %)) (concat (:changes data) (:gone data) (:absorbed data)))
                               (some #(= id (:id %)) (:made data))))]
         (cond-> acc
           (= :item/work-begun type) (assoc-in [:jobs (:id data)] (:items data))

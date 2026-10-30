@@ -911,7 +911,9 @@ An item:
 
 Ids are kebab-case and unique; at most 60 characters of name. No other keys are allowed (the
 engine adds `:touched` and may add `:drawn-from`, below). A carried item goes wherever its holder goes, and things in a container go wherever it goes, with
-no events of their own. Work and the nightly steward can remove an item by using it up or absorbing it into stock.
+no events of their own. Work can remove an item by making it gone (used up, or left on another
+thing and kept only as one of its aspects) or absorbing it into stock; the nightly steward by
+using it up or absorbing it.
 The world retains `:items-gone {id {:name .. :place .. :round .. :fate ..}}`: where it was
 (the holder's place if carried), when it went and what happened to it. `items/names` still
 names old lines, and `fresh-id` never gives an old id out again. Old runs are not migrated.
@@ -935,6 +937,13 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
   the judge or steward put the thing back; the exported map retains it. **Absorbable** means
   not fixed, not a store, and either `:consumable?` or `:drawn-from` (`items/absorbable?`).
   A watch or the family's silver cannot be absorbed or used up.
+- **Identity.** An item's identity matters to code only where a mechanic needs it:
+  `:candidate-id` (a hiring reference), `:order-id` (goods sent up) and `:waiting` (goods kept
+  at a shop), checked by `items/identity-bound?`. These are shortcuts that remind agents of
+  timelines and ownership. Such items are never turned into aspects. Everything else may
+  become an aspect of something and be made again from one, and two similar things getting
+  mixed up is acceptable. Don't add mechanics that depend on a particular item's identity
+  unless there's no other way (`AGENTS.md`).
 - **`:order-id`** marks goods delivered for an order (`manor.mechanics.deliveries`). The nightly
   steward never draws them as candidates, wherever they've been taken; work can still use
   them up. The exported map retains it.
@@ -1079,7 +1088,8 @@ things in it as habits ("usually in a print frock and apron").
   can change: everyone else present stays context. `job-scope` includes `[:person id]` for the
   worker and each person named, so two jobs on one person (her ladyship dressing, her maid doing
   her hair) are judged one after the other, and the second judge sees the first's result.
-  People can't be used up, absorbed or made, and a `made` entry's `in` can't name one.
+  People can't be gone, absorbed or made, and a `made` entry's `in` can't name one, but work
+  may leave a thing on a judged person (an apron put on), kept as one of their aspects.
 - **What to tell agents:** the `spend-time` description says that `on` may name people here,
   that what you do to someone counts only if they're still with you when you finish, and that
   they may walk away or rouse you, so that only the time worked counts. Say in the brief that how
@@ -1152,28 +1162,26 @@ container contents. Work may name a store in scope even when it is in another ro
 presence is in doubt. Everyday things merely used in work need no finding: name them in
 `doing` instead. `what` is 1–60 characters. Offered with `:items` wherever you have a place,
 not while travelling; it does not end the turn, but is a `:query`, counts against
-`:max-queries`, and has `:per-turn 1` (including deterministic replies).
+`:max-queries`, and has `:per-turn 1`.
 A scenario may configure `:items {:find-allowed? (fn [world actor place] ...)}` (place is the
-location id). Return nil to allow, or a reason to refuse **before** any local hit or oracle call.
+location id). Return nil to allow, or a reason to refuse **before** the oracle is called.
 Without the hook, finding is allowed. Claudeworth allows it everywhere by default, so a
 publican can find the house's lantern to lend; its rules tell customers to ask and `buy` goods
 for sale, never `find` them. With the option `:find-everywhere? false` it refuses at places with
 `:services` (shops, the public house, the trades, the architect's office), keepers included.
 
-1. Code first matches `what` as a case-insensitive substring of item names lying here,
-   including inside closed/nested containers, or carried by people here. It replies with the
-   name, id and immediate container, without moving the thing. Searching opens containers in the same reply-only
-   sense as `open`: their fixed `:container` visibility does not change. For a carried thing
-   the reply identifies the holder ("Lord Claudeworth has the Draft order of works (id)").
-   Other rooms are never reported. Next it checks matching fates in
-   `:items-gone` at this place, or places served by a store in scope (including that store's
-   own place), and replies with the fate. These replies need no model call or new event.
-2. Otherwise the narrow `:items/find` adjudicator sees `what`, the place's id/name/desc/
+Every find asks the oracle; there is no deterministic name match. (One existed until
+2026-10-30: in all real runs it answered 9 of 321 finds, models paraphrase what they look for,
+and its replies by fate kept things that were only aspects from ever being found.)
+
+1. the narrow `:items/find` adjudicator sees `what`, the place's id/name/desc/
    aspects, stores in scope (id/name/aspects/keeps, plus `at` when elsewhere), and the
    searcher's own `searcher` context: name, `nature` (persona), carried items (id/name), last 15
    notes (`{round, text}`) and `recent`, the last 20 narrated lines of their own view
-   (`prompt/recent-lines`). `here` lists id/name for look-visible items at this place (including
-   contents of open containers, never closed ones) and things carried by other people here.
+   (`prompt/recent-lines`). `here` lists id, name and aspects for look-visible items at this
+   place (including contents of open containers, never closed ones) and things carried by other
+   people here. A thing may be here only as an aspect (a goose "hanging on the third hook" of
+   the game hooks), so the aspects are evidence of presence.
    `history` is the last 20 narrated item events at this place after the world began, whoever
    saw them: `:item/added`, `:item/taken`, `:item/put-down`, `:item/put-in` (placed by where the
    container is now), `:item/work-done`, `:person/acted-on`, `:items/stewarded`, `:item/found`
@@ -1185,8 +1193,8 @@ for sale, never `find` them. With the option `:find-everywhere? false` it refuse
    recently touched (id breaks ties), **id and name only**, never locations, holders, owners or
    aspects. Notes and recent lines help identify what the searcher means, not prove its
    presence: belief does not make a thing be here. Presence is judged from the place, its
-   history, listed contents, stores and what the searcher can physically know. Recorded
-   `:lacking` is authoritative.
+   history, listed contents and their aspects, stores and what the searcher can physically
+   know. Recorded `:lacking` is authoritative.
    If `what` asks for a person, the oracle gives `person: true` alone: the reply points the
    searcher to `find-person`, with no roll, item or event.
    If the request refers to the same physical object as a listed candidate (a particular
@@ -1212,11 +1220,18 @@ for sale, never `find` them. With the option `:find-everywhere? false` it refuse
    (a coat, a letter, a joint bought for dinner), omit `lacking` and rate whether it plausibly
    exists here. No listed store does not mean no particular thing can exist here.
    `from`, when present, must name a store in scope; `lacking` without it is refused.
+   When the thing was only an aspect here, the oracle also gives `taken: {thing, aspect,
+   value}`: the place, a thing lying here or a store in scope, one of its aspects, and that
+   aspect's new value once the thing is taken ("" if nothing of it remains there). Code checks
+   that the thing is one of those and has the aspect.
    Found names/descriptions/aspects
    have the normal item bounds; `consumable` is required, `portable` defaults true.
-3. On the live world the engine rolls `rng/roll world [:find next-event-seq] 100` (0–99)
+2. On the live world the engine rolls `rng/roll world [:find next-event-seq] 100` (0–99)
    against thresholds 100/75/50/25/0. Success emits `:item/found`: a fresh item in the
-   finder's hands, or lying here for `portable: false`; `from` becomes `:drawn-from`.
+   finder's hands, or lying here for `portable: false`; `from` becomes `:drawn-from`. With
+   `taken`, its `:changes` hold the change to that aspect, as work records changes, and the
+   reducer applies it: the goose leaves the hooks as it comes into the searcher's hands.
+   Narration adds the change: "Ada looks for the goose and finds it. (Game hooks: empty)."
    Failure always emits `:item/not-found`. Only when the oracle supplied both `lacking` and
    a store source, set that store's `:lacking` to it. Never evict an unrelated aspect: a store
    with four non-lacking aspects records no aspect change. Without `lacking` or a store,
@@ -1301,14 +1316,14 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   change. The engine
   asks the scene judge and emits `:item/work-done`, seen by the worker and people at the place:
   `{:job :actor :place :doing :minutes :stopped-early? :luck :summary :changes [..]}`, plus
-  `:used-up [{:item :name :fate}]`, `:absorbed [{:item :name :into}]`, `:made [item ...]`
+  `:gone [{:item :name :fate}]`, `:absorbed [{:item :name :into}]`, `:made [item ...]`
   (complete new items), and `:fetched [id ...]` (which made entries were drawn from stores)
   when there are some.
   Each change is `{:item id :aspect k :from s :to s}`, `{:place id ...}` for the room or
   `{:person id ...}` for a person; `:from` is nil for a new aspect and `:to` nil for one removed.
   Its reducer sets or removes each aspect (on the item, on the location under `[:space :locations
   id :aspects]`, or on the agent under `[:agents id :aspects]`), touches the changed
-  items and named focus, removes used-up and absorbed things (recording their fates), adds the
+  items and named focus, removes gone and absorbed things (recording their fates), adds the
   made ones (touched too) and removes the job. Jobs with disjoint scopes (place, stores in scope,
   focus items’ places, the worker and the people named) are judged
   concurrently on the pre-batch world; overlapping jobs remain sequential, so a later judge
@@ -1318,11 +1333,28 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   Piano: dusted)." or "(Lady Claudeworth: hair dressed high, with combs)" (each thing's changes by their new values, which are whole phrases, or "no
   longer lacking" for an aspect `:lacking` removed, hyphens in the key read as spaces;
   "leaves off" when stopped early; the summary is left out when it only repeats the opening),
-  followed by "Used up: Rib of beef. Made: Beef stock in the saucepan; Beef bones." when
-  something was. Absorption and drawing read "Put away: Loaf sugar (in the Pantry shelves).
+  followed by each thing gone with its own fate, with no label ("Rib of beef: eaten at supper.
+  Goose: hung on the third game hook."), then "Made: Beef stock in the saucepan; Beef bones."
+  when something was. A thing left on another shows in that thing's changes too ("(Game hooks:
+  one goose hanging on the third hook)"). Absorption and drawing read "Put away: Loaf sugar (in the Pantry shelves).
   Fetched: Dripping tin."
-- **Promotion, absorption and fates.** Work may use up unfixed items marked `:consumable?`
-  (food eaten or cooked into something else, fuel burnt, an ingredient used up), and make at
+- **Things gone.** `gone: [{thing, fate, on?, aspect?, value?}]` lists the things in focus,
+  carried or `also_here` that stop being separate things, each with a required `fate` (1–200
+  characters, 80 advised) saying what became of it. The judge asks whether someone could pick
+  it up again as it was. If not, it's **used up**: no `on`, and only unfixed items marked
+  `:consumable?` (food eaten or cooked into something else, fuel burnt, an ingredient used up).
+  If so, or it's now part of something that stays (a goose hung on the game hooks, holly put up
+  over the pictures, a note nailed to a door, an apron put on), it's **left on** that thing:
+  `on` names the place, a judged thing or a judged person that isn't gone itself, and `aspect`
+  and `value` set the aspect that now records it. Any movable thing may be left so, consumable
+  or not, but not a fixed thing, a store, or one whose identity a mechanic needs
+  (`items/identity-bound?`), and only one lying at the job's place or carried by the worker
+  while there. The two shade into each other; the instructions say either is fine when it's
+  unclear, since what matters is that the fate says what happened and anything still there is
+  recorded in an aspect. The host's aspect is an ordinary change, checked and capped with the
+  rest (it wins over a `changes` entry for the same aspect). The thing comes back only by a
+  judged step: `find` (`taken`), or work making it again (below).
+- **Promotion, absorption and fates.** Work may make at
   most two things (`items/max-made`). A `made` entry without `from` may be the activity's
   direct product from everyday supplies, with no tracked source or use-up needed (a letter,
   a list, plans, a dish). Keep `from` for drawing from a store in scope (including one serving
@@ -1331,7 +1363,10 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   products are not consumable; dishes are. Make a thing only if someone will carry, hand over,
   serve or keep it; otherwise describe the result as an aspect (the room's table "laid for
   dinner"). Do not promote every utensil used. A made thing gets a fresh id, the consumable flag, and
-  the first used-up thing's owner if any. A non-consumable drawn thing gets `:drawn-from`.
+  the first gone thing's owner if any. A made entry may give `taken: {thing, aspect, value}`
+  when it was until now only an aspect of a judged thing (the goose taken down from the game
+  hooks): that thing must stay and have that aspect, which gets the new value ("" removes it).
+  The judge describes it as it is now (faded garlands, not fresh holly). A non-consumable drawn thing gets `:drawn-from`.
   Placement: `in` a named container in reach takes precedence; otherwise explicit `held: true`
   puts it in the worker's hands and `held: false` at the job's place. The judge is instructed
   that things naturally kept about the worker (a letter, a list, a note) are held; dishes and
@@ -1342,22 +1377,22 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   in scope. It is removed, with fate "put away in the <store name>". All real contents of a
   container must be absorbable and absorbed too, even hidden contents or those beyond the
   scene cap; otherwise the answer is refused generically. A thing cannot be both absorbed and
-  used up. Store aspects may change in the same answer, but need not.
-  `fates` maps used-up ids to nonblank fate phrases; omissions default to "used up while
-  <doing>". Something partly used is not used up: change its `:amount` ("about 17 lb left").
-  An activity happens in one place and the judge cannot move things: carrying something
-  elsewhere is not using it up. Leave it where it is; characters carry things with `take`
+  gone. Store aspects may change in the same answer, but need not.
+  Something partly used is not used up: change its `:amount` ("about 17 lb left").
+  An activity happens in one place, and nothing is carried elsewhere by it: carrying something
+  to another place doesn't make it gone. Leave it as it is; characters carry things with `take`
   and movement actions, and dishes are used up where eaten. When leftovers or supplies are
   put away into a store in scope (leftovers set in the pantry, groceries shelved), absorb
   them into that store: they join its stock and get a "put away" fate. Adjust the store's
-  aspects if its stock or lacking changes. Never describe a thing as moved or put away in
-  its aspects while leaving it where it is. If something isn't put away or consumed, leave
-  it as it is. This is judge guidance, not a new effect or semantic validator. Leaving any
+  aspects if its stock or lacking changes. Never describe a thing as moved, hung up or put away
+  in an aspect while leaving it a separate thing where it was: make it gone or absorb it. If
+  nothing became of it, leave it as it is. This is judge guidance, not a new effect or semantic validator. Leaving any
   thing untouched is always a valid answer. An activity may assume a particular thing someone
   said they brought, handed over or set aside that is neither in the scene nor carried (seven
   packets "counted into my apron" in talk): the judge treats it as not existing, writes nothing
-  as if it were counted or set out, and says in the summary that it wasn't there. Clothes,
-  everyday things and a store's supplies are still to hand.
+  as if it were counted or set out, and says in the summary that it wasn't there, unless an
+  aspect here records it, when the work may make it with `taken`. Clothes, everyday things and
+  a store's supplies are still to hand.
 - **The judge** is a narrow model call, not the GM and not a bridge; characters never hear of it.
   `item-judge/judge-request` builds it from the optional `:items :judge-brief` (`(fn [world] text)`),
   optional suggested aspect keys with short glosses (`:items {:aspect-keys {:cleanliness "how
@@ -1369,6 +1404,7 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   ```clojure
   {:place {:id "kitchen" :name "Kitchen" :desc "..." :aspects {...}}
    :focus [{:id "kitchen-range" :name "Kitchen range" :desc "..." :aspects {...}}]
+   :carried [{:id "goose" :name "Goose" :desc "..." :consumable true}]  ; only when there are some
    :also_here [...]
    :stores [{:id "pantry-shelves" :name "Pantry shelves" :keeps "dry goods, preserves, ..."
              :aspects {:stock "well stocked"} :at "pantry"}]
@@ -1390,6 +1426,9 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   Focus includes container contents as above, with `in` only when that container is also in
   focus; entries mark `consumable: true`, `container: true`, or `room: true` when appropriate,
   and `drawn_from` names a drawn thing’s store.
+  `carried` (work only, `item-work/carried-things`) has the same shape: what the worker holds
+  that the job didn't name, with what's inside it, wherever the worker is, so work can still
+  use it or leave it somewhere without the agent having named it.
   `also_here` has the same item shape, at most 12; stores are excluded from it. No other rooms,
   other people's holdings (except the judged people's `carrying` for an act), or closed-container
   contents are added to the scene. A focused container still includes its contents, open or closed, as before.
@@ -1402,8 +1441,8 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   it keeps unless its aspects say otherwise. Change only aspects affected by this activity;
   the place's aspects describe the room itself, not its contents.
   It has one required tool, `judge {changes: [{thing, aspect, value}],
-  used-up: [id], fates: {id: phrase}, absorbed: [{thing, into}],
-  made: [{name, desc, aspects?, consumable, from?, held?, in?}], summary}`: each change sets one aspect of one
+  gone: [{thing, fate, on?, aspect?, value?}], absorbed: [{thing, into}],
+  made: [{name, desc, aspects?, consumable, from?, held?, in?, taken?}], summary}`: each change sets one aspect of one
   thing, and `value: ""` removes it. With `:inner`, the tool also has `inner: [{person, key,
   value}]` beside `changes`, and the instructions an "Inner state" section (see Inner state).
   Both work and acts also accept `physical: [{person, faculty, level, cause?, minutes?}]`,
@@ -1428,13 +1467,18 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
   characters. When the same aspect of a thing comes twice, the last counts. Other keys (a `desc`,
   a `name`) are dropped, so existing things keep their identity and descriptions, and unchanged
   values (or removing an aspect a thing hasn't got) are left out, as are changes to removed
-  items. `used-up` names only consumable, unfixed items in focus or `also_here`, and a container
-  only with all its real descendants used up. The check reads the world, not just the scene:
+  items. `gone` names things in focus, `carried` or `also_here` once each ("say what became of
+  each thing only once"), each with a fate. One without `on` must be consumable and unfixed ("the
+  Saucepan (saucepan) isn't consumable, so it can't be used up: if it's now part of something
+  here, give `on`, `aspect` and `value`; otherwise leave it as it is"); one with `on` needs all
+  three with a nonblank value, a host that stays, and a movable, untracked thing with the job
+  (see Things gone). A container goes only with all its real descendants gone too. The check reads the world, not just the scene:
   hidden contents or contents beyond the 12-item cap cannot be orphaned. The rejection names
   no unseen things and suggests naming the container with `on` next time; `made` has at most 2 entries (name 1-60, desc 1-400 characters, optional
   aspects as above, required consumable flag, optional boolean `held`); any `from` must name
   a store in scope. Source-free products need no use-up; whether they are the activity's
-  direct product is the judge's decision, not a code classifier. An `in` must be a container in reach that is neither used up nor absorbed.
+  direct product is the judge's decision, not a code classifier. An `in` must be a container in reach that is neither gone nor absorbed.
+  A `taken` must name a judged thing that stays and an aspect it has.
   With `:inner`, the `inner` list is checked too (see Inner state). Without it, an `inner` list
   is dropped like any unknown key.
   A bad answer is sent back with the reason and asked once more. A second bad answer, or an
@@ -1533,7 +1577,8 @@ of their last `:agent/occupied` in the run's events, `item-steward/occupied-sinc
 when there's none, e.g. after a load that started them asleep) and `wakes` (their `:busy
 :until`); someone hibernating has `doing` (their routine's activity) and `since`, from the same
 event. Times are short ("Sat 22:30", "07:30"). No recent lines.
-The `steward` tool accepts `changes`, `used-up`, `fates`, `absorbed`, `physical`, `impediments`
+The `steward` tool accepts `changes`, `gone` (`[{thing, fate}]`, never `on`: the night leaves
+nothing on anything), `absorbed`, `physical`, `impediments`
 and required `summary`, never `made`, `moved` or `died`. It may absorb a candidate into a store
 in scope, use up a candidate with a fate,
 change its aspects or leave it. Even non-consumable drawn candidates may be used up (discarded).
@@ -1567,13 +1612,14 @@ refused through the usual checked-answer retry.
 Calls are logged as agent `"steward"`, use `:judge-model` and count toward cost. The shared
 one-correction lifecycle applies; a final failure leaves things alone and records
 `:items/steward-failed` (`:system`). Every checked result is `:items/stewarded`, GM-only,
-with `{:place :summary :changes}`, plus named `:used-up` and `:absorbed` when nonempty. Its
+with `{:place :summary :changes}`, plus named `:gone` and `:absorbed` when nonempty. Its
 reducer records removals and fates, and touches changed candidates; a sleeper's removal is a
 change `{:person id :aspect k :from v :to nil}`. It never holds inner state: the sleepers'
 inner changes follow it as GM-only `:person/inner-changed` events with `:source {:steward
 "1904-10-16"}` (see Inner state). Its short narration is "Steward at Kitchen:
 Idle things were put away.", with its changes after the summary as for work ("(Lady Ashby: no
-longer dressed high, with combs)": a person's removed aspect reads by its old value).
+longer dressed high, with combs)": a person's removed aspect reads by its old value), then
+each thing gone with its fate ("Dripping tin: worn out and discarded.").
 Physical recovery follows as GM-only `:person/physical-changed` or
 `:person/impediments-changed` events (`item-steward/eased-events`), without interrupting or
 waking sleepers. Characters see no steward event: they discover the changes in their views.

@@ -235,7 +235,7 @@
             judge #(item-judge/judgement {:tool-calls [{:id "j" :name "judge" :arguments (json/write-value-as-string (assoc % :summary "x"))}]}
                                          world things)]
         (is (= ["bedroom" "dressing-table" "dawson" "lady-ashby"] (map :id things)) "people last, by id")
-        (is (str/starts-with? (:error (judge {:used-up ["lady-ashby"]})) "you may use up only consumable items among these"))
+        (is (str/ends-with? (:error (judge {:gone [{:thing "lady-ashby" :fate "eaten"}]})) "; not lady-ashby"))
         (is (str/starts-with? (:error (judge {:absorbed [{:thing "dawson" :into "dressing-table"}]})) "absorb only unfixed"))
         (is (str/starts-with? (:error (judge {:made [{:name "Curl" :desc "A curl." :consumable false :in "lady-ashby"}]}))
                               "in must be the id of a container among these: none"))
@@ -312,7 +312,7 @@
                    (:error (check {:changes [{:thing "lady-ashby" :aspect "hair" :value "let down"}]}))))
             (is (str/starts-with? (:error (check {:changes [{:thing "mrs-pell" :aspect "apron" :value ""}]}))
                                   "you may change only these things: lady-ashby; not mrs-pell"))
-            (is (str/starts-with? (:error (check {:used-up ["lady-ashby"]})) "you may use up only")))))
+            (is (str/ends-with? (:error (check {:gone [{:thing "lady-ashby" :fate "eaten"}]})) "; not lady-ashby")))))
       (rounds! run 1)
       (let [world (e/world run)
             [stewarded] (of-type run :items/stewarded)]

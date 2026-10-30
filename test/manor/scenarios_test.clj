@@ -165,7 +165,7 @@
             (is (every? (set (keep :order-id (items/items-where world #(= "carriage-sweep" (:place %))))) ids)
                 "and lies at the carriage sweep")))
         (is (seq pastimes))
-        (is (every? #(every? empty? ((juxt :changes :used-up :made) (:data %))) pastimes))
+        (is (every? #(every? empty? ((juxt :changes :gone :made) (:data %))) pastimes))
         (is (not-any? #(#{:action/forfeited :item/judge-failed :items/steward-failed :adjudication/failed} (:type %)) events))
         (is (not-any? #(re-find #"^(error:|rejected:)" (:content % "")) (mapcat :replies calls)))
         (is (= world (w/replay (store/read-events (:dir run))))))

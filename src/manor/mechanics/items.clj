@@ -27,9 +27,13 @@
 
   A carried item goes wherever its holder goes, and things in a container go
   wherever it goes, with no events. The world has :items once the first item
-  is added, so worlds without items are unchanged. Used-up items keep their
+  is added, so worlds without items are unchanged. Gone items keep their
   names under :items-gone, so older lines still read, and their ids are never
   given out again.
+
+  An item's identity matters to code only where a mechanic needs it (see
+  `identity-bound?`); everything else may be turned into an aspect of
+  something and made again from one.
 
   Goods left at a shop for someone are ordinary items with a :waiting
   marker: who they're for, who keeps them, where and since when. They're
@@ -45,8 +49,9 @@
   ends, the engine asks a judge (a narrow model call, never seen by the
   characters) what the activity did to its local scene (place, focus,
   other visible items and stores in scope), checks the answer and records it as
-  :item/work-done: changed aspects, consumable items used up, and at most
-  two things made or drawn from stores, and things absorbed into stock.
+  :item/work-done: changed aspects, things gone as separate things (used up,
+  or kept only as an aspect of what they were left on), at most two things
+  made or drawn from stores, and things absorbed into stock.
   Putting things in a store also starts a quick job, due next round with no
   occupation or time worked; put-ins by one worker into one store in a round
   share that job.
@@ -209,7 +214,7 @@
 (defn job [world id] (get-in world [:item-jobs id]))
 
 (defn names
-  "Item id -> name, as [:item id] keys for manor.narrate/names, used-up
+  "Item id -> name, as [:item id] keys for manor.narrate/names, gone
   items included."
   [world]
   (into {} (map (fn [[id item-name]] [[:item id] item-name]))
@@ -252,6 +257,14 @@
              (let [o (outermost world it)]
                (or (= at (:place o))
                    (and (= keeper (:holder o)) (= at (space/location-of world keeper))))))))
+
+(defn identity-bound?
+  "Does a mechanic depend on this particular item: a hiring reference
+  (:candidate-id), goods sent up by a shop (:order-id), or goods waiting for
+  someone (:waiting)? Such things are never turned into aspects. Don't add
+  to this list unless there's no other way (AGENTS.md)."
+  [it]
+  (boolean (some #(contains? it %) [:candidate-id :order-id :waiting])))
 
 (defn waiting-for
   "The items shown as waiting for `agent-id` (see `waiting?`), in id order."
@@ -496,7 +509,7 @@
   (as-> world world
     (reduce touch world (keep :id (in-reach world (job world (:job data)))))
     (reduce changed world (:changes data))
-    (remove-things world (:used-up data) (:absorbed data))
+    (remove-things world (:gone data) (:absorbed data))
     (reduce (fn [world it] (touch (assoc-in world [:items (:id it)] it) (:id it))) world (:made data))
     (update world :item-jobs dissoc (:job data))))
 
@@ -531,10 +544,12 @@
   (assoc world :items-steward-day (:day data)))
 
 (defmethod w/apply-event :items/stewarded [world {:keys [data]}]
-  (remove-things (reduce changed world (:changes data)) (:used-up data) (:absorbed data)))
+  (remove-things (reduce changed world (:changes data)) (:gone data) (:absorbed data)))
 
 (defmethod w/apply-event :item/found [world {:keys [data]}]
-  (touch (assoc-in world [:items (get-in data [:item :id])] (:item data)) (get-in data [:item :id])))
+  (-> (reduce changed world (:changes data))
+      (assoc-in [:items (get-in data [:item :id])] (:item data))
+      (touch (get-in data [:item :id]))))
 
 (defmethod w/apply-event :item/not-found [world {:keys [data]}]
   (if-let [path (:path data)]
@@ -613,8 +628,14 @@
     (str/join "; " (for [k (distinct (map thing changes))]
                      (str (thing-name k) ": " (str/join ", " (map change-text (by-thing k))))))))
 
+(defn- gone-text
+  "\" Rib of beef: eaten at supper. Goose: hung on the third game hook.\":
+  what became of each thing gone, by its own fate."
+  [gone]
+  (str/join (for [{:keys [name fate]} gone] (str " " name ": " fate "."))))
+
 (defmethod n/describe :item/work-done [{:keys [actor data]} names]
-  (let [{:keys [doing stopped-early? summary changes used-up absorbed made fetched]} data
+  (let [{:keys [doing stopped-early? summary changes gone absorbed made fetched]} data
         fetched-items (filter #(some #{(:id %)} fetched) made)
         made (remove #(some #{(:id %)} fetched) made)
         opener (work-opener (n/who names actor) doing stopped-early?)]
@@ -622,8 +643,7 @@
          (when (and summary (not= summary opener)) (str " " summary))
          (when (seq changes)
            (str " (" (changes-text names changes) ")."))
-         (when (seq used-up)
-           (str " Used up: " (str/join "; " (map :name used-up)) "."))
+         (gone-text gone)
          (when (seq absorbed)
            (str " Put away: " (str/join "; " (for [{:keys [name into]} absorbed]
                                                (str name " (in the " (get names [:item into] into) ")"))) "."))
@@ -659,14 +679,16 @@
 
 (defmethod n/describe :items/stewarded [{:keys [data]} names]
   (str "Steward at " (n/place names (:place data)) ": " (:summary data)
-       (when (seq (:changes data)) (str " (" (changes-text names (:changes data)) ")."))))
+       (when (seq (:changes data)) (str " (" (changes-text names (:changes data)) ")."))
+       (gone-text (:gone data))))
 
 (defmethod n/describe :items/steward-failed [{:keys [data]} _]
   (str "The steward's answer at " (:place data) " was not used: " (:reason data)))
 
 (defmethod n/describe :item/found [{:keys [actor data]} names]
   (str (n/who names actor) " looks for " (:what data) " and finds it"
-       (when (:from data) (str " in " (the names (:from data)))) "."))
+       (when (:from data) (str " in " (the names (:from data)))) "."
+       (when (seq (:changes data)) (str " (" (changes-text names (:changes data)) ")."))))
 
 (defmethod n/describe :item/not-found [{:keys [actor data]} names]
   (str (n/who names actor) " looks for " (:what data) ": there's none"

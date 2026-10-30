@@ -118,7 +118,7 @@
                       {:type :round/started :data {:round 1}}
                       {:type :item/work-begun :data {:id "job" :actor "a" :place "hall" :items ["store"]
                                                     :doing "tidying" :started 1 :due 3}}
-                      {:type :items/stewarded :data {:used-up [{:item "coal" :name "Coal" :fate "burned"}]}}])
+                      {:type :items/stewarded :data {:gone [{:item "coal" :name "Coal" :fate "burned"}]}}])
         render #(html (inspect/fragment snap [] %1 %2))
         bag (render "item" "bag") room (render "place" "hall")
         person (render "agent" "a") gone (render "item" "coal")]

@@ -1,1 +1,8 @@
-Accept unspent quotes made for you, using `quote-ids` from `offers`. You may specify up to {{max-lines}} at once to buy an entire list at once. Use `buy` once you have quotes you wish to complete a purchase for. If you see an incorrect quote or one you don't want, get a new quote first. Using `buy` pays quoted prices from {{household-name}}'s funds, unless you set `from` to `own` to use your own account instead. The goods belong to the paying account. `hand-over`: `take` carries the goods away with you now; `leave` keeps them at the shop, paid for, to be collected or sent up by the shop (see `waiting-at-shops` in your view). A quote for delivery becomes an order instead, whatever `hand-over` says, delivered at the time it gives (see orders in your view). Talk to the shopkeeper with converse: they quote on their line, and you can buy on your line in the conversation, before you speak. There is no fixed catalogue.
+Buy goods at firm quoted prices. You must be at the quoting shop with the shopkeeper present.
+
+- `quote-ids`: select up to {{max-lines}} unspent quotes made for you from `offers`. Omit unwanted quotes; ask the shopkeeper for a new quote if the goods or amount are wrong.
+- `from`: pay from {{household-name}}'s funds by default, or set `"own"` to use your own account. The goods belong to the paying account.
+- `hand-over` (required): `"take"` puts counter goods in your hands; `"leave"` keeps them paid for at the shop for collection or delivery (see `waiting-at-shops`).
+- Delivery quotes are paid in full and become `orders`, regardless of `hand-over`. Delivery timing appears in `orders`.
+
+Use `converse` to ask the shopkeeper for quotes. During a conversation, they can call `quote-goods` before speaking, and you can call `buy` before speaking on your turn.

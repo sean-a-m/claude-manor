@@ -1,1 +1,10 @@
-Recommend one candidate for a position to someone else here (for: their id, not your own). Use it when someone asks whether you know anyone for a post, on your turn or on your line in a conversation, before you reply. do not make up a name without using `recommend` first. `recommend` finds a candidate from the hiring pool or creates one that you know, but it can't be an established figure living in the area, so don't promise to recommend someone already working in the area. `recommend` lets you recall what you know of the candidate, enabling you to speak of them in your own words. `recommend` enables both you and the person you `recommend` to `send-for` that candidate.
+Recommend one candidate for a post to another person here.
+
+- `position`: a position id from the catalogue.
+- `for`: the id of the person receiving the recommendation. They must be present and cannot be you.
+
+Call `recommend` before naming a candidate. It finds or creates a hiring-pool candidate; it does not select an established local resident.
+
+You receive private knowledge of the candidate to describe in your own words. Both you and the recipient learn the candidate's id and can use `send-for` to summon them. The candidate does not arrive until summoned.
+
+During a conversation, call `recommend` before speaking on your turn, then give your recommendation.

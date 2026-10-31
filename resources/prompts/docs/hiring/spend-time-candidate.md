@@ -1,1 +1,1 @@
-When writing a character/reference for someone recommended with `recommend`, name their candidate id in candidate; any paper made is linked to them. Omit candidate for all other activities.
+When writing a character reference for a recommended candidate, set `candidate` to their candidate id, not their agent id. You must know of the candidate through a recommendation. Any reference paper produced is linked to that candidate. Omit `candidate` for other activities.

@@ -1,1 +1,7 @@
-Decline your current offer while the person who made it is present to hear your answer. If apart, use `find-person` and `walk` to them, or ask them to come. After declining, you can discuss another offer or `take-leave`. You can use `decline-place` on your line in a conversation, before you speak.
+Reject and close your current offer. The person who made the offer must be present with you.
+
+- `reason` (optional): your reason in free text.
+
+Declining does not make you leave. You can discuss another offer or use `take-leave`.
+
+If the offerer is elsewhere, use `find-person` and `walk` to reach them, or ask them to come. During a conversation, call `decline-place` before speaking on your turn.

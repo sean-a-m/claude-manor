@@ -1,1 +1,11 @@
-Check whether this store can sell requested portable goods and quote firm prices to a customer here. Use for (the customer's id) and goods: a list of up to {{max-lines}} lines, each one kind of goods with item and amount, how much of it, as the customer asked ({{amount-examples}}); if your shop sends goods out, set deliver true on a line the customer wants sent to {{home}}, such as goods too large or too many to carry away; the shop's courier takes those up at the time given, so you don't make them up, pack or carry them; quote a whole shopping list in one call. Each line gets its own offer (a quote-id) or refusal, announced at the counter. At your counter you can use this on your speaking turn in a conversation, before your line; then tell the customer the prices in your reply. Quote before you promise goods or give a price: there is no fixed catalogue, no bargaining and no credit. The customer accepts with buy, and chooses then whether to take the goods away or leave them at your shop, paid for; goods left at your shop are shown in your view as waiting-for the customer: give them to whoever collects them, or, if your shop sends goods out, send them up with send-up, which can also send new goods charged to the household's account, such as a line refused over the counter as too much to carry. A delivery line is paid in full when bought, with no bill to send after. This does not charge the customer.
+Check availability and quote firm prices for goods to a customer at your shop. This does not charge them. The shop must be open.
+
+- `for`: the customer's id; they must be present.
+- `goods`: up to {{max-lines}} lines. Each line describes one kind of goods with `item` and `amount`, using the amount the customer requested ({{amount-examples}}).
+- `deliver`: set to `true` within a goods line to quote delivery to {{home}} instead of collection, if your shop offers delivery.
+
+Each line produces a quote with a `quote-id` or a refusal, announced at the counter. Quote the shopping list in one call, before promising goods or stating prices. There is no fixed catalogue, bargaining, or credit.
+
+The customer accepts quotes with `buy`: counter goods can be taken or left paid for at the shop; delivery goods are paid in full and sent by the courier, with nothing for you to prepare, pack, or carry. Use `send-up` to send paid goods left at the shop or new goods charged directly to the household.
+
+During a conversation at your counter, call `quote-goods` before speaking on your turn, then tell the customer the prices.

@@ -1,1 +1,1 @@
-give return-date like "{{example-date}}" and return-time like "07:00"
+Provide both `return-date` (for example, `"{{example-date}}"`) and `return-time` (for example, `"07:00"`).

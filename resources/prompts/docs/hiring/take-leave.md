@@ -1,1 +1,9 @@
-Leave the mapped area: a candidate ends an unengaged visit, and a guest from elsewhere goes home. Once gone you have no turns until you come back. To come back at a set time (to fetch your things and return, say), give `return-date` like "{{example-date}}" and return-time like "07:00", within {{max-return-days}} days: you arrive at the meeting place then, and those expecting you are told. Without them, you return only if sent for or invited again.
+Leave the mapped area, ending your visit as an unengaged candidate or a guest from elsewhere. This ends your turn; you receive no further turns while away. A candidate's departure closes any outstanding job offer.
+
+To schedule your return, provide both:
+- `return-date`: a date such as `"{{example-date}}"`.
+- `return-time`: a time such as `"07:00"`.
+
+The return must be later than now and within {{max-return-days}} days. You are expected back at the meeting place at that time. Scheduled returns require a world clock.
+
+Omit both fields to leave without scheduling a return; you can be sent for or invited again.

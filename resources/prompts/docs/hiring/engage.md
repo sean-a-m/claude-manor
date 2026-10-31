@@ -1,1 +1,10 @@
-Offer a present candidate a position, optional free-text terms and bedroom id (any existing location in the household's home area, even a room not marked as a bedroom). A new offer replaces any old one. Stay with them until they answer with `accept-place` or `decline-place`: you must be present in the same place as the candidate for them to successfully accept or decline. Making the offer in a conversation with them lets them accept during the conversation. Living-in staff should have a bed, but it's up to you to ensure there are suitable sleeping arrangements. Simply saying you'll hire someone without using `engage` does not allow them to `accept-place`: you must use `engage` first. You may use `engage` on your line in a conversation with them, before you speak.
+Offer a post to an unengaged candidate present with you. This creates an offer; it does not hire them until they call `accept-place`.
+
+- `who`: the candidate's agent id, not their candidate id.
+- `position`: a position id from the catalogue.
+- `terms` (optional): the offered terms in free text.
+- `bedroom` (optional): an existing room id in the household's home area. It need not be marked as a bedroom; arrange suitable sleeping accommodation for live-in staff.
+
+A new offer replaces any existing offer to that candidate. Saying that you will hire them does not create an offer: use `engage`.
+
+Stay in the same location until they answer with `accept-place` or `decline-place`. During a conversation, call `engage` before speaking on your turn so they can answer within the conversation.

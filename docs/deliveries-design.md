@@ -623,6 +623,18 @@ or two.
   prompt that change every call anyway; the rules paragraph is fixed per world, so the cached
   system prompt stays the same from call to call.
 
+### Prompt clarification
+
+The four order-book prompt fragments now separate the records' purpose, field names and
+instructions for each reader. The shopping rules explain how to check a purchase and which
+actions actually buy or send goods. The work judge distinguishes pending deliveries from
+unrecorded requests and completed purchases; the finder applies `impossible` to pending
+delivery goods, not all purchases; the conversation judge distinguishes a character's belief
+in a promise from a confirmed order. All four explain the books' scope and limited history,
+so absence is not mistaken for proof that a past purchase never happened. This is a prompt-only
+change: the books remain information in the view, not physical objects. Real-model effectiveness
+has not yet been checked.
+
 ### Not addressed
 
 - Everyone of the household sees the whole book. A later version could keep it with one person

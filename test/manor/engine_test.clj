@@ -1,6 +1,7 @@
 (ns manor.engine-test
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
+            [manor.prompts :as prompts]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
             [manor.clock :as clock]
@@ -522,9 +523,10 @@
 (deftest speaking-once-per-turn
   (testing "say and whisper are free, once per turn, and share the limit"
     (let [tools (into {} (map (juxt :name a/->tool)) (b/agent-actions))]
-      (doseq [[k other] [[:say "whisper"] [:whisper "say"]]]
-        (is (str/ends-with? (get-in tools [k :function :description])
-                            (str "Shares its limit with " other ". Free: does not end your turn. Once per turn."))))
+      (doseq [[k other] [[:say "whisper"] [:whisper "say"]]
+              :let [desc (get-in tools [k :function :description])]]
+        (is (str/includes? desc (str "`" other "`")) "each names the other it shares its limit with")
+        (is (str/ends-with? desc (str (prompts/render "docs/hints/free.md") " " (prompts/render "docs/hints/once-per-turn.md")))))
       (is (= :speech (a/limit-key (first (filter #(= :say (:name %)) (b/agent-actions))))))
       (is (str/ends-with? (get-in (a/->tool {:name :x :kind :free :per-turn 2 :doc "X."}) [:function :description])
                           "At most 2 times per turn."))))

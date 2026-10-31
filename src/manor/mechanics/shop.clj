@@ -12,6 +12,7 @@
             [manor.mechanics.adjudication :as adjudication]
             [manor.mechanics.items :as items]
             [manor.mechanics.positions :as positions]
+            [manor.mechanics.purchases :as purchases]
             [manor.mechanics.space :as space]
             [manor.narrate :as n]
             [manor.prompts :as prompts]
@@ -148,7 +149,8 @@
 (defmethod w/apply-event :shop/bought [world {:keys [data]}]
   (-> world
       (update-in [:state :accounts (:account data)] - (:price data))
-      (update-in [:state :quotes] dissoc (:quote-id data))))
+      (update-in [:state :quotes] dissoc (:quote-id data))
+      (purchases/bought data)))
 
 (defmethod n/describe :shop/goods-quoted [{:keys [actor data]} names]
   (str (n/who names actor) " offers " (n/who names (:buyer data)) " " (:qty data) " " (:item data)
@@ -233,16 +235,19 @@
 
 (defn- quote-bought
   "The events for `buyer` buying one quote: an order for a delivery quote,
-  else the purchase and its parcel (see `parcel`)."
+  else the purchase and its parcel (see `parcel`), the purchase naming the
+  parcel for the order books (manor.mechanics.purchases)."
   [world buyer quote-id hand-over audience account]
   (let [quote (get-in world [:state :quotes quote-id])]
     (if (:deliver quote)
       [(deliveries/ordered world buyer quote-id quote audience account)]
-      [{:type :shop/bought :visible-to audience
-        :data (assoc (select-keys quote [:location :item :unit :qty :price])
-                     :quote-id quote-id :hand-over hand-over :account account)}
-       (items/added world (parcel world buyer quote hand-over account) audience
-                    :amount (amount (:qty quote) (:unit quote)))])))
+      (let [goods (items/added world (parcel world buyer quote hand-over account) audience
+                               :amount (amount (:qty quote) (:unit quote)))]
+        [{:type :shop/bought :visible-to audience
+          :data (assoc (select-keys quote [:location :clerk :item :unit :qty :price])
+                       :quote-id quote-id :buyer buyer :hand-over hand-over :account account
+                       :item-id (get-in goods [:data :item :id]))}
+         goods]))))
 
 (defn buy-events
   "For each quote, the purchase and one parcel of its goods, taken by the
@@ -264,16 +269,18 @@
 (defn- buy-reply
   "What the buyer is told, from the world after buying: where the counter
   goods are now, by `hand-over`, and whether any were ordered for delivery
-  (the quotes that became orders)."
-  [world _ {:keys [quote-ids hand-over]}]
-  (let [ordered (count (filter (comp (set quote-ids) :quote-id) (vals (deliveries/orders world))))]
+  (the quotes that became orders), and in which book."
+  [world buyer {:keys [quote-ids hand-over from]}]
+  (let [ordered (filter (comp (set quote-ids) :quote-id) (vals (deliveries/orders world)))
+        book (when (seq ordered) (purchases/book-for world buyer (money/account buyer from) (:location (first ordered))))
+        ordered (count ordered)]
     (str "Paid: "
          (str/join "; " (cond-> []
                           (< ordered (count quote-ids))
                           (conj (if (= "leave" hand-over)
                                   "the goods are left at the shop for you (waiting-at-shops in your view)"
                                   "the goods are in your hands (carrying in your view)"))
-                          (pos? ordered) (conj "goods for delivery are under orders in your view")))
+                          (pos? ordered) (conj (str "goods for delivery are under " book " in your view"))))
          ".")))
 
 (defn quotes-here
@@ -360,12 +367,14 @@
 (defn- send-up-reply
   "What the clerk is told: what was sent up or refused, and that the courier
   takes it."
-  [world _ _ {:keys [events]}]
+  [world clerk _ {:keys [events]}]
   (let [names (n/names world)]
     (if (seq events)
       (str (str/join "\n" (map #(n/describe % names) events))
            (when (some #(#{:deliveries/sent-up :deliveries/sent-out} (:type %)) events)
-             "\nThe shop's courier takes them up when due (orders in your view); there is nothing for you to make up, pack or carry."))
+             (str "\nThe shop's courier takes them up when due ("
+                  (purchases/book-for world clerk positions/household (space/location-of world clerk))
+                  " in your view); there is nothing for you to make up, pack or carry.")))
       "Nothing was sent: the shop or the goods are no longer ready.")))
 
 (defn waiting-here
@@ -416,7 +425,7 @@
                         :price (money/display (money/spec world) (:price quote))))
         orders (deliveries/observe world id)
         waiting (waiting-at-shops world id)]
-    (cond-> {:offers (vec offers)}
+    (cond-> (merge {:offers (vec offers)} (purchases/observe world id))
       (seq orders) (assoc :orders orders)
       (seq waiting) (assoc :waiting-at-shops waiting)
       (contains? (:services loc) :general-store)

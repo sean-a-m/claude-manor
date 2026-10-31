@@ -571,3 +571,63 @@ lines and, if the account covers them, charged and ordered at once (`:deliveries
 It's a `:query`, offered from the keeper's own delivering shop, open or not, without the
 customer there; the person the goods are for sees the event and the orders. A refusal for
 want of funds doesn't show the balance. See scenario-authoring (Deliveries).
+
+## Order books (2026-10-31)
+
+A real run showed how one wrong message could spread. A work judge told a cook who had written
+an order out on paper that the order was in hand. The paper was then read to a shopkeeper, who
+read it back and promised delivery, but nothing was quoted or sent. The conversation judge left
+him satisfied that the order stood, he spent his next job making it up, and the work judge,
+told never to make ordered goods, made nothing and called it done. The house waited for goods
+that were never bought.
+
+Nobody could check. `orders` showed only when it had entries, only to an order's buyer and
+clerk, and went when the goods came, so the people who had asked for the goods saw nothing,
+the buyer lost it at the delivery, and the shopkeeper and the judges couldn't tell "nothing
+ordered" from "nothing shown". The user's decision: one wrong message is to be expected; the
+fix is that everyone involved can see what was really ordered, so it's corrected within a turn
+or two.
+
+### As built
+
+- **The record.** `manor.mechanics.purchases` keeps `[:state :purchases]`, a record per goods
+  line, from the reducers of the events that make and move purchases: `:shop/bought` (taken, or
+  left as the parcel `:item-id`, which the event now names), `:deliveries/ordered` and
+  `:deliveries/sent-out` (to be delivered, the latter marked as sent up by the shopkeeper),
+  `:deliveries/sent-up` (goods left waiting, now to be delivered) and `:deliveries/arrived`
+  (delivered, where and when). At most 60 records; the oldest settled go first, and deliveries
+  still to come are never dropped.
+- **The household's book**, `household.orders`, for everyone of the household
+  (`positions/household-member?`): what was bought on the household's account, own-purse
+  purchases left out. **A shop's book**, `shop-orders`, for whoever keeps it (`:shop-clerk`, at
+  their position's `:workplace` shops): its sales and sends on any account, own-purse ones marked.
+  Each is shown even when empty, so `[]` means nothing bought.
+- **An entry** is the lines bought together (same shop, buyer, round and status): `from`, `for`,
+  `bought`, `goods` (each with its amount and price), `total`, `status` (taken away at the
+  counter; paid for, waiting at the shop; collected from the shop; [sent up by …,] to be delivered
+  at … by …; delivered at … at …) and, for a delivery still to come, `sent-up-by`. A book shows
+  its latest 6 entries and every delivery still to come, oldest first.
+- **`orders`** now lists only the pending orders a person is party to that are in no book they
+  see: deliveries from their own purse, mostly.
+- **Judges.** The work judge's scene and the finder's `searcher` get the worker's books as
+  `household_orders` and `shop_orders`, each even when empty, and `orders` for the rest
+  (`deliveries/judge-orders`, the items hook `:items :orders`, which now returns a map of keys).
+  `brief-deliveries.md` says the books are what was really bought, and that work on an order no
+  book shows makes and sends nothing: the summary says it isn't in the order book yet. The
+  conversation judge's scene gets the members' books (`:order-books`, `purchases/judge-books`),
+  and `judges/conversation-orders.md` says talk places no order.
+- **In the world.** The shopping rules end with `rules/sections/shopping-order-book.md`: where
+  the book is kept (the world's `:meta :order-book`, a sentence of the world's own, else
+  `shopping-order-book-kept.md`), what it shows, that it's the truth of what was bought, to look
+  in it before saying something is coming, and the shopkeeper's `shop-orders`. Replies and the
+  clerk's in-hand line name the book the goods are in (`purchases/book-for`).
+- **Cost and caching.** The books are in the view and in the judges' scenes, the parts of a
+  prompt that change every call anyway; the rules paragraph is fixed per world, so the cached
+  system prompt stays the same from call to call.
+
+### Not addressed
+
+- Everyone of the household sees the whole book. A later version could keep it with one person
+  of the household whom the others ask, as plans are kept with the architect.
+- Own-purse purchases stay out of the household's book; their deliveries are under `orders`.
+- Whether real models read the book and correct themselves needs a short real run.

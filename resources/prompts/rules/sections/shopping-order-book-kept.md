@@ -1,0 +1,1 @@
+The household keeps an order book: whoever buys for the house enters the purchase, and whoever takes in a delivery marks it off, so anyone of the household can see at a glance what has been bought and what is still to come.

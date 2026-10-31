@@ -724,10 +724,11 @@
             id (:agent-id p)]
         (testing "a return time is checked"
           (doseq [[args reason] [[{:return-date "1904-10-15"} "give both return-date and return-time, or neither"]
-                                 [{:return-date "15 October" :return-time "11:00"} "give return-date like \"1904-10-15\" and return-time like \"07:00\""]
                                  [{:return-date "1904-10-15" :return-time "08:30"} "the return time must be later than now"]
                                  [{:return-date "1904-10-30" :return-time "08:00"} "say you'll be back within 7 days"]]]
-            (is (= reason (a/check leave world id args)))))
+            (is (= reason (a/check leave world id args))))
+          (is (str/includes? (a/check leave world id {:return-date "15 October" :return-time "11:00"}) "\"1904-10-15\"")
+              "a badly written date is refused with the world's date as the example"))
         (let [events ((:effect leave) world id back)
               left (reduce w/apply-event world events)
               departed (first (filter #(= :people/departed (:type %)) events))]

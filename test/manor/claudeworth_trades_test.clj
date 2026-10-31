@@ -130,7 +130,8 @@
           (is (= {:location "drapers-shop" :buyer @buyer :clerk clerk :due 6 :to "carriage-sweep"}
                  (select-keys order [:location :buyer :clerk :due :to])))
           (is (= (deliveries/courier-line world "drapers-shop")
-                 (:sent-up-by (first (deliveries/observe world @buyer))))))
+                 (:sent-up-by (last (get-in (shop/observe world @buyer) [:household :orders]))))
+              "the household's order book names who brings it"))
         (e/auto! run 4)
         (is (= :idle (e/wait-idle run 60000)))
         (let [world (e/world run)

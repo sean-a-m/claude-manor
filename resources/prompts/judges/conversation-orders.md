@@ -1,0 +1,2 @@
+## Order books
+When the scene has them, `household_orders` (the household's purchases) and `shop_orders` (the sales and sends of shops members keep) are the order books: what has really been bought and sent, and where its goods are now. Talk buys and sends nothing, so an order talked of that isn't in a book hasn't been placed. Members may still believe what they were told, but never write into anyone's inner state that goods are bought, ordered or on their way when the books don't show it.

@@ -45,13 +45,16 @@
 
 (defn instructions
   "The conversation judge's system message, for the scenario's inner state
-  `config`, and its relations (`relations-config`) if it has them."
+  `config`, its relations (`relations-config`) if it has them, and what
+  order books are (`books?`) if it's shown them."
   ([world config] (instructions world config nil))
-  ([world config relations-config]
+  ([world config relations-config] (instructions world config relations-config false))
+  ([world config relations-config books?]
    (str (prompts/render world "judges/conversation.md"
                         {:advised-value inner/advised-value :max-summary max-summary
                          :keys (inner/key-instructions world config)})
-        (when relations-config (str "\n\n" (relations/instructions world))))))
+        (when relations-config (str "\n\n" (relations/instructions world)))
+        (when books? (str "\n\n" (prompts/render world "judges/conversation-orders.md" {}))))))
 
 ;; ---------------------------------------------------------------------------
 ;; The request
@@ -100,15 +103,19 @@
   "The conversation judge's request about `conv` ({:initiator :members}),
   whose `lines` (see `lines`) are given in order. With the scenario's
   :relations (`relations-config`), it may add to how members feel toward
-  each other."
+  each other. With its :order-books (`books`, `(fn [world member-ids] {...})`,
+  see purchases/judge-books), the scene shows the members' order books, so
+  talk of an order can be told from one placed."
   ([config world conv lines] (judge-request config world conv lines nil))
-  ([config world {:keys [initiator members]} lines relations-config]
+  ([config world conv lines relations-config] (judge-request config world conv lines relations-config nil))
+  ([config world {:keys [initiator members]} lines relations-config books]
    (let [place (space/location-of world initiator)
-         scene {:members (mapv #(member-json config relations-config world members %) members)
-                :lines (mapv #(line-json members %) lines)}]
+         scene (merge {:members (mapv #(member-json config relations-config world members %) members)
+                       :lines (mapv #(line-json members %) lines)}
+                      (when books (books world members)))]
      {:tools [(react-tool world relations-config)]
       :messages
-      [{:role "system" :content (instructions world config relations-config)}
+      [{:role "system" :content (instructions world config relations-config (some? books))}
        {:role "user"
         :content (str "# The conversation\n\n"
                       "- Time: " (if-let [c (:clock world)] (clock/world-label world (:round world)) (str "round " (:round world))) "\n"

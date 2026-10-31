@@ -84,7 +84,8 @@
   (let [config (get-in run [:scenario :inner])
         relations-config (get-in run [:scenario :relations])
         lines (conversation-judge/lines events (:id conv))
-        request (assoc (conversation-judge/judge-request config world conv lines relations-config)
+        request (assoc (conversation-judge/judge-request config world conv lines relations-config
+                                                         (get-in run [:scenario :order-books]))
                        :label "conversation judge"
                        :ctx {:role :conversation-judge :world world :conversation conv :lines lines})]
     (ask-structured! run "conversation-judge" request

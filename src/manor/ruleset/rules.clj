@@ -46,6 +46,16 @@
   ([world file] (section world file {}))
   ([world file params] (prompts/render world (str "rules/sections/" file ".md") params)))
 
+(defn- order-book
+  "The order books' paragraph of the shopping rules, where the world has
+  shops: where the household's book is kept, the world's :meta :order-book
+  if it has one, and what the books show (manor.mechanics.purchases)."
+  [world]
+  (if (some #(contains? (:services %) :general-store) (vals (get-in world [:space :locations])))
+    (str "\n\n" (section world "shopping-order-book"
+                          {:kept (or (get-in world [:state :order-book]) (section world "shopping-order-book-kept"))}))
+    ""))
+
 (defn rules
   "How actions work, for every role: a section for each subject, so a model
   (and whoever reads the prompt) can find what applies. Each section is a
@@ -75,7 +85,8 @@
                 (section world "people" {:physical (physical/rules world)})
                 (section world "shopping" {:paid (section world (if architect? "shopping-paid-commissions" "shopping-paid"))
                                            :spending-tools (section world (if architect? "shopping-spending-tools-commissions" "shopping-spending-tools"))
-                                           :money (prompts/render world "money.md" {})})
+                                           :money (prompts/render world "money.md" {})
+                                           :order-book (order-book world)})
                 (when architect?
                   (section world "building" {:sizes (str/join ", " (map :size (get-in world [:state :architect-prices :sizes])))
                                              :fee-percent building/fee-percent}))

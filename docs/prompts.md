@@ -60,7 +60,9 @@ the rules of individual mechanics that it joins in.
 | `rules/sections/work.md` | `spend-time` | ″ | `max-work-hours` |
 | `rules/sections/things.md` | Items and `find` | ″ | `find-for-sale` (`things-find-everywhere.md` or `things-find-not-at-trade.md`) |
 | `rules/sections/people.md` | Aspects of people, inner state, feelings toward others, the body | ″ | `physical` (`rules/physical.md`) |
-| `rules/sections/shopping.md` | Money and shopping | ″ | `paid` (`shopping-paid[-commissions].md`), `spending-tools` (`shopping-spending-tools[-commissions].md`), `money` (the pack's `money.md`) |
+| `rules/sections/shopping.md` | Money and shopping | ″ | `paid` (`shopping-paid[-commissions].md`), `spending-tools` (`shopping-spending-tools[-commissions].md`), `money` (the pack's `money.md`), `order-book` (`shopping-order-book.md` where the world has shops, else empty) |
+| `rules/sections/shopping-order-book.md` | The order books: `household.orders` and `shop-orders`, the truth of what was bought | `ruleset.rules/order-book` | `kept` (the world's `:meta :order-book`, else `shopping-order-book-kept.md`) |
+| `rules/sections/shopping-order-book-kept.md` | The generic sentence on where the household's order book is kept | ″ | |
 | `rules/sections/building.md` | Building, only with an architect | ″ | `sizes`, `fee-percent` |
 | `rules/sections/hiring.md` | Hiring | ″ | `hiring` (`rules/hiring.md`) |
 | `rules/sections/invitations.md` | Invitations, only with visits | ″ | `visits` (`rules/visits.md`) |
@@ -110,12 +112,13 @@ must call.
 |---|---|---|---|
 | `judges/scene.md` | The scene judge: what a job or an immediate act changed | `items.judge/judge-instructions` | `advised-aspect`, `max-aspects`, `max-made`, `max-impediments`, `max-summary` |
 | `judges/brief.md` | The scene judge's "## The setting": the household's brief | `ruleset.rules/judge-brief` | `setting`, `mechanics` (`brief-architect.md`, `brief-deliveries.md` when those exist) |
-| `judges/brief-architect.md`, `brief-deliveries.md` | Fragments of the brief; `brief-deliveries.md` also says how to judge work on the scene's `orders` | ″ | |
+| `judges/brief-architect.md`, `brief-deliveries.md` | Fragments of the brief; `brief-deliveries.md` also says how to judge work on the scene's order books (`household_orders`, `shop_orders`) and `orders` | ″ | |
 | `judges/inner.md` | The scene judge's lines on inner state | `inner/instructions` | `advised-value`, `keys` (`inner-keys.md`) |
 | `judges/inner-keys.md` | Fragment: the inner-state keys every person has, and how many more | `inner/key-instructions` | `open`, `keys` (the scenario's keys and glosses, one line each) |
 | `judges/steward.md` | The nightly steward | `items.steward/steward-instructions` | `advised-aspect` |
 | `judges/steward-inner.md` | The steward's lines on sleepers' inner state | `items.steward` | `advised-value`, `keys` |
 | `judges/finder.md` | The finder: identify one or several existing things, or rate the odds of finding something with `find` | `items.find/finder-instructions` | `advised-aspect`, `max-existing` |
+| `judges/conversation-orders.md` | Added to the conversation judge's instructions where the scenario has order books: talk places no order | `conversation.judge/instructions` | |
 | `judges/finder-deliveries.md` | Added to the finder's instructions where a shop sends goods out: a pending order's goods are never found | `deliveries/finder-brief` (the items config's `:finder-brief`) | |
 | `judges/conversation.md` | The conversation judge: how a conversation left its members' inner state | `conversation.judge/instructions` | `advised-value`, `max-summary`, `keys` |
 | `judges/relations.md` | The work and conversation judges' lines on relations, after their other instructions | `relations/instructions` | `max-feeling`, `max-because` |

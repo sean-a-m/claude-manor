@@ -423,21 +423,37 @@ usual correction. The quote records `:deliver {:lead-hours :to}`, where `:to` is
 place, hiring's `:meeting-place`. `buy` takes counter and delivery quotes together: a delivery
 quote, whatever `hand-over` says, emits `:deliveries/ordered`, which pays at once and keeps the order under
 `[:state :orders]`, due at `deliveries/due-round` (at least next round, moved to the shop's next
-opening time when it falls outside its `:hours`). The buyer and the clerk see it under `orders`
-in their view. The order's id is the engine's alone: no tool takes it, so neither the view nor
+opening time when it falls outside its `:hours`). It's entered in the order books (below); the
+buyer and the clerk see it under `orders` only when it's in neither book they see. The order's id is the engine's alone: no tool takes it, so neither the view nor
 the `:deliveries/ordered` narration shows it (characters shown "order-312" took it up as a
 reference number in their talk). With them, `buy` emits `:deliveries/in-hand`, seen only by the
 clerk: the buyer's order (goods and due times) is in hand, made up and taken to the delivery
 place by the courier when due, with nothing for the clerk to make up, pack or carry.
 
-With `:items`, `deliveries/install` also sets two items hooks, so models working on an order
-know it's in hand. `:items :orders` (`deliveries/judge-view`, `(fn [world id] [...])`) gives the
-pending orders a person is party to, as buyer or clerk (goods, shop, buyer, delivery place, due
-time and `sent_up_by`): the work judge's scene shows the worker's under `orders`, and the
-judge brief's `brief-deliveries.md` has it say an order the work touches is in hand, never
-leaving a parcel of it here. The finder's `searcher` shows the searcher's under `orders`, and
+**Order books** (`manor.mechanics.purchases`). Every purchase is recorded in
+`[:state :purchases]` by the reducers of `:shop/bought`, `:deliveries/ordered`, `:sent-out`,
+`:sent-up` and `:arrived`, so its status follows its goods: taken away, waiting at the shop,
+collected, to be delivered, delivered. Everyone of the household (`positions/household-member?`)
+sees `household.orders`, what was bought on the household's account; whoever keeps a shop
+(`:shop-clerk`, the shops among their position's `:workplace`) sees `shop-orders`, its sales and
+sends on any account. Both are shown even when empty: the latest 6 entries and every delivery
+still to come, each entry the lines bought together (`from`, `for`, `bought`, `goods`, `total`,
+`status`, and `sent-up-by` for a delivery to come). `orders` keeps only the pending orders a
+person is party to that are in no book they see (own-purse deliveries, mostly). The shopping
+rules say what the books are, ending with where the household's is kept: the world's
+`:meta :order-book` (a sentence; optional), else a generic sentence.
+
+`deliveries/install` also sets hooks, so the judges see what was really ordered.
+`:items :orders` (`deliveries/judge-orders`, `(fn [world id] {...})`) gives a map of keys for
+the work judge's scene and the finder's `searcher`: the person's books as `household_orders` and
+`shop_orders` (each even when empty) and, when there are any, the other pending orders they're
+party to under `orders` (goods, shop, buyer, delivery place, due time and `sent_up_by`). The
+judge brief's `brief-deliveries.md` has the judge say an order the work touches is in hand, never
+leaving a parcel of it here, and say work on an order no book shows has bought and sent nothing.
 `:items :finder-brief` (`deliveries/finder-brief`, `judges/finder-deliveries.md` where a shop
-sends goods out) has it rate a pending order's goods impossible to find.
+sends goods out) has the finder rate a pending order's goods impossible to find. `:order-books`
+(`purchases/judge-books`, `(fn [world member-ids] {...})`) adds the members' books to the
+conversation judge's scene, and `judges/conversation-orders.md` to its instructions.
 
 **`send-up {items? goods? for? within-hours?}`** is the shop's keeper's tool for sending goods
 up whenever they choose: from their own shop (`shop/sending-reason`: someone who can keep a
@@ -2009,6 +2025,10 @@ world without one, or with an unknown id). Its **home area** is the meeting plac
 `:domain`) when the meeting place stands outside it. The home area's bedrooms are the household's
 (`household.bedrooms` in views), and plans build onto its rooms, new rooms taking its domain
 (`manor.mechanics.space/home-domain` answers it for a world).
+
+A ruleset world may say where the household's **order book** is kept in `:meta :order-book`: a
+sentence, opening the shopping rules' paragraph on the order books (`household.orders`; see
+Deliveries). Without it a generic sentence is used.
 
 A ruleset world with an architect's office names the architect's price list in
 `:meta :architect-prices`: a file or classpath resource such as `"architect/prices-1904.edn"`

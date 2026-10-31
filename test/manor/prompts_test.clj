@@ -92,9 +92,9 @@
     (is (not (clojure.string/includes? (doc world) "\"post\"")))
     (is (clojure.string/includes? (doc with-post) "\"post\" (you're at a post office)"))
     (is (clojure.string/includes? (doc world) "date (\"1780-06-12\")"))
-    (is (clojure.string/includes? (hiring/take-leave-doc world) "return-date like \"1780-06-12\""))
-    (is (= "give return-date like \"1780-06-12\" and return-time like \"07:00\""
-           (hiring/return-reason world {:return-date "bad" :return-time "bad"})))
+    (testing "the return-date examples are the world's date"
+      (is (clojure.string/includes? (hiring/take-leave-doc world) "\"1780-06-12\""))
+      (is (clojure.string/includes? (hiring/return-reason world {:return-date "bad" :return-time "bad"}) "\"1780-06-12\"")))
     (is (= :errand-boy (deliveries/courier-position world "shop")))
     (is (= :runner (deliveries/courier-position
                     (assoc-in world [:state :setting-pack] {:courier-position :runner}) "shop")))))
@@ -104,15 +104,18 @@
   (is (= "A blank line follows.\n" (prompts/render "test/blank-line.md"))))
 
 (deftest tool-hints-come-from-templates
-  (let [tool #(get-in (a/->tool (merge {:name :x :doc "Do it."} %)) [:function :description])]
-    (is (= "Do it. Ends your turn." (tool {})))
-    (is (= "Do it. Free: does not end your turn. Once per turn." (tool {:kind :free :per-turn 1})))
-    (is (= "Do it. Query: returns information and does not end your turn (limited per turn). At most 2 times per turn."
-           (tool {:kind :query :per-turn 2})))
-    (is (= "Do it. Real-world action: ends your turn and needs operator approval before it happens."
-           (tool {:kind :act})))
-    (is (= "Do it. Free: does not end your turn; the others answer before it returns." (tool {:kind :converse})))
+  ;; Which hint templates a tool gets, in what order and with what numbers;
+  ;; their wording is the templates' own, so it isn't pinned here.
+  (let [tool #(get-in (a/->tool (merge {:name :x :doc "Do it."} %)) [:function :description])
+        hint (fn [& names-and-params]
+               (clojure.string/join " " (cons "Do it." (for [[n params] (partition-all 2 names-and-params)]
+                                                         (prompts/render (str "docs/hints/" n ".md") (or params {}))))))]
+    (is (= (hint "final") (tool {})))
+    (is (= (hint "free" {} "once-per-turn") (tool {:kind :free :per-turn 1})))
+    (is (= (hint "query" {} "times-per-turn" {:n 2}) (tool {:kind :query :per-turn 2})))
+    (is (clojure.string/includes? (tool {:kind :query :per-turn 2}) "2"))
+    (is (= (hint "act") (tool {:kind :act})))
+    (is (= (hint "converse") (tool {:kind :converse})))
     (testing "an action's own :hint, a string or a function of the world"
       (is (= "Do it. Mine." (tool {:hint "Mine."})))
-      (is (= "Do it. Ends your part in this round of the conversation, not your own turn."
-             (tool {:hint (prompts/doc "docs/hints/speaking-turn.md")}))))))
+      (is (= (hint "speaking-turn") (tool {:hint (prompts/doc "docs/hints/speaking-turn.md")}))))))

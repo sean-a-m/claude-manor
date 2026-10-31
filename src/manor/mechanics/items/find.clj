@@ -152,8 +152,9 @@
   things here with their aspects, serving stores and identity-only
   candidates reach the oracle. A searcher who can't see
   (manor.mechanics.physical) is marked so under :sight. `config`, the
-  scenario's :items, may add the searcher's pending orders (:orders) and a
-  brief to the instructions (:finder-brief)."
+  scenario's :items, may add the searcher's order books and pending orders
+  (:orders, a map of keys, see deliveries/judge-orders) and a brief to the
+  instructions (:finder-brief)."
   ([world actor args] (finder-request world actor args []))
   ([world actor args events] (finder-request {} world actor args events))
   ([config world actor {:keys [what]} events]
@@ -173,7 +174,7 @@
                                                              :carrying (mapv #(select-keys % [:id :name]) carrying)
                                                              :notes (mapv #(select-keys % [:round :text]) (take-last 15 (:notes asker)))
                                                              :recent (prompt/recent-lines world events actor history-lines)}
-                                                    (seq orders) (assoc :orders orders)
+                                                    (seq orders) (merge orders)
                                                     (not (physical/can? world actor :sight))
                                                     (assoc :sight (str "can't see"
                                                                        (when-let [c (:cause (physical/entry world actor :sight))] (str " (" c ")"))

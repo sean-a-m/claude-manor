@@ -162,7 +162,8 @@
 (defn judge-request
   "The scene judge's request, including only the worker's shared recent lines
   supplied by the engine through prompt/scene-recent, and the worker's
-  pending orders from the scenario's :items :orders, if any."
+  order books and pending orders from the scenario's :items :orders (a map
+  of scene keys, see deliveries/judge-orders), if any."
   [scenario world job {:keys [minutes stopped-early? luck recent]}]
   (let [act? (:act? job)
         worker (w/agent world (:actor job))
@@ -181,7 +182,7 @@
         orders (when-let [f (get-in scenario [:items :orders])] (f world (:actor job)))
         scene-json (cond-> scene-json
                      (:reference job) (assoc :reference (:reference job))
-                     (seq orders) (assoc :orders orders))]
+                     (seq orders) (merge orders))]
     {:tools [(judge-tool world inner-config act? relations-config)]
      :messages
      [{:role "system"

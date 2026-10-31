@@ -721,3 +721,82 @@
         (is (not-any? #(= :action/forfeited (:type %)) evs))
         (is (= world (w/replay (store/read-events (:dir run))))))
       (finally (e/stop-run run)))))
+
+(defn- of-the-household
+  "The fixture's init with the customer and the butler of the household and
+  the clerk keeping the counter."
+  [init]
+  (fn [opts]
+    (-> (init opts)
+        (assoc-in [:state :posts] {"customer" {:position :secretary :household "household"}
+                                   "butler" {:position :bystander :household "household"}})
+        (assoc-in [:state :positions :shopkeeper :workplace] ["counter"]))))
+
+(def ^:private book-day
+  "Round 1 the clerk quotes tea and the mutton for delivery; round 2 the
+  customer buys both, leaving the tea; round 3 the clerk sends the tea up
+  and sugar the house asked for."
+  (fn [{:keys [world agent-id used] :as ctx}]
+    (cond
+      (and (= "clerk" agent-id) (= 3 (:round world)) (not (some #{"send-up"} used)))
+      {:tool :send-up :args {:items ["tea"] :within-hours 1 :goods [{:item "sugar" :amount "1"}] :for "customer"}}
+      (= :buy (:tool (policy ctx))) (assoc-in (policy ctx) [:args :hand-over] "leave")
+      (and (= "clerk" agent-id) (not= 1 (:round world))) {:tool :pass}
+      :else (policy ctx))))
+
+(deftest the-order-books-show-what-was-bought-and-where-it-is
+  (let [base (:init (scenario {:delivery-profile delivery-profile}))
+        run (start {:delivery-profile delivery-profile} {:init (of-the-household base) :mock-policy book-day})
+        book #(get-in (shop/observe (e/world run) %) [:household :orders])
+        statuses (fn [entries] (into {} (for [{:keys [goods status]} entries, g goods] [g status])))]
+    (try
+      (testing "before anything is bought the books are shown, empty"
+        (is (= [] (book "customer")) (= [] (book "butler")))
+        (is (= [] (:shop-orders (shop/observe (e/world run) "clerk"))))
+        (is (nil? (get-in (shop/observe (e/world run) "clerk") [:household :orders])) "the clerk isn't of the household")
+        (is (nil? (:shop-orders (shop/observe (e/world run) "customer")))))
+      (rounds! run 2)
+      (let [world (e/world run)]
+        (testing "a purchase is in the household's book for everyone of it, and in the shop's"
+          (is (= [{:from "Counter" :for "Customer" :bought "10:30"
+                   :goods ["tea (1 lb), 2s 6d"] :total "2s 6d"
+                   :status "paid for, waiting at the shop to be collected or sent up"}
+                  {:from "Counter" :for "Customer" :bought "10:30"
+                   :goods ["side of mutton (1 side), 10s"] :total "10s"
+                   :status "to be delivered at the Front door by 12:30"
+                   :sent-up-by "Pat Ellis 0, the Counter's errand boy"}]
+                 (book "customer") (book "butler") (:shop-orders (shop/observe world "clerk"))))
+          (is (nil? (:orders (shop/observe world "customer"))) "not listed twice")
+          (is (nil? (:orders (shop/observe world "clerk")))))
+        (testing "the work judge, the finder and the conversation judge see the books"
+          (let [json-of (fn [content] (json/read-value (or (second (re-find #"(?s)```json\n(.*)\n```" content)) content)
+                                                       json/keyword-keys-object-mapper))
+                job {:id "job-9" :actor "butler" :items [] :doing "writing out an order for the butcher"
+                     :place "hall" :started 2 :due 3}
+                scene #(json-of (:content (second (:messages (item-judge/judge-request (:scenario run) world (assoc job :actor %)
+                                                                                         {:minutes 30 :luck 50})))))
+                finder ((get-in (:scenario run) [:adjudicators :items/find :request]) world "butler" {:what "the mutton"} [])
+                talk ((get-in (:scenario run) [:order-books]) world ["butler" "clerk"])]
+            (is (= (book "butler") (:household_orders (scene "butler"))))
+            (is (nil? (:shop_orders (scene "butler"))))
+            (is (= (book "butler") (:shop_orders (scene "clerk"))))
+            (is (nil? (:orders (scene "clerk"))) "the clerk's order is in their shop's book")
+            (is (= (book "butler") (get-in (json-of (:content (second (:messages finder)))) [:searcher :household_orders])))
+            (is (= #{:household_orders :shop_orders} (set (keys talk)))))))
+      (rounds! run 1)
+      (let [world (e/world run)]
+        (testing "goods sent up are to be delivered, and new goods sent up say who sent them"
+          (is (= {"tea (1 lb), 2s 6d" "to be delivered at the Front door by 12:00"
+                  "side of mutton (1 side), 10s" "to be delivered at the Front door by 12:30"
+                  "sugar (one), 1s 6d" "sent up by Clerk, to be delivered at the Front door by 13:00"}
+                 (statuses (book "customer"))))))
+      (rounds! run 4)
+      (let [world (e/world run)]
+        (testing "delivered goods stay in the book, marked delivered"
+          (is (= {"tea (1 lb), 2s 6d" "delivered at the Front door at 12:00"
+                  "side of mutton (1 side), 10s" "delivered at the Front door at 12:30"
+                  "sugar (one), 1s 6d" "delivered at the Front door at 13:00"}
+                 (statuses (book "customer"))))
+          (is (= (book "customer") (:shop-orders (shop/observe world "clerk")))))
+        (is (= world (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))

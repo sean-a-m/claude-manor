@@ -8,6 +8,6 @@ Provide `items`, `goods`, or both:
 
 New goods are checked for availability and price, with a delivery time assigned to each accepted line. Accepted lines are charged immediately to the household account; if it cannot cover their combined price, none of the new goods are sent. Send only goods requested at the household's expense. No `buy` call is needed.
 
-Check the result for what was sent or refused. Delivery times outside shop opening hours move to the next opening; pending deliveries appear in `orders`.
+Check the result for what was sent or refused. Delivery times outside shop opening hours move to the next opening; what was sent is entered in your shop's book (`shop-orders` in your view) and the household's.
 
 During a conversation at your counter, you can call `send-up` before speaking on your turn.

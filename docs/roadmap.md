@@ -266,7 +266,12 @@ done, with per-shop couriers, and checked in a real run). **Hand-over and `send-
 the goods; goods left at a shop carry a `:waiting` marker until collected, and a delivering
 shop's clerk sends them up within 1–3 hours. Next, with the user's go-ahead: a short real run
 to count goods left and never collected or sent, and whether clerks still promise deliveries
-they don't make (the design's Not addressed). Internal appraisal queries share the work judge's bounded LLM-call machinery.
+they don't make (the design's Not addressed). **Order books: done** (mock-checked): every
+purchase is recorded with where its goods are now, the household sees `household.orders` and a
+shopkeeper `shop-orders`, each even when empty, and the work, finder and conversation judges see
+the same, so a promise or a wrong summary can be checked against what was bought (deliveries
+design, Order books). Next: a short real run to see whether characters read the book and correct
+themselves. Internal appraisal queries share the work judge's bounded LLM-call machinery.
 Sterling uses integer old pence. Store mechanics tests own a tiny cast; household choreography
 and exact container contents use fixed test-owned worlds and scripts. Bundled content gets generic
 smoke/replay checks. Claudeworth now also has a cook, scullery maid, pantry shelves, servants'

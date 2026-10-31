@@ -1,1 +1,1 @@
-Wait here and do nothing (more) this round: a fine choice when you want to see what others do, or there is nothing to do yet. It ends your turn, but you take your turn again next round.
+Wait here and do nothing (more) for now: a fine choice when there are no appropriate actions to take, or the best approach is to wait. It ends your turn for now.

@@ -1,1 +1,1 @@
-End the conversation now, without another word.
+End the conversation now.

@@ -1,1 +1,1 @@
-Real-world action: ends your turn and needs operator approval before it happens.
+Real-world action: ends your turn and needs outside approval before it happens.

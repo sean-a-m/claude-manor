@@ -1,1 +1,1 @@
-Leave the conversation. You stay where you are, and still hear it.
+Leave the conversation. You'll still hear others participating if the conversation continues without you.

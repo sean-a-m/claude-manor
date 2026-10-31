@@ -1,1 +1,1 @@
-Say nothing this time; you stay in the conversation.
+Say nothing this time while staying in the conversation.

@@ -1,1 +1,1 @@
-Stop following the person you follow: you stay where you are when they go.
+Stop following whichever person you are currently following, remaining wherever you are.

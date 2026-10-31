@@ -1,1 +1,1 @@
-Look for a particular thing you need to pick up or hand over, or whose presence is in doubt. Everyday things you only use in your work need no finding: just name them in what you're doing. Use find-person when searching for people instead of things.
+Look for a particular thing you need to pick up or hand over, or confirm the presence of (however, using `find` will also pick up that item) Everyday things you only use in actions like `spend-time` don't need `find`: you can just name them in what you're doing. Use `find-person` when searching for people instead of things.

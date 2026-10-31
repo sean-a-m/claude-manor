@@ -616,11 +616,9 @@ or two.
   book shows makes and sends nothing: the summary says it isn't in the order book yet. The
   conversation judge's scene gets the members' books (`:order-books`, `purchases/judge-books`),
   and `judges/conversation-orders.md` says talk places no order.
-- **In the world.** The shopping rules end with `rules/sections/shopping-order-book.md`: where
-  the book is kept (the world's `:meta :order-book`, a sentence of the world's own, else
-  `shopping-order-book-kept.md`), what it shows, that it's the truth of what was bought, to look
-  in it before saying something is coming, and the shopkeeper's `shop-orders`. Replies and the
-  clerk's in-hand line name the book the goods are in (`purchases/book-for`).
+- **Rules.** The shopping rules end with `rules/sections/shopping-order-book.md`, a short
+  mechanical paragraph on what the two books show. Replies and the clerk's in-hand line name the
+  book the goods are in (`purchases/book-for`).
 - **Cost and caching.** The books are in the view and in the judges' scenes, the parts of a
   prompt that change every call anyway; the rules paragraph is fixed per world, so the cached
   system prompt stays the same from call to call.

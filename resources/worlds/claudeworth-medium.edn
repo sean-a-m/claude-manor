@@ -10,8 +10,6 @@
         :minutes-per-round 30
         :starting-funds 2900 ; whole pounds here; runtime money is old pence
         :setting-pack "settings/england-1904"
-        ;; where the household's order book is kept (household.orders in members' views)
-        :order-book "The household's order book hangs on its nail by the kitchen dresser, where the cook and her ladyship can both get at it: whoever buys for the house writes the purchase in, and whoever takes in a delivery ticks it off, so anyone of the household can see at a glance what has been bought and what is still to come."
         :architect-prices "architect/prices-1904-medium.edn" ; the sizes and prices Pugh's firm quotes
         :setting "Claudeworth Manor is a Jacobean country house with a Georgian front, the seat of the Barons of Claudeworth: comfortable, plainly kept and too small for the family's station, which the baron means to mend now that the ironstone quarry on the estate has begun to pay. Claudeworth village lies by its gates, a sloping green with shops, a public house, a post office, a forge and tradespeople working from their cottages, as well as the offices of Pugh & Sons, Architects. Hollin Abbey is nearby too, where the monks keep to themselves."}
 

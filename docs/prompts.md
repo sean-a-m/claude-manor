@@ -61,8 +61,7 @@ the rules of individual mechanics that it joins in.
 | `rules/sections/things.md` | Items and `find` | ″ | `find-for-sale` (`things-find-everywhere.md` or `things-find-not-at-trade.md`) |
 | `rules/sections/people.md` | Aspects of people, inner state, feelings toward others, the body | ″ | `physical` (`rules/physical.md`) |
 | `rules/sections/shopping.md` | Money and shopping | ″ | `paid` (`shopping-paid[-commissions].md`), `spending-tools` (`shopping-spending-tools[-commissions].md`), `money` (the pack's `money.md`), `order-book` (`shopping-order-book.md` where the world has shops, else empty) |
-| `rules/sections/shopping-order-book.md` | The order books: `household.orders` and `shop-orders`, the truth of what was bought | `ruleset.rules/order-book` | `kept` (the world's `:meta :order-book`, else `shopping-order-book-kept.md`) |
-| `rules/sections/shopping-order-book-kept.md` | The generic sentence on where the household's order book is kept | ″ | |
+| `rules/sections/shopping-order-book.md` | The order books: what `household.orders` and `shop-orders` show | `ruleset.rules/order-book` | |
 | `rules/sections/building.md` | Building, only with an architect | ″ | `sizes`, `fee-percent` |
 | `rules/sections/hiring.md` | Hiring | ″ | `hiring` (`rules/hiring.md`) |
 | `rules/sections/invitations.md` | Invitations, only with visits | ″ | `visits` (`rules/visits.md`) |

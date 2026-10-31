@@ -440,8 +440,7 @@ sends on any account. Both are shown even when empty: the latest 6 entries and e
 still to come, each entry the lines bought together (`from`, `for`, `bought`, `goods`, `total`,
 `status`, and `sent-up-by` for a delivery to come). `orders` keeps only the pending orders a
 person is party to that are in no book they see (own-purse deliveries, mostly). The shopping
-rules say what the books are, ending with where the household's is kept: the world's
-`:meta :order-book` (a sentence; optional), else a generic sentence.
+rules say what the books show (`rules/sections/shopping-order-book.md`).
 
 `deliveries/install` also sets hooks, so the judges see what was really ordered.
 `:items :orders` (`deliveries/judge-orders`, `(fn [world id] {...})`) gives a map of keys for
@@ -2025,10 +2024,6 @@ world without one, or with an unknown id). Its **home area** is the meeting plac
 `:domain`) when the meeting place stands outside it. The home area's bedrooms are the household's
 (`household.bedrooms` in views), and plans build onto its rooms, new rooms taking its domain
 (`manor.mechanics.space/home-domain` answers it for a world).
-
-A ruleset world may say where the household's **order book** is kept in `:meta :order-book`: a
-sentence, opening the shopping rules' paragraph on the order books (`household.orders`; see
-Deliveries). Without it a generic sentence is used.
 
 A ruleset world with an architect's office names the architect's price list in
 `:meta :architect-prices`: a file or classpath resource such as `"architect/prices-1904.edn"`

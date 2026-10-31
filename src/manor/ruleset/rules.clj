@@ -47,13 +47,11 @@
   ([world file params] (prompts/render world (str "rules/sections/" file ".md") params)))
 
 (defn- order-book
-  "The order books' paragraph of the shopping rules, where the world has
-  shops: where the household's book is kept, the world's :meta :order-book
-  if it has one, and what the books show (manor.mechanics.purchases)."
+  "The shopping rules' paragraph on the order books (manor.mechanics.purchases),
+  where the world has shops."
   [world]
   (if (some #(contains? (:services %) :general-store) (vals (get-in world [:space :locations])))
-    (str "\n\n" (section world "shopping-order-book"
-                          {:kept (or (get-in world [:state :order-book]) (section world "shopping-order-book-kept"))}))
+    (str "\n\n" (section world "shopping-order-book"))
     ""))
 
 (defn rules

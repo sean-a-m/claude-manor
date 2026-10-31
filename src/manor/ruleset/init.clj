@@ -47,8 +47,6 @@
        (when-not (some #(= domain (:domain %)) locations)
          [(str ":meta :home-domain " (pr-str domain) " is not the :domain of any location")]))
      (when-not (string? (:setting meta)) [":meta :setting must be a paragraph about the place"])
-     (when-not (or (nil? (:order-book meta)) (and (string? (:order-book meta)) (not (str/blank? (:order-book meta)))))
-       [":meta :order-book, when given, must be a sentence saying where the household's order book is kept"])
      (mapcat (fn [[id entry]] (positions/entry-problems (positions/standings pack) id entry)) (sort-by key table))
      (for [role (distinct (map :role agents)) :when (not (contains? table role))]
        (str "position " role " has no :about paragraph: add it to :roles or the catalogue"))
@@ -112,8 +110,7 @@
                                     :quotes {}
                                     :max-queries (:max-queries opts 2)
                                     :find-everywhere? (not (false? (:find-everywhere? opts)))})
-                      (get-in wf [:meta :home-domain]) (assoc :home-domain (get-in wf [:meta :home-domain]))
-                      (get-in wf [:meta :order-book]) (assoc :order-book (get-in wf [:meta :order-book])))))))
+                      (get-in wf [:meta :home-domain]) (assoc :home-domain (get-in wf [:meta :home-domain])))))))
 
 (defn add-holidays
   "Add the setting pack's holidays (explicitly dated starting calendar

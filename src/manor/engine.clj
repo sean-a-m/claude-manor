@@ -47,6 +47,7 @@
             [manor.mechanics.relations :as relations]
             [manor.mechanics.items :as items]
             [manor.mechanics.items.actions :as item-actions]
+            [manor.mechanics.items.activity-check :as activity-check]
             [manor.mechanics.items.find :as item-find]
             [manor.mechanics.items.judge :as item-judge]
             [manor.mechanics.items.steward :as item-steward]
@@ -145,7 +146,7 @@
         :openrouter (llm/openrouter))))
 
 (defn- make-run [id dir scenario opts]
-  (let [scenario (cond-> scenario (:items scenario) (update :adjudicators #(merge (item-find/adjudicators (:items scenario)) %)))
+  (let [scenario (cond-> scenario (:items scenario) (update :adjudicators #(merge (item-find/adjudicators (:items scenario)) activity-check/adjudicators %)))
         opts (cond-> opts
                (:offline? opts) (update :bridge-stubs #(merge (:offline-stubs scenario) %)))]
     {:id id

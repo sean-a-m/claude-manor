@@ -32,6 +32,7 @@
   [script & {:keys [judged]}]
   (llm/mock (fn [{:keys [world agent-id role step] :as ctx}]
               (case role
+                :adjudicator {:tool :check-activity :args {:allowed true}}
                 :judge (do (some-> judged (swap! conj ctx)) (dressing/mock-judge ctx))
                 :gm {:tool :done}
                 (or (get-in script [agent-id (:round world) step])

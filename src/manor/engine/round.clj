@@ -3,8 +3,7 @@
   the steward; approved act-bridges; world systems; each schedule group's
   turns; the GM if anything triggers it. Calendar review runs before turns.
   See manor.engine for the outline."
-  (:require [manor.actions :as a]
-            [manor.engine.resolve :as resolve]
+  (:require [manor.engine.resolve :as resolve]
             [manor.engine.run :as run]
             [manor.engine.seat :as seat]
             [manor.engine.work :as work]
@@ -50,9 +49,9 @@
         turn (fn [id]
                (let [commit (if simultaneous?
                               (fn [action args]
-                                (if-let [r (a/check action @(:world run) id args)]
-                                  {:rejected r}
-                                  (resolve/stop-interrupted! run id action)))
+                                (let [{:keys [action rejected] :as prepared} (resolve/prepare-action run id action args)]
+                                  (when-not rejected (resolve/stop-interrupted! run id action))
+                                  prepared))
                               (fn [action args] (resolve/resolve! run id action args)))]
                  {:role (:role (w/agent snapshot id)) :max-finals 1 :commit commit
                   :simultaneous? simultaneous?}))

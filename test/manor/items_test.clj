@@ -415,10 +415,12 @@
   items/mock-judge) and each judge ctx is added to the atom `judged`."
   [script & {:keys [judge judged]}]
   (fn [{:keys [world agent-id role step] :as ctx}]
-    (if (= :judge role)
+    (cond
+      (= :items/activity-check (:task ctx)) {:tool :check-activity :args {:allowed true}}
+      (= :judge role)
       (do (some-> judged (swap! conj ctx))
           ((or judge item-judge/mock-judge) ctx))
-      (or (get-in script [agent-id (:round world) step])
+      :else (or (get-in script [agent-id (:round world) step])
           (when (:interrupted-by (w/busy world agent-id)) {:tool :carry-on})
           (hamlet/mock-policy ctx)))))
 
@@ -566,7 +568,7 @@
                          "a pastime often changes nothing" "Empty changes, gone, absorbed and made lists are normal"
                          "Do not invent events" "A store holds everything it `keeps`"
                          "Change only the aspects the activity affected" "- cleanliness: how clean"
-                         "An activity happens in one place, and nothing is carried elsewhere by it"
+                         "Nothing is carried to another location by this judgement"
                          "When leftovers or supplies are put away into a store in scope"
                          "absorb them into that store: they join its stock and get a put-away fate"
                          "Adjust the store's aspects if its stock or lacking changes"

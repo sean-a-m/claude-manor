@@ -119,7 +119,7 @@
   (let [run (rounds! (start) 8)
         held (values-held run)
         all-calls (store/read-llm (:dir run))
-        calls (remove #(#{"gm" "judge" "steward" "conversation-judge"} (:agent %)) all-calls)
+        calls (remove #(#{"gm" "judge" "steward" "conversation-judge" "adjudicator/items/activity-check"} (:agent %)) all-calls)
         text (fn [call] (str/join "\n" (map :content (:messages call))))]
     (try
       (is (= #{"lady-ashby" "dawson" "mrs-pell"} (set (map :agent calls))))

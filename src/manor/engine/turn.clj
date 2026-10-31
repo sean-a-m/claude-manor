@@ -74,12 +74,12 @@
                     (reply (or (:reply response) (if error (str "error: " error) (prompt/->json result)))))))
 
             (:final :act)
-            (let [{:keys [rejected] judged :reply} (commit action args)]
+            (let [{:keys [rejected] judged :reply prepared :action} (commit action args)]
               (if rejected
                 (reply st (str "rejected: " rejected))
                 (let [st (-> st
                              (use-up action)
-                             (update :finals conj {:action action :args args})
+                             (update :finals conj {:action (or prepared action) :args args})
                              (update :used conj name)
                              (reply (cond (= :act (a/kind action)) "requested; it will happen if the operator approves"
                                           judged judged

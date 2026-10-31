@@ -283,6 +283,7 @@
 
 (defn- policy [{:keys [world agent-id role step] :as ctx}]
   (cond
+    (= :items/activity-check (:task ctx)) {:tool :check-activity :args {:allowed true}}
     (= :judge role) (item-judge/mock-judge ctx)
     (not= agent-id "ben") (hamlet/mock-policy ctx)
     :else (get-in {1 [{:tool :open :args {:container "cupboard"}}

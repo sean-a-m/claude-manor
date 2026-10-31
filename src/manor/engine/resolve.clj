@@ -55,14 +55,37 @@
            :reply (reply-text ((:reply action) @(:world run) actor args
                                (assoc result :events (subvec @(:events run) before))))})))))
 
-(defn resolve!
+(defn prepare-action
+  "Check structure and optional semantic admission before any effect or
+  interruption. Return a prepared action without :admission, so queued
+  simultaneous finals do not repeat the model call when applied. Ordinary
+  validation still runs on the live world at application."
+  [run actor action args]
+  (if-let [reason (a/check action @(:world run) actor args)]
+    {:rejected reason}
+    (if-let [task (:admission action)]
+      (let [{:keys [verdict failure]}
+            (judges/adjudicate run task @(:world run) actor args
+                               {:before-call #(when (run/cost-reached? run)
+                                                (throw (ex-info "The run's cost limit has been reached." {})))})]
+        (cond
+          failure
+          (do (run/emit! run [{:type :adjudication/failed :visible-to :system
+                              :data {:task task :caller actor :reason failure}}])
+              {:rejected (get-in run [:scenario :adjudicators task :failure-reply]
+                                 "The activity check failed; nothing has started.")})
+          (true? (:allowed verdict)) {:action (dissoc action :admission)}
+          :else {:rejected (or (:reason verdict) "The activity was not approved; nothing has started.")}))
+      {:action action})))
+
+(defn- apply-action!
   "Check and apply an action against the current world, atomically.
   Returns {:ok true :world world-after} or {:rejected reason}. With
   `keep-occupation?` (a speaking turn in a conversation) an interrupted
   occupation goes on: the agent still decides on their own turn. An action
   with :judge-job is judged first (see `resolve-judged!`), and its result
   has the :reply."
-  ([run actor action args] (resolve! run actor action args false))
+  ([run actor action args] (apply-action! run actor action args false))
   ([run actor action args keep-occupation?]
    (if (:judge-job action)
      (resolve-judged! run actor action args keep-occupation?)
@@ -77,6 +100,16 @@
                    (when-let [hibernate (:hibernate (:scenario run))]
                      (run/emit! run (b/wakings hibernate @(:world run))))))
                {:ok true :world @(:world run)})))))))
+
+(defn resolve!
+  "Admit an action before starting it. Rejections leave any existing
+  occupation intact; accepted actions are revalidated and applied."
+  ([run actor action args] (resolve! run actor action args false))
+  ([run actor action args keep-occupation?]
+   (let [{:keys [action rejected]} (prepare-action run actor action args)]
+     (if rejected
+       {:rejected rejected}
+       (apply-action! run actor action args keep-occupation?)))))
 
 (defn free-reply
   "The tool result for an accepted free action: its :reply (a string as is,

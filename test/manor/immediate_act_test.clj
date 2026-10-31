@@ -50,6 +50,7 @@
 (defn- policy [script judge-fn]
   (llm/mock (fn [{:keys [world agent-id role step] :as ctx}]
               (case role
+                :adjudicator {:tool :check-activity :args {:allowed true}}
                 :judge (judge-fn ctx)
                 :steward (steward/mock-steward ctx)
                 :gm {:tool :done}

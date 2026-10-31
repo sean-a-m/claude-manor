@@ -42,6 +42,7 @@
   [script]
   (llm/mock (fn [{:keys [world agent-id role step] :as ctx}]
               (case role
+                :adjudicator {:tool :check-activity :args {:allowed true}}
                 :judge (item-judge/mock-judge ctx)
                 :steward (item-steward/mock-steward ctx)
                 :gm {:tool :done}

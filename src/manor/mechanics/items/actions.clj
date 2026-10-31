@@ -207,6 +207,7 @@
             [:doing [:string {:min 3 :max items/max-doing :json-schema/maxLength items/advised-doing}]]
             [:hours {:optional true} [:double {:min 0.5 :max items/max-work-hours}]]]
      :available? (fn [world _] (some? (:clock world)))
+     :admission :items/activity-check
      :valid? (fn [world actor args] (work-on-reason world actor (activity-args args)))
      :effect (fn [world actor args] (work-on-events world actor (activity-args args)))}))
 

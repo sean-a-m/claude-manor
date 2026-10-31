@@ -1,0 +1,1 @@
+Return `allowed: true` if the activity passes the admission rules. Otherwise return `allowed: false` and a short `reason` explaining the violation and how to correct it. Do not describe work as completed.

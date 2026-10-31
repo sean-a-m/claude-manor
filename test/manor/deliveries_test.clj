@@ -17,6 +17,7 @@
             [manor.mechanics.space :as space]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
+            [manor.prompts :as prompts]
             [manor.ruleset :as ruleset]
             [manor.ruleset.actions :as ruleset-actions]
             [manor.ruleset.hibernation :as hibernation]
@@ -433,7 +434,7 @@
                         :messages second :content json-of :orders))))
         (testing "the finder sees the searcher's orders and is told they're never found"
           (is (= ["side of mutton (1 side)"] (map :goods (get-in (json-of (:content (second (:messages finder)))) [:searcher :orders]))))
-          (is (str/includes? (:content (first (:messages finder))) "until then they are nowhere to be found")))
+          (is (str/includes? (:content (first (:messages finder))) (prompts/render world "judges/finder-deliveries.md" {}))))
         (is (= world (w/replay (store/read-events (:dir run))))))
       (finally (e/stop-run run)))))
 

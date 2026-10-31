@@ -18,6 +18,9 @@
      :available? (fn [world actor]) => bool ; optional: offer the tool only when true
      :valid?  (fn [world actor args]) => nil or a reason string
      :effect  (fn [world actor args]) => [events]
+     :admission :items/activity-check      ; optional final-action adjudicator:
+                                            ; {:allowed true} or {:allowed false :reason text},
+                                            ; checked before effects; failure also rejects
      :per-turn  1                           ; optional: accepted uses per turn, or
                                             ; (fn [world actor]) => n or nil (no limit)
      :limit-key :speech                     ; optional: actions with the same key

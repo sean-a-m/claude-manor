@@ -212,6 +212,7 @@
 
 (defn- policy [{:keys [world agent-id role step] :as ctx}]
   (cond
+    (= :items/activity-check (:task ctx)) {:tool :check-activity :args {:allowed true}}
     (= :judge role) (judge ctx)
     (not= agent-id "ben") (hamlet/mock-policy ctx)
     :else (get-in {1 [{:tool :work-on :args {:items ["beef" "saucepan"] :doing "making stock" :hours 1}}]}
@@ -248,7 +249,8 @@
 (deftest dining-uses-up-an-unfocused-joint
   (let [judge (fn [_] {:tool :judge :args {:gone [{:thing "beef" :fate "eaten at dinner"}] :summary "Ben ate the joint."}})
         policy (fn [{:keys [role agent-id world] :as ctx}]
-                 (cond (= :judge role) (judge ctx)
+                 (cond (= :items/activity-check (:task ctx)) {:tool :check-activity :args {:allowed true}}
+                       (= :judge role) (judge ctx)
                        (and (= "ben" agent-id) (= 1 (:round world)))
                        {:tool :spend-time :args {:doing "dining"}}
                        :else (hamlet/mock-policy ctx)))
@@ -449,7 +451,8 @@
   (let [letter {:name "Household list" :desc "A list written in ink." :consumable false :held true}
         dish {:name "Clear soup" :desc "A tureen of soup." :consumable true :held false}
         policy (fn [{:keys [role world agent-id] :as ctx}]
-                 (cond (= :judge role) {:tool :judge :args {:made [letter dish] :summary "Ben wrote the list and made soup."}}
+                 (cond (= :items/activity-check (:task ctx)) {:tool :check-activity :args {:allowed true}}
+                       (= :judge role) {:tool :judge :args {:made [letter dish] :summary "Ben wrote the list and made soup."}}
                        (and (= "ben" agent-id) (= 1 (:round world)))
                        {:tool :spend-time :args {:doing "writing a list and cooking soup" :on ["hall"]}}
                        :else (hamlet/mock-policy ctx)))
@@ -486,7 +489,7 @@
                    (is (nil? (a/check (action name) (e/world run) "ben" args)))
                    (e/emit! run (a/effect-events (action name) (e/world run) "ben" args)))]
     (try
-      (is (str/includes? (item-judge/judge-instructions {}) "taking or carrying something to another place doesn't make it gone"))
+      (is (str/includes? (item-judge/judge-instructions {}) "Never use `gone`, `absorbed`, `made` or aspects to simulate a transfer between locations"))
       (is (str/includes? (item-judge/judge-instructions {}) "Leaving any thing untouched is always a valid answer"))
       (let [activity (assoc job :items ["beef"] :doing "carrying the joint to the porch")
             verdict (:verdict (item-judge/judgement (judge-says {:summary "The joint was left for Ben to carry."})

@@ -237,6 +237,7 @@ Each action is a map. Each role's actions become that role's LLM tools.
                                      ; both kinds' keys (:effect, :query-fn ...) and a :hint
  :available? (fn [world actor] bool) ; optional: leave the tool out of this model step
  :valid?  (fn [world actor args] nil-or-reason-string)
+ :admission :your/task ; optional final-action adjudicator, before any effects
  :effect  (fn [world actor args] [events])
  :per-turn  1                        ; optional: at most this many accepted uses per turn, or
                                      ; (fn [world actor]) => n or nil (no limit)
@@ -1309,6 +1310,34 @@ matches: then it gives `existing`. Ordinary mock scripts need not call `find`.
 
 `spend-time {doing, hours?, on?}` (turn-ending, every role but the GM, offered only with
 `:items` and a clock) spends time on work or a pastime:
+
+The tool and scene-judge prompts restrict timed activities to the current location: no travel,
+round trips, collection or delivery elsewhere, or work across several rooms. Movement within
+one location and access to stores explicitly in scope remain allowed, including stores serving
+this location from another room. Writing about or planning work elsewhere is not travel.
+Before starting, both `spend-time` and `work-on` run the small `:items/activity-check`
+adjudicator through their `:admission` hook. It sees only `doing`, the current place's id/name,
+and in-scope store ids/names—not history, inventory or private state. It checks only the
+one-location rule, accepting when no clear violation is apparent, not predicting feasibility
+or success. The mechanism is general admission, so later rules can be added without a new
+action path. Its prompts are `judges/activity-check.md` and `judges/tools/check-activity.md`.
+
+An accepted answer is `{:allowed true}`; rejection is `{:allowed false :reason "correction"}`.
+Rejection leaves the job unstarted and any interrupted occupation intact, and the agent can
+choose another action in the same turn within its usual step budget. Mixed activities are
+rejected as a whole. Technical failure also starts nothing and returns a neutral error;
+details are recorded as an operator-only `:adjudication/failed` event. The check uses the normal
+judge model, checked-answer retries, usage logging and cost cap. Simultaneous turns check
+before queuing and retain the accepted action without repeating the model call at application;
+ordinary state validation still runs then. Replay makes no check calls. Default mocks accept
+scripted activities; tests supply explicit rejection and failure answers, not prose heuristics.
+
+If travel slips through, the completion judge is still instructed to return no changes of any
+kind and explain that movement actions are needed first, rather than completing local portions
+or making fetched goods. Elapsed time is not refunded. This addresses Bessie's round-trip job
+`job-2090` in `claudeworth-medium-20261031-191616`, whose judge created new geese instead of
+collecting the existing purchase. The rejection path is mock/offline-tested; real-model
+classification has not yet been checked.
 
 - `doing`: advertised as 3–200 characters (`items/advised-doing`), with a soft limit:
   decoding accepts up to 400 (`items/max-doing`); 401 is refused with the usual length reason.

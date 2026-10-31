@@ -2,6 +2,7 @@
   "Orders and deliveries on a tiny, test-owned world: a shop that sends goods
   out, a house with a front door (the delivery place) and a hall."
   (:require [clojure.string :as str]
+            [jsonista.core :as json]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [manor.actions :as a]
             [manor.clock :as clock]
@@ -10,6 +11,7 @@
             [manor.io.store :as store]
             [manor.mechanics.hiring :as hiring]
             [manor.mechanics.items :as items]
+            [manor.mechanics.items.judge :as item-judge]
             [manor.mechanics.items.steward :as item-steward]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
@@ -404,6 +406,37 @@
             "no model call until a delivery is due"))
       (finally (e/stop-run run)))))
 
+(deftest the-clerk-and-the-judges-know-an-order-is-in-hand
+  (let [run (start)]
+    (try
+      (rounds! run 2)
+      (let [world (e/world run)
+            [told] (of-type run :deliveries/in-hand)
+            line "Pat Ellis 0, the Counter's errand boy"
+            json-of (fn [content] (json/read-value (or (second (re-find #"(?s)```json\n(.*)\n```" content)) content)
+                                                   json/keyword-keys-object-mapper))
+            job {:id "job-9" :actor "clerk" :items [] :doing "packing the mutton for the house"
+                 :place "counter" :started 2 :due 3}
+            judged (item-judge/judge-request (:scenario run) world job {:minutes 30 :luck 50})
+            finder ((get-in (:scenario run) [:adjudicators :items/find :request]) world "clerk" {:what "the mutton"} [])]
+        (testing "buying tells the clerk alone that the order is in hand"
+          (is (w/visible-to? told "clerk"))
+          (is (not (w/visible-to? told "customer")))
+          (is (= (str "Customer's order from the Counter (side of mutton (1 side) by 12:30) is in hand: it's made up and "
+                      "taken to the Front door by " line " when due (orders in your view). "
+                      "There is nothing for you to make up, pack or carry.")
+                 (n/describe told (n/names world)))))
+        (testing "the work judge sees the worker's orders"
+          (is (= [{:goods "side of mutton (1 side)" :shop "Counter" :buyer "Customer" :to "Front door" :due "12:30" :sent_up_by line}]
+                 (:orders (json-of (:content (second (:messages judged)))))))
+          (is (nil? (-> (item-judge/judge-request (:scenario run) world (assoc job :actor "butler") {:minutes 30 :luck 50})
+                        :messages second :content json-of :orders))))
+        (testing "the finder sees the searcher's orders and is told they're never found"
+          (is (= ["side of mutton (1 side)"] (map :goods (get-in (json-of (:content (second (:messages finder)))) [:searcher :orders]))))
+          (is (str/includes? (:content (first (:messages finder))) "until then they are nowhere to be found")))
+        (is (= world (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))
+
 (defn- butler-goes-out
   "The butler walks to the front door in round 7, the round after the mutton comes."
   [{:keys [world agent-id used] :as ctx}]
@@ -495,7 +528,8 @@
                    (:orders (shop/observe world id)))))
           (is (nil? (:orders (shop/observe world "butler")))))
         (testing "the clerk is told it's with the courier, with nothing to pack or carry"
-          (is (some #{"Sent up: the goods are with the shop's courier now, to be delivered at the Front door by 12:00 (see orders in your view). There is nothing for you to pack or carry."}
+          (is (some #{(str "Clerk sends up tea (1 lb) for Customer from the Counter, to be delivered at the Front door by 12:00.\n"
+                           "The shop's courier takes them up when due (orders in your view); there is nothing for you to make up, pack or carry.")}
                     replies))))
       (rounds! run 2)
       (let [world (e/world run)
@@ -537,9 +571,10 @@
                      {:id "egg" :name "egg" :desc "An egg." :in "basket"}])
             reason (fn [world actor ids] (shop/send-up-reason world actor {:items ids :within-hours 1}))]
         (is (nil? (reason world "clerk" ["tea"])))
-        (testing "only the clerk, at an open shop that sends goods out"
-          (is (= "only someone who keeps a shop can quote goods" (reason world "customer" ["tea"])))
-          (is (str/starts-with? (reason (assoc world :round 20) "clerk" ["tea"]) "the Counter is closed"))
+        (testing "only the clerk, at a shop that sends goods out, open or not"
+          (is (= "only someone who keeps a shop can send goods up" (reason world "customer" ["tea"])))
+          (is (nil? (reason (assoc world :round 20) "clerk" ["tea"])))
+          (is (= "go to your shop first" (reason (assoc-in world [:agents "clerk" :location] "hall") "clerk" ["tea"])))
           (is (= "the Counter doesn't send goods out; hand them over when they're collected"
                  (reason (update-in world [:space :locations "counter"] dissoc :delivery-profile) "clerk" ["tea"]))))
         (testing "only goods waiting at this shop, each once, with nothing in them"
@@ -561,6 +596,96 @@
             (is (= "1904-10-16T08:00" (str (clock/time-of (:clock world) due)))))))
       (finally (e/stop-run run)))))
 
+(defn- send-sugar
+  "The clerk sends a sack of sugar, and a carriage the shop can't supply, up
+  for the butler in round 1, without the butler there."
+  [{:keys [world agent-id used] :as ctx}]
+  (if (and (= "clerk" agent-id) (= 1 (:round world)) (not (some #{"send-up"} used)))
+    {:tool :send-up :args {:for "butler" :goods [{:item "sugar" :amount "1½ stone"} {:item "carriage" :amount "1"}]}}
+    {:tool :pass}))
+
+(defn- appraise-sugar
+  "Sugar comes in two hours at 4s; there's no carriage to be had."
+  [{:keys [request]}]
+  {:tool :appraise
+   :args {:lines (for [{:keys [item deliver]} request]
+                   (if (= "carriage" item)
+                     {:available false :reason "We don't deal in carriages."}
+                     {:available true :item item :qty 3 :unit "7 lb" :desc "Loaf sugar in a sack." :condition "dry"
+                      :consumable true :unit-price 16 :lead-hours (when deliver 2)}))}})
+
+(defn- sending-sugar [funds]
+  (let [base (:init (scenario {:delivery-profile delivery-profile}))]
+    (start {:delivery-profile delivery-profile}
+           {:init (fn [opts] (assoc-in (base opts) [:state :accounts "household"] funds))
+            :mock-policy send-sugar
+            :adjudicators (merge hiring/adjudicators
+                                 (assoc-in shop/adjudicators [:shop/send-up :mock] appraise-sugar))})))
+
+(deftest a-shopkeeper-sends-new-goods-up-on-the-household-account
+  (let [run (sending-sugar 600)]
+    (try
+      (rounds! run 1)
+      (let [world (e/world run)
+            [sent] (of-type run :deliveries/sent-out)
+            [refused] (of-type run :shop/goods-refused)
+            names (n/names world)]
+        (testing "the goods are charged to the household at once and ordered for the butler"
+          (is (= (- 600 48) (get-in world [:state :accounts "household"])))
+          (is (= (str "Clerk sends up sugar (3 × 7 lb) for 4s by 12:00 for Butler from the Counter, "
+                      "charged to the household account, to be delivered at the Front door.")
+                 (n/describe sent names)))
+          (is (= [{:item "sugar" :amount "3 × 7 lb" :from "counter" :buyer "butler" :to "front-door" :due "12:00"
+                   :sent-up-by "Pat Ellis 0, the Counter's errand boy"}]
+                 (:orders (shop/observe world "butler")))))
+        (testing "the butler is told, though not at the shop"
+          (is (w/visible-to? sent "butler"))
+          (is (w/visible-to? sent "clerk")))
+        (testing "a line the shop can't supply is refused"
+          (is (= "Clerk cannot offer carriage to Butler: We don't deal in carriages." (n/describe refused names)))))
+      (rounds! run 4)
+      (let [world (e/world run)
+            [sugar] (filter #(= "sugar" (:name %)) (items/items-at world "front-door"))]
+        (is (= {:owner "household" :aspects {:amount "3 × 7 lb" :state "dry"}} (select-keys sugar [:owner :aspects])))
+        (is (= world (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))
+
+(deftest goods-the-household-cant-cover-are-not-sent
+  (let [run (sending-sugar 30)]
+    (try
+      (rounds! run 1)
+      (let [world (e/world run)
+            reasons (map #(get-in % [:data :reason]) (of-type run :shop/goods-refused))]
+        (is (empty? (of-type run :deliveries/sent-out)))
+        (is (= 30 (get-in world [:state :accounts "household"])))
+        (is (some #{"the household account can't cover 4s"} reasons) "without the balance"))
+      (finally (e/stop-run run)))))
+
+(deftest a-shopkeeper-can-quote-and-send-up-on-one-line
+  (let [ask (fn [{:keys [world agent-id used]}]
+              (if (and (= "customer" agent-id) (= 1 (:round world)) (not (some #{"converse"} used)))
+                {:tool :converse :args {:with ["clerk"] :text "Tea, please, and send a sack of sugar up to the house."}}
+                {:tool :pass}))
+        line (fn [{:keys [agent-id used]}]
+               (cond
+                 (not= "clerk" agent-id) {:tool :end-conversation}
+                 (not (some #{"quote-goods"} used)) {:tool :quote-goods :args {:for "customer" :goods [{:item "tea" :amount "1"}]}}
+                 (not (some #{"send-up"} used)) {:tool :send-up :args {:for "customer" :goods [{:item "sugar" :amount "1½ stone"}]}}
+                 :else {:tool :reply :args {:text "There's your tea, and the sugar goes up by noon."}}))
+        run (start {:delivery-profile delivery-profile}
+                   {:mock-policy ask :speaking-actions ruleset/speaking-actions :mock-conversation line})]
+    (try
+      (rounds! run 1)
+      (let [evs (e/events run)
+            id-of (fn [t] (:id (first (filter #(= t (:type %)) evs))))
+            replies (->> (store/read-llm (:dir run)) (filter #(and (= "clerk" (:agent %)) (:conversation %)))
+                         (mapcat :messages) (filter #(= "tool" (:role %))) (map :content))]
+        (is (< (id-of :conversation/started) (id-of :shop/goods-quoted) (id-of :deliveries/sent-out) (id-of :conversation/ended))
+            "quoted and sent up on the clerk's line")
+        (is (not-any? #(str/includes? (str %) "query limit") replies))
+        (is (= (e/world run) (w/replay (store/read-events (:dir run))))))
+      (finally (e/stop-run run)))))
+
 (deftest sending-up-on-a-line
   (let [send-up? (fn [world speaker] (some #(= :send-up (:name %)) (ruleset/speaking-actions world speaker {})))
         ask (leave-tea (fn [{:keys [world agent-id used]}]
@@ -577,13 +702,12 @@
                    {:mock-policy ask :speaking-actions ruleset/speaking-actions :mock-conversation line})]
     (try
       (rounds! run 2)
-      (testing "send-up is a speaking-turn tool for the clerk of a delivering shop with goods waiting there"
+      (testing "send-up is a speaking-turn tool for the keeper of a delivering shop, open or not"
         (let [world (e/world run)]
           (is (send-up? world "clerk"))
           (is (not (send-up? world "customer")))
           (is (not (send-up? (update-in world [:space :locations "counter"] dissoc :delivery-profile) "clerk")))
-          (is (not (send-up? (assoc world :round 20) "clerk")))
-          (is (not (send-up? (assoc-in world [:items "tea" :waiting :at] "front-door") "clerk")))))
+          (is (send-up? (assoc world :round 20) "clerk"))))
       (rounds! run 1)
       (let [evs (e/events run)
             id-of (fn [t] (:id (first (filter #(= t (:type %)) evs))))
@@ -594,7 +718,6 @@
         (is (some #(some #{"send-up"} (:tools %)) calls))
         (is (= [{:item "tea" :due "13:00"}] (map #(select-keys % [:item :due]) (:orders (shop/observe world "customer")))))
         (is (empty? (shop/waiting-here world "clerk")))
-        (is (not (send-up? world "clerk")) "nothing left to send")
         (is (not-any? #(= :action/forfeited (:type %)) evs))
         (is (= world (w/replay (store/read-events (:dir run))))))
       (finally (e/stop-run run)))))

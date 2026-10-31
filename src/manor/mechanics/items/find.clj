@@ -151,22 +151,29 @@
   "The searcher's own context and recent lines, the place's history, the
   things here with their aspects, serving stores and identity-only
   candidates reach the oracle. A searcher who can't see
-  (manor.mechanics.physical) is marked so under :sight."
+  (manor.mechanics.physical) is marked so under :sight. `config`, the
+  scenario's :items, may add the searcher's pending orders (:orders) and a
+  brief to the instructions (:finder-brief)."
   ([world actor args] (finder-request world actor args []))
-  ([world actor {:keys [what]} events]
-   (let [place (space/location-of world actor)
+  ([world actor args events] (finder-request {} world actor args events))
+  ([config world actor {:keys [what]} events]
+   (let [orders (when-let [f (:orders config)] (f world actor))
+         brief (when-let [f (:finder-brief config)] (f world))
+         place (space/location-of world actor)
          asker (w/agent world actor)
          carrying (items/by-name (items/held-by world actor))
          here (items/by-name (concat (items/visible-at world place)
                                     (mapcat #(items/held-by world %)
                                             (sort (disj (space/present world place) actor)))))
          candidates (finder-candidates world actor)]
-     {:messages [{:role "system" :content (finder-instructions world)}
+     {:messages [{:role "system" :content (str (finder-instructions world)
+                                               (when-not (str/blank? brief) (str "\n\n" brief)))}
                  {:role "user" :content (json/write-value-as-string
                                          {:searcher (cond-> {:name (:name asker) :nature (:persona asker)
                                                              :carrying (mapv #(select-keys % [:id :name]) carrying)
                                                              :notes (mapv #(select-keys % [:round :text]) (take-last 15 (:notes asker)))
                                                              :recent (prompt/recent-lines world events actor history-lines)}
+                                                    (seq orders) (assoc :orders orders)
                                                     (not (physical/can? world actor :sight))
                                                     (assoc :sight (str "can't see"
                                                                        (when-let [c (:cause (physical/entry world actor :sight))] (str " (" c ")"))
@@ -195,7 +202,10 @@
                (and store (not (str/includes? (str recorded) what)))
                (assoc :lacking (str/join "; " (remove str/blank? [recorded what]))))})))
 
-(def adjudicators {:items/find {:request finder-request :mock mock-finder :failure-reply "you don't find it"}})
+(defn adjudicators
+  "The finder, given the scenario's :items `config` (see `finder-request`)."
+  [config]
+  {:items/find {:request (partial finder-request config) :mock mock-finder :failure-reply "you don't find it"}})
 
 (defn- room-for-lacking? [aspects]
   (or (contains? aspects :lacking) (< (count aspects) items/max-aspects)))

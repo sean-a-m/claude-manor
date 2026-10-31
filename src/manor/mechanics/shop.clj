@@ -118,7 +118,10 @@
                             :condition "new" :consumable false :unit-price 18}
                      deliver (assoc :lead-hours 2)))}})
 
-(def adjudicators {:shop/appraise {:request (fn [world clerk args _] (request world clerk args)) :mock mock-appraisal}})
+(declare send-up-request)
+
+(def adjudicators {:shop/appraise {:request (fn [world clerk args _] (request world clerk args)) :mock mock-appraisal}
+                   :shop/send-up {:request (fn [& args] (apply send-up-request args)) :mock mock-appraisal}})
 
 (defn service-reason [world clerk]
   (let [loc (space/location world (space/location-of world clerk))]
@@ -228,27 +231,35 @@
                                  :waiting {:for buyer :keeper (:clerk quote) :at (:location quote) :since (:round world)})
     (:consumable quote) (assoc :consumable? true)))
 
+(defn- quote-bought
+  "The events for `buyer` buying one quote: an order for a delivery quote,
+  else the purchase and its parcel (see `parcel`)."
+  [world buyer quote-id hand-over audience account]
+  (let [quote (get-in world [:state :quotes quote-id])]
+    (if (:deliver quote)
+      [(deliveries/ordered world buyer quote-id quote audience account)]
+      [{:type :shop/bought :visible-to audience
+        :data (assoc (select-keys quote [:location :item :unit :qty :price])
+                     :quote-id quote-id :hand-over hand-over :account account)}
+       (items/added world (parcel world buyer quote hand-over account) audience
+                    :amount (amount (:qty quote) (:unit quote)))])))
+
 (defn buy-events
-  "For each quote, the purchase and one parcel of its goods (see `parcel`),
-  taken by the buyer or left at the shop as `hand-over` says. A delivery
-  quote becomes an order instead, paid now and delivered later, whatever
-  `hand-over` says."
+  "For each quote, the purchase and one parcel of its goods, taken by the
+  buyer or left at the shop as `hand-over` says. A delivery quote becomes an
+  order instead, paid now and delivered later, whatever `hand-over` says;
+  then the clerk alone is told it's in hand (deliveries/in-hand)."
   [world buyer {:keys [quote-ids hand-over from]}]
   (let [audience (space/here world buyer)
-        account (money/account buyer from)]
-    (second
-     (reduce (fn [[world evs] quote-id]
-               (let [quote (get-in world [:state :quotes quote-id])
-                     new (if (:deliver quote)
-                           [(deliveries/ordered world buyer quote-id quote audience account)]
-                           [{:type :shop/bought :visible-to audience
-                             :data (assoc (select-keys quote [:location :item :unit :qty :price])
-                                          :quote-id quote-id :hand-over hand-over :account account)}
-                            (items/added world (parcel world buyer quote hand-over account) audience
-                                         :amount (amount (:qty quote) (:unit quote)))])]
-                 [(reduce w/apply-event world new) (into evs new)]))
-             [world []]
-             quote-ids))))
+        account (money/account buyer from)
+        [world evs] (reduce (fn [[world evs] quote-id]
+                              (let [new (quote-bought world buyer quote-id hand-over audience account)]
+                                [(reduce w/apply-event world new) (into evs new)]))
+                            [world []]
+                            quote-ids)
+        ordered (filter #(= :deliveries/ordered (:type %)) evs)]
+    (cond-> evs
+      (seq ordered) (conj (deliveries/in-hand world (get-in (first ordered) [:data :clerk]) ordered)))))
 
 (defn- buy-reply
   "What the buyer is told, from the world after buying: where the counter
@@ -281,30 +292,81 @@
       (str id " isn't waiting at this shop; send up only goods marked waiting-for someone in your view")
       (seq (items/contents world id)) (str "take what's in " id " out first"))))
 
-(defn send-up-reason
-  "Why `clerk` can't send up the goods `ids`, or nil: they serve at an open
-  shop that sends goods out, and each is waiting there, named once."
-  [world clerk {ids :items}]
+(defn sending-reason
+  "Why `clerk` can't send goods up from where they are, or nil: they keep a
+  shop and are at it, and it sends goods out. Open or not: a late order
+  comes at the next opening."
+  [world clerk]
   (let [loc (space/location world (space/location-of world clerk))]
-    (or (service-reason world clerk)
-        (when-not (deliveries/delivers? loc)
-          (str "the " (:name loc) " doesn't send goods out; hand them over when they're collected"))
-        (when-not (apply distinct? ids) "give each item once")
-        (first (keep #(not-waiting-here world (:id loc) %) ids)))))
+    (cond
+      (not (and (w/active? world clerk) (positions/capable? world clerk :shop-clerk))) "only someone who keeps a shop can send goods up"
+      (not (contains? (:services loc) :general-store)) "go to your shop first"
+      (not (deliveries/delivers? loc)) (str "the " (:name loc) " doesn't send goods out; hand them over when they're collected"))))
+
+(defn send-up-reason
+  "Why `clerk` can't send up the waiting goods `ids` or the new `goods` for
+  `for`, or nil: they're at their shop, which sends goods out; each waiting
+  item is waiting there, named once; new goods are described, with an
+  amount, for someone in the world."
+  [world clerk {ids :items :keys [goods for]}]
+  (let [loc (space/location world (space/location-of world clerk))]
+    (or (sending-reason world clerk)
+        (when (and (empty? ids) (empty? goods))
+          "give items (goods waiting here) or goods (new goods to send, with for)")
+        (when (and (seq ids) (not (apply distinct? ids))) "give each item once")
+        (first (keep #(not-waiting-here world (:id loc) %) ids))
+        (when (some (comp str/blank? :item) goods) "describe the goods you want to send")
+        (when (some (comp str/blank? :amount) goods) "give the amount of each line of goods")
+        (when (seq goods)
+          (cond (str/blank? for) "with goods, give for: the id of the person they're for"
+                (not (and (w/active? world for) (not= :gm (:role (w/agent world for))))) (str "no one has the id " for))))))
+
+(defn send-up-request
+  "The appraisal of new goods to send up, every line for delivery; with
+  none, no call."
+  [world clerk args _]
+  (if (seq (:goods args))
+    (request world clerk (update args :goods (partial mapv #(assoc % :deliver true))))
+    {:result {:lines []}}))
+
+(defn- unaffordable
+  "Refusals for `lines` the household's account can't cover, without its
+  balance, which the shopkeeper doesn't know."
+  [world clerk buyer lines]
+  (for [{:keys [item]} lines]
+    {:type :shop/goods-refused :visible-to (space/here world clerk)
+     :data {:buyer buyer :item item :reason (str "the household account can't cover "
+                                                 (money/display (money/spec world) (reduce + (map #(* (:qty %) (:unit-price %)) lines))))}}))
 
 (defn send-up-events
-  "The goods become orders, due within `within-hours` (deliveries/sent-up)."
-  [world clerk {ids :items :keys [within-hours]}]
-  [(deliveries/sent-up world clerk ids within-hours)])
+  "Waiting goods become orders, due within `within-hours` (default 1;
+  deliveries/sent-up); new goods the appraiser allows become orders charged
+  to the household's account, which must cover them all
+  (deliveries/sent-out). Lines it refuses are announced as refusals."
+  [world clerk {ids :items buyer :for :keys [goods within-hours] :as args} {:keys [lines]}]
+  (when-not (send-up-reason world clerk args)
+    (let [waiting (when (seq ids) [(deliveries/sent-up world clerk ids (or within-hours 1))])
+          world (reduce w/apply-event world waiting)
+          sent (filter :available lines)
+          refused (for [[{:keys [item]} line] (map vector goods lines) :when (not (:available line))]
+                    {:type :shop/goods-refused :visible-to (space/here world clerk)
+                     :data {:buyer buyer :item item :reason (:reason line)}})
+          total (reduce + (map #(* (:qty %) (:unit-price %)) sent))]
+      (vec (concat waiting refused
+                   (cond (empty? sent) []
+                         (> total (get-in world [:state :accounts "household"] 0)) (unaffordable world clerk buyer sent)
+                         :else [(deliveries/sent-out world clerk buyer sent)]))))))
 
 (defn- send-up-reply
-  "What the clerk is told: the goods are with the courier, and when and
-  where they'll be delivered."
-  [world _ {ids :items}]
-  (let [o (get (deliveries/orders world) (deliveries/sent-up-id (first ids)))]
-    (str "Sent up: the goods are with the shop's courier now, to be delivered at the "
-         (:name (space/location world (:to o))) " by " (clock/short-label (:clock world) (:due o) (:round world))
-         " (see orders in your view). There is nothing for you to pack or carry.")))
+  "What the clerk is told: what was sent up or refused, and that the courier
+  takes it."
+  [world _ _ {:keys [events]}]
+  (let [names (n/names world)]
+    (if (seq events)
+      (str (str/join "\n" (map #(n/describe % names) events))
+           (when (some #(#{:deliveries/sent-up :deliveries/sent-out} (:type %)) events)
+             "\nThe shop's courier takes them up when due (orders in your view); there is nothing for you to make up, pack or carry."))
+      "Nothing was sent: the shop or the goods are no longer ready.")))
 
 (defn waiting-here
   "The goods shown as waiting at the shop where `clerk` is (see
@@ -327,11 +389,15 @@
            [:hand-over [:enum "take" "leave"]]
            [:from {:optional true} [:enum "household" "own"]]]
     :valid? buy-reason :effect buy-events :reply buy-reply}
-   {:name :send-up :kind :free :roles :all :needs :shop-clerk
+   {:name :send-up :kind :query :roles :all :needs :shop-clerk
     :doc (prompts/doc "docs/shop/send-up.md" {:max-lines max-lines :send-up-max-hours deliveries/send-up-max-hours})
-    :args [:map [:items [:vector {:min 1 :max max-lines} :string]]
-           [:within-hours [:int {:min 1 :max deliveries/send-up-max-hours}]]]
-    :valid? send-up-reason :effect send-up-events :reply send-up-reply}])
+    :args [:map
+           [:items {:optional true} [:vector {:min 1 :max max-lines} :string]]
+           [:goods {:optional true} [:vector {:min 1 :max max-lines}
+                                     [:map [:item (text-schema 120)] [:amount (text-schema max-amount)]]]]
+           [:for {:optional true} :string]
+           [:within-hours {:optional true} [:int {:min 1 :max deliveries/send-up-max-hours}]]]
+    :valid? send-up-reason :adjudicate :shop/send-up :on-result send-up-events :reply send-up-reply}])
 
 (defn waiting-at-shops
   "The goods `id` bought and left at shops, still waiting for them there

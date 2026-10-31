@@ -18,6 +18,7 @@
             [manor.mechanics.space :as space]
             [manor.mechanics.visits :as visits]
             [manor.narrate :as n]
+            [manor.prompts :as prompts]
             [manor.settings :as settings]
             [manor.mechanics.building :as building]
             [manor.mechanics.money :as money]
@@ -89,6 +90,25 @@
        (money/display (get names [:money]) (:price data)) " at the " (n/place names (:location data)) ", to be delivered at the "
        (n/place names (:to data)) " by " (:due-label data) "."))
 
+(declare courier-line)
+
+(defn in-hand
+  "The clerk's own line about the `ordered` events just bought: the order
+  is in the courier's hands, with nothing for the clerk to make up, pack or
+  carry. Only the clerk sees it."
+  [world clerk ordered]
+  (let [os (map :data ordered)
+        {:keys [location buyer to]} (first os)]
+    {:type :deliveries/in-hand :visible-to #{clerk}
+     :data {:shop location :buyer buyer :to to :courier (courier-line world location)
+            :goods (mapv #(str (goods-label %) " by " (:due-label %)) os)}}))
+
+(defmethod n/describe :deliveries/in-hand [{:keys [data]} names]
+  (str (n/who names (:buyer data)) "'s order from the " (n/place names (:shop data)) " ("
+       (str/join ", " (:goods data)) ") is in hand: it's made up and taken to the " (n/place names (:to data))
+       " by " (or (:courier data) (str "the " (n/place names (:shop data)) "'s courier"))
+       " when due (orders in your view). There is nothing for you to make up, pack or carry."))
+
 (defn sent-up-id
   "The id of the order goods waiting at a shop become when sent up."
   [item-id]
@@ -124,6 +144,39 @@
        " for " (str/join " and " (map #(n/who names %) (distinct (map :buyer (:orders data)))))
        " from the " (n/place names (:location data)) ", to be delivered at the "
        (n/place names (:to data)) " by " (:due-label data) "."))
+
+(defn sent-out
+  "The event for `clerk` sending up new goods for `buyer`, charged to the
+  household's account: each of the appraised `lines` (available, with
+  :lead-hours) becomes an order, due at the delivery place after its lead
+  time. The clerk, those at the shop and the buyer see it."
+  [world clerk buyer lines]
+  (let [shop (space/location-of world clerk)
+        hours (:hours (space/location world shop))
+        place (delivery-place world)]
+    {:type :deliveries/sent-out :visible-to (conj (space/here world clerk) buyer)
+     :data {:location shop :clerk clerk :buyer buyer :to place :account "household"
+            :orders (vec (map-indexed
+                          (fn [i {:keys [qty unit-price lead-hours] :as line}]
+                            (let [due (due-round world lead-hours hours)]
+                              (merge (select-keys line [:item :unit :qty :desc :condition :consumable])
+                                     {:id (str "order-" (inc (:seq world)) "-" (inc i)) :location shop :clerk clerk
+                                      :buyer buyer :to place :due due :price (* qty unit-price)
+                                      :account "household" :owner "household"
+                                      :due-label (clock/short-label (:clock world) due (:round world))})))
+                          lines))}}))
+
+(defmethod w/apply-event :deliveries/sent-out [world {:keys [data]}]
+  (-> world
+      (update-in [:state :accounts (:account data)] - (reduce + (map :price (:orders data))))
+      (update-in [:state :orders] merge (into {} (map (juxt :id #(dissoc % :due-label))) (:orders data)))))
+
+(defmethod n/describe :deliveries/sent-out [{:keys [actor data]} names]
+  (str (n/who names actor) " sends up "
+       (str/join "; " (for [o (:orders data)]
+                        (str (goods-label o) " for " (money/display (get names [:money]) (:price o)) " by " (:due-label o))))
+       " for " (n/who names (:buyer data)) " from the " (n/place names (:location data))
+       ", charged to the household account, to be delivered at the " (n/place names (:to data)) "."))
 
 (defn hearers
   "Everyone within walking distance of `place`: the whole house hears the bell."
@@ -301,14 +354,36 @@
                             (due-by-shop world))]
     (into evs (departures world))))
 
+(defn judge-view
+  "The pending orders `id` is party to, as buyer or as the shop's clerk, for
+  the work judge's scene and the finder: the goods, the shop, the buyer,
+  where and by when they're delivered and who takes them up."
+  [world id]
+  (vec (for [o (sort-by :id (vals (orders world)))
+             :when (or (= id (:buyer o)) (= id (:clerk o)))]
+         (cond-> {:goods (goods-label o) :shop (shop-name world (:location o))
+                  :buyer (:name (w/agent world (:buyer o)) (:buyer o))
+                  :to (shop-name world (:to o))
+                  :due (clock/short-label (:clock world) (:due o) (:round world))}
+           (courier-line world (:location o)) (assoc :sent_up_by (courier-line world (:location o)))))))
+
+(defn finder-brief
+  "What the finder is told of orders, when a shop here sends goods out."
+  [world]
+  (when (some delivers? (vals (get-in world [:space :locations])))
+    (prompts/render world "judges/finder-deliveries.md" {})))
+
 (defn install
   "Add the deliveries system to a scenario; its couriers spawn through the
-  scenario's roles and :on-spawn."
+  scenario's roles and :on-spawn. With items, the work judge and the finder
+  are shown the orders a person is party to (:items :orders), and the
+  finder is told about orders (:items :finder-brief)."
   [scenario]
-  (update scenario :systems
-          #(conj (vec (remove (fn [s] (= :deliveries/arrivals (:name s))) %))
-                 {:name :deliveries/arrivals :compose compose
-                  :tick (fn [world res] (tick scenario world res))})))
+  (cond-> (update scenario :systems
+                  #(conj (vec (remove (fn [s] (= :deliveries/arrivals (:name s))) %))
+                         {:name :deliveries/arrivals :compose compose
+                          :tick (fn [world res] (tick scenario world res))}))
+    (:items scenario) (update :items assoc :orders judge-view :finder-brief finder-brief)))
 
 (defn observe
   "The viewer's pending orders, ordered or sent up, as buyer or as the

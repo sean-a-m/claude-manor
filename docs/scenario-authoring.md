@@ -426,23 +426,52 @@ quote, whatever `hand-over` says, emits `:deliveries/ordered`, which pays at onc
 opening time when it falls outside its `:hours`). The buyer and the clerk see it under `orders`
 in their view. The order's id is the engine's alone: no tool takes it, so neither the view nor
 the `:deliveries/ordered` narration shows it (characters shown "order-312" took it up as a
-reference number in their talk).
+reference number in their talk). With them, `buy` emits `:deliveries/in-hand`, seen only by the
+clerk: the buyer's order (goods and due times) is in hand, made up and taken to the delivery
+place by the courier when due, with nothing for the clerk to make up, pack or carry.
 
-**`send-up {items within-hours}`** is the clerk's free tool, at an open shop with a delivery
-profile, for goods bought and left there when the customer wants them sent up rather than
-collected. `items` (up to 10, each once) must be shown as waiting at this shop, with nothing in
-them; `within-hours` is 1 to `deliveries/send-up-max-hours` (3, kept low for now), fitted to
-opening hours by `due-round`. There's no appraisal and no payment: the goods are paid for. Its
-`:deliveries/sent-up` event, seen by everyone at the shop, removes the items
-(`items/remove-items`, fate "sent up by the shop's courier") and adds an order for each, id
-`order-<item-id>`, for the person it waited for, carrying the item's name, description, aspects,
-owner and consumability: "Briggs sends up tin of silver polish (one) for Hale from the General
-store, to be delivered at the Carriage sweep by 13:30." The clerk's reply says the
-courier has the goods, when they'll arrive, and that there is nothing to pack or carry. At a
-shop without a profile it's refused ("… doesn't send goods out; hand them over when they're
-collected"). Claudeworth's `speaking-actions` offers `send-up` on a line to the clerk of an open
-delivering shop with goods waiting there, as it offers `buy` to a customer with unspent quotes
-at the shop, so "he'll have it up within the hour" can be done as it's said.
+With `:items`, `deliveries/install` also sets two items hooks, so models working on an order
+know it's in hand. `:items :orders` (`deliveries/judge-view`, `(fn [world id] [...])`) gives the
+pending orders a person is party to, as buyer or clerk (goods, shop, buyer, delivery place, due
+time and `sent_up_by`): the work judge's scene shows the worker's under `orders`, and the
+judge brief's `brief-deliveries.md` has it say an order the work touches is in hand, never
+leaving a parcel of it here. The finder's `searcher` shows the searcher's under `orders`, and
+`:items :finder-brief` (`deliveries/finder-brief`, `judges/finder-deliveries.md` where a shop
+sends goods out) has it rate a pending order's goods impossible to find.
+
+**`send-up {items? goods? for? within-hours?}`** is the shop's keeper's tool for sending goods
+up whenever they choose: from their own shop (`shop/sending-reason`: someone who can keep a
+shop, at a general store with a delivery profile, open or not, since `due-round` moves a late
+order to the next opening), with or without the customer there. It's a `:query` (the
+`:shop/send-up` adjudicator). It takes either or both of:
+
+- `items`, goods bought and left at the shop (up to 10, each once, shown as waiting at this
+  shop, with nothing in them), due within `within-hours`, 1 to `deliveries/send-up-max-hours`
+  (3, kept low for now; default 1). There's no appraisal and no payment: the goods are paid
+  for. Its `:deliveries/sent-up` event, seen by everyone at the shop, removes the items
+  (`items/remove-items`, fate "sent up by the shop's courier") and adds an order for each, id
+  `order-<item-id>`, for the person it waited for, carrying the item's name, description,
+  aspects, owner and consumability: "Briggs sends up tin of silver polish (one) for Hale from
+  the General store, to be delivered at the Carriage sweep by 13:30."
+- `goods`, new goods (up to 10 lines of item and amount, as `quote-goods` takes them) with
+  `for`, the id of the person they're for, anywhere in the world. They're appraised as
+  delivery lines (the appraiser gives each its `lead-hours`), and with no lines no call is
+  made. Lines it refuses are announced as `:shop/goods-refused`. If the household account
+  covers the rest, `:deliveries/sent-out` debits it and adds an order for each (owner
+  household), seen by those at the shop and by `for`: "Briggs sends up sugar (3 × 7 lb) for
+  4s by 15:00 for Mr Merrick from the General store, charged to the household account, to be
+  delivered at the Carriage sweep." If not, every line is refused with "the household
+  account can't cover …", never the balance, which a shopkeeper doesn't know. The shopkeeper
+  decides what the house asked for, as anyone decides whether to spend the household's money
+  (Claudeworth decision 4); the rules say a dispute is between the house and the shop.
+
+The clerk's reply narrates what was sent or refused, and says the courier takes the goods up
+when due with nothing to make up, pack or carry. At a shop without a profile it's refused ("…
+doesn't send goods out; hand them over when they're collected"). Claudeworth's
+`speaking-actions` offers `send-up` on a line to the keeper of a delivering shop at it, as it
+offers `buy` to a customer with unspent quotes at the shop, so "he'll have it up within the
+hour" can be done as it's said. A line may use each query tool once, so the keeper can quote
+the counter goods and send up a line refused as too much to carry before speaking.
 
 The `deliveries/arrivals` system, at round start, adds each due order's parcel
 at the delivery place (owner household, the quote's `:amount` and `:state` aspects, or for goods
@@ -893,7 +922,8 @@ someone, or are inside another item: a piano, a pocket watch, an umbrella someon
 silver in the sideboard. They need locations. A scenario
 turns them on with the key `:items`, a map, possibly empty; its optional configuration includes
 `:judge-brief`, `:aspect-keys`, `:find-allowed?`, `:act-on?` and `:steward` (see Finding, Work and the judge,
-Immediate acts, and The nightly steward). Scenarios without it are unchanged.
+Immediate acts, and The nightly steward), and `:orders` and `:finder-brief`, which
+`deliveries/install` sets (see Deliveries). Scenarios without it are unchanged.
 
 An item:
 
@@ -2877,8 +2907,10 @@ on with it. It uses nobody else's turn either.
   who gets them. The engine accepts only `:free` and `:query`, applies their `:available?` checks,
   and drops names reserved for the speaking tools or `note`. Normal argument decoding and
   `:valid?` still apply. Turn-ending actions (including `buy`) and nested `converse` aren't allowed.
-  With a query offered, that speaking turn has one query slot and at most 4 model calls instead
-  of 3. Query usage and appraisal cost are recorded normally; queries preserve occupations too.
+  A speaking turn may use each query tool offered once (it gets `:per-turn 1` unless it has a
+  limit of its own), so it has one query slot per query tool and 3 model calls plus one per
+  slot: a keeper of a delivering shop can quote and send goods up on one line, and a clerk can
+  recommend someone and quote on one. Query usage and appraisal cost are recorded normally; queries preserve occupations too.
   Each speaking turn has fresh limits, separate from the speaker's own turn. Its prompt names
   the extra tools actually offered: use them first if needed, then finish with a speaking tool.
   Speakers without extras keep their usual prompt.

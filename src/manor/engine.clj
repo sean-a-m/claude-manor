@@ -145,7 +145,7 @@
         :openrouter (llm/openrouter))))
 
 (defn- make-run [id dir scenario opts]
-  (let [scenario (cond-> scenario (:items scenario) (update :adjudicators #(merge item-find/adjudicators %)))
+  (let [scenario (cond-> scenario (:items scenario) (update :adjudicators #(merge (item-find/adjudicators (:items scenario)) %)))
         opts (cond-> opts
                (:offline? opts) (update :bridge-stubs #(merge (:offline-stubs scenario) %)))]
     {:id id

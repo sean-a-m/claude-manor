@@ -110,12 +110,13 @@ must call.
 |---|---|---|---|
 | `judges/scene.md` | The scene judge: what a job or an immediate act changed | `items.judge/judge-instructions` | `advised-aspect`, `max-aspects`, `max-made`, `max-impediments`, `max-summary` |
 | `judges/brief.md` | The scene judge's "## The setting": the household's brief | `ruleset.rules/judge-brief` | `setting`, `mechanics` (`brief-architect.md`, `brief-deliveries.md` when those exist) |
-| `judges/brief-architect.md`, `brief-deliveries.md` | Fragments of the brief | ″ | |
+| `judges/brief-architect.md`, `brief-deliveries.md` | Fragments of the brief; `brief-deliveries.md` also says how to judge work on the scene's `orders` | ″ | |
 | `judges/inner.md` | The scene judge's lines on inner state | `inner/instructions` | `advised-value`, `keys` (`inner-keys.md`) |
 | `judges/inner-keys.md` | Fragment: the inner-state keys every person has, and how many more | `inner/key-instructions` | `open`, `keys` (the scenario's keys and glosses, one line each) |
 | `judges/steward.md` | The nightly steward | `items.steward/steward-instructions` | `advised-aspect` |
 | `judges/steward-inner.md` | The steward's lines on sleepers' inner state | `items.steward` | `advised-value`, `keys` |
 | `judges/finder.md` | The finder: identify one or several existing things, or rate the odds of finding something with `find` | `items.find/finder-instructions` | `advised-aspect`, `max-existing` |
+| `judges/finder-deliveries.md` | Added to the finder's instructions where a shop sends goods out: a pending order's goods are never found | `deliveries/finder-brief` (the items config's `:finder-brief`) | |
 | `judges/conversation.md` | The conversation judge: how a conversation left its members' inner state | `conversation.judge/instructions` | `advised-value`, `max-summary`, `keys` |
 | `judges/relations.md` | The work and conversation judges' lines on relations, after their other instructions | `relations/instructions` | `max-feeling`, `max-because` |
 | `judges/find-person.md` | Whom a `find-person` seeker means | `find-person/instructions` | |

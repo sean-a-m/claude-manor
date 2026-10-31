@@ -17,19 +17,32 @@
             [manor.prompts :as prompts]
             [manor.world :as w]))
 
+(defn- once-per-line
+  "A query tool on a line is used at most once there, unless it has a
+  stricter limit of its own."
+  [action]
+  (cond-> action (and (= :query (a/kind action)) (nil? (:per-turn action))) (assoc :per-turn 1)))
+
 (defn- extra-speaking-actions
   "Scenario tools for this line: only available free/query actions, never
-  replacements for the conversation's tools or note."
+  replacements for the conversation's tools or note; each query at most
+  once."
   [scenario world speaker conv]
   (let [extras (->> ((:speaking-actions scenario (constantly [])) world speaker conv)
                     (filter #(#{:free :query} (a/kind %)))
                     (remove #(#{:reply :stay-silent :leave :end-conversation :note} (:name %))))]
-    (vec (a/available extras world speaker))))
+    (mapv once-per-line (a/available extras world speaker))))
+
+(defn- line-queries
+  "How many queries a line with the scenario tools `extra-actions` may make:
+  one for each query tool offered."
+  [extra-actions]
+  (count (filter #(= :query (a/kind %)) extra-actions)))
 
 (defn- speaking-turn-steps
-  "Three calls for a line and retries; one more when a query is offered."
-  [query?]
-  (if query? 4 3))
+  "Three calls for a line and retries; one more for each query it may make."
+  [queries]
+  (+ 3 queries))
 
 (defn- speaking-reminder
   "The reminder before a speaking turn's last call."
@@ -76,8 +89,8 @@
   (let [{:keys [scenario opts]} run
         world @(:world run)
         extra-actions (extra-speaking-actions scenario world speaker conv)
-        query? (some #(= :query (a/kind %)) extra-actions)
-        max-steps (speaking-turn-steps query?)
+        queries (line-queries extra-actions)
+        max-steps (speaking-turn-steps queries)
         actions (into (cond-> (conversation/speaking-actions world conv speaker)
                         (run/action-named run :note) (conj (run/action-named run :note)))
                       extra-actions)
@@ -85,7 +98,7 @@
     (run/set-status! run update :acting conj speaker)
     (try
       (let [call-opts {:commit (fn [action args] (resolve/resolve! run speaker action args true))
-                       :max-finals 1 :max-queries (if query? 1 0) :keep-occupation? true}
+                       :max-finals 1 :max-queries queries :keep-occupation? true}
             st (if (= :human (:controller (w/agent world speaker)))
                  (turn/human-calls run speaker (constantly actions) call-opts
                                    (human-context run conv speaker turn))

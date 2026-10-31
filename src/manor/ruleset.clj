@@ -34,7 +34,6 @@
             [manor.mechanics.people :as people]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.shop :as shop]
-            [manor.mechanics.space :as space]
             [manor.mechanics.visits :as visits]
             [manor.ruleset.actions :as actions]
             [manor.ruleset.hibernation :as hibernation]
@@ -59,8 +58,9 @@
 (defn speaking-actions
   "Tools for a line, before speaking: anyone can recommend a candidate to
   someone in the conversation, offer a candidate in it a place, or accept or
-  decline a place offered; an open counter's clerk can check goods, and
-  send up goods waiting there if the shop sends goods out; a customer with
+  decline a place offered; an open counter's clerk can check goods; the
+  keeper of a shop that sends goods out can send goods up from it, open or
+  not; a customer with
   quotes made for them at this shop can buy."
   [world speaker {:keys [members]}]
   (cond-> [(to-a-member :recommend :for "recommend to someone in this conversation" members)
@@ -69,9 +69,7 @@
            (hiring-action :decline-place)]
     (not (shop/service-reason world speaker))
     (into (filter #(= :quote-goods (:name %)) shop/actions))
-    (and (not (shop/service-reason world speaker))
-         (deliveries/delivers? (space/location world (space/location-of world speaker)))
-         (seq (shop/waiting-here world speaker)))
+    (nil? (shop/sending-reason world speaker))
     (into (filter #(= :send-up (:name %)) shop/actions))
     (seq (shop/quotes-here world speaker))
     (into (filter #(= :buy (:name %)) shop/actions))))

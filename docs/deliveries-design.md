@@ -552,3 +552,22 @@ had at the shop, the flour ordered for delivery still arrives at 14:30 and Nelli
 and the steward at 02:00 leaves everything. Measure in a short real run, with the user's
 go-ahead, whether clerks use `send-up` and how many waiting goods are never collected or sent
 (see Not addressed).
+
+## Shopkeepers send goods up on the household account (2026-10-30)
+
+In `runs/claudeworth-medium-20261030-195704` Mr Merrick asked Briggs for a stone and a half of
+sugar with six small lines. The appraiser refused the sugar over the counter, suggesting it be
+ordered for delivery; Briggs was on his last line and couldn't quote it again, Merrick bought the
+rest and said "send the sacks up", and Merrick left. Briggs promised the sacks and spent half an
+hour marking them in his ledger, but with the customer gone he had no way to order them, so a
+promise lived on in both men's inner state with no order behind it.
+
+The user's decision: shopkeepers may bill the household and send goods up whenever they judge
+the house asked for them, and if it was wrong or too dear, the characters argue about it.
+Nothing in the design forbade it: anyone may spend the household account (Claudeworth decision
+4), and the "no bills" rule deferred running accounts (roadmap B7), not charging at the moment
+of sending. `send-up` now also takes `goods` and `for`: the lines are appraised as delivery
+lines and, if the account covers them, charged and ordered at once (`:deliveries/sent-out`).
+It's a `:query`, offered from the keeper's own delivering shop, open or not, without the
+customer there; the person the goods are for sees the event and the orders. A refusal for
+want of funds doesn't show the balance. See scenario-authoring (Deliveries).

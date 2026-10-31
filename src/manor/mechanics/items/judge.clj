@@ -161,7 +161,8 @@
 
 (defn judge-request
   "The scene judge's request, including only the worker's shared recent lines
-  supplied by the engine through prompt/scene-recent."
+  supplied by the engine through prompt/scene-recent, and the worker's
+  pending orders from the scenario's :items :orders, if any."
   [scenario world job {:keys [minutes stopped-early? luck recent]}]
   (let [act? (:act? job)
         worker (w/agent world (:actor job))
@@ -177,7 +178,10 @@
                           :also_here (judged-json also-here)
                           :stores (mapv #(assoc (items/store-view (:place job) %) :keeps (get-in % [:store :keeps])) stores)
                           :people (people-json world inner-config relations-config people) :recent (vec (take-last 10 recent)))
-        scene-json (cond-> scene-json (:reference job) (assoc :reference (:reference job)))]
+        orders (when-let [f (get-in scenario [:items :orders])] (f world (:actor job)))
+        scene-json (cond-> scene-json
+                     (:reference job) (assoc :reference (:reference job))
+                     (seq orders) (assoc :orders orders))]
     {:tools [(judge-tool world inner-config act? relations-config)]
      :messages
      [{:role "system"

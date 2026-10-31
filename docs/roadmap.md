@@ -298,6 +298,8 @@ Follow-ups, by need:
   account book listing each purchase and order for the household's members; tradesmen's
   accounts that run up and are settled weekly or quarterly, with a bill the shop sends; credit
   for some customers and not others.
+  Since 2026-10-30 a shopkeeper can charge the household for goods they send up without a sale at
+  the counter (`send-up` with `goods`; deliveries-design), still paid at once.
 
 - **Household income / account credits.** The account has starting funds and spending reducers,
   but no supported action for crediting rent, royalties or other income. Add an engine-validated,

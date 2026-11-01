@@ -1,7 +1,7 @@
 # Per-agent models
 
 Proposal: let a run put chosen starting agents on a model other than the run's `:model`.
-Not started; open questions in section 4.
+Not started. The user's decisions of 2026-10-31 are in section 5; caching (2.2) is still open.
 
 ## 1. What already exists
 
@@ -84,3 +84,16 @@ existing inconsistency, not part of this feature, but worth fixing while nearby.
    leave it?
 6. **On load:** `--agent-model` given to `--load` or a branch has nothing to apply to, since the
    cast was spawned at the start. Ignore it, warn, or turn it into `:agent/updated` events?
+
+## 5. Decisions (2026-10-31)
+
+1. The model is set only in the world file: an optional `:model` string on an agent. No run option and
+   no CLI flag (`--agent-model` was only proposed; it isn't added). `--model` keeps changing everyone
+   without a `:model` of their own, which the engine already does.
+2. No mid-run switching in any form; nothing is added for it.
+3. Reasoning, max-tokens and tool-choice stay the run's (DeepSeek's) settings for every agent.
+4. Any OpenRouter model may be named; nothing is assumed about which.
+5. Model ids aren't checked.
+6. Nothing is applied on load or branch.
+
+Still open: how to turn on caching for models that need `cache_control` (Anthropic).

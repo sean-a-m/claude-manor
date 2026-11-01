@@ -67,11 +67,10 @@
   (mapv #(if (= agent-name (:name %)) (f %) %) agents))
 
 (deftest an-agent's-model-reaches-their-turns-and-lines-only
-  (let [source (-> (wf/read-file "worlds/claudeworth.edn")
+  (let [lady-settings {:reasoning {:effort "high"} :max-tokens 123 :cache-control {:type "ephemeral"}}
+        source (-> (wf/read-file "worlds/claudeworth.edn")
                    (update :agents update-agent "Lord Claudeworth" #(assoc % :model "other/lord"))
-                   (update :agents update-agent "Lady Claudeworth"
-                           #(assoc % :model {:reasoning {:effort "high"} :max-tokens 30000
-                                             :cache-control {:type "ephemeral"}})))
+                   (update :agents update-agent "Lady Claudeworth" #(assoc % :model lady-settings)))
         filename (str (gensym "agent-models-") ".edn")
         _ (store/write-text! store/test-runs-root filename (wf/->edn-string source))
         run (e/start-run :claudeworth {:llm :mock :offline? true :test? true :model "run/model"
@@ -81,14 +80,13 @@
       (e/wait-idle run)
       (let [calls (store/read-llm (:dir run))
             of (fn [id] (filter #(= id (:agent %)) calls))
-            run-defaults {:reasoning {:effort "none"} :tool-choice "auto" :max-tokens 16000}]
+            ;; whatever the run's defaults are now, not copies of them
+            run-defaults (select-keys (:opts run) [:reasoning :tool-choice :max-tokens])]
         (doseq [id ["lord-claudeworth" "lady-claudeworth"]]
           (is (seq (filter :conversation (of id))) (str id " spoke in a conversation, so both paths are checked")))
         (is (every? #(and (= "other/lord" (:model %)) (= run-defaults (:settings %))) (of "lord-claudeworth")))
         (is (every? #(and (= "run/model" (:model %))
-                          (= {:reasoning {:effort "high"} :tool-choice "auto" :max-tokens 30000
-                              :cache-control {:type "ephemeral"}}
-                             (:settings %)))
+                          (= (merge run-defaults lady-settings) (:settings %)))
                     (of "lady-claudeworth")))
         (testing "everyone else, and the judges, keep the run's model and settings"
           (let [others (remove (comp #{"lord-claudeworth" "lady-claudeworth"} :agent) calls)]

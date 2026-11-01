@@ -186,36 +186,34 @@
 
 (defn run-calls
   "The model calls of one turn (or speaking turn), until it's done or
-  `max-steps` calls are made. `messages` start the conversation with the
+  `max-steps` calls are made. `settings` are the calls' model and settings
+  (models/call-settings). `messages` start the conversation with the
   model, `actions` are its initial tools. Optional `refresh-actions` (fn [])
   supplies the next step's actions from the live world. `remind` (fn
   [turn-state calls-made next-actions]) may add a reminder after a call.
   `ctx` goes to the LLM with each call and `log` into each llm.edn entry.
   Returns the turn state."
-  [run agent-id {:keys [model messages actions refresh-actions max-steps call-opts remind ctx log]}]
-  (let [{:keys [opts]} run]
-    (loop [messages messages, actions actions, step 0, st {:finals [] :queries 0 :used [] :nudged false}]
-      (if (or (:done? st) (>= step max-steps))
-        st
-        (let [by-name (a/by-name actions)
-              tools (mapv #(a/->tool % @(:world run)) actions)
-              request {:model model :messages messages :tools tools
-                       :max-tokens (:max-tokens opts) :reasoning (:reasoning opts)
-                       :tool-choice (:tool-choice opts)}
-              response (models/complete! run
-                                         (assoc request :ctx (merge {:world @(:world run) :agent-id agent-id
-                                                                     :step step :used (:used st)}
-                                                                    ctx)))
-              _ (models/record-usage! run agent-id request response)
-              st' (try (handle-response run agent-id by-name call-opts st response)
-                       (catch Throwable t
-                         (models/record-call! run agent-id request response [] log)
-                         (throw t)))
-              next-actions (if (and refresh-actions (not (:done? st')))
-                             (refresh-actions)
-                             actions)
-              replies (cond-> (:replies st')
-                        (not (:done? st')) (add-reminder (remind st' (inc step) next-actions)))]
-          (models/record-call! run agent-id request response replies log)
-          (recur (into (models/conj-reply messages (:message response)) replies)
-                 next-actions (inc step) (dissoc st' :replies)))))))
+  [run agent-id {:keys [settings messages actions refresh-actions max-steps call-opts remind ctx log]}]
+  (loop [messages messages, actions actions, step 0, st {:finals [] :queries 0 :used [] :nudged false}]
+    (if (or (:done? st) (>= step max-steps))
+      st
+      (let [by-name (a/by-name actions)
+            tools (mapv #(a/->tool % @(:world run)) actions)
+            request (assoc settings :messages messages :tools tools)
+            response (models/complete! run
+                                       (assoc request :ctx (merge {:world @(:world run) :agent-id agent-id
+                                                                   :step step :used (:used st)}
+                                                                  ctx)))
+            _ (models/record-usage! run agent-id request response)
+            st' (try (handle-response run agent-id by-name call-opts st response)
+                     (catch Throwable t
+                       (models/record-call! run agent-id request response [] log)
+                       (throw t)))
+            next-actions (if (and refresh-actions (not (:done? st')))
+                           (refresh-actions)
+                           actions)
+            replies (cond-> (:replies st')
+                      (not (:done? st')) (add-reminder (remind st' (inc step) next-actions)))]
+        (models/record-call! run agent-id request response replies log)
+        (recur (into (models/conj-reply messages (:message response)) replies)
+               next-actions (inc step) (dissoc st' :replies))))))

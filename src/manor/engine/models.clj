@@ -7,6 +7,30 @@
             [manor.io.store :as store])
   (:import (java.time Instant)))
 
+(defn call-settings
+  "The settings of an agent's own model calls: the run's :model (for the
+  GM, :gm-model if it's set), :reasoning, :tool-choice and :max-tokens,
+  with the agent's :model over them. That's a model id, or a map of the
+  settings it replaces, whose :id is the model (see
+  manor.io.worldfile/ModelSpec). Only an agent's map sets :cache-control."
+  [opts agent]
+  (let [m (:model agent)
+        {:keys [id] :as own} (if (map? m) m (when m {:id m}))]
+    (cond-> (merge {:model (or (when (= :gm (:role agent)) (:gm-model opts)) (:model opts))
+                    :reasoning (:reasoning opts) :tool-choice (:tool-choice opts) :max-tokens (:max-tokens opts)}
+                   (dissoc own :id))
+      id (assoc :model id))))
+
+(defn model-label
+  "How `agent`'s model reads for the operator: the model, \"run default (...)\"
+  if it's the run's, and any settings their :model replaces."
+  [opts agent]
+  (let [m (:model agent)
+        model (:model (call-settings opts agent))
+        own (when (map? m) (not-empty (dissoc m :id)))]
+    (str (if (or (string? m) (:id m)) model (str "run default (" model ")"))
+         (when own (str " " (pr-str own))))))
+
 (defn record-usage! [run agent-id request response]
   (run/emit! run [{:type :llm/usage :actor agent-id :visible-to :system
                    :data (assoc (:usage response) :agent agent-id :model (:model request))}]))
@@ -23,7 +47,9 @@
   after the response (tool replies and any reminder), so a turn's last call
   has its replies too. The character's private :thoughts, if the model
   returned any, are kept here only; they're never sent back to the model.
-  :at is when the call was sent (see `complete!`), :tool-digests fingerprint
+  :at is when the call was sent (see `complete!`), :settings are the
+  request's :reasoning, :tool-choice, :max-tokens and any :cache-control,
+  :tool-digests fingerprint
   the tools sent (`llm/tool-digests`), and :provider and :generation-id are
   there when the provider gives them. `extra` is merged into the entry,
   e.g. a speaking turn's :conversation."
@@ -33,6 +59,8 @@
                                :round (:round @(:world run))
                                :at (:at response)
                                :model (:model request)
+                               :settings (into {} (remove (comp nil? val))
+                                               (select-keys request [:reasoning :tool-choice :max-tokens :cache-control]))
                                :messages (:messages request)
                                :tools (mapv #(get-in % [:function :name]) (:tools request))
                                :tool-digests (llm/tool-digests (:tools request))

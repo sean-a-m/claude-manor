@@ -4,6 +4,7 @@
 
   Request:  {:model \"deepseek/deepseek-v4.1-flash\" :messages [...] :tools [...]
              :max-tokens 2000 :reasoning {:effort \"low\"} :tool-choice \"auto\"
+             :cache-control {:type \"ephemeral\"}   ; optional: for providers that cache only when asked
              :ctx {...}}
             :ctx is engine context for mock policies; it is never sent anywhere.
   Response: {:message {...assistant message, OpenAI wire format...}
@@ -103,14 +104,15 @@
 
 (defrecord OpenRouter [key base-url timeout-ms]
   LLM
-  (complete [_ {:keys [model messages tools max-tokens reasoning tool-choice]}]
+  (complete [_ {:keys [model messages tools max-tokens reasoning tool-choice cache-control]}]
     (let [body (json/write-value-as-string
                 (cond-> {:model model
                          :messages messages
                          :max_tokens (or max-tokens 2000)
                          :usage {:include true}}
                   (seq tools) (assoc :tools tools :tool_choice (or tool-choice "auto"))
-                  reasoning (assoc :reasoning reasoning)))
+                  reasoning (assoc :reasoning reasoning)
+                  cache-control (assoc :cache_control cache-control)))
           send #(try
                   (http/request {:method :post
                                  :url (str base-url "/chat/completions")

@@ -11,6 +11,7 @@
             [manor.actions :as a]
             [manor.clock :as clock]
             [manor.engine :as e]
+            [manor.engine.models :as models]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
@@ -471,7 +472,7 @@ table.relations{width:max-content} .relations td>div,.relations th>div{width:16e
                 [:tr [:th "controller"]
                  [:td (name (:controller ag)) " "
                   (controller-switch ag "fetch(this.action,{method:'POST',body:new URLSearchParams(new FormData(this))}).then(()=>location.reload());return false")]]
-                [:tr [:th "model"] [:td (or (:model ag) (str "run default (" (get (:opts run) (if (= :gm (:role ag)) :gm-model :model)) ")"))]]
+                [:tr [:th "model"] [:td (models/model-label (:opts run) ag)]]
                 (when (seq (:aspects ag)) [:tr [:th "aspects"] [:td (keyed-phrases (:aspects ag))]])
                 (when (seq (:inner ag)) [:tr [:th "inner"] [:td (keyed-phrases (:inner ag))]])]
                [:div.vis "A switch lands between rounds; a seat waiting for your input stays yours until you end its turn."]]

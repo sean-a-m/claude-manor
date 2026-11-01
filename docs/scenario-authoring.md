@@ -1983,6 +1983,7 @@ in `:init`:
            :goals ["Get the lease signed by Lady Day."]   ; optional: starting goals (see set-goals)
            :relations {"cal" [{:feeling "wary" :because "Cal read your letters"}]}  ; optional (see Relations)
            :away? true                            ; optional: away from the start (below)
+           :model {:reasoning {:effort "low"}}     ; optional: their own model or call settings (below)
            :physical {:grasp {:level :impeded :cause "a sprained wrist"}}}  ; optional (see Physical status),
           {:name "Cal" :role :resident :status :dead :died {:cause "a fall"}}] ; as are :impediments, :status :dead
  :items [{:id "pipe" :name "Pipe" :holder "Ben" :owner "Ben"   ; optional, see Items
@@ -2006,6 +2007,15 @@ in `:init`:
   `:people/returned` (a visit, see Visits). Unlike `:leave-out`, which keeps a character out of
   the run altogether, an away character is known and can be invited home (the medium
   household's son, at school).
+- An agent's optional `:model` puts **their own model calls** (their turns and their lines in
+  conversations) on another model or other settings. It's a model id (`"openai/gpt-5-mini"`) or a
+  map of the run's settings it replaces, each one whole: `:id` (the model; without it, the run's
+  `:model`, so `--model` still changes them), `:reasoning`, `:tool-choice`, `:max-tokens` and
+  `:cache-control`, sent as OpenRouter's top-level `cache_control` for providers that cache only
+  when asked (Anthropic; DeepSeek and most others cache by themselves and don't need it). The
+  shape is checked (`worldfile/ModelSpec`, a closed map); the id and the combination aren't
+  (DeepSeek's endpoint rejects `"required"` with reasoning on). Judges, the steward and
+  adjudicators keep the run's settings. Each call's settings are in `llm.edn` (`:settings`).
 - `:visits` (optional) are **authored visits**, made when a fresh run starts (see Visits): each
   names its guest in `:who` and its `:known-to` by **character id**, as calendar audiences do.
 - `:items` (optional) lists items as in Items, with `:holder`, an agent `:owner`

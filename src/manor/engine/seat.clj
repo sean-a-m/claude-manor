@@ -4,6 +4,7 @@
   forfeited."
   (:require [manor.actions :as a]
             [manor.engine.run :as run]
+            [manor.engine.models :as models]
             [manor.engine.talk :as talk]
             [manor.engine.turn :as turn]
             [manor.mechanics.builtins :as b]
@@ -34,7 +35,7 @@
         agent (w/agent snapshot agent-id)
         max-steps (if gm? (+ 2 (:gm-max-actions opts)) (:max-steps opts))]
     (turn/run-calls run agent-id
-                    {:model (or (:model agent) (when gm? (:gm-model opts)) (:model opts))
+                    {:settings (models/call-settings opts agent)
                      :messages (if gm?
                                  (prompt/gm-messages scenario snapshot @(:events run) reasons (assoc opts :calendar-due calendar-due))
                                  (prompt/agent-messages scenario snapshot @(:events run) agent-id

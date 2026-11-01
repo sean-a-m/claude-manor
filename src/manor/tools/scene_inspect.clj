@@ -4,6 +4,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [manor.clock :as clock]
+            [manor.engine.models :as models]
             [manor.mechanics.items :as items]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
@@ -113,8 +114,7 @@
   [{:keys [world] :as snap} calls id]
   (when-let [ag (w/agent world id)]
     {:agent ag :position (positions/position world id) :post (positions/post world id)
-     :model (or (:model ag) (when (= :gm (:role ag)) (get-in snap [:opts :gm-model]))
-                (get-in snap [:opts :model]))
+     :model (models/model-label (:opts snap) ag)
      :usage (get-in world [:usage id]) :carrying (items/by-name (items/held-by world id))
      :bedroom (get-in world [:state :bedrooms id]) :routine (get-in world [:state :routines id])
      :purse (get-in world [:state :accounts id]) :last-seen (space/last-seen world id)

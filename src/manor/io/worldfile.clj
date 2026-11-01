@@ -59,6 +59,21 @@
    [:aspects {:optional true} :any]          ; checked by `problems`, for a readable message
    [:connects-to {:optional true} [:vector :string]]])
 
+(def ModelSpec
+  "An agent's own model calls (turns and conversation lines): a model id, or
+  a map of the run's settings it replaces, each whole. :id is the model (the
+  run's :model without it); :reasoning, :tool-choice and :max-tokens are sent
+  as the run's are, and :cache-control as OpenRouter's top-level
+  cache_control, for providers that cache only when asked (Anthropic).
+  Neither the id nor the combination is checked."
+  [:or :string
+   [:map {:closed true}
+    [:id {:optional true} :string]
+    [:reasoning {:optional true} [:map-of :keyword :any]]
+    [:tool-choice {:optional true} :string]
+    [:max-tokens {:optional true} pos-int?]
+    [:cache-control {:optional true} [:map-of :keyword :any]]]])
+
 (def Agent
   "An agent of a world file. The trait keys (see manor.mechanics.people) are optional;
   `roll-cast!` writes them. A :situation is shown only in their own prompt,
@@ -75,13 +90,15 @@
   they are spawned, then away (elsewhere, with no place) until something brings
   them back (visits). Starting dead takes precedence over :away?.
   An optional :purse is a non-negative integer in the setting's authored
-  money unit; household scenarios turn it into a private account."
+  money unit; household scenarios turn it into a private account. An optional
+  :model (ModelSpec) puts their own calls on another model or settings."
   [:map
    [:name :string]
    [:role :keyword]
    [:location {:optional true} :string]
    [:away? {:optional true} :boolean]
    [:persona {:optional true} :string]
+   [:model {:optional true} ModelSpec]
    [:situation {:optional true} :string]
    [:purse {:optional true} :any]          ; authored money; checked below for a readable message
    [:manner {:optional true} :string]

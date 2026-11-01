@@ -28,6 +28,7 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/physical-status-design.md` | physical status (bound, gagged, blind, deaf, unconscious, dead), impediments, the immediate `act-on`; built and mock/offline-tested, ordinary real-model compatibility smoke checked |
 | `docs/settings-design.md` | one ruleset for many settings: setting packs, prompt templates, money specs and private accounts, `manor.ruleset`, a palace skeleton; progress in its section 8 |
 | `docs/household-1904-proposal.md` | proposal: a second Claudeworth scenario, a modest household with new ironstone income that means to expand; not started |
+| `docs/agent-models-design.md` | per-agent models: a world-file agent's `:model`, an id or a map of call settings; built (the minimum) |
 | `docs/prompts.md` | catalogue of the prompt templates in `resources/prompts/`: what each is for, who renders it, its parameters; keep it current |
 | `docs/prompt-extraction-design.md` | proposal: moving the model-facing text still in code (request framing, replies, reasons, narration) |
 | `docs/user-todos.md` | the user's own wishlist for later; not agent tasks |

@@ -1,7 +1,8 @@
 # Per-agent models
 
 Proposal: let a run put chosen starting agents on a model other than the run's `:model`.
-Not started. The user's decisions of 2026-10-31 are in section 5; caching (2.2) is still open.
+Built as section 7 says (the minimum); the user's decisions are in sections 5 and 7. Sections 1–4 are
+the original survey, kept for the record.
 
 ## 1. What already exists
 
@@ -150,3 +151,25 @@ cache only where told (Anthropic; Alibaba's endpoints; Gemini's explicit caching
 (question 3) would be for those models only, and sent only when `:cache-control` is set. With
 Anthropic the tools come before the system message in the cached order, so a turn whose tool list
 differs from the last one's misses the whole cache.
+
+## 7. Built (2026-10-31): the minimum
+
+The user's decisions: `:max-tokens` is overridable; caching is the minimum, with no run-level
+`:cache-control` and no explicit breakpoints, since Claude models are to be avoided. DeepSeek's
+endpoint (where OpenRouter almost always sends DeepSeek requests) caches by itself, so it needs neither.
+
+- `worldfile/ModelSpec`: a string, or a closed map of `:id :reasoning :tool-choice :max-tokens
+  :cache-control`.
+- `models/call-settings` resolves an agent's settings over the run's; `seat.clj` and `talk.clj`
+  pass them to `turn/run-calls`, which sends them as they are. `models/model-label` is what the
+  panel's agent page and `scene_inspect` show.
+- `manor.io.llm/OpenRouter` sends `:cache-control` as the top-level `cache_control`.
+- Each llm.edn entry records the call's `:settings` (`:reasoning :tool-choice :max-tokens`, and
+  `:cache-control` when given). Section 6's "already in each logged request" was wrong: only the
+  model was logged before.
+- `test/manor/agent_models_test.clj`: the resolver, the labels, the schema, `cache_control` in the
+  request body, and a mock Claudeworth run in which two agents' turns and conversation lines carry
+  their settings while everyone else's calls and the judges' keep the run's, with replay.
+
+Not done: the cost report still prices simulate/compare by the first call's model (section 2.3),
+and adjudications for an actor's query still bypass `:judge-model` (section 3).

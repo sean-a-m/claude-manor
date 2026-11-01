@@ -6,6 +6,7 @@
   (:require [clojure.string :as str]
             [manor.actions :as a]
             [manor.engine.judges :as judges]
+            [manor.engine.models :as models]
             [manor.engine.resolve :as resolve]
             [manor.engine.run :as run]
             [manor.engine.turn :as turn]
@@ -103,7 +104,7 @@
                  (turn/human-calls run speaker (constantly actions) call-opts
                                    (human-context run conv speaker turn))
                  (turn/run-calls run speaker
-                                 {:model (or (:model (w/agent world speaker)) (:model opts))
+                                 {:settings (models/call-settings opts (w/agent world speaker))
                                   :messages (prompt/conversation-messages scenario world @(:events run) speaker opts conv
                                                                           (assoc turn :extra-actions extra-actions))
                                   :actions actions

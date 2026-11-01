@@ -42,7 +42,7 @@
       (and (= agent-id "recommender") (= 1 (:round world)) (not (some #{"recommend"} used)))
       {:tool :recommend :args {:position "housemaid" :for "employer"}}
       (and (= agent-id "employer") (= 2 (:round world)))
-      {:tool :send-for :args {:candidate (:id p)}}
+      {:tool :send-for :args {:id (:id p)}}
       :else {:tool :pass})))
 
 (defn scenario []
@@ -125,7 +125,7 @@
         (let [calls (filter #(str/starts-with? (:agent %) "adjudicator/people") (store/read-llm (:dir run)))]
           (is (= 2 (count calls)))
           (is (every? #(= "default-test-model" (:model %)) calls)))
-        (is (str/includes? (h/send-for-reason world "bystander" {:candidate (:id p)}) "no current")))
+        (is (str/includes? (h/send-for-reason world "bystander" {:id (:id p)}) "no current")))
       (rounds! run 2)
       (let [world (e/world run) p (first-person world) id (:agent-id p)]
         (is (= :here (:status p)))
@@ -206,7 +206,7 @@
                                            {:tool :say :args {:text "I know someone."}}
                                            {:tool :say :args {:text "Another word."}}
                                            recommend recommend
-                                           {:tool :send-for :args {:candidate (:id (first-person world))}}]
+                                           {:tool :send-for :args {:id (:id (first-person world))}}]
                                           step {:tool :pass})
                                      {:tool :pass}))}
                    {:max-steps 6 :max-queries 2})]
@@ -403,7 +403,7 @@
       (let [world (e/world run) p (first-person world) id (:agent-id p)
             noted (w/apply-event world {:type :agent/noted :actor id :round 3 :data {:text "Remember the first visit."}})
             away (effect noted "employer" :send-away {:who id})
-            summoned (effect away "employer" :send-for {:candidate (:id p)})
+            summoned (effect away "employer" :send-for {:id (:id p)})
             returned (reduce w/apply-event (assoc summoned :round 4) (h/tick (:scenario run) (assoc summoned :round 4)))
             talking (w/apply-event returned {:type :conversation/started :actor "employer" :round 6
                                              :data {:members ["employer" id]}})]
@@ -424,7 +424,7 @@
             (is (= "home" (get-in (first (h/departure legacy id "takes leave")) [:data :towards])))))
         (is (= :away (:status (w/agent (effect returned id :take-leave {}) id))))
         (let [retired (w/apply-event away {:type :agent/retired :data {:id id}})]
-          (is (h/send-for-reason retired "employer" {:candidate (:id p)}))
+          (is (h/send-for-reason retired "employer" {:id (:id p)}))
           (is (= :retired (:status (w/agent (w/apply-event retired {:type :people/returned :data {:id id :at "gate"}}) id))))))
       (rounds! run 24)
       (let [world (e/world run) id (:agent-id (first-person world))
@@ -550,7 +550,7 @@
         (is (= 40 (count (h/pool after))))
         (is (nil? (h/candidate after "3")))
         (is (every? #(h/candidate after %) ["0" "1" "2" (str "candidate-" (inc (:seq protected)))]))
-        (is (h/send-for-reason after "employer" {:candidate "3"}))
+        (is (h/send-for-reason after "employer" {:id "3"}))
         (is (h/recommend-reason (update-in protected [:state :pool] update-vals #(assoc % :status :engaged))
                                 "recommender" {:position "housemaid" :for "employer"}))
         (let [calls (atom [])
@@ -648,7 +648,7 @@
       (let [world (e/world run) p (first-person world) id (:agent-id p)
             summoned (-> world
                          (effect "employer" :send-away {:who id})
-                         (effect "employer" :send-for {:candidate (:id p)}))
+                         (effect "employer" :send-for {:id (:id p)}))
             due (assoc summoned :round 4)]
         (doseq [faculty [:movement :consciousness]]
           (let [held (assoc-in due [:agents id :physical faculty] {:level :disabled})]
@@ -664,7 +664,7 @@
         (let [dead (w/apply-event due {:type :person/died :data {:person id :cause "illness"}})]
           (is (empty? (h/tick (:scenario run) dead)))
           (is (= "that person cannot return"
-                 (h/send-for-reason (assoc-in dead [:state :pool (:id p) :status] :away) "employer" {:candidate (:id p)})))
+                 (h/send-for-reason (assoc-in dead [:state :pool (:id p) :status] :away) "employer" {:id (:id p)})))
           (is (= dead (w/apply-event dead {:type :people/returned :data {:id id :at "gate"}})))
           (is (= dead (w/apply-event dead {:type :people/departed :data {:id id}})))))
       (replay! run)
@@ -688,7 +688,7 @@
                      (and (= "employer" agent-id) (= 1 (:round world)) (not (some #{"converse"} used)))
                      {:tool :converse :args {:with ["recommender"] :text "Do you know of a housemaid?"}}
                      (and (= "employer" agent-id) (= 2 (:round world)))
-                     {:tool :send-for :args {:candidate (:id (first-person world))}}
+                     {:tool :send-for :args {:id (:id (first-person world))}}
                      :else {:tool :pass}))
           conversation (fn [{:keys [agent-id used]}]
                          (cond
@@ -745,7 +745,7 @@
                                  (str (:name p) " (" id ") means to come back to the Gate (gate) about the housemaid place."))))
             (is (not (str/includes? (calendar/character-section left "bystander") "come back"))))
           (testing "sending for them sooner brings them next round and clears the entries"
-            (let [sent (effect left "employer" :send-for {:candidate (:id p)})]
+            (let [sent (effect left "employer" :send-for {:id (:id p)})]
               (is (= :sent-for (:status (h/candidate sent (:id p)))))
               (is (not (str/includes? (calendar/character-section sent id) "come back")))
               (is (not (str/includes? (calendar/character-section sent "employer") "come back")))))

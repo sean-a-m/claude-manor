@@ -12,6 +12,7 @@
             [manor.mechanics.positions :as positions]
             [manor.mechanics.shop :as shop]
             [manor.mechanics.space :as space]
+            [manor.mechanics.trades :as trades]
             [manor.mechanics.visits :as visits]
             [manor.ruleset.places :as places]
             [manor.world :as w]))
@@ -74,6 +75,7 @@
                 (update :you assoc :bedroom (places/bedroom-of world id))
                 (assoc :hiring (hiring/observe world id))
                 (visits/add-to-view world id)
+                (trades/add-to-view world id)
                 (following/add-to-view world id))
       (or (positions/household-member? world id) (visits/from-elsewhere? world id))
       (assoc-in [:household :bedrooms] (home-bedrooms world))

@@ -1,6 +1,6 @@
 Summon a candidate known to you through a recommendation.
 
-- `candidate`: their candidate id, not an agent id.
+- `id`: their candidate id, not an agent id.
 
 They are expected at the meeting place next round. Go there and use `converse` to discuss the post. Summoning does not hire them.
 

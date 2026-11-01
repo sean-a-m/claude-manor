@@ -65,6 +65,7 @@ the rules of individual mechanics that it joins in.
 | `rules/sections/building.md` | Building, only with an architect | ″ | `sizes`, `fee-percent` |
 | `rules/sections/hiring.md` | Hiring | ″ | `hiring` (`rules/hiring.md`) |
 | `rules/sections/invitations.md` | Invitations, only with visits | ″ | `visits` (`rules/visits.md`) |
+| `rules/sections/trades.md` | Tradespeople, only with visits | `trades/rules` | `lead-hours`, `idle-hours` |
 | `rules/physical.md` | Physical status: hindered faculties, impediments | `physical/rules` | |
 | `rules/hiring.md` | How hiring works | `hiring/rules`, `hiring/rules-beside-visits` | `arrivals` (`rules/hiring-arrivals.md` or `rules/hiring-arrivals-beside-visits.md`) |
 | `rules/visits.md` | How invitations and guests work | `visits/rules` | `post` (`rules/visits-post.md` or `""`), `calendar` (`rules/visits-calendar.md` or `""`) |
@@ -99,6 +100,8 @@ for the action's kind and its per-turn limit (`docs/hints/`).
 | `docs/hiring/spend-time-candidate.md` | Appended to `spend-time` when a reference can be written for a candidate | `hiring/reference-activity` | |
 | `docs/visits/invite.md`, `schedule-visit.md`, `cancel-visit.md` | Invitations; the GM's visits | `visits` | `invite`: `max-person`, `example-date`, `post` (`docs/visits/post.md` or `""`) |
 | `docs/visits/time-format.md` | Fragment: the date format for visits | `visits` | `example-date` |
+| `docs/trades/recommend-trade.md` | Appended to `recommend`: the `trade` argument | `trades` | `max-trade` |
+| `docs/trades/send-for.md` | `send-for` for candidates and contacts, in place of hiring's | `trades` | `lead-hours` |
 | `docs/shop/quote-goods.md`, `buy.md`, `send-up.md` | The shop | `shop` | `max-lines`; send-up also `send-up-max-hours` |
 | `docs/architect/consult-references.md`, `price-list.md`, `draw-plans.md`, `show-plans.md`, `commission.md` | The architect, only with an office | `building` | setting money names |
 
@@ -125,12 +128,13 @@ must call.
 | `judges/relations.md` | The work and conversation judges' lines on relations, after their other instructions | `relations/instructions` | `max-feeling`, `max-because` |
 | `judges/find-person.md` | Whom a `find-person` seeker means | `find-person/instructions` | |
 | `judges/invitation.md` | Whom an `invite` means | `visits.judge/instructions` | `invitation-examples` (the pack's fragment) |
+| `judges/trade.md` | Whom a `recommend` with `trade` means | `trades.judge/instructions` | |
 | `judges/shop-appraiser.md` | The shop's appraisal of requested goods | `shop/instructions` | `max-lead-hours`, `max-quantity`; the pack's `money-pricing.md` |
 | `judges/tools/judge.md` | The scene judge's `judge` tool | `items.judge/judge-tool` | `activity` (act or work), `advised-aspect`, `max-summary`, `inner` (`judge-inner.md` + `" "`, or `""`), `relations` (`tools/relations.md` + `" "`, or `""`), `effects` (`judge-act.md` or `judge-work.md`, which takes `max-made`) |
 | `judges/tools/steward.md` | The `steward` tool | `items.steward/steward-tool` | `inner` (`steward-inner.md` or `""`) |
 | `judges/tools/react.md` | The conversation judge's `react` tool | `conversation.judge/react-tool` | `advised-value`, `max-summary`, `relations` (as the judge's) |
 | `judges/tools/relations.md` | Fragment: the `relations` field, for the `judge` and `react` tools | `relations/tool-text` | |
-| `judges/tools/finder.md`, `seek.md`, `invitee.md`, `appraise.md` | The finder's, find-person's, invitation judge's and shop's tools | their request functions | |
+| `judges/tools/finder.md`, `seek.md`, `invitee.md`, `tradesperson.md`, `appraise.md` | The finder's, find-person's, invitation judge's, trade judge's and shop's tools | their request functions | |
 | `judges/tools/polish.md`, `appearance.md` | The persona writers' tools | `people/polish-request`, `people/appearance-request` | |
 
 ## Writers (`writers/`)

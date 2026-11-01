@@ -108,10 +108,11 @@
   {:type :people/candidate-updated :visible-to :system :data {:id id :changes changes}})
 
 (def ^:private not-posts
-  "Catalogue positions nobody is hired for: no post at all, the GM, and a
-  visitor (manor.mechanics.visits). Recommend and engage refuse them, and
+  "Catalogue positions nobody is hired for: no post at all, the GM, a
+  visitor (manor.mechanics.visits) and a tradesman sent for
+  (manor.mechanics.trades). Recommend and engage refuse them, and
   `reference` doesn't list them."
-  #{:none :gm :guest})
+  #{:none :gm :guest :tradesman})
 
 (defn- not-a-post-reason
   "Why `position` can't be filled by hiring, or nil."
@@ -121,13 +122,19 @@
           (= :guest position) "guest is not a post; use the id of a position to fill"
           (not-posts position) "name a character's position to fill")))
 
+(defn recipient-reason
+  "Why `actor` can't recommend anyone to `for`, or nil: they must be someone
+  else, here. Shared with trades (manor.mechanics.trades)."
+  [world actor for]
+  (cond
+    (= actor for) "ask someone else here to recommend to you, not yourself"
+    (not (and (w/active? world for) (not= :gm (:role (w/agent world for)))
+              (space/together? world actor for))) "the person asking must be here"))
+
 (defn recommend-reason [world actor {:keys [position for]}]
   (or (not-a-post-reason world position)
-      (cond
-        (= actor for) "ask someone else here to recommend to you, not yourself"
-        (not (and (w/active? world for) (not= :gm (:role (w/agent world for)))
-                  (space/together? world actor for))) "the person asking must be here"
-        (not (or (reusable world actor (keyword position)) (room? world))) "the candidate pool is full of people still in play")))
+      (recipient-reason world actor for)
+      (when-not (or (reusable world actor (keyword position)) (room? world)) "the candidate pool is full of people still in play")))
 
 (defn- check-record [record]
   (when-not (and (map? record) (string? (:name record)) (not (str/blank? (:name record)))
@@ -231,7 +238,7 @@
 
 (defmethod n/describe :people/recommended [{:keys [data]} _]
   (str (:name data) " (" (:id data) ") seeks " (str/join ", " (map name (:seeks data)))
-       ". To meet them, use send-for with candidate \"" (:id data) "\"; they arrive next round."))
+       ". To meet them, use send-for with id \"" (:id data) "\"; they arrive next round."))
 (defn- known-reading
   "A known basic reading or written circumstance, not a stock behaviour.
   Old event records may still carry descriptor maps; preserve their narration."
@@ -260,8 +267,10 @@
   (and (= :away (:status (w/agent world id)))
        (not (physical/held-in-place? world id))))
 
-(defn send-for-reason [world actor {:keys [candidate]}]
-  (let [p (get (pool world) candidate)]
+(defn send-for-reason
+  "Why `actor` can't send for the candidate whose id is `id`, or nil."
+  [world actor {:keys [id]}]
+  (let [p (get (pool world) id)]
     (cond
       (not (contains? (:known-to p) actor)) "you have no current recommendation for that candidate"
       (not (#{:pooled :away :returning} (:status p))) "that candidate has already been summoned or engaged"
@@ -273,14 +282,14 @@
 (declare return-entries-cancelled)
 
 (defn sent-for
-  "`actor` sends for `candidate`, who comes next round, sooner than any
-  return they planned (whose calendar entries are cancelled)."
-  [world actor {:keys [candidate]}]
-  (into [(changed candidate {:status :sent-for :arrival (inc (:round world)) :summoner actor
+  "`actor` sends for the candidate whose id is `id`, who comes next round,
+  sooner than any return they planned (whose calendar entries are cancelled)."
+  [world actor {:keys [id]}]
+  (into [(changed id {:status :sent-for :arrival (inc (:round world)) :summoner actor
                              :return-at nil :return-entries nil})
-         {:type :people/sent-for :visible-to #{actor} :data {:name (:name (get (pool world) candidate))
+         {:type :people/sent-for :visible-to #{actor} :data {:name (:name (get (pool world) id))
                                                              :at (get-in world [:state :meeting-place])}}]
-        (return-entries-cancelled world (get (pool world) candidate))))
+        (return-entries-cancelled world (get (pool world) id))))
 (defmethod n/describe :people/sent-for [{:keys [data]} names]
   (str "Word is sent to " (:name data) "; they are expected next round at " (n/place names (:at data)) "."))
 
@@ -527,7 +536,7 @@
    {:name :send-for :kind :final :roles :all
     :available? (fn [world actor] (boolean (some #(and (contains? (:known-to %) actor) (#{:pooled :away :returning} (:status %))) (vals (pool world)))))
     :doc (prompts/doc "docs/hiring/send-for.md")
-    :args [:map [:candidate :string]] :valid? send-for-reason :effect sent-for}
+    :args [:map [:id :string]] :valid? send-for-reason :effect sent-for}
    {:name :engage :kind :free :roles :all
     :available? (fn [world actor] (boolean (some #(and (not= actor (:agent-id %)) (nil? (present-candidate-reason world actor (:agent-id %)))) (vals (pool world)))))
     :doc (prompts/doc "docs/hiring/engage.md")

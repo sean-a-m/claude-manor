@@ -2256,7 +2256,7 @@ or promised. It does not select an existing villager.
   is discarded. These calls use the run's default model and normal cost budget, with checked
   lengths/blanks and one correction, never lexical prose checks. Offline bridge fixtures and
   mock adjudicators keep `--mock --offline` entirely free.
-- `send-for {candidate}` is final. Only someone who knows the current pool record may call it.
+- `send-for {id}` (a candidate id) is final. Only someone who knows the current pool record may call it.
   Arrival is next round at the meeting place, before turns, if the active-agent cap has room
   (otherwise it waits). The visitor is spawned through the scenario hook with role `:none`,
   own traits and a private situation naming their summoner. Their model inherits `:model`.
@@ -2695,7 +2695,7 @@ invitation judge, which matches someone in the world or writes someone new.
   ```
 - **The record** in `[:state :visits]`, by id (`"visit-1"`, …): `:guest` (an agent id), `:host`
   (nil when arranged by the GM or operator, or authored), `:by` (`:in-person`, `:post`, `:messenger`, `:gm`,
-  `:operator`, `:authored`), `:via`, `:at` (the ISO time given), `:arrive` (its round), `:deliver` (the round the
+  `:operator`, `:authored`, or `:sent-for` for a tradesperson, below), `:via`, `:at` (the ISO time given), `:arrive` (its round), `:deliver` (the round the
   guest is told), `:wake` (the round from which they're kept in play), `:stay`, `:reason`,
   `:bedroom`, `:known-to` (arranged visits), `:told?`, `:reminded?`, `:arrived` (the round it
   became `:here`), `:from-away?` (they arrived at the meeting place) and `:status`: `:scheduled` →
@@ -2860,6 +2860,68 @@ invitation judge, which matches someone in the world or writes someone new.
   the meeting place and an hour, as for a 01:00 visit), once told, until the visit arrives, and
   all the while it's `:here`. Claudeworth's `hibernate` returns nil while it's true, so the
   ordinary `b/free` wakes them. Once the visit ends or lapses, hibernation resumes as usual.
+
+### Tradespeople (`manor.mechanics.trades`)
+
+[trades-design.md](trades-design.md), phases 1 and 2: tradespeople, craftsmen and merchants,
+found through `recommend` with a `trade` and brought with `send-for`. Built on hiring and visits:
+a contact is a record like a candidate, and sending for one is a visit.
+
+- **Install** with `(trades/install scenario)` after `hiring/install` and `visits/install`. It
+  replaces their `recommend` and `send-for` with ones that also take a trade and a contact, adds
+  the trade judge (`:trades/tradesperson` in `:adjudicators`, with its mock) and the
+  `:trades/tick` system. It's idempotent. The world's positions need a `:tradesman` (both setting
+  packs' catalogues have one; hiring refuses it as a post). Its `:observe` should call
+  `(trades/add-to-view view world id)`. Every ruleset scenario installs it, and the ruleset's
+  `rules` add the Tradespeople section (`trades/rules`) where visits are installed.
+- **The record** in `[:state :contacts]`, by id (`"contact-1"`, …, numbered by
+  `[:state :contact-count]`): `:agent-id`, `:name`, `:trade`, `:known-to`, `:created`, and either
+  `:local? true` with `:works-at` (the name of their position's first `:workplace`) for someone on
+  the map, or `:based`, `:known-as` and the people server's `:record` for someone from elsewhere.
+  At most `contacts-limit` (40); a new one evicts the oldest from elsewhere who isn't about or
+  expected (`:contacts/evicted`; their away agent stays), and with none to evict a trade
+  recommendation is refused.
+- **`recommend {position | trade, for}`**: exactly one of `position` and `trade` (1-80
+  characters, the trade or service in the recommender's words). With `position` it is hiring's.
+  With `trade`, the same presence checks (`hiring/recipient-reason`), then a query: the trade
+  judge, then for someone new `hiring/person-record` (position = the trade, the judge's sex and
+  age, living where they're based) and `hiring/write-person` (the judge's situation as notes), and
+  for anyone from elsewhere the people server's reputation (`acquaintance`, cached per
+  recommender). Events, on the world when the query's done: for someone new, their away agent
+  (`:agent/spawned` with role `:tradesman`, `:agent/updated` with `:lives`, `:known-as` and
+  `:age`, `:people/departed`, all `:system`); `:contacts/made` (`:system`) for someone new or
+  someone on the map the first time; `:people/reputation-known` (the recommender only, not for
+  someone on the map); and `:contacts/recommended` (both), whose narration gives the contact id
+  and how to send for them. `impossible` replies with the reason and makes nothing.
+- **The trade judge** (`manor.mechanics.trades.judge`, tool `tradesperson`) is one checked narrow
+  call built like the invitation judge. Its request holds the recommender (`visits.judge/inviter`),
+  the trade, `local` (active people not of the household whose role isn't `:none`, `:gm`,
+  `:guest` or `:tradesman`: id, name, position title, `works-at`) and `contacts` (contacts from
+  elsewhere whose person isn't dead or retired: id, name, trade, based, known-as only, never who
+  knows them). It answers `{existing id}` (an id from either list), `{new {trade sex age based
+  known-as situation}}` (`judge/new-fields`; the people server names them) or `{impossible
+  reason}`. Code checks only the shape; a bad answer is sent back once, then the query fails
+  neutrally. `judge/mock-judge`: a contact whose trade, or a local person whose position, the
+  trade contains is them; anyone else is new, from Ely.
+- **`send-for {id, job?}`** is final; trades' version takes a candidate's or a contact's id (they
+  never collide) in the one field. For a candidate it is hiring's, and `job` is ignored. For a
+  contact, the actor must know it and give `job` (1-300 characters); refused for themselves, a
+  dead or retired person, someone with a `:sent-for` visit expected or under way, someone from
+  elsewhere who is about ("speak to them"), and someone on the map `visits/guest-reason` refuses
+  (the household at home). There is no date or time, as for candidates: the effect is
+  `visits/sent-for-events`, a visit by `:sent-for` with `:host` the sender, the job as `:stay`,
+  expected `lead-hours` (3) on, plus `:trades/sent-for` seen by the sender and the contact if
+  they're about. Someone on the map is told at once, gets the guest calendar entry ("You are
+  wanted at …, sent for by …: the job.") and is kept awake and reminded as an invited guest is; if
+  they don't come within `:lapse-hours` the visit lapses. Someone away arrives at the meeting
+  place at the time, as an away guest does. `you.visit` shows `job` and `sent-for-by` for such a
+  visit.
+- **Going home.** A tradesperson from elsewhere uses visits' `take-leave`. The tick also sends
+  one home (`visits/leave-events`) once their `:sent-for` visit is `:here`, they're active, not
+  occupied (`w/busy`), not held in place, and `idle-hours` (2) have passed since they arrived or
+  last conversed (`hiring/idle-rounds`).
+- **Views:** `contacts`, the contacts `id` knows: id, name, trade, then `works-at` and
+  `on-the-map` or `based`, and `sent-for` while a visit for them is expected or under way.
 
 ### Occupation: sleep and other long activities
 

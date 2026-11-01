@@ -111,7 +111,7 @@ settings for that agent's own calls (turns and conversation lines):
         :tool-choice "required"}
 ```
 
-- Keys: `:id`, `:reasoning`, `:tool-choice`, `:cache-control` (and `:max-tokens`, open question 6.1).
+- Keys: `:id`, `:reasoning`, `:tool-choice`, `:cache-control` and `:max-tokens` (the user's decision).
   Each one given replaces the run's value whole (`:reasoning` isn't deep-merged); each one left out
   is the run's. Without `:id` the model is the run's `:model`, so `--model` still changes it.
 - Checked by the world-file schema for shape only: a string, or a closed map of those keys with
@@ -132,11 +132,21 @@ settings for that agent's own calls (turns and conversation lines):
 
 Open:
 
-1. Should `:max-tokens` be overridable too? Reasoning tokens count against it, so raising the
-   reasoning effort without it can bring back the empty replies.
+1. (Decided: `:max-tokens` is overridable.)
 2. Should the run get a `:cache-control` option too (default nil), so a whole run on `--model
    anthropic/...` caches? Agents would override it like the others.
 3. Is the top-level field enough? Automatic caching writes only at the end of the request, and the
    end of an agent's prompt changes every turn, so it hits within a turn's tool calls but not from one
    turn to the next. Caching across turns needs an explicit breakpoint at the end of the system
    message, which means sending that message as a content-block array.
+
+What caching does now, without `cache_control` (`old-test-runs/claudeworth-relations-morning`,
+all 298 calls served by DeepSeek): DeepSeek caches every request's prefix by itself and reuses the
+longest start a new request shares with an earlier one, wherever it ends. An agent's first call of a
+round had 67% of its prompt from the cache (in round 1 only the shared ~1,900-token preamble; from
+round 2 most of the system message and events window, e.g. 11,008 of 15,030 tokens); later calls in
+the same turn had 91%. `cache_control` adds nothing for DeepSeek: it's a request for providers that
+cache only where told (Anthropic; Alibaba's endpoints; Gemini's explicit caching). Breakpoints
+(question 3) would be for those models only, and sent only when `:cache-control` is set. With
+Anthropic the tools come before the system message in the cached order, so a turn whose tool list
+differs from the last one's misses the whole cache.

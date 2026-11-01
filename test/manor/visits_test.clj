@@ -580,7 +580,7 @@
       (let [p (first (vals (hiring/pool (e/world run))))
             candidate-id (:id p)]
         (is (nil? (:rejected (resolve/resolve! run "lord-claudeworth" (action run :send-for)
-                                             {:candidate candidate-id}))))
+                                             {:id candidate-id}))))
         (until! run 1)
         (let [id (:agent-id (hiring/candidate (e/world run) candidate-id))]
           (is (w/active? (e/world run) id))
@@ -604,7 +604,7 @@
             (is (= :ended (status world "visit-1")))
             (is (= :away (:status old)))
             (is (= "that person cannot return"
-                   (hiring/send-for-reason world "lord-claudeworth" {:candidate candidate-id})))
+                   (hiring/send-for-reason world "lord-claudeworth" {:id candidate-id})))
             (let [result (recommend!)
                   replacement (get-in result [:result :candidate])
                   recommended (last (of-type run :people/recommended))]
@@ -615,7 +615,7 @@
               (is (= 2 (generated)))
               (is (= old (hiring/candidate (e/world run) candidate-id)) "the dead pool record is not cleared or rewritten")
               (is (nil? (:rejected (resolve/resolve! run "lord-claudeworth" (action run :send-for)
-                                                   {:candidate (get-in recommended [:data :id])}))))
+                                                   {:id (get-in recommended [:data :id])}))))
               (until! run 4)
               (let [living (hiring/candidate (e/world run) (get-in recommended [:data :id]))]
                 (is (= :here (:status living)))

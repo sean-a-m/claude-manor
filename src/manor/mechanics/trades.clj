@@ -184,7 +184,7 @@
        (if (:local? data)
          (when (:works-at data) (str ", who works at the " (:works-at data)))
          (str ", of " (:based data)))
-       ". To have them come, use send-for with contact \"" (:id data) "\" and the job; "
+       ". To have them come, use send-for with id \"" (:id data) "\" and the job; "
        (if (:local? data)
          (str "word reaches them at once and they are expected at the " (:at data) " " (:lead-hours data)
               " hours later, if they're willing.")
@@ -205,34 +205,35 @@
   (.plusMinutes (clock/time-of (:clock world) (:round world)) (* 60 lead-hours)))
 
 (defn contact-reason
-  "Why `actor` can't send for contact `contact` to do `job`, or nil."
-  [world actor {:keys [contact job]}]
-  (let [c (get (contacts world) contact)
-        id (:agent-id c)
-        a (w/agent world id)]
+  "Why `actor` can't send for the contact whose id is `id` to do `job`, or nil."
+  [world actor {:keys [id job]}]
+  (let [c (get (contacts world) id)
+        agent-id (:agent-id c)
+        a (w/agent world agent-id)]
     (cond (not (contains? (:known-to c) actor)) "you have no recommendation of that contact; use a contact id from your contacts"
-          (str/blank? job) "say in job what they're wanted for"
-          (= id actor) "you can't send for yourself"
+          (str/blank? job) "say in job what they're wanted for: a tradesperson needs a job"
+          (= agent-id actor) "you can't send for yourself"
           (nil? (meeting-place world)) "this world has no meeting place"
           (#{:retired :dead} (:status a)) (str (:name a) " cannot come")
-          (sent-for-visit world id) (str (:name a) " has been sent for already")
-          (and (not (:local? c)) (w/active? world id)) (str (:name a) " is about already; speak to them")
-          (:local? c) (visits/guest-reason world id))))
+          (sent-for-visit world agent-id) (str (:name a) " has been sent for already")
+          (and (not (:local? c)) (w/active? world agent-id)) (str (:name a) " is about already; speak to them")
+          (:local? c) (visits/guest-reason world agent-id))))
 
-(defn send-for-reason [world actor {:keys [candidate contact] :as args}]
-  (cond (and candidate contact) "give candidate or contact, not both"
-        candidate (hiring/send-for-reason world actor args)
-        contact (contact-reason world actor args)
-        :else "give candidate (a candidate id) or contact (a contact id) to send for"))
+(defn send-for-reason
+  "Why `actor` can't send for `id`: a candidate's (as hiring) or a contact's."
+  [world actor {:keys [id] :as args}]
+  (cond (hiring/candidate world id) (hiring/send-for-reason world actor args)
+        (contact world id) (contact-reason world actor args)
+        :else "use the id of a candidate or contact recommended to you (from hiring.candidates or contacts)"))
 
 (defn sent-for
-  "`actor` sends for a candidate (as hiring does) or a contact: a visit by
-  :sent-for, expected `lead-hours` on, and word of it to `actor` and to the
-  contact if they're about."
-  [world actor {:keys [candidate contact job] :as args}]
-  (if candidate
+  "`actor` sends for `id`: a candidate (as hiring does) or a contact, by a
+  visit by :sent-for expected `lead-hours` on, with word of it to `actor`
+  and to the contact if they're about."
+  [world actor {:keys [id job] :as args}]
+  (if (hiring/candidate world id)
     (hiring/sent-for world actor args)
-    (let [id (:agent-id (get (contacts world) contact))
+    (let [id (:agent-id (contact world id))
           at (expected-at world)]
       (into [{:type :trades/sent-for :visible-to (cond-> #{actor} (w/active? world id) (conj id))
               :data {:id id :by actor :job job :at (meeting-place world)
@@ -320,8 +321,7 @@
                        (or ((:available? send-for) world actor)
                            (boolean (some #(contains? (:known-to %) actor) (vals (contacts world))))))
          :doc (prompts/doc "docs/trades/send-for.md" {:lead-hours lead-hours})
-         :args [:map [:candidate {:optional true} :string] [:contact {:optional true} :string]
-                [:job {:optional true} [:string {:min 1 :max max-job}]]]
+         :args [:map [:id :string] [:job {:optional true} [:string {:min 1 :max max-job}]]]
          :valid? send-for-reason
          :effect sent-for))
 

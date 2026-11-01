@@ -65,7 +65,7 @@
            "20:30" [[:recommend {:trade "a piano tuner" :for "lord-claudeworth"}] [:pass {}]]}
    "lord-claudeworth" {"20:00" [[:pass {}]]
                        "20:30" [[:pass {}]]
-                       "21:00" [[:send-for {:contact "contact-1" :job "tune the drawing-room piano"}]]}})
+                       "21:00" [[:send-for {:id "contact-1" :job "tune the drawing-room piano"}]]}})
 
 (deftest a-piano-tuner-from-elsewhere-is-recommended-sent-for-and-goes-home
   (let [run (start-with cw/scenario tuner-day)]
@@ -89,7 +89,7 @@
         (testing "only Hale learns what he knows of him; the reply says how to send for him"
           (is (some? (get-in world [:state :reputations "hale" "contact-1"])))
           (is (nil? (get-in world [:state :reputations "lord-claudeworth" "contact-1"])))
-          (is (str/includes? (first (replies-to run "hale" "recommend")) "send-for with contact \"contact-1\"")))
+          (is (str/includes? (first (replies-to run "hale" "recommend")) "send-for with id \"contact-1\"")))
         (testing "both see the contact in their view"
           (doseq [id ["hale" "lord-claudeworth"]]
             (is (= [{:id "contact-1" :name (:name tuner) :trade "piano tuner" :based "Ely"}]
@@ -104,7 +104,7 @@
                  (select-keys v [:guest :host :by :stay :status :at])))
           (is (str/includes? (calendar/character-section world "lord-claudeworth") "sent for by you: tune the drawing-room piano"))
           (is (true? (:sent-for (first (:contacts (prompt/agent-view (:scenario run) world "lord-claudeworth"))))))
-          (is (some? (check run world "lord-claudeworth" :send-for {:contact "contact-1" :job "again"})))))
+          (is (some? (check run world "lord-claudeworth" :send-for {:id "contact-1" :job "again"})))))
       (until! run 9)
       (let [world (e/world run)
             id (:agent-id (trades/contact world "contact-1"))]
@@ -128,7 +128,7 @@
                     [:recommend {:trade "the blacksmith again" :for "lord-claudeworth"}] [:pass {}]]}
    "lord-claudeworth" {"20:00" [[:pass {}]]
                        "20:30" [[:pass {}]]
-                       "21:00" [[:send-for {:contact "contact-1" :job "mend the hinge of the drive gate"}]]}})
+                       "21:00" [[:send-for {:id "contact-1" :job "mend the hinge of the drive gate"}]]}})
 
 (deftest the-village-blacksmith-is-recommended-and-told
   (let [run (start-with cw/scenario smith-day)]
@@ -163,15 +163,13 @@
       (is (str/starts-with? (check run world "lord-claudeworth" :recommend {:for "hale"}) "give position"))
       (is (= "the person asking must be here"
              (check run world "lord-claudeworth" :recommend {:trade "a sweep" :for "hale"})))
-      (is (str/starts-with? (check run world "lord-claudeworth" :send-for {}) "give candidate"))
-      (is (= "give candidate or contact, not both"
-             (check run world "lord-claudeworth" :send-for {:candidate "candidate-1" :contact "contact-1"})))
+      (is (str/starts-with? (check run world "lord-claudeworth" :send-for {:id "contact-9"}) "use the id of a candidate or contact"))
       (let [known (-> world
                       (assoc-in [:state :contacts "contact-1"] {:id "contact-1" :agent-id "carter" :local? true
                                                                 :trade "blacksmith" :known-to #{"lord-claudeworth"}}))]
-        (is (str/starts-with? (check run known "hale" :send-for {:contact "contact-1" :job "x"}) "you have no recommendation"))
-        (is (= "say in job what they're wanted for" (check run known "lord-claudeworth" :send-for {:contact "contact-1"})))
-        (is (nil? (check run known "lord-claudeworth" :send-for {:contact "contact-1" :job "shoe the pony"}))))
+        (is (str/starts-with? (check run known "hale" :send-for {:id "contact-1" :job "x"}) "you have no recommendation"))
+        (is (str/starts-with? (check run known "lord-claudeworth" :send-for {:id "contact-1"}) "say in job what they're wanted for"))
+        (is (nil? (check run known "lord-claudeworth" :send-for {:id "contact-1" :job "shoe the pony"}))))
       (is (str/includes? (rules/rules world) "### Tradespeople"))
       (finally (e/stop-run run)))))
 

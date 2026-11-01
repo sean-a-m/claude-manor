@@ -51,11 +51,11 @@ is a record for "a tradesperson you've been told of" and a way to send for them.
    pianos. Mrs Bell calls `recommend` with `trade: "piano tuner"` and `for: "mrs-hale"`.
    It's a query, offered on speaking turns as now, and the person told must be present.
 2. **The answer.** Both learn a contact: "Arthur Brand (contact-7), a piano tuner from Ely. To
-   have him come, use send-for with who "contact-7"; he can be at the Carriage sweep in 3
+   have him come, use send-for with id "contact-7"; he can be at the Carriage sweep in 3
    hours." Mrs Bell alone gets what she knows of him (the existing reputation bridge). For
    someone on the map: "Mr Rudge (contact-8), the chimney sweep, at the Chimney sweep's
    cottage."
-3. **Sending for them.** `send-for` with `who: "contact-7"` and `job: "tune the drawing-room
+3. **Sending for them.** `send-for` with `id: "contact-7"` and `job: "tune the drawing-room
    piano"`. They are expected 3 hours later. The sender and the tradesperson get calendar
    entries. Arthur Brand is spawned at the Carriage sweep at that
    time; Rudge is told and kept out of hibernation that day, and walks up if he's willing.
@@ -128,7 +128,7 @@ else knows the contact, as with invitations.
 
 ### 4.4 `send-for`
 
-- The argument becomes `who`, a candidate or contact id (no backwards compatibility kept).
+- The argument becomes `id`, a candidate or contact id (no backwards compatibility kept).
   Candidates behave exactly as now.
 - For a contact: `job` (required, free text, at most 300 characters). No date or time, as for
   candidates (decision 6): they are expected at the first round 3 hours on (`lead-hours 3`).
@@ -186,9 +186,10 @@ Where the build differs from section 4:
   someone new. Then `send-for` is an ordinary effect with no I/O, and arrival, calendar entries,
   waking, lapsing and `take-leave` are all visits' own. A new contact costs the judge, one
   people-server roll, the reputation and the two writer calls.
-- **`send-for` keeps `candidate` and adds `contact`** (with `job`) instead of renaming the
-  argument to `who`: elsewhere `who` means an agent id, and the candidate docs stress the
-  difference.
+- **`send-for {id, job?}`**: one field for a candidate's or a contact's id (the user, 2026-10-31:
+  separate fields for the same thing are confusing), named `id` rather than `who`, which means an
+  agent id elsewhere. Hiring's own `send-for` takes `id` too. `job` is needed for a contact and
+  ignored for a candidate, whose post was set when they were recommended.
 - **One `existing` answer** for both lists: contact ids and agent ids can't collide.
 - **The judge's `local` list is everyone on the map who works**, not only those within walking
   distance: the worlds are small enough.

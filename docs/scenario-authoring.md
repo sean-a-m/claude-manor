@@ -2243,7 +2243,7 @@ or promised. It does not select an existing villager.
   is discarded. These calls use the run's default model and normal cost budget, with checked
   lengths/blanks and one correction, never lexical prose checks. Offline bridge fixtures and
   mock adjudicators keep `--mock --offline` entirely free.
-- `send-for {candidate}` is final. Only someone who knows the current pool record may call it.
+- `send-for {id}` (a candidate id) is final. Only someone who knows the current pool record may call it.
   Arrival is next round at the meeting place, before turns, if the active-agent cap has room
   (otherwise it waits). The visitor is spawned through the scenario hook with role `:none`,
   own traits and a private situation naming their summoner. Their model inherits `:model`.
@@ -2890,8 +2890,9 @@ a contact is a record like a candidate, and sending for one is a visit.
   reason}`. Code checks only the shape; a bad answer is sent back once, then the query fails
   neutrally. `judge/mock-judge`: a contact whose trade, or a local person whose position, the
   trade contains is them; anyone else is new, from Ely.
-- **`send-for {candidate | contact, job?}`** is final. With `candidate` it is hiring's. With
-  `contact`, the actor must know it and give `job` (1-300 characters); refused for themselves, a
+- **`send-for {id, job?}`** is final; trades' version takes a candidate's or a contact's id (they
+  never collide) in the one field. For a candidate it is hiring's, and `job` is ignored. For a
+  contact, the actor must know it and give `job` (1-300 characters); refused for themselves, a
   dead or retired person, someone with a `:sent-for` visit expected or under way, someone from
   elsewhere who is about ("speak to them"), and someone on the map `visits/guest-reason` refuses
   (the household at home). There is no date or time, as for candidates: the effect is

@@ -68,13 +68,13 @@
    :gm :llm                         ; who fills the GM seat: :llm, :human or :off
    :reasoning {:effort "none"}
    :tool-choice "auto"              ; or "required"; DeepSeek's own endpoint rejects "required" with reasoning on
-   :max-tokens 16000                 ; includes reasoning tokens
+   :max-tokens 32000                 ; includes reasoning tokens
    :max-steps 20                    ; model calls per agent turn (a cost guard, not game time)
    :max-queries 5                   ; bridge/adjudication queries per agent turn
    :gm-max-actions 4
    :event-window 90                 ; recent events shown to each agent
    :gm-check-in-every 0             ; 0 = only when triggered
-   :goals-every 16                  ; rounds between asking each agent to review their goals; 0 = never
+   :goals-every 8                  ; rounds between asking each agent to review their goals; 0 = never
    :max-cost 5.0                    ; USD; pauses the run when reached
    :max-rounds nil
    :start nil                       ; e.g. "1904-10-15T21:00": start the scenario's clock then

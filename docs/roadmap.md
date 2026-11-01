@@ -336,6 +336,11 @@ provisions counter (done).
   container's contents, which may need a count instead if shelves fill up; narration always says
   "puts X in the Y", which reads oddly for shelves.
 - GM tools to create or alter items.
+- **Deferred, low priority: expose item restrictions to the scene judge.** Project existing
+  fixed-item and identity-preservation restrictions so the judge can avoid invalid removals.
+  No mechanic changes; review the shared steward projection too. The user prefers leaving this
+  until needed. Proposal and separate open questions about fixed furniture are in
+  [the stores design](stores-and-aspects-design.md#deferred-expose-item-restrictions-in-the-judges-scene).
 - **Promoting things outside the `made` route.** `made` is the only way the work judge creates
   an item, and the instructions scope it to things really produced by the activity or fetched
   from a store; a particular thing that is neither in the scene nor carried "only such a thing

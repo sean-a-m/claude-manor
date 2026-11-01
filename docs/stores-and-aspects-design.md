@@ -828,6 +828,56 @@ and work bring such things back with `taken`, and whether the steward tidies the
 - A code-readable stock level, if provisions become a mechanic (D9).
 - Panel: aspects and stores on the map page.
 
+### Deferred: expose item restrictions in the judge's scene
+
+**Status:** proposed, low priority; defer until real runs show enough need. The user prefers
+recording this rather than implementing it now. No projection or mechanic changes are approved
+by this note.
+
+**Problem.** `items.judge/judged-json` omits restrictions that the verdict validators enforce.
+The judge can propose an invalid removal without knowing why the item is protected, leading to
+correction calls or misleading proposed narration.
+
+Two distinct restrictions exist today:
+
+- `:fixed? true` means an item cannot be taken, consumed, absorbed into stock or converted into
+  an aspect. Its own aspects can still change. Stores must be fixed. Authored fixed items include
+  furniture as well as attached fixtures; this is a gameplay classification, not a claim that
+  everything marked fixed is physically immovable. There is no ordinary detaching action.
+- `items/identity-bound?` identifies hiring references (`:candidate-id`), goods with an
+  `:order-id`, and goods marked `:waiting`. The current validator prevents these from becoming
+  aspects through `gone` with `on`. This is not a blanket ban on movement, consumption or
+  absorption; the projection must not imply stronger protection than the mechanics enforce.
+
+**Candidate design.** Add optional true-only fields to `judged-json`:
+
+```json
+{"id": "workbench", "name": "Workbench", "fixed": true}
+{"id": "purchased-goods", "name": "Purchased goods", "keep_separate": true}
+```
+
+Derive `fixed` from `:fixed?` and `keep_separate` from `items/identity-bound?`; do not add new
+world-state properties or expose the underlying candidate, buyer or order metadata. Explain in
+`judges/scene.md` that fixed items permit aspect changes but not removal, and that
+`keep_separate` specifically forbids replacing an item with a host aspect. The alternative name
+`no_aspect_storage` is more precise; choose the name when implementing. Stores use a separate
+projection and are always fixed, so a prompt rule may suffice for them.
+
+**Implementation scope.** Extend the shared item projection for `focus`, `carried` and
+`also_here`, update the prompt and contract, and test true and omitted flags, all three
+identity-bound categories, absence of private metadata, permitted aspect changes and existing
+removal restrictions. Check that eligible consumption is not accidentally prohibited. The
+steward also uses `judged-json`: review its instructions so the new identity flag does not
+incorrectly prevent cleanup. The finder uses a different projection and need not change.
+No reducers, event formats, migrations, extra model calls or replay changes should be needed;
+token overhead is a few fields on affected items.
+
+**Separate questions.** Whether furniture should be fixed, whether detaching or dismantling
+should exist, and whether identity-bound items need stronger protection are mechanic/design
+questions, not part of exposing today's restrictions. Leave all of those unchanged unless the
+user chooses to revisit them. Expected benefit is fewer avoidable invalid judge answers, not a
+general solution to item handling.
+
 ## Invariants and risks
 
 - Every change is an event with a pure reducer (invariant 1). The judge, the steward and the

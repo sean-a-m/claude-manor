@@ -84,9 +84,7 @@
     (is (= {"beef" [true nil] "saucepan" [nil true] "bag" [true true] "bun" [true nil] "clock" [nil nil]}
            (select-keys (into {} (map (juxt :id (juxt :consumable :container))) judged)
                         ["beef" "saucepan" "bag" "bun" "clock"])))
-    (is (str/includes? system "Only things marked `consumable` can be used up"))
-    (is (str/includes? system "Something partly used is not used up"))
-    (is (str/includes? system "An item's nature can't change"))
+    (is (str/starts-with? system (item-judge/judge-instructions world)))
     (e/stop-run run)))
 
 (deftest checking-used-up-and-made
@@ -489,8 +487,6 @@
                    (is (nil? (a/check (action name) (e/world run) "ben" args)))
                    (e/emit! run (a/effect-events (action name) (e/world run) "ben" args)))]
     (try
-      (is (str/includes? (item-judge/judge-instructions {}) "Never use `gone`, `absorbed`, `made` or aspects to simulate a transfer between locations"))
-      (is (str/includes? (item-judge/judge-instructions {}) "Leaving any thing untouched is always a valid answer"))
       (let [activity (assoc job :items ["beef"] :doing "carrying the joint to the porch")
             verdict (:verdict (item-judge/judgement (judge-says {:summary "The joint was left for Ben to carry."})
                                                     (e/world run) (item-work/judged-things (e/world run) activity)))]

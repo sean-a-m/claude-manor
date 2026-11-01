@@ -564,21 +564,9 @@
         [system user] (:messages request)
         scene (request-scene request)]
     (is (= ["judge"] (map #(get-in % [:function :name]) (:tools request))))
-    (doseq [instruction ["work can't turn a vase into gold" "Most activities change little"
-                         "a pastime often changes nothing" "Empty changes, gone, absorbed and made lists are normal"
-                         "Do not invent events" "A store holds everything it `keeps`"
-                         "Change only the aspects the activity affected" "- cleanliness: how clean"
-                         "Nothing is carried to another location by this judgement"
-                         "When leftovers or supplies are put away into a store in scope"
-                         "absorb them into that store: they join its stock and get a put-away fate"
-                         "Adjust the store's aspects if its stock or lacking changes"
-                         "Never describe a thing as moved, hung up or put away in an aspect while leaving it a separate thing where it was"
-                         "If nothing became of it, leave it as it is"
-                         "`Carrying` lists the notable things the worker holds; those the activity didn't name are under `carried`"
-                         "Ask whether someone could pick it up again as it was"
-                         "A made entry may give `taken: {thing, aspect, value}`"
-                         "A store still holds the everyday supplies it keeps"]]
-      (is (str/includes? (:content system) instruction)))
+    (is (str/starts-with? (:content system) (item-judge/judge-instructions world))
+        "the request includes the rendered scene instructions without pinning their prose")
+    (is (str/includes? (:content system) "- cleanliness: how clean"))
     (is (str/ends-with? (:content system) "## The setting\nA small house."))
     (testing "aspect values: the judge and steward are told 80 characters; 200 are accepted"
       (is (str/includes? (:content system) "a short phrase of at most 80 characters"))

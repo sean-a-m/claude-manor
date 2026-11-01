@@ -780,9 +780,17 @@ everything into a container; listing such cases in the instructions would never 
     creates items, moves them or changes aspects. Mock tests cover multi-hit and mixed
     local/remote answers, duplicate ids, bounds, an unknown id with a successful retry,
     privacy and replay.
-12. **Summary and outcome:** the scene judge gets one short instruction to ensure the summary
-    roughly matches `changes`, `gone` and `made` in its structured outcome. This is prompt
-    guidance only, not a code check on prose.
+12. **Summary and outcome:** the scene judge checks public claims against all structured
+    effects, including absorption, transfers and physical changes, without disclosing private
+    inner-state or relation entries. This is prompt guidance only, not a code check on prose.
+    The shared `judges/scene.md` is reorganised around activity type, scope, scene evidence,
+    an effect-selection table, field details, people and the final summary. Examples are
+    setting-neutral. It distinguishes consumption from preserving an object in an aspect,
+    permits ordinary work products without treating fetched goods as products, and treats
+    absent notable objects as unsupported by the supplied scene rather than nonexistent.
+    Absorption instructions include carried items, matching the validator's judged scope.
+    No schemas, reducers or scene projections change. Fixed-item rules and the flags supplied
+    to the judge remain unchanged pending discussion. Real-model effectiveness is unverified.
 13. **Finder corrections:** after the failed hat-and-stick search in
     `runs/claudeworth-medium-20261030-172326`, a nonexistent `taken` aspect now gets the
     available keys (or "it has none") and explicit guidance that omitting `taken` is valid

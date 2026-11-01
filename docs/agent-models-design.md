@@ -1,0 +1,86 @@
+# Per-agent models
+
+Proposal: let a run put chosen starting agents on a model other than the run's `:model`.
+Not started; open questions in section 4.
+
+## 1. What already exists
+
+Most of the mechanism is in place:
+
+- An agent record may hold `:model`. `b/spawn-events` copies it from the spec
+  (`src/manor/mechanics/builtins.clj`), and `e/spawn!` and the panel's spawn form accept one.
+- The agent's own turn uses it first: `(or (:model agent) (when gm? (:gm-model opts)) (:model opts))`
+  (`src/manor/engine/seat.clj`), and so do their speaking turns in conversations
+  (`src/manor/engine/talk.clj`). These are the only two places an agent's model calls are made.
+- Judges, the steward and adjudicators don't use it: they go through `judges/ask-structured`
+  with `:judge-model` or `:model`, so the referee stays the same whoever the actor is.
+- `e/update-agent!` (and `update-agent!` in `dev/user.clj`) emits `:agent/updated` with
+  `{:model ...}`, so the model can change mid-run, and replay and branching follow it.
+- The panel's agent page shows the model ("run default (...)" when there isn't one), and
+  `llm.edn` and the transcript record each call's `:model`.
+
+A world file's agent can already carry `:model` today without being told to. The `Agent` schema
+is an open map and the ruleset passes agent maps through to `spawn-events`. A mock check on
+`claudeworth.edn` with `:model "test/alt-model"` on Lord Claudeworth sent all five of his calls
+with that model, everyone else's with the default, and every judge's with the default too. It isn't
+documented, it isn't checked (a non-string would get through), and `--model` doesn't override it.
+
+## 2. What's missing
+
+1. **A run-level way to choose.** Proposed: an option `:agent-models {"hale" "anthropic/claude-sonnet-5-5"}`
+   keyed by agent id, and a repeatable CLI flag `--agent-model hale=anthropic/...`. `init!` in
+   `src/manor/engine.clj` assocs `:model` onto the matching starting specs before spawning and throws
+   on an id that isn't in the starting cast after `:leave-out`. It's saved in `config.edn` along with
+   the other options. It applies only at the start, so the GM, hires and guests who arrive during the run
+   keep their defaults (the GM already has `:gm-model`). Starting guests marked `:away?` are spawned
+   at the start, so they're covered.
+2. **Prompt caching for Anthropic models.** DeepSeek, OpenAI and Gemini cache on their own; on
+   OpenRouter Anthropic models cache only with `cache_control`. A single top-level
+   `"cache_control": {"type": "ephemeral"}` turns on automatic caching (OpenRouter's prompt-caching
+   guide). `manor.io.llm` sends none. Agent prompts average about 12k tokens and about 85% of them
+   come from the cache (`old-test-runs/claudeworth-relations-morning`), so without this a Claude agent
+   pays full input price on every step. Small change in `OpenRouter/complete`, limited to `anthropic/`
+   models.
+3. **The cost report assumes one model.** `run-pricing` in `src/manor/tools/cache_report.clj` takes the
+   first call's model for `simulate` and `compare`, and `resources/pricing.edn` only knows DeepSeek.
+   `report` already prices each call by its own model but shows `:unknown` for models it has no
+   prices for. Needs per-call pricing in simulate/compare, plus entries for the models in use.
+   Real cost is unaffected: it comes from OpenRouter's usage per call, so `:max-cost` still works.
+4. **Visibility.** The transcript header could list the agents not on the default model. Optional:
+   a model field on the panel's agent page that calls `update-agent!`, next to the controller switch.
+5. **Tests** (mock, free): the chosen agent's turn and conversation calls carry the model, others
+   and the judges don't, an unknown id throws, and replay reproduces the world.
+6. **Docs:** README options, `docs/scenario-authoring.md` if world files get a documented `:model`.
+
+Rough size: items 1, 5 and 6 are a small change (tens of lines). Item 2 is a few lines. Item 3 is
+the largest and can wait unless the report gets used on mixed runs.
+
+## 3. Things that stay global, and why that might matter
+
+`:reasoning {:effort "none"}`, `:max-tokens 16000` and `:tool-choice "auto"` are set per run
+and were tuned on DeepSeek. The engine's DeepSeek workarounds (empty replies after reasoning use up
+the tokens, the brief-thinking nudge, `text-as` reply recovery) are generic enough not to hurt other
+models, but another model may want different reasoning settings. Per-agent overrides would mean
+letting the value be a map, e.g. `{"hale" {:model "..." :reasoning {:effort "low"}}}`, with the seat
+and conversation calls merging it in.
+
+Separately, scenario adjudications made for an actor's query (`:adjudicate` in
+`src/manor/engine/resolve.clj`) pass `{:model (:model opts)}` explicitly, which bypasses
+`:judge-model`, although `default-opts` says `:judge-model` covers scenario queries. That's an
+existing inconsistency, not part of this feature, but worth fixing while nearby.
+
+## 4. Open questions
+
+1. **Where the choice lives:** a run option only (recommended: a model is run configuration, and the
+   same world file gets played on different models), a world-file `:model` only, or both with the run
+   option winning? If world files stay out of it, should `:model` there be rejected rather than silently
+   working?
+2. **Mid-run changes:** is `update-agent!` at the REPL enough, or do you want it in the panel?
+3. **Per-agent reasoning and max-tokens:** needed now, or a plain model id for now?
+4. **Which models:** knowing them decides whether Anthropic caching (2.2) and pricing entries (2.3)
+   are needed up front.
+5. **Bad model ids:** an unknown id now fails at the agent's first call (OpenRouter rejects it and
+   the run pauses on the error). Check ids against OpenRouter's model list when a real run starts, or
+   leave it?
+6. **On load:** `--agent-model` given to `--load` or a branch has nothing to apply to, since the
+   cast was spawned at the start. Ignore it, warn, or turn it into `:agent/updated` events?

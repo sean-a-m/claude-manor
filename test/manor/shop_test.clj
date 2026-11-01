@@ -612,6 +612,35 @@
       (is (= [1] (mapv :round (filter #(and (= :agent/passed (:type %)) (= "clerk" (:actor %))) (e/events run)))))
       (finally (e/stop-run run)))))
 
+(def ^:private doze
+  "A test occupation lasting one round."
+  {:name :doze :doc "Doze for half an hour."
+   :effect (fn [world actor _] [(b/occupy world actor "dozing" (inc (:round world)))])})
+
+(deftest occupations-started-alone-end-in-the-routine
+  (doseq [customer-at ["back-room" "counter"]]
+    (let [cast [{:name "Customer" :role :secretary :location customer-at}
+                {:name "Clerk" :role :shopkeeper :location "counter"}]
+          overrides (update (routine-overrides cast) :actions conj doze)
+          run (start {:cast cast :overrides overrides
+                      :policy (fn [{:keys [agent-id]}]
+                                (if (= "clerk" agent-id) {:tool :doze} {:tool :pass}))})]
+      (try
+        (e/emit! run [(b/occupy (e/world run) "clerk" "writing the account" 1)])
+        (rounds! run 2)
+        (let [dozes (filter #(and (= :agent/occupied (:type %)) (= "dozing" (get-in % [:data :activity])))
+                            (e/events run))]
+          (if (= "back-room" customer-at)
+            (testing "alone: one turn after the first occupation, then the routine"
+              (is (= [true] (mapv #(get-in % [:data :started-alone?]) dozes)))
+              (is (b/hibernating? (e/world run) "clerk")))
+            (testing "with a customer there: no mark, and the clerk keeps acting"
+              (is (= 2 (count dozes)))
+              (is (not-any? #(get-in % [:data :started-alone?]) dozes))
+              (is (not (b/hibernating? (e/world run) "clerk"))))))
+        (is (= (e/world run) (w/replay (store/read-events (:dir run)))))
+        (finally (e/stop-run run))))))
+
 (defn- counter-conversation
   "Quote once, then speak; the initiator ends the exchange."
   [{:keys [agent-id used]}]

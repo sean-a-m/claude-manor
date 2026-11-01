@@ -173,12 +173,14 @@
                              (let [ending (item-work/ending-jobs @(:world run))]
                                (run/emit! run (space/arrivals @(:world run)))
                                (let [released (b/releases @(:world run))
+                                     ;; an occupation started alone ends in the routine, not another turn
+                                     alone (set (filter #(:started-alone? (w/busy @(:world run) %)) (map :actor released)))
                                      came-to (physical-changes/comings-to @(:world run))]
                                  (run/emit! run released)
                                  (run/emit! run came-to)
                                  (when-let [hibernate (:hibernate (:scenario run))]
                                    (run/emit! run (b/hibernations hibernate @(:world run)
-                                                                  (set (map :actor (concat released came-to)))))))
+                                                                  (set (remove alone (map :actor (concat released came-to))))))))
                                ending)))
     (work/run-steward! run)
     (run-approved-bridges! run)

@@ -593,6 +593,13 @@ These are estimates for the user's own long runs, not test plans: checks use sho
     the mock day he's called in 2 rounds (6 calls) instead of 10 (19 calls); the mock script
     already fills his day with long pastimes, so real models, which made 26 of 82 calls with
     nobody in the village in an earlier run, should save more. Not yet checked in a real run.
+
+    Fix (2026-10-31): in real runs a woken villager with nobody near chained short `work-on`
+    jobs and never went back to their routine, since each job's end gave them another turn
+    (Mrs Bell awake 13 of 16 rounds alone in `runs/claudeworth-medium-20261031-102952`; the
+    constable, off his beat on such jobs, woke whoever he walked in on). An occupation started
+    with nobody near is now marked `:started-alone?`, and when it ends the agent returns to
+    their routine instead of taking another turn.
 12. **One home per fact.** Every fact about the world (places, distances, opening hours,
     bedrooms, names, setting) lives in the world file, and everything agents read is derived from
     it. The rules of play live in code, as a brief function that takes its numbers from the world;

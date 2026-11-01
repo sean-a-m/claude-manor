@@ -595,7 +595,8 @@
             called (rounds-called run "pugh")]
         (is (= arrived (apply min called)))
         (is (< (count called) 10))
-        (is (= {:activity "asleep" :until 48 :asleep? true} (w/busy world "pugh")))
+        ;; his lunch, started alone, returns him to his routine, which puts him to bed
+        (is (= "asleep" (:activity (w/busy world "pugh"))))
         (is (= "architects-lodgings" (space/location-of world "pugh")))))
     (testing "Hale wakes at 06:30 (round 46), rouses the earl, and the earl acts that round"
       (is (= 46 (:until (:data (first (sleeps run "hale"))))))

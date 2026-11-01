@@ -177,7 +177,7 @@
   (update-in world [:agents (:id data)] merge (:changes data)))
 
 (defmethod apply-event :agent/occupied [world {:keys [actor data]}]
-  (assoc-in world [:agents actor :busy] (select-keys data [:activity :until :asleep? :hibernating? :job])))
+  (assoc-in world [:agents actor :busy] (select-keys data [:activity :until :asleep? :hibernating? :job :started-alone?])))
 
 (defmethod apply-event :agent/interrupted [world {:keys [actor data]}]
   (assoc-in world [:agents actor :busy :interrupted-by] (:by data)))

@@ -2900,7 +2900,11 @@ with no end time, and woken when someone comes near. Set `:hibernate` to
 `(fn [world agent-id] {:activity "at his drawing board" :location "architects-office"} or nil)`.
 At the start of every round, after travellers arrive and occupations end, the engine asks it about
 each agent who is free or already hibernating, except anyone whose own occupation just ended:
-they get one turn before returning to their routine next round.
+they get one turn before returning to their routine next round. That turn is given only once:
+an occupation an agent starts while `:hibernate` would already put them out of play (nobody near)
+is marked `:started-alone? true` on its `:agent/occupied` event and in `w/busy`, and when it ends
+the agent goes straight back to their routine. Without this, a woken agent who starts one short
+occupation after another stays in play all day with nobody near.
 
 - not nil, for an agent who is free: the engine moves them to `:location` (optional; an
   `:agent/moved` that people at both ends see) and occupies them with `(b/hibernate world id

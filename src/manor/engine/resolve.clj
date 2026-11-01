@@ -30,6 +30,19 @@
     (when-let [by (:interrupted-by (w/busy @(:world run) actor))]
       (run/emit! run [(b/free @(:world run) actor by)]))))
 
+(defn- mark-started-alone
+  "Mark occupations agents start where the scenario's :hibernate would
+  already put them out of play (nobody near) with :started-alone?, so they
+  return to their routine when it ends instead of taking another turn."
+  [run world events]
+  (if-let [hibernate (:hibernate (:scenario run))]
+    (mapv #(cond-> %
+             (and (= :agent/occupied (:type %)) (get-in % [:data :until])
+                  (not (get-in % [:data :hibernating?])) (hibernate world (:actor %)))
+             (assoc-in [:data :started-alone?] true))
+          events)
+    events))
+
 (defn- reply-text [data]
   (if (string? data) data (prompt/->json data)))
 
@@ -49,8 +62,9 @@
         (doseq [record! (:records result)] (record!))
         (let [result (assoc (dissoc result :records) :job job :work work)
               before (count @(:events run))]
-          (run/emit! run (mapv #(cond-> % (not (:actor %)) (assoc :actor actor))
-                               ((:on-result action) @(:world run) actor args result)))
+          (run/emit! run (mark-started-alone run @(:world run)
+                                             (mapv #(cond-> % (not (:actor %)) (assoc :actor actor))
+                                                   ((:on-result action) @(:world run) actor args result))))
           {:ok true :world @(:world run)
            :reply (reply-text ((:reply action) @(:world run) actor args
                                (assoc result :events (subvec @(:events run) before))))})))))
@@ -94,7 +108,7 @@
          (if-let [reason (a/check action world actor args)]
            {:rejected reason}
            (do (when-not keep-occupation? (stop-interrupted! run actor action))
-               (let [events (action-events action @(:world run) actor args)]
+               (let [events (mark-started-alone run @(:world run) (action-events action @(:world run) actor args))]
                  (run/emit! run events)
                  (when (some #(= :agent/moved (:type %)) events)
                    (when-let [hibernate (:hibernate (:scenario run))]

@@ -105,10 +105,11 @@
   {:type :people/candidate-updated :visible-to :system :data {:id id :changes changes}})
 
 (def ^:private not-posts
-  "Catalogue positions nobody is hired for: no post at all, the GM, and a
-  visitor (manor.mechanics.visits). Recommend and engage refuse them, and
+  "Catalogue positions nobody is hired for: no post at all, the GM, a
+  visitor (manor.mechanics.visits) and a tradesman sent for
+  (manor.mechanics.trades). Recommend and engage refuse them, and
   `reference` doesn't list them."
-  #{:none :gm :guest})
+  #{:none :gm :guest :tradesman})
 
 (defn- not-a-post-reason
   "Why `position` can't be filled by hiring, or nil."
@@ -118,13 +119,19 @@
           (= :guest position) "guest is not a post; use the id of a position to fill"
           (not-posts position) "name a character's position to fill")))
 
+(defn recipient-reason
+  "Why `actor` can't recommend anyone to `for`, or nil: they must be someone
+  else, here. Shared with trades (manor.mechanics.trades)."
+  [world actor for]
+  (cond
+    (= actor for) "ask someone else here to recommend to you, not yourself"
+    (not (and (w/active? world for) (not= :gm (:role (w/agent world for)))
+              (space/together? world actor for))) "the person asking must be here"))
+
 (defn recommend-reason [world actor {:keys [position for]}]
   (or (not-a-post-reason world position)
-      (cond
-        (= actor for) "ask someone else here to recommend to you, not yourself"
-        (not (and (w/active? world for) (not= :gm (:role (w/agent world for)))
-                  (space/together? world actor for))) "the person asking must be here"
-        (not (or (reusable world actor (keyword position)) (room? world))) "the candidate pool is full of people still in play")))
+      (recipient-reason world actor for)
+      (when-not (or (reusable world actor (keyword position)) (room? world)) "the candidate pool is full of people still in play")))
 
 (defn- check-record [record]
   (when-not (and (map? record) (string? (:name record)) (not (str/blank? (:name record)))

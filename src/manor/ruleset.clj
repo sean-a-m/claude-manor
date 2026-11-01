@@ -34,6 +34,7 @@
             [manor.mechanics.people :as people]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.shop :as shop]
+            [manor.mechanics.trades :as trades]
             [manor.mechanics.visits :as visits]
             [manor.ruleset.actions :as actions]
             [manor.ruleset.hibernation :as hibernation]
@@ -111,7 +112,7 @@
 
 (defn scenario
   "A full scenario on the ruleset: every action, judge, bridge and system,
-  with hiring, deliveries and visits installed, in that order. `opts`:
+  with hiring, deliveries, visits and trades installed, in that order. `opts`:
   - :name, :doc, :defaults (its :world-file names the world)
   - :mock-day, a day for the scripted mock policy (a map, or a classpath EDN
     file such as \"worlds/claudeworth-day.edn\"); or :mock-policy, a policy
@@ -152,4 +153,5 @@
               mock-conversation (assoc :mock-conversation mock-conversation))
       hiring/install
       deliveries/install
-      visits/install))
+      visits/install
+      trades/install))

@@ -176,11 +176,16 @@
                                                   :description (clip description)}
                                      :visits)))
 
+(defn- sent-for? [v] (= :sent-for (:by v)))
+
 (defn- host-entry [world v]
   (entry-events world v :host (host-audience v)
                 (with-reason (str (agent-name world (:guest v)) " (" (:guest v) ") "
                                   (if (:returning? v) "is coming back to " "is expected at ") (house world)
-                                  (if (and (:host v) (not (:returning? v))) ", invited by you: " ": ") (:stay v) ".")
+                                  (cond (sent-for? v) ", sent for by you: "
+                                        (and (:host v) (not (:returning? v))) ", invited by you: "
+                                        :else ": ")
+                                  (:stay v) ".")
                   v)))
 
 (defn- guest-entry [world v]
@@ -188,6 +193,7 @@
         where (str (house world) ", at the " (:name (space/location world place) place) " (" place ")")]
     (entry-events world v :guest #{(:guest v)}
                   (with-reason (cond (:returning? v) (str "You mean to come back to " where ": " (:stay v) ".")
+                                     (sent-for? v) (str "You are wanted at " where ", sent for by " (agent-name world (:host v)) ": " (:stay v) ".")
                                      (:host v) (str "You are expected at " where ", invited by " (agent-name world (:host v)) ": " (:stay v) ".")
                                      :else (str "You mean to call at " where ": " (:stay v) "."))
                     v))))
@@ -264,6 +270,7 @@
   (str "Visit " (:id data) ": " (n/who names (:guest data)) " is expected at " (:at data)
        (cond
          (:returning? data) ", coming back as they said when they left"
+         (= :sent-for (:by data)) (str ", sent for by " (n/who names (:host data)))
          (:host data)
          (str ", invited by " (n/who names (:host data)) " (" (name (:by data)) ")")
          :else (if (= :authored (:by data)) ", from the world file" (str ", arranged by the " (name (:by data)))))
@@ -413,7 +420,7 @@
 ;; ---------------------------------------------------------------------------
 ;; Checks
 
-(defn- guest-reason
+(defn guest-reason
   "Why `guest` can't be invited, or nil. Someone away can be: they come from
   elsewhere. Someone of the household can't while they're at home."
   [world guest]
@@ -576,6 +583,14 @@
                                              :deliver deliver :stay stay :reason reason :bedroom bedroom})]
       (into [(channel-event world actor (:data (first scheduled)))] scheduled))))
 
+(defn sent-for-events
+  "`actor` sends for `guest` (manor.mechanics.trades) to do `job`, expected
+  at the meeting place `at`: a visit by :sent-for with the job as its stay.
+  Someone about is told now and makes their own way, as an invited guest
+  does; someone away arrives at the meeting place then."
+  [world actor {:keys [guest job at]}]
+  (scheduled-events world {:guest guest :host actor :by :sent-for :at at :deliver (:round world) :stay job}))
+
 (defn arranged-events
   "A visit the GM or operator (`source`) arranges for an existing person: if
   they're about, told at once with their calendar entry, so they come;
@@ -697,7 +712,7 @@
                                        :reason "Coming back, as they said when they left."}
                                 (:known-to v) (assoc :known-to (:known-to v)))))))
 
-(defn- leave-events
+(defn leave-events
   "A guest from elsewhere goes home, towards where they live, and their
   visits here end; with a return time, a visit for their return begins."
   [world actor args]
@@ -743,9 +758,9 @@
         acquaintances (space/away-acquaintances world id)]
     (cond-> view
       v (assoc-in [:you :visit]
-                  (cond-> {:invited-for (:stay v)
+                  (cond-> {(if (sent-for? v) :job :invited-for) (:stay v)
                            :arrived (clock/short-label (:clock world) (:arrived v) (:round world))}
-                    (:host v) (assoc :host (agent-name world (:host v)))
+                    (:host v) (assoc (if (sent-for? v) :sent-for-by :host) (agent-name world (:host v)))
                     (:reason v) (assoc :reason (:reason v))
                     (:bedroom v) (assoc :bedroom (:bedroom v))))
       (seq acquaintances) (assoc :away-acquaintances acquaintances))))

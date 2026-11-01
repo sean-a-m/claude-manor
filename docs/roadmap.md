@@ -283,6 +283,10 @@ sub-post office, forge and sweep's, barber's and laundress's cottages have resid
 bedrooms and quiet routines. Portable counter goods reuse quotes/buy; the draper joins the
 general store and butcher in sending larger orders up to houses, with the default errand-boy
 courier. Service work reuses `spend-time` on actual items, places or people. No new mechanics.
+Tradespeople, phases 1 and 2 done (2026-10-31, mock-tested; [trades-design.md](trades-design.md)):
+`recommend` with a `trade` makes a contact, on the map or from elsewhere, and `send-for` with the
+contact and a job is a visit expected 3 hours later. Next: a short real run; then merchants by
+letter (phase 3).
 Remaining, only if requested: paid-service quotes/payments, appointments and automatic trade
 visits, collection/return of washing, postal transport, postal orders/savings/telegrams, and
 public-house guest rooms or paid hospitality. Buying stamps is not sending mail, and discussing

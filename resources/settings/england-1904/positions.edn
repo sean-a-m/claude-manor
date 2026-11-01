@@ -249,6 +249,10 @@
  ;; ------------------------------------------------ visitors
  ;; Someone from elsewhere, invited to the house (manor.mechanics.visits). No
  ;; household and no :sleeps: they live elsewhere and stay as long as they like.
+ :tradesman
+ {:title "Tradesman" :standing :tradesman :sleeps :out :ages [18 70]
+  :about "You work at a trade from your home elsewhere, and you have come because you were sent for: `visit` under `you` in your view says who sent for you and the job. Talk it over with them; do the work with `spend-time` on the real things, or refuse it if you will not or cannot do it. When it is done, or there is nothing for you to do, use `take-leave` to go home."}
+
  :guest
  {:title "Guest" :standing :visitor :ages [18 80]
   :about "You don't live here: you are a guest, and `visit` under `you` in your view says who asked you, why and for how long. When your visit is over, or it seems right to go, use `take-leave`."}

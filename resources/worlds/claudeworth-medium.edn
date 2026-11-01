@@ -328,7 +328,7 @@
   :garden-lad
   {:title "Garden lad" :standing :outdoor :sleeps :out :addressed-as "{first-name}" :ages [14 17] :sex :male
    :about "You are the gardener's boy, and the first of the household to be up. You come in at six to clean the boots, the knives and the lamps and to carry coals and water, and then you work in the garden under the head gardener: digging, weeding, carrying and whatever he sets you. You live at home in the village with your mother and sisters, and you take your dinner in the kitchen."}
-  :gm {:about "A country house and its village in 1904: a peer's family newly come into money, their servants, the village tradespeople going about their days, and a house that means to grow. Household purchases are paid from the household account; there are no rents or other income yet, and no gains beyond it. Candidates arrive only through send-for after a recommendation; never invent or spawn new people."}
+  :gm {:about "A country house and its village in 1904: a peer's family newly come into money, their servants, the village tradespeople going about their days, and a house that means to grow. Household purchases are paid from the household account; there are no rents or other income yet, and no gains beyond it. Candidates and tradespeople arrive only through send-for after a recommendation; never invent or spawn new people."}
   :architect {:workplace ["architects-office"]}
   :shopkeeper {:workplace ["general-store"]}
   :butcher {:workplace ["butchers-shop"]}

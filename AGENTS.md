@@ -25,6 +25,7 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/relations-design.md` | per-person relations: a capped queue of judged feelings toward each other person, the user's decisions of 2026-10-29; built and mock-tested |
 | `docs/events-design.md` | in-world calendar contract and outcome: private/public entries and pre-turn GM review |
 | `docs/visits-design.md` | guests and visits (invitations by post, messenger or in person, GM visits, guests from the village or elsewhere, authored visits in world files); phases 1–3 implemented |
+| `docs/trades-design.md` | tradespeople and merchants found through `recommend` with a `trade`, contacts and `send-for`; phases 1–2 implemented and mock-tested |
 | `docs/physical-status-design.md` | physical status (bound, gagged, blind, deaf, unconscious, dead), impediments, the immediate `act-on`; built and mock/offline-tested, ordinary real-model compatibility smoke checked |
 | `docs/settings-design.md` | one ruleset for many settings: setting packs, prompt templates, money specs and private accounts, `manor.ruleset`, a palace skeleton; progress in its section 8 |
 | `docs/household-1904-proposal.md` | proposal: a second Claudeworth scenario, a modest household with new ironstone income that means to expand; not started |
@@ -135,6 +136,8 @@ src/manor/
                    filter emit! applies; physical/changes.clj makes its events and the interrupts they cause
     visits.clj     visits: invite, GM/operator visits, the tick, calendar entries it manages, keeps-awake?,
                    guests from elsewhere (away agents, arrival at the meeting place, take-leave, you.visit)
+    trades.clj     tradespeople: `recommend` with a `trade` makes a contact (trades/judge.clj: the trade judge), `send-for`
+                   with a contact and a job is a visit by :sent-for
     find_person.clj find-person: a judge picks whom a seeker means among the people in walking distance, the engine
                    rolls, and the reply says where they are
     following.clj  follow and follow-stop: followers go along on the walks and journeys of the person they follow

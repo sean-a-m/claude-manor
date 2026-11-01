@@ -91,9 +91,52 @@ existing inconsistency, not part of this feature, but worth fixing while nearby.
    no CLI flag (`--agent-model` was only proposed; it isn't added). `--model` keeps changing everyone
    without a `:model` of their own, which the engine already does.
 2. No mid-run switching in any form; nothing is added for it.
-3. Reasoning, max-tokens and tool-choice stay the run's (DeepSeek's) settings for every agent.
+3. ~~Reasoning, max-tokens and tool-choice stay the run's settings for every agent.~~ Superseded by section 6.
 4. Any OpenRouter model may be named; nothing is assumed about which.
 5. Model ids aren't checked.
 6. Nothing is applied on load or branch.
 
 Still open: how to turn on caching for models that need `cache_control` (Anthropic).
+
+## 6. Proposal: `:model` as a map of call settings
+
+An agent's `:model` in the world file is either a model id or a map that overrides the run's call
+settings for that agent's own calls (turns and conversation lines):
+
+```clojure
+:model "anthropic/claude-sonnet-5-5"                     ; as now: just the model
+:model {:reasoning {:effort "high"}}                     ; the run's model, thinking harder
+:model {:id "anthropic/claude-sonnet-5-5"
+        :cache-control {:type "ephemeral"}
+        :tool-choice "required"}
+```
+
+- Keys: `:id`, `:reasoning`, `:tool-choice`, `:cache-control` (and `:max-tokens`, open question 6.1).
+  Each one given replaces the run's value whole (`:reasoning` isn't deep-merged); each one left out
+  is the run's. Without `:id` the model is the run's `:model`, so `--model` still changes it.
+- Checked by the world-file schema for shape only: a string, or a closed map of those keys with
+  `:reasoning` and `:cache-control` maps, `:tool-choice` a string. No check of ids or of combinations
+  (e.g. `"required"` with DeepSeek reasoning, which DeepSeek's endpoint rejects).
+- Resolved in one place: a function of (opts, agent, gm?) returning
+  `{:model :reasoning :tool-choice :cache-control :max-tokens}`, used by `seat.clj` and `talk.clj`.
+  `turn/run-calls` takes that map instead of building those fields from `opts`
+  (`src/manor/engine/turn.clj`, the `request` binding). The request's `:model` stays a string, so
+  `llm.edn`, usage events and the cost report keep working; the other settings are already in
+  each logged request.
+- `manor.io.llm/OpenRouter` sends `:cache-control` as the top-level `cache_control` field, as given
+  (so `{:type "ephemeral" :ttl "1h"}` works). The mock ignores it.
+- The panel's agent page and `scene_inspect` show the id (or "run default") and the overrides.
+- Judges, the steward and adjudicators keep the run's settings.
+- Tests (mock): overrides reach the request for that agent's turn and conversation calls and no one
+  else's, an `:id`-less map uses `--model`, the schema rejects a bad shape, replay reproduces the world.
+
+Open:
+
+1. Should `:max-tokens` be overridable too? Reasoning tokens count against it, so raising the
+   reasoning effort without it can bring back the empty replies.
+2. Should the run get a `:cache-control` option too (default nil), so a whole run on `--model
+   anthropic/...` caches? Agents would override it like the others.
+3. Is the top-level field enough? Automatic caching writes only at the end of the request, and the
+   end of an agent's prompt changes every turn, so it hits within a turn's tool calls but not from one
+   turn to the next. Caching across turns needs an explicit breakpoint at the end of the system
+   message, which means sending that message as a content-block array.

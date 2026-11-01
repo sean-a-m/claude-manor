@@ -163,7 +163,7 @@
       (is (str/starts-with? (check run world "lord-claudeworth" :recommend {:for "hale"}) "give position"))
       (is (= "the person asking must be here"
              (check run world "lord-claudeworth" :recommend {:trade "a sweep" :for "hale"})))
-      (is (str/starts-with? (check run world "lord-claudeworth" :send-for {:id "contact-9"}) "use the id of a candidate or contact"))
+      (is (str/starts-with? (check run world "lord-claudeworth" :send-for {:id "contact-9"}) "nobody of that id has been recommended to you"))
       (let [known (-> world
                       (assoc-in [:state :contacts "contact-1"] {:id "contact-1" :agent-id "carter" :local? true
                                                                 :trade "blacksmith" :known-to #{"lord-claudeworth"}}))]

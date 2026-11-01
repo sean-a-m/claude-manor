@@ -197,4 +197,8 @@ Where the build differs from section 4:
   recommender knows them in the world already.
 - **The tradesman's position** is `:tradesman` with `:sleeps :out`; in the palace pack its
   standing is `:merchant`.
+- **`send-for` is offered to everyone** (the user, 2026-10-31). It was offered only once someone
+  had been recommended anyone, so in `runs/claudeworth-medium-20261031-223736` the head gardener,
+  told of `send-for` by the rules, called it and got "there is no tool called send-for". Now an
+  unknown id is refused with a reason pointing to `recommend`.
 

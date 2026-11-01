@@ -272,6 +272,7 @@
   [world actor {:keys [id]}]
   (let [p (get (pool world) id)]
     (cond
+      (nil? p) "nobody of that id has been recommended to you; ask someone who might know to `recommend` a candidate to you, then use the id it gives"
       (not (contains? (:known-to p) actor)) "you have no current recommendation for that candidate"
       (not (#{:pooled :away :returning} (:status p))) "that candidate has already been summoned or engaged"
       (#{:retired :dead} (:status (w/agent world (:agent-id p)))) "that person cannot return"
@@ -534,7 +535,6 @@
                (str/join "\n" (map #(n/describe % {}) (filter #(#{:people/recommended :people/reputation-known} (:type %)) events)))
                "No recommendation was made: the people or candidate pool are no longer ready."))}
    {:name :send-for :kind :final :roles :all
-    :available? (fn [world actor] (boolean (some #(and (contains? (:known-to %) actor) (#{:pooled :away :returning} (:status %))) (vals (pool world)))))
     :doc (prompts/doc "docs/hiring/send-for.md")
     :args [:map [:id :string]] :valid? send-for-reason :effect sent-for}
    {:name :engage :kind :free :roles :all

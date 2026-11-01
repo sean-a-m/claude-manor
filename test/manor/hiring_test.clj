@@ -223,7 +223,7 @@
                (replies 2)))
         (is (= "error: query limit reached for this turn (2); take your action now, and query again next turn"
                (replies 4)))
-        (is (= "done" (replies 5)) "send-for became callable after the query")
+        (is (= "done" (replies 5)) "send-for works once the query has made the candidate")
         (is (= :here (:status (first-person (e/world run)))))
         (is (= 1 (:round (first (filter #(= :people/sent-for (:type %)) events)))))
         (is (some #(and (= "user" (:role %)) (str/includes? (:content %) "`send-for`"))

@@ -2256,7 +2256,10 @@ or promised. It does not select an existing villager.
   is discarded. These calls use the run's default model and normal cost budget, with checked
   lengths/blanks and one correction, never lexical prose checks. Offline bridge fixtures and
   mock adjudicators keep `--mock --offline` entirely free.
-- `send-for {id}` (a candidate id) is final. Only someone who knows the current pool record may call it.
+- `send-for {id}` (a candidate id) is final. Everyone is offered it, so that a character who
+  hasn't been recommended anyone learns why from the refusal ("nobody of that id has been
+  recommended to you; ask someone who might know to `recommend` …"). Only someone who knows the
+  current pool record may use it.
   Arrival is next round at the meeting place, before turns, if the active-agent cap has room
   (otherwise it waits). The visitor is spawned through the scenario hook with role `:none`,
   own traits and a private situation naming their summoner. Their model inherits `:model`.

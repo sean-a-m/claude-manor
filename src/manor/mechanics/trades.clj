@@ -224,7 +224,7 @@
   [world actor {:keys [id] :as args}]
   (cond (hiring/candidate world id) (hiring/send-for-reason world actor args)
         (contact world id) (contact-reason world actor args)
-        :else "use the id of a candidate or contact recommended to you (from hiring.candidates or contacts)"))
+        :else "nobody of that id has been recommended to you; ask someone who might know to `recommend` a candidate or a tradesperson to you, then use the id it gives"))
 
 (defn sent-for
   "`actor` sends for `id`: a candidate (as hiring does) or a contact, by a
@@ -317,9 +317,6 @@
   "Hiring's `send-for`, for a contact with a job too."
   [send-for]
   (assoc send-for
-         :available? (fn [world actor]
-                       (or ((:available? send-for) world actor)
-                           (boolean (some #(contains? (:known-to %) actor) (vals (contacts world))))))
          :doc (prompts/doc "docs/trades/send-for.md" {:lead-hours lead-hours})
          :args [:map [:id :string] [:job {:optional true} [:string {:min 1 :max max-job}]]]
          :valid? send-for-reason

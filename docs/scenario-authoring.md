@@ -312,7 +312,8 @@ scenario:
 {:your/task
  {:request (fn [world actor args events] {:messages [...] :tools [...] :ctx {...}})
   :check   (fn [response] {:verdict checked-data :replies [...]}) ; or {:error reason :replies [...]}
-  :mock    (fn [ctx] {:tool :answer :args {...}})}}
+  :mock    (fn [ctx] {:tool :answer :args {...}})
+  :writer? true}}                                                  ; optional: a character writer (below)
 ```
 
 These are narrow engine-run LLM calls, not the GM and not real-world bridges. `events` is the
@@ -326,7 +327,9 @@ enabled the engine registers `item-find/adjudicators` automatically; scenario ad
 entries with the same key.
 
 The engine uses `:judge-model` (falling back to `:model`), with the run's reasoning, token and
-tool-choice options. A checked call allows four total attempts (`engine.judges/max-attempts`):
+tool-choice options. An adjudicator marked `:writer? true` writes people rather than judging
+(hiring's `:people/appearance` and `:people/polish`) and uses the run's `:model` instead, so
+candidate generation doesn't inherit a judge's model. A checked call allows four total attempts (`engine.judges/max-attempts`):
 the initial answer plus up to three corrections, each retaining the prior answers and the checker's
 replies. Success stops immediately; exceptions and the existing budget checks can stop it sooner.
 `manor.mechanics.adjudication/answer` implements first-tool-call selection and replies; domain code
@@ -530,8 +533,8 @@ A query needing several dependent bridge/adjudicator calls may supply
 view), for a judge that reads what they mean (the invitation judge).
 They throw on failure, check the run budget before each component, and record all calls and
 usage. Intermediate bridge events are **operator-only**, not visible to the calling character.
-Composed adjudicators use the run's `:model` (candidate generation must not inherit a work
-judge override). One composed action uses one query slot; each adjudicator allows four total attempts.
+Composed adjudicators use `:judge-model` like the rest, and character writers (`:writer? true`)
+the run's `:model`. One composed action uses one query slot; each adjudicator allows four total attempts.
 
 The function must not mutate world state or do I/O directly. Its result goes to the usual
 `:on-result`, and its `:reply` should project only what the caller may know. An exception
@@ -768,7 +771,7 @@ A system needing several dependent calls out, or model calls, gives `:compose` i
 
 `services` are those of a composed query ("Composed queries"): `bridge` and `adjudicate`,
 with the run's budget checked before each call and every call recorded, as agent `"system"`
-(adjudicators use the run's `:model`). `compose-response` is `{:result r}`, or `{:error msg}`
+(adjudicators use `:judge-model`, character writers the run's `:model`). `compose-response` is `{:result r}`, or `{:error msg}`
 if compose threw, which also records an operator-only `:adjudication/failed`. Compose runs
 every round, so it should return nil without calling anything when there's nothing to do.
 Everything it produced must reach the world through tick's events: replay never composes.

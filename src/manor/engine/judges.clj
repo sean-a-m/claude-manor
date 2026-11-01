@@ -95,8 +95,11 @@
   "Ask the scenario's adjudicator for `task` about `args`, on `world`:
   {:verdict v}, or {:failure reason}. The request also gets the run's
   events, for adjudicators that read history. A request that already holds a
-  :result needs no call. `call-opts` add to the call, e.g. :model and
-  :before-call (see `ask-structured!`)."
+  :result needs no call. It's on :judge-model (or :model), unless its
+  adjudicator is a character writer (:writer? true, e.g. hiring's appearance
+  and polish), which is on the run's :model so that writing people doesn't
+  inherit a judge's model. `call-opts` add to the call, e.g. :before-call
+  (see `ask-structured!`)."
   [run task world actor args call-opts]
   (let [spec (get-in run [:scenario :adjudicators task])
         {:keys [messages tools ctx result check] :as request} ((:request spec) world actor args (run/events run))]
@@ -105,6 +108,7 @@
       (ask-structured! run (str "adjudicator/" (subs (str task) 1))
                        (merge {:messages messages :tools tools
                                :ctx (assoc ctx :role :adjudicator :task task)}
+                              (when (:writer? spec) {:model (get-in run [:opts :model])})
                               call-opts)
                        (or check (:check spec))))))
 

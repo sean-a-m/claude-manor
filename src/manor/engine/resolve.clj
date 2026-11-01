@@ -139,7 +139,7 @@
                    (budget!)
                    (let [{:keys [verdict failure]}
                          (judges/adjudicate run task @(:world run) actor args
-                                            {:model (get-in run [:opts :model]) :before-call budget!})]
+                                            {:before-call budget!})]
                      (when failure (throw (ex-info failure {})))
                      verdict))
      :recent (fn [] (prompt/recent-lines @(:world run) (run/events run) actor))}))

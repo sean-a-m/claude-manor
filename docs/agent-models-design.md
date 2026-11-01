@@ -171,5 +171,10 @@ endpoint (where OpenRouter almost always sends DeepSeek requests) caches by itse
   request body, and a mock Claudeworth run in which two agents' turns and conversation lines carry
   their settings while everyone else's calls and the judges' keep the run's, with replay.
 
-Not done: the cost report still prices simulate/compare by the first call's model (section 2.3),
-and adjudications for an actor's query still bypass `:judge-model` (section 3).
+Not done: the cost report still prices simulate/compare by the first call's model (section 2.3).
+
+Also fixed on this branch (section 3): composed queries' adjudications (`query-services`) were
+all on the run's `:model`, a rule meant for hiring's character writers that also caught the
+find-person and invitation judges. They now use `:judge-model`; adjudicators marked `:writer?
+true` (`:people/appearance`, `:people/polish`) keep the run's `:model`
+(`test/manor/judge_model_test.clj`).

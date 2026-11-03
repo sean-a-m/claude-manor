@@ -386,7 +386,7 @@ records and adding pure presentation projections is allowed. A scenario may gain
 No model calls are needed for rendering or validation.
 
 Implementation is multi-seam, delivered serially on `feature/scene-view` in
-`~/development/git-worktrees/claude-manor/scene-view/`. Each writer finishes and commits its
+a separate git worktree. Each writer finishes and commits its
 handoff before the next writer starts. The main checkout and port 8080 are not used.
 
 | Phase / owner | Exclusive delivery seam | Next gate / durable handoff |

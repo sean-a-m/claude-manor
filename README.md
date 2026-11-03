@@ -281,7 +281,7 @@ Passed to `start-run` / `start!` (defaults in `manor.engine/default-opts`):
 | `:start` | | start the scenario's clock at this time, e.g. `"1904-10-15T21:00"` (CLI: `--start`); scenarios with a clock only. People still start where the world puts them |
 | `:build-rounds` | | override the build delay for one run, in rounds (Claudeworth; default one day per build day) |
 | `:leave-out` | | Claudeworth: ids of world-file characters to leave out of the run, e.g. `["pugh" "nellie"]` (REPL option) |
-pi --session 01a12968-b2b6-7261-b605-398d6a6b43df| `:find-everywhere?` | `true` | Claudeworth: `find` works anywhere; `false` refuses it at shops, the public house and other places of trade (REPL option) |
+| `:find-everywhere?` | `true` | Claudeworth: `find` works anywhere; `false` refuses it at shops, the public house and other places of trade (REPL option) |
 | `:addressed-as?` | `true` | positions' forms of address in prompts ("People address you as my lord", and how to address each person present); `false` (CLI: `--no-address`) leaves every form of address out, to compare runs with and without |
 | `:max-steps` / `:max-queries` | 10 / 2 | model calls and bridge/adjudication queries per turn (a cost guard, not game time) |
 | `:event-window` | 30 | recent events in each prompt: at least this many and fewer than twice as many (the window's start jumps forward every this many events, so the provider's prompt cache can reuse it) |

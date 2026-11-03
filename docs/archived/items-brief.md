@@ -3,7 +3,7 @@
 Self-contained instructions for adding **items** to the engine and to Claudeworth: objects with a
 description and a condition that can be placed, carried, given, bought, looked at and worked on.
 Read `AGENTS.md` first (invariants, run directories, cost rules). The idea comes from the user's
-wishlist (`docs/user-todos.md`, "Items", and the minimal part of "look"). This brief is the
+wishlist ("Items", and the minimal part of "look"). This brief is the
 authority on scope and details. The user approved it on 2026-10-16, including the proposals
 below.
 

@@ -302,7 +302,7 @@ dates from the clock's start, the meeting place).
 - `money.md`: how the currency works (agents' shopping rules); `money-pricing.md`: how to price
   in its base unit (the shop appraiser only).
 - `invitation-examples.md`: the invitation judge's examples of the possible-but-unlikely (the
-  Queen calling on the Earl, a cousin in India, "Your father died in 1898"). Neutral examples
+  King calling on the Earl, a cousin in India, "Your father died in 1898"). Neutral examples
   would teach the judge less.
 
 Test fixtures and offline stubs ("a cottage in the next parish") aren't prompts to a real model;
@@ -376,7 +376,7 @@ goods as money.
 ## 8. Phases and progress
 
 Each phase leaves `clojure -M:test` green and the prompt diff explained, and is committed on its
-own branch (worktree under `~/development/git-worktrees/claude-manor/`), merged into master when
+own branch (in its own git worktree), merged into master when
 reviewed. **When you finish a phase, mark it here with the date, the commit, and anything the
 next phase must know.**
 
@@ -474,7 +474,7 @@ What phase 2 must know:
 - **Group C is still inside shared templates:** the sterling sentence ends
   `rules/sections/shopping.md` and is in `judges/shop-appraiser.md` ("Price realistically in
   integer old pence ..."); the invitation examples are in `judges/invitation.md` (the "Pugh the
-  architect" and "a curate from Ely" examples, "Your father died in 1898.", the Queen line).
+  architect" and "a curate from Ely" examples, "Your father died in 1898.", the King line).
 - **Whitespace that matters:** `writers/appearance.md` ends with a space before its final newline
   (the old string did); an editor that strips trailing spaces changes the prompt. The space
   before `{{find-for-sale}}`'s fragment is in `things.md`, so the fragments have none.
@@ -537,7 +537,7 @@ Every distinct prompt change (the three captured scenarios unless qualified):
   this removes it from Lodge's invite tool only.
 - **Invitation judge:** home/era/known-as are parameters (unchanged in England). The matching
   examples (“Pugh the architect”, “the curate from Ely”) and deceased-father example move out of
-  their instruction bullets into the pack's examples alongside the unchanged Queen/duke/India
+  their instruction bullets into the pack's examples alongside the unchanged King/duke/India
   examples. The now-unneeded matching parenthesis is removed; the matching rule remains.
 - **Persona/appearance writers:** “an English village circa 1900” / “England circa 1900” →
   “a simulation set in {{era}}” (England in 1904). Persona's “behavioral a” → “behavioral and”,
@@ -934,7 +934,7 @@ world (decision 2); Gregorian dates and `HH:mm` (decision 4).
   commit `0f7eae9`).
 - The test suite prints transcript-writing warnings ("transcript of steward-… not written") from
   passing tests; seen before this work too.
-- The full suite takes about 5 minutes on this machine (`scene-integration-test`), not the
+- The full suite takes about 5 minutes (`scene-integration-test`), not the
   15 seconds `AGENTS.md` says.
 - The GM prompt was already large before this work (about 186k characters for the medium
   household at the start of a run: agents, map and items); unrelated to settings.

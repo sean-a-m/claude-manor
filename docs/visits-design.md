@@ -173,7 +173,7 @@ examples on both sides:
 - **Impossible:** the person is dead, according to the inviter's persona or situation or the
   world; or they're the inviter themselves.
 - **Never impossible:** unlikelihood, rank, distance, inconvenience, propriety or
-  unwillingness. "The Queen wouldn't call on the Earl of Claudeworth" is not a reason; she
+  unwillingness. "The King wouldn't call on the Earl of Claudeworth" is not a reason; he
   comes.
 
 The reply gives the reason ("Your father died in 1898."), and nothing is scheduled. This is
@@ -524,7 +524,7 @@ Guests don't go into the candidate pool. An away guest needs no pool record to b
 | "My father", with no name | The judge writes him, keeping consistent with the inviter's age, persona and situation |
 | A description that matches a villager ("Pugh the architect") | The judge answers `:existing "pugh"`; no second Pugh |
 | Two people describe the same new person | The judge matches the first's guest by name, home and `known-as`; the second inviter learns only the name |
-| "Invite the Queen" | She's written and comes; rank and likelihood are never `impossible` |
+| "Invite the King" | He's written and comes; rank and likelihood are never `impossible` |
 | "Invite my late father" | `impossible`, with the reason; nothing scheduled |
 | Guest from elsewhere wanders into the village | Allowed; `take-leave` works anywhere in the house's area, or they come back |
 | Host leaves, sleeps or is retired | The visit carries on; hosts have no duties in code |

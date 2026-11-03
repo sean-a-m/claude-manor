@@ -154,7 +154,7 @@ closed by `stop-run`. Tool costs reported in `_meta "manor/cost"` count towards 
 `mcp-servers/pi/server.mjs` exposes pi (`send_message {session, message}`; one persistent
 `pi --mode rpc` session per caller, sandbox command and tools configurable). The `quiz` scenario
 uses it. Tests: `test/manor/mcp_test.clj`, with a fake pi. A real quiz run (3 rounds, two
-contestants, pi through `pi-sandbox`) cost $0.003.
+contestants, pi through a sandbox wrapper) cost $0.003.
 
 Decisions from the user: replies come back instantly (within the turn); no approval (safety is
 the MCP server's job); results go to the calling agent only (sharing takes an in-game action);

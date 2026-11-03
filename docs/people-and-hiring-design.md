@@ -196,10 +196,10 @@ Decision 19: a dev command rolls and polishes every character in a world file, f
 persona into the world file for review in `git diff`. Loading a world never calls out; the world
 file holds the result.
 
-Authored characters have fixed points (the earl is lazy and a womaniser; the countess is easily
-angered). For now everything is rolled (decision 24), so the earl may come out small in
-Amativeness; the polish keeps each character's name, position and situation from the old persona,
-not its traits. Pins (`:pin {:amativeness :large}`) can come later if a rolled cast needs fixing.
+Authored characters have fixed points (the earl is lazy; the countess is easily
+angered). For now everything is rolled (decision 24), so the earl may come out less lazy than
+written; the polish keeps each character's name, position and situation from the old persona,
+not its traits. Pins (`:pin {:order :large}`) can come later if a rolled cast needs fixing.
 
 Phase 1 is done when the server and its data exist with tests (free, seeded, no model);
 the polish is a checked call with a mock responder; `roll-cast!` has rolled Claudeworth's cast
@@ -351,7 +351,7 @@ No real simulation or other world's cast refresh was run.
 ### 4.1 What's tangled now
 
 - A role's `:about` in `claudeworth.edn` mixes the position with the individual: "You are Mr
-  Hale, private secretary…", "You are Nellie, the housemaid… You are somewhat naive and foolish",
+  Hale, private secretary…", "You are Nellie, the housemaid… You are somewhat inexperienced",
   and the earl's laziness is in both `:about` and `:persona`. A second housemaid would be told
   she is Nellie.
 - An agent's `:role` is one keyword, fixed at spawn, and it does three jobs: which brief they
@@ -901,7 +901,7 @@ validation was run; the user will do real runs. No generated cast files were re-
 From phase 1:
 
 1. **Role `:about` texts:** done before merging phase 1. They no longer name their holder or
-   give personality ("lazy, and a notorious womanizer", "an angry woman", "naive and foolish",
+   give personality ("lazy and self-indulgent", "quick to anger", "inexperienced",
    "proud of your craft" are gone). Standing instructions the rolled personas dropped moved into
    them: the countess's first concern (a smoothly run house), the cook's being new to the house
    (inspect the kitchen and pantry, find out the countess's wishes), and the shopkeeper's selling

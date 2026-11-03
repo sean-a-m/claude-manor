@@ -32,7 +32,6 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/agent-models-design.md` | per-agent models: a world-file agent's `:model`, an id or a map of call settings; built (the minimum) |
 | `docs/prompts.md` | catalogue of the prompt templates in `resources/prompts/`: what each is for, who renders it, its parameters; keep it current |
 | `docs/prompt-extraction-design.md` | proposal: moving the model-facing text still in code (request framing, replies, reasons, narration) |
-| `docs/user-todos.md` | the user's own wishlist for later; not agent tasks |
 | `docs/archived/` | finished build briefs and old handoff notes: history, not the present state |
 
 ## Current state
@@ -44,7 +43,6 @@ dates, test counts or "phase N is next" here.
   Uncommitted changes may be the user's own; never discard them.
 - **What's left:** `docs/roadmap.md`. The Claudeworth phases are section 10 of
   `docs/claudeworth-design.md`, and its decisions (section 12) say which are done or deferred.
-- **What the user wants later:** `docs/user-todos.md`. These aren't tasks until the user picks one.
 - **Whether the code works:** `clojure -M:test` run before committing, otherwise don't run unless asked or if there are doubts about whether the current state is functional
 - **When you finish something,** record the outcome where it belongs: mark the roadmap item or
   design decision done, and update `docs/scenario-authoring.md` for contract changes. Don't start a
@@ -184,7 +182,7 @@ resources/architect/    architect price lists (whole pounds), one per world, nam
 mcp-servers/architect/  the architect MCP server: babashka, stateless, reference and draft tools
 mcp-servers/people/     the people MCP server: babashka, stateless, generate_people and reputation from data files;
                         names per setting in settings/<dataset>/names.edn (england-1900, qing-1780)
-config/        mcp.example.edn; mcp.edn is local and gitignored (the user's sets pi-sandbox)
+config/        mcp.example.edn; mcp.edn is local and gitignored (it can point the pi server at a sandbox wrapper)
 dev/user.clj     REPL helpers (start! step! auto! feed view last-prompt transcript! spawn! change-post! afflict! approve! act! roll-cast! ...)
 test/            engine, conversation, space, items, MCP, clock, world-file, panel, transcript, cache-report, Claudeworth and scenario smoke tests;
                  test scenarios prize.clj and hamlet.clj (world file test/fixtures/hamlet.edn);
@@ -276,8 +274,9 @@ clojure -M:cache report runs/<id>             # cache hits and cost by kind and 
 - pi 1.1.0 has no MCP *server* mode; `mcp-servers/pi/server.mjs` drives `pi --mode rpc` instead
   (prompt, wait for `agent_settled`, `get_last_assistant_text`). `--session-dir` plus
   `--session-id` give a conversation that survives restarts.
-- On this machine `pi` itself is not sandboxed; `pii` (interactive alias) runs
-  `~/system-scripts/pi-sandbox`, which makes only `$PWD`, `~/.pi` and caches writable (everything
-  stays readable, network open). `config/mcp.edn` points the pi server at that script.
+- `pi` itself is not sandboxed. The pi MCP server can start it through a sandbox wrapper script
+  (a command that makes only the working directory, pi's state directory and caches writable,
+  with everything readable and the network open). `config/mcp.edn` (local, gitignored) points the
+  pi server at that script; see `config/mcp.example.edn`.
 - Actionable `:valid?` reasons ("you must be at Fields (fields) to plant") let models self-correct
   within the step budget.

@@ -33,3 +33,13 @@ clojure -M:cache report runs/<id> [--top N]
 clojure -M:cache simulate runs/<id> [--order system-first|tools-first] [--tier off-peak|peak] [--top N]
 clojure -M:cache compare test-runs/<a> test-runs/<b> [--order ...] [--tier ...]
 ```
+
+## Screenshots
+
+The control panel shows the run, the roster and the event feed:
+
+![Control panel: run status, roster and event feed of a claudeworth-medium run](docs/images/control-panel.png)
+
+The scene page draws the house and who is where:
+
+![Scene view: the house's floors and rooms with the household's people placed in them](docs/images/scene-view.png)

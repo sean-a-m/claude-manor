@@ -1,4 +1,4 @@
-# CLAUDE MANOR - A VERITABLE DOWNTON ABBEY OF LLM AGENTS
+# Claude Manor - Large scale multiagent simulation in which agents inhabit an Edwardian manor house.
 
 ## Running
 

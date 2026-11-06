@@ -322,6 +322,11 @@ Follow-ups, by need:
 follow-ups below, replaces item conditions with keyed aspects (done), and removes the unused
 provisions counter (done).
 
+- **Concealment and knowledge — investigation only:**
+  [discussion proposal](concealment-and-knowledge-investigation.md) explores hidden aspects,
+  concealed items, confirmed discoveries and stale knowledge across household and palace
+  scenarios. It identifies interactions with judges, event privacy, finding, access and item
+  lifecycle. No implementation or design decisions approved yet.
 - **Meals aren't linked to items.** Food served at table and eaten during a meal occupation
   ("dining on the rib of beef") is never used up, because a meal is an occupation, not work on
   items, so leftovers can stay in the world. Candidates: a deterministic `use-up`/`eat` action

@@ -791,6 +791,13 @@ everything into a container; listing such cases in the instructions would never 
     Absorption instructions include carried items, matching the validator's judged scope.
     No schemas, reducers or scene projections change. Fixed-item rules and the flags supplied
     to the judge remain unchanged pending discussion. Real-model effectiveness is unverified.
+    Follow-up: in `runs/claudeworth-medium-20261106-142614`, event #1171 denied materials
+    explicitly available in a supplied store. The scene instructions now narrow the dialogue
+    guard to unsupported purchases, deliveries, handovers and movements, explicitly permit
+    ordinary objects and materials inferred from the location and setting, and allow work on
+    stock to be recorded in store aspects. Missing-prerequisite explanations are conditional
+    on the work actually being prevented and must stay in-world. The operator reports
+    improved behaviour in play; no controlled real-model replay has been run for this wording.
 13. **Finder corrections:** after the failed hat-and-stick search in
     `runs/claudeworth-medium-20261030-172326`, a nonexistent `taken` aspect now gets the
     available keys (or "it has none") and explicit guidance that omitting `taken` is valid

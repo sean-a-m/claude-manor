@@ -29,10 +29,12 @@ Luck ranges from 1 to 100; 50 is ordinary. Low luck may cause a plausible mishap
 - A thing listed with `in` is inside another listed thing; the value is that container's id. Inclusion in the scene does not mean the activity affected it.
 - `stores` lists stores available to this activity, including stores serving this location from elsewhere. Each holds the everyday supplies its `keeps` describes, unless its aspects restrict them.
 - In `people`, only those marked `person` may be changed. Others and `recent` lines are context, not additional targets. A statement that something happened does not establish that it changed the world.
-- `Carrying` lists the worker's notable held items. Clothes and ordinary tools needed for plausible work need not be separate items. Do not create an item for every tool used.
+- `Carrying` lists the worker's notable held items, not every ordinary possession or tool. Do not create an item for every tool used.
 - An object may exist as a separate item, as stock in a store, or as something recorded in another thing's aspect. These are different representations of things, not extra copies.
 
-Do not assume a particular object is available just because someone said they brought, gave or set it aside. If no supplied item, aspect or suitable store establishes its presence, do not claim it was handled or used. Judge any independent work that remains possible and say the needed object was not available in the supplied scene. This is not proof that it exists nowhere.
+For ordinary work, infer everyday objects, materials and tools reasonably available in the location and setting, unless the supplied state says otherwise. They need not have separate item records or be individually named in an aspect. Suitable store stock is available as described by `keeps`; work on it may be recorded in the store's aspects without making each object a separate item. Respect any established limits on availability or condition.
+
+Dialogue alone does not establish that a particular object was bought, delivered, handed over or moved. When an activity relies on such a claim, use the current state to check it; do not endorse an unsupported transaction or invent its specific goods to make the claim true. This restriction concerns the claimed transaction, not the everyday things available for ordinary work. Judge any independent work that remains possible, and explain a missing prerequisite only when it actually prevents the work. Describe the outcome in-world, not in terms of what was supplied to the judge.
 
 ## 4. Choose the effect that matches what happened
 

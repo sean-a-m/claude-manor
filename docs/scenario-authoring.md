@@ -1474,12 +1474,16 @@ classification has not yet been checked.
   aspects if its stock or lacking changes. Never describe a thing as moved, hung up or put away
   in an aspect while leaving it a separate thing where it was: make it gone or absorb it. If
   nothing became of it, leave it as it is. This is judge guidance, not a new effect or semantic validator. Leaving any
-  thing untouched is always a valid answer. An activity may assume a particular thing someone
-  said they brought, handed over or set aside that is neither in the scene nor carried (seven
-  packets "counted into my apron" in talk): the judge treats it as not existing, writes nothing
-  as if it were counted or set out, and says in the summary that it wasn't there, unless an
-  aspect here records it, when the work may make it with `taken`. Clothes, everyday things and
-  a store's supplies are still to hand.
+  thing untouched is always a valid answer. For ordinary work, the judge may infer everyday
+  objects, materials and tools reasonably available in the location and setting unless the
+  supplied state says otherwise; separate item records or individually named aspects are not
+  required. Work on suitable store stock may be recorded in the store's aspects without making
+  each object a separate item. Dialogue alone does not establish a purchase, delivery, handover
+  or movement of a particular object: the judge checks such claims against current state and
+  must not endorse an unsupported transaction or invent its specific goods. This restriction
+  does not make ordinary supplies unavailable. Judge independent work that remains possible,
+  explain a missing prerequisite only when it actually prevents the work, and keep the summary
+  in-world rather than referring to the judge's supplied scene.
 - **The judge** is a narrow model call, not the GM and not a bridge; characters never hear of it.
   `item-judge/judge-request` builds it from the optional `:items :judge-brief` (`(fn [world] text)`),
   optional suggested aspect keys with short glosses (`:items {:aspect-keys {:cleanliness "how

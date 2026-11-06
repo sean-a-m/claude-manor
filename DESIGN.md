@@ -10,7 +10,7 @@ happens. Narrative is a view of that state, never a source of truth.
 |---|---|
 | Core | A pure world value changed only by events (event sourcing). An imperative shell runs rounds, calls models and bridges, and persists. |
 | State vs narrative | State is the truth. Every event type can `describe` itself as text; agents read those lines. Narrative never feeds back into state. |
-| Models | Called directly over OpenRouter (OpenAI-compatible chat + tool calling) behind an `LLM` protocol. No pi: the engine builds every prompt from scratch each turn and keeps no chat sessions, so context and cost stay under control. |
+| Models | Called over OpenRouter (OpenAI-compatible chat + tool calling) behind an `LLM` protocol, or through pi's model layer (`manor.io.pi-llm`) for the providers pi is logged in to. Either way the engine builds every prompt from scratch each turn and keeps no chat sessions, so context and cost stay under control; pi is only the transport. |
 | Memory | Engine-owned. Each prompt is assembled from the role brief, persona, the agent's own notes, the scenario's `observe` projection, and a fixed window of events visible to that agent. |
 | Private information | Every event has `:visible-to` (`:all`, a set of ids, `:gm`, `:system`); the default is `:gm`, so forgetting to set it can't leak. The full world never enters an agent prompt. |
 | Actions | Data: a malli argument schema, a precondition, and an effect that returns events. Each role's actions become its LLM tools automatically. Arguments are decoded (snake/camel case tolerated), checked against closed schemas, and validated in code. |

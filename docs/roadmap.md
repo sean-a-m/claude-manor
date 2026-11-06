@@ -245,7 +245,10 @@ Focused offline calendar tests and the full suite pass; no real-model run was ma
 - Prompt caching hints for providers that support them. Requests are laid out for prefix caching
   (stable system message with `:reference`, fixed tool order, a jumping event window, the volatile
   view last), which DeepSeek's automatic cache uses; Anthropic models via OpenRouter would also need
-  `cache_control` on content blocks.
+  `cache_control` on content blocks. Through pi (`--pi`, `manor.io.pi-llm`) pi-ai adds its own
+  cache hints, so Anthropic caching needs no manor code there. Open: OpenAI hit 37% cached in a
+  10-round `openai/gpt-6-luna` run (`old-test-runs/pi-bridge-gpt-6-luna-10-rounds`); passing a
+  per-agent `sessionId` (OpenAI's `prompt_cache_key`) might raise it.
 - Per-agent token or cost budgets (pause or switch to a cheaper model when exceeded).
 - A fallback model on provider errors.
 

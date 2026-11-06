@@ -55,8 +55,6 @@ These came from the design conversation; respect them unless told otherwise.
 - **Clojure**, because the user reads it easily. Code should stay readable: small functions,
   docstrings, immutability when convenient, data over machinery.
 - **Simple and engine-managed.** The engine owns state, memory and context.
-- **No pi for state or memory.** Models are called directly via OpenRouter (`manor.io.llm`). pi is
-  acceptable at most as an ad-hoc MCP bridge.
 - **Hard state determines narrative**, never the reverse.
 - **Real-world access only through bridges**, e.g. an in-sim "check the weather" calls a real
   weather API through the engine. **MCP is the most important bridge kind** (done: roadmap B1).
@@ -101,7 +99,7 @@ These came from the design conversation; respect them unless told otherwise.
 
 ```
 src/manor/
-  main.clj       CLI: clojure -M:run [scenario] [--mock] [--offline] [--port N] [--load id]
+  main.clj       CLI: clojure -M:run [scenario] [--mock | --pi] [--offline] [--port N] [--load id]
   engine.clj     the engine's interface: start/load/branch runs, run control, operator commands
   engine/        its parts, lowest first: run (the run's state, emit!), models (making and recording
                  model calls), judges (checked narrow calls: work and conversation judges, steward,
@@ -154,6 +152,7 @@ src/manor/
   prompts.clj    prompt templates (resources/prompts/, overridable per pack), rendered per world
   io/            everything that leaves the process
     llm.clj        LLM protocol; OpenRouter (JDK HTTP) and Mock (scenario policy) implementations
+    pi_llm.clj     the LLM through pi's model layer (:llm :pi, --pi): a per-run helper, mcp-servers/pi-llm
     bridge.clj     bridge executor: timeout, truncation, stubs, MCP tools; never throws
     mcp.clj        minimal MCP client (stdio JSON-RPC 2.0) + per-run lazy server pool
     http.clj       JDK java.net.http helpers (don't use http-kit's client: gzip bug)
@@ -178,6 +177,7 @@ resources/settings/ setting packs, one directory each (england-1904/, qing-palac
                  people.edn, positions.edn, calendar.edn and prompts/ (fragments and template overrides)
 resources/pricing.edn model prices, peak hours and cache block size for manor.tools.cache-report
 mcp-servers/pi/server.mjs  pi as an MCP server: send_message {session, message}; Node, no deps
+mcp-servers/pi-llm/server.mjs  manor's model calls through pi-ai's ModelRuntime (complete); Node, imports the installed pi
 resources/architect/    architect price lists (whole pounds), one per world, named in :meta :architect-prices
 mcp-servers/architect/  the architect MCP server: babashka, stateless, reference and draft tools
 mcp-servers/people/     the people MCP server: babashka, stateless, generate_people and reputation from data files;

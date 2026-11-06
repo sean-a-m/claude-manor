@@ -5,6 +5,7 @@
     clojure -M:run village --mock --offline
     clojure -M:run --load village-20261014-201500 --port 8081
     clojure -M:run village --model openai/gpt-5-mini --max-cost 0.5
+    clojure -M:run claudeworth --pi --model openai-codex/gpt-6-luna   models through pi (manor.io.pi-llm)
     clojure -M:run claudeworth --tool-choice required  force a tool call on every model reply
     clojure -M:run village --mock --offline --test     store under test-runs/ (disposable)
     clojure -M:run claudeworth --mock --test --start 1904-10-15T21:00
@@ -20,6 +21,7 @@
     (cond
       (empty? args) acc
       (= a "--mock") (recur more (assoc-in acc [:opts :llm] :mock))
+      (= a "--pi") (recur more (assoc-in acc [:opts :llm] :pi))
       (= a "--offline") (recur more (assoc-in acc [:opts :offline?] true))
       (= a "--test") (recur more (assoc-in acc [:opts :test?] true))
       (= a "--no-address") (recur more (assoc-in acc [:opts :addressed-as?] false))

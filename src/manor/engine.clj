@@ -36,6 +36,7 @@
             [manor.engine.run :as run]
             [manor.io.llm :as llm]
             [manor.io.mcp :as mcp]
+            [manor.io.pi-llm :as pi-llm]
             [manor.io.store :as store]
             [manor.io.worldfile :as worldfile]
             [manor.mechanics.builtins :as b]
@@ -61,7 +62,7 @@
 
 (def default-opts
   {:seed 1
-   :llm :openrouter                 ; :openrouter or :mock
+   :llm :openrouter                 ; :openrouter, :pi (through pi's model layer: manor.io.pi-llm) or :mock
    :model "deepseek/deepseek-v4.1-flash"
    :gm-model nil                    ; defaults to :model
    :judge-model nil                 ; narrow adjudicators (work and scenario queries); defaults to :model
@@ -139,11 +140,12 @@
                                  (throw (ex-info "adjudicator needs a mock responder" {:task (:task ctx)})))
                   (policy ctx))))))
 
-(defn- make-llm [scenario opts]
+(defn- make-llm [scenario opts ctx]
   (or (:llm-impl opts)
       (case (:llm opts)
         :mock (mock-llm scenario)
-        :openrouter (llm/openrouter))))
+        :openrouter (llm/openrouter)
+        :pi (pi-llm/pi-llm ctx))))
 
 (defn- make-run [id dir scenario opts]
   (let [scenario (cond-> scenario (:items scenario) (update :adjudicators #(merge (item-find/adjudicators (:items scenario)) activity-check/adjudicators %)))
@@ -154,7 +156,7 @@
      :scenario scenario
      :opts opts
      :actions (all-actions scenario)
-     :llm (make-llm scenario opts)
+     :llm (make-llm scenario opts {:run-id id :run-dir dir})
      :mcp (mcp/pool (mcp/server-configs (:mcp-servers scenario) (mcp/local-config) (:mcp-servers opts))
                     {:run-id id :run-dir dir})
      :world (atom (w/new-world))
@@ -544,8 +546,9 @@
 
 (defn stop-run
   "Stop after the current round, write the transcript, then close the run's
-  MCP servers."
+  MCP servers and its model client, if that holds a process (:pi)."
   [run]
   (pause! run)
-  (submit! run #(mcp/close-all! (:mcp run)))
+  (submit! run #(do (mcp/close-all! (:mcp run))
+                    (when (instance? java.io.Closeable (:llm run)) (.close ^java.io.Closeable (:llm run)))))
   (.shutdown ^ExecutorService (:exec run)))

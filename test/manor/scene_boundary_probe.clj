@@ -65,9 +65,9 @@
     (with-redefs [store/test-runs-root (str (io/file store/test-runs-root "scene-boundary" (str (random-uuid))))
                   e/load-scenario (fn [key] (cond-> (load-scenario key)
                                             (= :remove hook-mode) (dissoc :scene)))
-                  models/complete! (fn [run request]
+                  models/complete! (fn [run who request]
                                      (swap! requests conj (request-data request))
-                                     (complete! run request))]
+                                     (complete! run who request))]
       (let [run (e/start-run scenario {:llm :mock :offline? true :test? true :seed 1
                                         :build-rounds 6 :max-cost 0.20
                                         :run-id (str "scene-boundary-" (name scenario))})]

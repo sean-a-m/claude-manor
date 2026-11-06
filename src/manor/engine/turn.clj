@@ -200,7 +200,7 @@
       (let [by-name (a/by-name actions)
             tools (mapv #(a/->tool % @(:world run)) actions)
             request (assoc settings :messages messages :tools tools)
-            response (models/complete! run
+            response (models/complete! run agent-id
                                        (assoc request :ctx (merge {:world @(:world run) :agent-id agent-id
                                                                    :step step :used (:used st)}
                                                                   ctx)))

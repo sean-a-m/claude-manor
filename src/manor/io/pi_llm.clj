@@ -8,7 +8,9 @@
 
   Models are \"<pi provider>/<model id>\" (\"openai-codex/gpt-6-luna\");
   other names are OpenRouter ids, as with manor.io.llm/openrouter. A
-  request's :cache-control is not sent: pi caches by itself. The helper's
+  request's :cache-control is not sent: pi caches by itself, and its
+  :cache-key goes as pi-ai's sessionId (OpenAI's prompt_cache_key, session
+  affinity on OpenRouter and Anthropic). The helper's
   stderr goes to <run-dir>/mcp-pi-llm.log.
 
   Machine settings (e.g. :env {\"PI_LLM_MODULE\" ...}) go under :pi-llm in
@@ -28,7 +30,7 @@
   llm/LLM
   (complete [_ request]
     (:value (mcp/call pool :pi-llm "complete"
-                      (select-keys request [:model :messages :tools :max-tokens :reasoning :tool-choice])
+                      (select-keys request [:model :messages :tools :max-tokens :reasoning :tool-choice :cache-key])
                       timeout-ms)))
   Closeable
   (close [_] (mcp/close-all! pool)))

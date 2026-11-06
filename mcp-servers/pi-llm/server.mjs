@@ -2,7 +2,7 @@
 // pi-llm: manor's model calls through pi's model layer, as an MCP server.
 //
 // One tool, complete {model, messages, tools, max-tokens, reasoning,
-// tool-choice} -> one assistant reply in manor's response shape (see
+// tool-choice, cache-key} -> one assistant reply in manor's response shape (see
 // manor.io.llm). Requests and replies use OpenAI chat-completions messages,
 // as manor builds them; this server converts them to and from pi-ai's and
 // calls ModelRuntime.completeSimple, so every provider pi knows works, with
@@ -171,6 +171,8 @@ async function complete(args) {
     maxTokens: args["max-tokens"] || undefined,
     reasoning: effort && effort !== "none" ? effort : undefined,
     toolChoice: args.tools?.length ? args["tool-choice"] || "auto" : undefined,
+    // Who's calling: OpenAI's prompt_cache_key, session affinity elsewhere.
+    sessionId: args["cache-key"] || undefined,
   });
   if (reply.stopReason === "error" || reply.stopReason === "aborted") {
     throw new Error(`${model.provider}/${model.id}: ${reply.errorMessage || reply.stopReason}`);

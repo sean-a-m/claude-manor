@@ -35,6 +35,7 @@ export class ModelRuntime {
       reasoning: options?.reasoning ?? null,
       maxTokens: options?.maxTokens ?? null,
       toolChoice: options?.toolChoice ?? null,
+      sessionId: options?.sessionId ?? null,
     };
     return {
       ...base,

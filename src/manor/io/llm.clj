@@ -5,6 +5,7 @@
   Request:  {:model \"deepseek/deepseek-v4.1-flash\" :messages [...] :tools [...]
              :max-tokens 2000 :reasoning {:effort \"low\"} :tool-choice \"auto\"
              :cache-control {:type \"ephemeral\"}   ; optional: for providers that cache only when asked
+             :cache-key \"<run>/<agent>\"            ; who's calling, for caches grouped by a key; OpenRouter ignores it
              :ctx {...}}
             :ctx is engine context for mock policies; it is never sent anywhere.
   Response: {:message {...assistant message, OpenAI wire format...}

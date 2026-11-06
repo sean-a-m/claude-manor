@@ -36,11 +36,15 @@
                    :data (assoc (:usage response) :agent agent-id :model (:model request))}]))
 
 (defn complete!
-  "Make a model call. The response gets :at, the instant (ISO-8601, UTC) the
-  call was sent."
-  [run request]
+  "Make `who`'s model call (an agent id, or a judge's name like \"judge\").
+  The request gets :cache-key, the run and `who`, so a provider that groups
+  its prompt cache by a key can keep each caller's calls together (see
+  manor.io.llm). The response gets :at, the instant (ISO-8601, UTC) the call
+  was sent."
+  [run who request]
   (let [at (str (Instant/now))]
-    (assoc (llm/complete (:llm run) request) :at at)))
+    (assoc (llm/complete (:llm run) (assoc request :cache-key (str (:id run) "/" (if (keyword? who) (name who) who))))
+           :at at)))
 
 (defn record-call!
   "Log a model call to llm.edn. `replies` are the messages the engine added

@@ -18,7 +18,7 @@
   [opts tasks]
   (let [seen (atom {})
         run (fake-run opts)]
-    (with-redefs [models/complete! (fn [_ request]
+    (with-redefs [models/complete! (fn [_ _ request]
                                      (swap! seen assoc (get-in request [:ctx :task]) (:model request))
                                      (throw (ex-info "no model in this test" {})))]
       (let [adjudicate (:adjudicate (resolve/query-services run "ada"))]

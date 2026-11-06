@@ -34,7 +34,7 @@
               (let [request {:model model :messages messages :tools tools
                              :max-tokens (:max-tokens opts) :reasoning (:reasoning opts)
                              :tool-choice (:tool-choice opts)}
-                    response (models/complete! run (assoc request :ctx (assoc ctx :step attempt)))
+                    response (models/complete! run identity (assoc request :ctx (assoc ctx :step attempt)))
                     _ (record! models/record-usage! run identity request response)
                     {:keys [verdict error replies]}
                     (try (check response)

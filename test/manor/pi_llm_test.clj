@@ -31,12 +31,13 @@
                         {:role "user" :content "It is morning."}]
         request {:model "fake/m1" :messages first-messages :tools [walk-tool]
                  :max-tokens 4000 :reasoning {:effort "none"} :tool-choice "auto"
-                 :ctx {:world :not-sent}}]
+                 :cache-key "run-1/ann" :ctx {:world :not-sent}}]
     (try
       (let [r1 (llm/complete client request)]
         (testing "the request reaches pi-ai converted"
           (is (= {:model "fake/m1" :systemPrompt "You are Ann." :roles ["user"] :tools ["walk"]
-                  :toolResultNames [] :thinkingSentBack [] :reasoning nil :maxTokens 4000 :toolChoice "auto"}
+                  :toolResultNames [] :thinkingSentBack [] :reasoning nil :maxTokens 4000 :toolChoice "auto"
+                  :sessionId "run-1/ann"}
                  (seen r1))))
         (testing "the reply comes back in manor's shape, thoughts apart from the message"
           (is (= [{:id "call-1" :name "walk" :arguments "{\"to\":\"study\"}"}] (:tool-calls r1)))

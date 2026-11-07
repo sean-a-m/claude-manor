@@ -1,7 +1,6 @@
 # Changing posts: reassignment and dismissal
 
-Status: **draft, revised with the user's third answers** (section 9). Nothing built. Open
-questions are in section 10.
+Status: **design settled** (the user's answers are in section 9). Nothing built.
 
 ## 1. What exists now
 
@@ -136,23 +135,21 @@ A separate tool for moving someone's bed, so that `appoint` isn't used as a work
 change bedrooms (appointing someone to the post they already hold is refused anyway, and
 `appoint` takes no `bedroom`).
 
-`assign-bedroom {who bedroom}`, kind `:final`, `:roles :all`, `:needs :appoints`,
-`:admission :people/post-check` (the same judge, with `"action": "assign-bedroom"`).
+`assign-bedroom {who bedroom}`, kind `:final`, `:roles :all`, `:needs :appoints`. **No
+judge**: moving a bed is low stakes, and agents already complain about odd living situations,
+so an inappropriate assignment is handled socially.
 
 Code checks (structure only, as `engage`'s and `invite`'s bedroom):
 
 - `who` is an active participant, not the GM, in the household or a guest from elsewhere
   staying with it (`visits/from-elsewhere?`): the people whose beds are the household's to
-  give. **Self is allowed** here (the countess moving to the blue room); it's not a post
-  change, and the judge sees it.
+  give. **Self is allowed** (the countess moving to the blue room); it's not a post change.
 - `bedroom` is a location in the household's home area (`space/home-location?`); any room there
   may be assigned, as with `engage`. It isn't checked for being free: sharing is allowed, as now.
 - `who` doesn't already sleep there.
 
 Effect: `bedroom-assigned who bedroom`, visible to both, and a one-line narration ("Mrs Thorne
-has given Bessie the maids' room to sleep in"). Nothing else changes. The judge's standard is
-the same: refuse only the absurd (the head housemaid putting the earl in the scullery), allow
-the merely improper (two maids in one bed).
+has given Bessie the maids' room to sleep in"). Nothing else changes.
 
 ## 5. The post check (judge)
 
@@ -200,10 +197,11 @@ scenario and any pack:
 
 > ### Posts
 > Posts change only by appointment. Those who direct others in a household can appoint
-> someone to a different post or dismiss them, and the change takes effect at once, wherever
-> they are; agreeing to it in conversation changes nothing until they do. If you want a
-> different post, or want someone else moved or dismissed, and can't do it yourself, ask
-> someone who can. Someone dismissed stays until they choose to go, with `take-leave`.
+> someone to a different post, dismiss them or give them a different bedroom, and the change
+> takes effect at once, wherever they are; agreeing to it in conversation changes nothing
+> until they do. If you want a different post or room, or want someone else moved or
+> dismissed, and can't do it yourself, ask someone who can. Someone dismissed stays until
+> they choose to go, with `take-leave`.
 
 A pack can override the template, as with any prompt (`resources/settings/<id>/prompts/`), if
 its wording should be in period, but nothing in it is setting-specific.
@@ -213,14 +211,13 @@ work out who that is, which is the period way and needs no hierarchy: the counte
 says she gives the servants their work, the head housemaid's says she leads the housemaids.
 Appointers additionally see:
 
-- the `appoint` and `dismiss` tools (by `:needs`), each with a short doc;
+- the `appoint`, `dismiss` and `assign-bedroom` tools (by `:needs`), each with a short doc;
 - one line in their position line: "Your position: Housekeeper. You live in. You can appoint
-  people to posts and dismiss them." (`ruleset/rules.clj` `position-line`, from the
+  people to posts, dismiss them and assign their bedrooms." (`ruleset/rules.clj` `position-line`, from the
   capability, so it follows the post and the user doesn't have to write it into every
   `:about`).
 
-The generic rules text is enough (user's answer); no list of appointers. The rules section's
-last sentences gain "…and give people their bedrooms", so the bedroom tool is known too.
+The generic rules text is enough (user's answer); no list of appointers.
 
 ## 7. Getting a change into others' contexts
 
@@ -258,8 +255,9 @@ last sentences gain "…and give people their bedrooms", so the bedroom tool is 
 
 Phases, as one build:
 
-1. The capability in both catalogues and the medium world; `appoint`, `dismiss`, the post
-   check, the GM's `change-post`; bedroom clearing; `take-leave` for the dismissed.
+1. The capability in both catalogues and the medium world; `appoint`, `dismiss`,
+   `assign-bedroom`, the post check, the GM's `change-post`; bedroom clearing; `take-leave` for
+   the dismissed; the roadmap note on dismissal's edge cases.
 2. The rules section and the position line; tool docs; the judge prompt; `docs/prompts.md`,
    `docs/scenario-authoring.md`, the roadmap.
 3. Tests: mock and replay; the judge's refusal through a test verdict; a dismissed person's
@@ -311,12 +309,10 @@ Third round:
 2. The generic rules text is enough.
 3. A separate bedroom command for appointers, so `appoint` isn't abused to move beds.
 
-## 10. Open questions
+Fourth round:
 
-- **Q1. Judging bedrooms:** the draft puts `assign-bedroom` through the same post check, to
-  stop the absurd (the earl put in the scullery by a housemaid). Moving a bed is low stakes;
-  should it skip the judge and leave everything to the agents?
-- **Q2. Self-assignment:** the draft lets an appointer move their own bed (the countess to the
-  blue room). Allow, or refuse as `appoint` does?
+1. `assign-bedroom` has no judge: odd living situations are left to the agents, who already
+   complain about them.
+2. Appointers may assign their own bedroom.
 
-The earlier questions are answered (section 9). The rest can be settled while building.
+All questions are answered; details left can be settled while building.

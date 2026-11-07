@@ -57,7 +57,7 @@
                       (and holder (space/together? world actor holder))))
       (cond-> (select-keys it [:id :name :in]) holder (assoc :holder holder)))))
 
-(defn- finder-candidates
+(defn finder-candidates
   "Things the request might mean, id and name only: everything here
   (including closed containers' contents and what people here carry), then
   the 60 most recently touched anywhere."
@@ -216,7 +216,7 @@
            (seq (:aspects it)) (assoc :aspects (:aspects it))
            (:owner it) (assoc :owner (:name (w/agent world (:owner it)) (:owner it)))))))
 
-(defn- inspect-lookup
+(defn inspect-lookup
   "The finder's `inspect` tool: checked ids from `candidates`, answered by
   `inspect-view`."
   [world events actor candidates raw]
@@ -226,6 +226,14 @@
       error {:error error}
       (seq unknown) {:error (str "inspect only listed candidates, not " (str/join ", " unknown))}
       :else {:reply (json/write-value-as-string (inspect-view world events actor (:ids args)) item-judge/pretty)})))
+
+(defn inspect-tool
+  "The `inspect` lookup's tool, for a judge that answers with `answer` (a
+  tool name)."
+  [world answer]
+  {:type "function" :function {:name "inspect"
+                               :description (prompts/render world "judges/tools/inspect.md" {:max-inspect max-inspect :answer answer})
+                               :parameters (mjs/transform inspect-schema)}})
 
 (defn finder-request
   "The searcher's own context and recent lines, the place's history, the
@@ -268,8 +276,7 @@
                                           :what what :candidates candidates} item-judge/pretty)}]
       :tools [{:type "function" :function {:name "finder" :description (prompts/render world "judges/tools/finder.md" {})
                                            :parameters (mjs/transform finder-schema)}}
-              {:type "function" :function {:name "inspect" :description (prompts/render world "judges/tools/inspect.md" {:max-inspect max-inspect})
-                                           :parameters (mjs/transform inspect-schema)}}]
+              (inspect-tool world "finder")]
       :lookups {"inspect" #(inspect-lookup world events actor candidates %)}
       :max-lookups 1
       :ctx {:world world :place place :what what}

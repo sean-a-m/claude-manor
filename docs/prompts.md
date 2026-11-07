@@ -139,7 +139,8 @@ must call.
 | `judges/tools/steward.md` | The `steward` tool | `items.steward/steward-tool` | `inner` (`steward-inner.md` or `""`) |
 | `judges/tools/react.md` | The conversation judge's `react` tool | `conversation.judge/react-tool` | `advised-value`, `max-summary`, `relations` (as the judge's) |
 | `judges/tools/relations.md` | Fragment: the `relations` field, for the `judge` and `react` tools | `relations/tool-text` | |
-| `judges/tools/inspect.md` | The finder's `inspect` lookup: a closer look at some candidates before answering | `items.find/finder-request` | `max-inspect` |
+| `judges/tools/inspect.md` | The `inspect` lookup: a closer look at some candidates before answering (the finder, the made review) | `items.find/inspect-tool` | `max-inspect`, `answer` (the tool to answer with) |
+| `judges/made-review.md`, `judges/tools/review.md` | The work judge's second look at things it made from nothing tracked: new, or the same object as a candidate | `items.made-review/review-request` | |
 | `judges/tools/finder.md`, `seek.md`, `invitee.md`, `tradesperson.md`, `appraise.md` | The finder's, find-person's, invitation judge's, trade judge's and shop's tools | their request functions | |
 | `judges/tools/polish.md`, `appearance.md` | The persona writers' tools | `people/polish-request`, `people/appearance-request` | |
 

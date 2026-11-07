@@ -1466,7 +1466,17 @@ classification has not yet been checked.
   record is recorded when the work leaves something in or on it that someone will come back for
   (entries written in a book): a `made` item, as it is now, if someone will carry or fetch it,
   otherwise an aspect of the place or a listed thing; never a particular object the state or
-  the worker's account puts elsewhere. A made thing gets a fresh id, the consumable flag, and
+  the worker's account puts elsewhere.
+- **The made review** (`manor.mechanics.items.made-review`). When a checked work verdict makes
+  something with neither `from` nor `taken` (not for acts or hiring references), the judge gets
+  one more turn in the same conversation: the new things by index, the finder's candidates
+  (things here, then the 60 most recently touched, id and name), one optional `inspect`, and a
+  `review` tool. For each new thing it says new (fine for things of which there are many: a
+  loaf, a duster) or `same: <candidate id>`. A candidate here or carried by the worker is used
+  instead of a copy; one elsewhere isn't to hand, so nothing is made and the judge must give a
+  new summary. Other effects stand, and aspects of things not to hand are never changed. If the
+  review fails, the first verdict stands. Its calls are recorded as `judge`; the mock answers
+  every thing new. A made thing gets a fresh id, the consumable flag, and
   the first gone thing's owner if any. A made entry may give `taken: {thing, aspect, value}`
   when it was until now only an aspect of a judged thing (the goose taken down from the game
   hooks): that thing must stay and have that aspect, which gets the new value ("" removes it).

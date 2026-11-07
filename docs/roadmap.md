@@ -740,11 +740,16 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   tally into it gave Haiku a pantry aspect 2/3 and DeepSeek a made "Household book" 3/3. The
   judge can't see things elsewhere, so a made item may duplicate one (DeepSeek's would, beside
   the account book Lord Claudeworth carried): next, a duplicate check (below).
-- **Duplicate check for made items (next):** when a work answer makes an item with no `from` or
-  `taken` (about 8 of 104 jobs in that run), send it back once with the finder's candidates and
-  one `inspect`; the judge confirms the new thing (fine for things that can have many, a loaf)
-  or names the existing one, and if that's not on hand nothing is made and the summary says so.
-  Never change aspects of things not on hand.
+- **Duplicate check for made items: built (2026-11-07).** When a work answer makes an item with no
+  `from` or `taken` (about 8 of 104 jobs in that run), the judge reviews it once with the
+  finder's candidates and one `inspect` (`manor.mechanics.items.made-review`): new (fine for
+  things of which there are many, a loaf), or the same as a candidate; if that's not to hand
+  nothing is made and the summary says so. Aspects of things not to hand are never changed.
+  Checked on Merrick's job-3123 and Ivy's loaf, 3 samples per model
+  (`old-test-runs/made-review-*`): every loaf reviewed stayed new; DeepSeek's household book was
+  kept new twice (it reasoned the pantry's book is a different one from the baroness's) and
+  dropped as the account book once, with a fitting summary. Open: when a thing is dropped, other
+  effects of the work stand (an ink stain from copying that didn't happen).
 - **Finder candidate search:** a lookup tool (`ask-structured!` `:lookups`) that searches all
   items by keywords the finder proposes, to build its candidate list instead of the 60 most
   recently touched.

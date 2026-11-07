@@ -8,6 +8,7 @@
             [manor.engine.run :as run]
             [manor.mechanics.conversation.judge :as conversation-judge]
             [manor.mechanics.items.judge :as item-judge]
+            [manor.mechanics.items.made-review :as made-review]
             [manor.mechanics.items.steward :as item-steward]
             [manor.mechanics.items.work :as item-work]
             [manor.prompt :as prompt]))
@@ -43,8 +44,9 @@
   `:max-lookups` (default 1) answered calls in all. A response that only
   calls lookups gets their replies and doesn't spend an attempt, unless one
   of them fails; lookup calls beside an answer, or beyond the limit, are
-  ignored."
-  [run identity {:keys [messages tools ctx label defer-records? model before-call lookups max-lookups]
+  ignored. With `:keep-messages?`, a verdict comes with the conversation's
+  :messages, for a follow-up in the same conversation."
+  [run identity {:keys [messages tools ctx label defer-records? model before-call lookups max-lookups keep-messages?]
                  :or {label "adjudicator" max-lookups 1}} check]
   (let [records (atom [])
         record! (fn [f & args]
@@ -77,13 +79,31 @@
                            (throw t)))
                     next-messages (into (models/conj-reply messages (:message response)) replies)]
                 (record! models/record-call! run identity request response replies)
-                (cond verdict {:verdict verdict}
+                (cond verdict {:verdict verdict :messages next-messages}
                       used? (recur next-messages attempt (inc step) (inc looked))
                       (< (inc attempt) max-attempts) (recur next-messages (inc attempt) (inc step) looked)
                       :else {:failure (str "no valid answer after " max-attempts " attempts: " error)})))
             (catch Throwable t
               {:failure (str "the " label " call failed: " (ex-message t))}))]
-      (cond-> result defer-records? (assoc :records @records)))))
+      (cond-> result
+        (not keep-messages?) (dissoc :messages)
+        defer-records? (assoc :records @records)))))
+
+(defn- review-made
+  "The judge's `result` after its second look at the new things it made
+  (manor.mechanics.items.made-review), in the same conversation. If the
+  review fails, the verdict stands as it was."
+  [run world job {:keys [verdict messages records] :as result} request]
+  (let [{:keys [candidates made] :as review} (made-review/review-request world job verdict messages (run/events run))
+        reviewed (ask-structured! run "judge"
+                                  (assoc (select-keys review [:messages :tools :lookups :max-lookups])
+                                         :label "judge" :defer-records? true
+                                         :ctx (assoc (:ctx request) :role :made-review :made made))
+                                  #(made-review/review-check world job verdict candidates %))]
+    (-> result
+        (dissoc :messages)
+        (assoc :records (into (vec records) (:records reviewed)))
+        (cond-> (:verdict reviewed) (assoc :verdict (:verdict reviewed))))))
 
 (defn ask-judge
   "Ask the judge what `job` did to the judged `things` (see
@@ -100,13 +120,15 @@
                                    (prompt/shared-recent-lines world (run/events run) (:actor job))
                                    (prompt/scene-recent world (run/events run) job)))
         request (assoc (item-judge/judge-request (:scenario run) world job work)
-                       :label "judge" :defer-records? true
+                       :label "judge" :defer-records? true :keep-messages? true
                        :ctx (assoc (select-keys work [:minutes :stopped-early? :luck])
                                    :role :judge :world world :job job :things things
                                    :focus (item-work/focus-things world job)))
         {:keys [verdict] :as result} (ask-structured! run "judge" request #(item-judge/judgement % world things (get-in run [:scenario :inner]) job
                                                                                    (get-in run [:scenario :relations])))]
-    (assoc result :verdict verdict)))
+    (if (made-review/needed? job verdict)
+      (review-made run world job result request)
+      (dissoc result :messages))))
 
 (defn ask-conversation-judge
   "Ask the conversation judge how conversation `conv` ({:id :initiator

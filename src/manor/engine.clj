@@ -51,6 +51,7 @@
             [manor.mechanics.items.activity-check :as activity-check]
             [manor.mechanics.items.find :as item-find]
             [manor.mechanics.items.judge :as item-judge]
+            [manor.mechanics.items.made-review :as made-review]
             [manor.mechanics.items.steward :as item-steward]
             [manor.mechanics.physical :as physical]
             [manor.mechanics.physical.changes :as physical-changes]
@@ -133,6 +134,7 @@
     (llm/mock (fn [ctx]
                 (case (:role ctx)
                   :judge (judge ctx)
+                  :made-review (made-review/mock-review ctx)
                   :steward ((or (:mock-steward scenario) item-steward/mock-steward) ctx)
                   :conversation-judge ((or (:mock-conversation-judge scenario) conversation-judge/mock-judge) ctx)
                   :adjudicator (if-let [mock (get-in scenario [:adjudicators (:task ctx) :mock])]

@@ -190,7 +190,7 @@
   (let [run (start)
         world (e/world run)]
     (try
-      (is (str/includes? (rules/rules world) "### Posts\nPosts change only by appointment."))
+      (is (str/includes? (rules/rules world) "### Posts\nA post someone already holds changes only by appointment"))
       (let [none (update-in world [:state :positions] update-vals #(update % :capabilities disj :appoints))]
         (is (not (str/includes? (rules/rules none) "### Posts"))))
       (testing "an appointer's position line says what they can do; others' don't"
@@ -249,3 +249,23 @@
         candidate (w/apply-event world (positions/post-changed world "hale" :none {:household nil}))]
     (is (not (visits/dismissed? candidate "hale")))
     (is (not (visits/dismissed? world "nellie")))))
+
+(deftest visitors-and-candidates-are-not-appointed-or-dismissed
+  (let [calls (atom 0)
+        run (start (constantly {:allowed true}) calls)]
+    (try
+      (let [world (e/world run)
+            candidate (w/apply-event world {:type :people/pooled
+                                            :data {:id "candidate-1" :agent-id "nellie" :seeks [:housemaid]
+                                                   :status :here :known-to #{"mrs-finch"}}})
+            guest (w/apply-event world (positions/post-changed world "nellie" :guest {:household nil}))]
+        (testing "an unengaged candidate is engaged, not appointed"
+          (is (str/includes? (appointments/appoint-reason candidate "mrs-finch" {:who "nellie" :position "cook"}) "use engage"))
+          (is (str/includes? (appointments/dismiss-reason candidate "mrs-finch" {:who "nellie"}) "candidate")))
+        (testing "a guest's visit isn't a post"
+          (is (str/includes? (appointments/appoint-reason guest "mrs-finch" {:who "nellie" :position "cook"}) "visitor"))
+          (is (str/includes? (appointments/dismiss-reason guest "mrs-finch" {:who "nellie"}) "visitor"))))
+      (testing "the GM can't make anyone the GM"
+        (is (= "nobody can be made the GM" (:rejected (act! run "gm" :change-post {:who "hale" :position "gm"})))))
+      (is (zero? @calls))
+      (finally (e/stop-run run)))))

@@ -11,6 +11,10 @@ As built, the differences from the text below are small:
   "elsewhere", and any visit of theirs that is `:here` ends. A hired candidate's pool record
   goes back to `:away` (it was `:engaged`), so `send-for` can bring them back as section 4
   expects.
+- `appoint` and `dismiss` refuse visitors (`:guest`, `:tradesman`) and candidates who haven't
+  been engaged: their visit or candidacy decides when they go, and `engage` takes a candidate
+  on. Otherwise an appointed candidate's record stayed `:here` and hiring's timeout sent them
+  away. The GM's `change-post` refuses `:gm`.
 - The position line's sentence and the post narration are in code beside the lines they join
   (`ruleset.rules/position-line`, `positions` describe), as the text around them is.
 
@@ -208,8 +212,8 @@ nothing per turn. The text is generic, setting-neutral, and names nobody, so it 
 scenario and any pack:
 
 > ### Posts
-> Posts change only by appointment. Those who direct others in a household can appoint
-> someone to a different post, dismiss them or give them a different bedroom, and the change
+> A post someone already holds changes only by appointment; newcomers are still taken on by
+> hiring. Those who direct others in a household can appoint someone to a different post, dismiss them or give them a different bedroom, and the change
 > takes effect at once, wherever they are; agreeing to it in conversation changes nothing
 > until they do. If you want a different post or room, or want someone else moved or
 > dismissed, and can't do it yourself, ask someone who can. Someone dismissed stays until

@@ -29,11 +29,27 @@
   (when-not (and (w/active? world who) (not= :gm (:role (w/agent world who))))
     (str "no active participant has the id " who)))
 
+(def visitor-roles
+  "The positions of people here on a visit (manor.mechanics.visits and
+  trades), who hold no post to change: their visit decides when they go."
+  #{:guest :tradesman})
+
+(defn- visitor-reason
+  "Why `who` is here on a visit or for a place rather than in a post, or nil:
+  a guest or tradesperson, or a candidate who hasn't been engaged (hiring's
+  `engage` takes them on)."
+  [world who]
+  (cond (visitor-roles (:role (w/agent world who)))
+        (str (agent-name world who) " is a visitor here, not someone in a post")
+        (= :here (:status (hiring/for-agent world who)))
+        (str (agent-name world who) " is a candidate: use engage to offer them a place")))
+
 (defn- other-person-reason
   "Why `actor` can't appoint or dismiss `who`, or nil."
   [world actor who]
   (or (participant-reason world who)
-      (when (= actor who) "you cannot appoint or dismiss yourself")))
+      (when (= actor who) "you cannot appoint or dismiss yourself")
+      (visitor-reason world who)))
 
 (defn appoint-reason [world actor {:keys [who position]}]
   (or (other-person-reason world actor who)
@@ -86,7 +102,8 @@
 (defn change-post-reason [world _ {:keys [who position]}]
   (or (participant-reason world who)
       (when-not (get-in world [:state :positions (keyword position)])
-        (str "there is no position " position))))
+        (str "there is no position " position))
+      (when (= :gm (keyword position)) "nobody can be made the GM")))
 
 (defn post-changed-by-gm
   "The GM's `change-post`: as the operator's `engine/change-post!`, seen by

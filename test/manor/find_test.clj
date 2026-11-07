@@ -554,3 +554,51 @@
         (is (:error ((:check request) (response {:existing "nonexistent"}))))
         (is (:error ((:check request) (response {})))))
       (finally (e/stop-run run)))))
+
+(deftest finder-may-inspect-candidates-once
+  (testing "inspect shows each candidate's description, aspects, owner, whereabouts and history"
+    (let [run (start)]
+      (try
+        (e/emit! run [{:type :item/taken :actor "ben" :visible-to #{"ben"} :data {:item "umbrella" :from-place "hall"}}
+                      {:type :agent/placed :data {:id "ben" :to "bedroom"}}])
+        (let [world (e/world run)
+              request (item-find/finder-request world "ada" {:what "umbrella"}
+                                                (conj (vec (e/events run))
+                                                      {:type :item/taken :round 1 :actor "ben" :visible-to #{"ben"}
+                                                       :data {:item "umbrella" :from-place "hall"}}
+                                                      {:type :item/put-down :round 0 :actor "ben" :data {:item "umbrella" :place "hall"}}))
+              inspect (get-in request [:lookups "inspect"])
+              view (json/read-value (:reply (inspect "{\"ids\":[\"umbrella\",\"hidden-tin\",\"pipe\",\"remote\"]}"))
+                                    json/keyword-keys-object-mapper)
+              by-id (into {} (map (juxt :id identity)) view)]
+          (is (= ["finder" "inspect"] (map #(get-in % [:function :name]) (:tools request))))
+          (is (= "carried by Ben, elsewhere, in the Bedroom" (get-in by-id ["umbrella" :where])))
+          (is (= "Ada" (get-in by-id ["umbrella" :owner])))
+          (is (= {:state "dry"} (get-in by-id ["umbrella" :aspects])))
+          (is (= 1 (count (get-in by-id ["umbrella" :history]))) "after the world began, whoever saw it")
+          (is (str/includes? (first (get-in by-id ["umbrella" :history])) "picks up the umbrella"))
+          (is (= "here, in the Cupboard" (get-in by-id ["hidden-tin" :where])))
+          (is (= "carried by Ben, elsewhere, in the Bedroom" (get-in by-id ["pipe" :where])))
+          (is (= "elsewhere, in the Bedroom" (get-in by-id ["remote" :where])))
+          (is (= "Private sentinel." (get-in by-id ["remote" :desc])))
+          (is (str/includes? (:error (inspect "{\"ids\":[\"cupboard\"]}")) "not cupboard"))
+          (is (:error (inspect "{}"))))
+        (finally (e/stop-run run)))))
+  (testing "one inspect, then an answer; inspect doesn't spend an attempt, a second one is refused"
+    (doseq [[lookups expected-calls] [[1 2] [2 3]]]
+      (let [calls (atom [])
+            run (start {:llm-impl (llm/mock (fn [{:keys [looked step]}]
+                                              (swap! calls conj [step looked])
+                                              (if (< step lookups)
+                                                {:tool :inspect :args {:ids ["remote"]}}
+                                                {:tool :finder :args {:existing ["remote"]}})))})]
+        (try
+          (is (= "You don't find it." (:reply (query! run "the secret mustard"))))
+          (is (= expected-calls (count @calls)))
+          (let [llm (store/read-llm (:dir run))
+                replies (mapcat :replies llm)]
+            (is (some #(str/includes? (str (:content %)) "Private sentinel.") replies))
+            (when (= 2 lookups)
+              (is (some #(str/includes? (str (:content %)) "none left") replies))))
+          (is (not-any? #(= :adjudication/failed (:type %)) (e/events run)))
+          (finally (e/stop-run run)))))))

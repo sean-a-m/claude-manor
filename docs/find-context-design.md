@@ -1,6 +1,6 @@
 # `find` context and the find judge: design
 
-**Status:** Phases 1 and 2 implemented. Phase 1 was checked with mocks and two real-model
+**Status:** Phases 1, 2 and 3 implemented (phase 3, `inspect`, mock-tested only). Phase 1 was checked with mocks and two real-model
 historical probes; Phase 2 is mock-tested only (no real run yet). Extends `docs/stores-and-aspects-design.md` phases 4 and 7.
 
 Read `AGENTS.md` first (invariants, run directories, cost rules), then "Finding" in
@@ -70,7 +70,9 @@ the same kind of context, and keep its anti-duplication safety net.
   may use the asker's notes and recent lines. *Presence* ("is there such a thing here now?")
   uses only the place, its listed contents, the stores in scope, and what the asker can
   physically know. Belief is never evidence of presence.
-- **F4. Candidates stay id+name only.** No ownership either (owner can be as sensitive as
+- **F4. Candidates stay id+name only.** *Superseded by phase 3 (the user's decision of
+  2026-11-07): the finder needs locations, holders, owners and histories to tell whether a
+  thing exists at all; the list stays id+name, and `inspect` gives the rest on request.* No ownership either (owner can be as sensitive as
   location). Identification improves from F1/F2 and instructions, not from candidate provenance.
   (Provenance — an extra per-candidate field such as `in_hand`/`elsewhere` or `owner` — was
   considered and dropped as too complicated for now.)
@@ -297,3 +299,45 @@ The finder should distinguish a same-named candidate elsewhere from the thing th
 should find things its own notes and the place's prose attest to, should still miss things it
 has no business knowing (a thing taken or hidden by another, a concealed thing), and should
 produce no roll when it correctly identifies an elsewhere item.
+
+**Phase 3 - `inspect` (done, mock-tested; the user's decisions of 2026-11-07).** Evidence:
+`runs/claudeworth-medium-20261107-132710`. Mr Merrick twice did timed work in the butler's
+pantry "against the household book" and "copying the plate tally fair into the household
+book"; the work judge accepted it, though the only tracked household book (in the morning room)
+had been taken by Lord Claudeworth at 14:00. His five finds for "household book" (rounds 19-23)
+were each answered `existing: ["household-account-book"]`, a plain miss with no roll, though
+the finder's thoughts show it noticed `history` placing a book on the pantry table. It had only
+the candidate's name, so it couldn't tell "the account book, carried elsewhere" from "another
+book here".
+
+Decisions:
+
+- The finder may call `inspect {ids}` **once** before answering, with up to 8 listed
+  candidates. For each it gets name, description (first 200 characters), aspects, owner, where
+  it is now (here, in what, carried by whom, here or elsewhere, and where) and its last 5
+  narrated item events, **whoever saw them**: the point is to establish whether a thing exists
+  and where, not what the searcher knows. This reverses F4. Nothing the finder learns may be
+  revealed (instruction only; prose isn't checked).
+- F5 stands: an `existing` that is elsewhere is still a plain miss. For a matching candidate
+  elsewhere the finder decides whether the searcher means that very object (`existing`) or, on
+  the evidence, something else: a thing of another kind altogether (the usual worry), or
+  another such thing at this place. Then it rates the odds as usual. A `found` item is never a
+  listed candidate.
+- The mechanism is generic: `ask-structured!` takes `:lookups` (tool name -> handler) and
+  `:max-lookups` (default 1). A response of only lookup calls gets their replies without
+  spending an attempt (unless one fails); extra or accompanying lookup calls are ignored. A
+  keyword search over all items, to build the candidate list, could be a later lookup.
+- `mock-finder` never inspects; mock days are unchanged.
+
+
+Real-model checks (2026-11-07), the finder alone on the run's events up to Merrick entering the
+pantry in round 19, 3 samples per model, kept in `old-test-runs/find-inspect-merrick-r19-*`:
+
+- First wording: every sample inspected the account book once and read it right. Haiku
+  (`claude-code/claude-haiku-5-5`) answered `impossible` with the account book itself as `found`
+  (a duplicate on a lucky roll), twice naming Lord Claudeworth's whereabouts in its desc;
+  DeepSeek rated a new pantry book `likely` twice and gave `existing` once.
+- Second wording (the three cases, and `found` never a candidate): all six `existing`, no leaks,
+  no corrections, $0.0055. Both models took "he used a household book" as "he used this one";
+  the pantry `history` lines from the work judge's accepted activities were outweighed. The
+  remaining gap is that those activities recorded no item (roadmap B19).

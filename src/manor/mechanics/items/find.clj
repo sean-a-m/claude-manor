@@ -147,10 +147,91 @@
   and of the place's history."
   20)
 
+(def max-inspect
+  "How many candidates one `inspect` call may look at."
+  8)
+
+(def inspect-lines
+  "How many narrated lines of each inspected thing's history `inspect` gives."
+  5)
+
+(def inspect-desc
+  "How much of an inspected thing's description `inspect` gives."
+  200)
+
+(def inspect-schema
+  [:map [:ids [:vector {:min 1 :max max-inspect :decode/json #(if (string? %) [%] %)} :string]]])
+
+(defn- event-items
+  "The ids of the things an item event did something to."
+  [{:keys [type data]}]
+  (case type
+    (:item/taken :item/put-down :item/put-in :item/given) [(:item data)]
+    :item/added [(get-in data [:item :id])]
+    :item/found [(get-in data [:item :id])]
+    :item/work-done (concat (keep :item (:changes data)) (map :item (:gone data))
+                            (map :item (:absorbed data)) (map :id (:made data)))
+    :person/acted-on (concat (:with data) (map :item (:moved data)) (keep :item (:changes data)))
+    :items/stewarded (concat (keep :item (:changes data)) (map :item (:gone data)) (map :item (:absorbed data)))
+    []))
+
+(defn item-history
+  "At most `n` narrated lines of what was done to the thing `id` after the
+  world began, whoever saw it."
+  [world events id n]
+  (->> events
+       (filter #(and (pos? (or (:round %) 0)) (some #{id} (event-items %))))
+       (take-last n)
+       (prompt/narrated-lines world)
+       vec))
+
+(defn- where
+  "Where the thing `it` is, as `actor` would put it: here (in what), carried
+  by them or by someone here or elsewhere, or lying elsewhere."
+  [world actor it]
+  (let [place (space/location-of world actor)
+        o (items/outermost world it)
+        loc-name #(:name (space/location world %) %)
+        within (when (not= (:id o) (:id it)) (str ", in the " (:name (items/item world (:in it)))))]
+    (cond
+      (= actor (:holder o)) (str "carried by you" within)
+      (:holder o) (str "carried by " (:name (w/agent world (:holder o)) (:holder o))
+                       (if (space/together? world actor (:holder o)) ", here"
+                           (if-let [p (space/location-of world (:holder o))] (str ", elsewhere, in the " (loc-name p)) ", elsewhere"))
+                       within)
+      (= place (:place o)) (str "here" within)
+      :else (str "elsewhere, in the " (loc-name (:place o)) within))))
+
+(defn inspect-view
+  "What `inspect` tells the finder of each listed candidate in `ids`: its
+  name, the start of its description, aspects, owner, where it is now and
+  its recent history, whoever saw it."
+  [world events actor ids]
+  (vec (for [id (distinct ids)
+             :let [it (items/item world id)]]
+         (cond-> {:id id :name (:name it)
+                  :desc (let [d (str (:desc it))] (if (> (count d) inspect-desc) (str (subs d 0 inspect-desc) "…") d))
+                  :where (where world actor it)
+                  :history (item-history world events id inspect-lines)}
+           (seq (:aspects it)) (assoc :aspects (:aspects it))
+           (:owner it) (assoc :owner (:name (w/agent world (:owner it)) (:owner it)))))))
+
+(defn- inspect-lookup
+  "The finder's `inspect` tool: checked ids from `candidates`, answered by
+  `inspect-view`."
+  [world events actor candidates raw]
+  (let [{:keys [args error]} (a/decode-args {:args inspect-schema} raw)
+        unknown (remove (set (map :id candidates)) (:ids args))]
+    (cond
+      error {:error error}
+      (seq unknown) {:error (str "inspect only listed candidates, not " (str/join ", " unknown))}
+      :else {:reply (json/write-value-as-string (inspect-view world events actor (:ids args)) item-judge/pretty)})))
+
 (defn finder-request
   "The searcher's own context and recent lines, the place's history, the
-  things here with their aspects, serving stores and identity-only
-  candidates reach the oracle. A searcher who can't see
+  things here with their aspects, serving stores and candidates by id and
+  name reach the oracle. It may first `inspect` some candidates once (see
+  `inspect-view`), then answers with `finder`. A searcher who can't see
   (manor.mechanics.physical) is marked so under :sight. `config`, the
   scenario's :items, may add the searcher's order books and pending orders
   (:orders, a map of keys, see deliveries/judge-orders) and a brief to the
@@ -186,7 +267,11 @@
                                                         (items/stores-for world place))
                                           :what what :candidates candidates} item-judge/pretty)}]
       :tools [{:type "function" :function {:name "finder" :description (prompts/render world "judges/tools/finder.md" {})
-                                           :parameters (mjs/transform finder-schema)}}]
+                                           :parameters (mjs/transform finder-schema)}}
+              {:type "function" :function {:name "inspect" :description (prompts/render world "judges/tools/inspect.md" {:max-inspect max-inspect})
+                                           :parameters (mjs/transform inspect-schema)}}]
+      :lookups {"inspect" #(inspect-lookup world events actor candidates %)}
+      :max-lookups 1
       :ctx {:world world :place place :what what}
       :check #(finder-check world actor place candidates %)})))
 

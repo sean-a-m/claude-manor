@@ -1242,8 +1242,16 @@ and its replies by fate kept things that were only aspects from ever being found
    person's notes or persona is supplied.
    It also sees `candidates` from the world's tracked, non-fixed, non-store items: every one
    here (including inside closed containers and carried by people here), then the 60 most
-   recently touched (id breaks ties), **id and name only**, never locations, holders, owners or
-   aspects. Notes and recent lines help identify what the searcher means, not prove its
+   recently touched (id breaks ties), id and name only. Before answering, the oracle may call
+   `inspect {ids}` once, with up to 8 listed candidates (`find/max-inspect`): the reply gives
+   each one's name, the first 200 characters of its description, aspects, owner, where it is
+   now ("here", "here, in the Cupboard", "carried by you", "carried by Ben, here", "carried by
+   Ben, elsewhere, in the Bedroom", "elsewhere, in the Morning room") and its last 5 narrated item events
+   after the world began, whoever saw them (`find/inspect-view`). An unlisted id is an error
+   sent back for correction. The inspect call doesn't spend a correction attempt; a second
+   one, or one beside the `finder` answer, is ignored (`judges/ask-structured!` `:lookups`).
+   The oracle may use all of this to judge whether the thing is here, carried, elsewhere or
+   should be rated as another one here; it must never reveal it. Notes and recent lines help identify what the searcher means, not prove its
    presence: belief does not make a thing be here. Presence is judged from the place, its
    history, listed contents and their aspects, stores and what the searcher can physically
    know. Recorded `:lacking` is authoritative.
@@ -1254,7 +1262,11 @@ and its replies by fate kept things that were only aspects from ever being found
    second copies: 1–8 ids (`items.find/max-existing`), with a bare string decoded as a one-id
    list. When a request covers several listed things ("the birds", "what I am carrying"),
    the prompt encourages all their ids rather than a new combined item; combining isn't
-   categorically forbidden. A different object that merely shares a name is not a match.
+   categorically forbidden. A different object that merely shares a name is not a match. For a
+   matching candidate elsewhere, the oracle decides whether the searcher means that very object
+   (`existing`, a miss) or, on the evidence, something else (another kind of thing, or another
+   such thing here; then it rates the odds as usual). A `found` item is never a listed
+   candidate.
    This list is for identification only and must never be mentioned. Only listed ids are
    accepted; an unknown or capped-out id anywhere in the list is refused and sent back for
    correction, within the usual four total attempts. Duplicate ids are reported once, in answer order. For each item here (lying,

@@ -1,0 +1,1 @@
+Look closer at up to {{max-inspect}} listed candidates the request might mean, before answering: each one's description, aspects, owner, where it is now and what was lately done to it, whoever saw it. You may call this once; then answer with `finder`.

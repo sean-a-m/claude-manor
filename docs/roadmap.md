@@ -725,6 +725,26 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
     witnessing others (a quarrel in the next room), are out of scope for now (B13's periodic
     reflection would be the natural place).
 
+### B19. Finding and recording inferred things (possible additions)
+
+- **Why:** `runs/claudeworth-medium-20261107-132710`. Mr Merrick's timed work in the pantry used
+  "the household book", which wasn't in the scene; the work judge accepted it as an inferred
+  everyday object but recorded nothing ("it doesn't seem to be listed, so I can't change it"), so
+  the copied plate tally lived only in narration, and later finds matched the only tracked
+  household book, carried off by Lord Claudeworth elsewhere. The finder's `inspect`
+  (`docs/find-context-design.md` phase 3) now lets it see that; these would go further.
+- **Work-judge rule (deferred by the user, 2026-11-07):** when an inferred everyday object comes
+  out of the work with something that matters later (entries written in it, things left in or
+  on it), promote it: a separate item if someone will carry, hand over or fetch it, otherwise an
+  aspect of the place or of a thing here. Needs a fourth `made` source in
+  `resources/prompts/judges/scene.md` (an existing object not yet recorded, as against a work
+  product, store stock or an aspect), and a paragraph saying when to use it; today the prompt
+  says inferred objects "need not have separate item records or be individually named in an
+  aspect".
+- **Finder candidate search:** a lookup tool (`ask-structured!` `:lookups`) that searches all
+  items by keywords the finder proposes, to build its candidate list instead of the 60 most
+  recently touched.
+
 ---
 
 ## C. Known issues and small fixes

@@ -126,7 +126,7 @@ must call.
 | `judges/inner-keys.md` | Fragment: the inner-state keys every person has, and how many more | `inner/key-instructions` | `open`, `keys` (the scenario's keys and glosses, one line each) |
 | `judges/steward.md` | The nightly steward | `items.steward/steward-instructions` | `advised-aspect` |
 | `judges/steward-inner.md` | The steward's lines on sleepers' inner state | `items.steward` | `advised-value`, `keys` |
-| `judges/finder.md` | The finder: identify one or several existing things, or rate the odds of finding something with `find` | `items.find/finder-instructions` | `advised-aspect`, `max-existing` |
+| `judges/finder.md` | The finder: inspect candidates, identify one or several existing things, or rate the odds of finding something with `find` | `items.find/finder-instructions` | `advised-aspect`, `max-existing` |
 | `judges/conversation-orders.md` | Added to the conversation judge's instructions where the scenario has order books: talk places no order | `conversation.judge/instructions` | |
 | `judges/finder-deliveries.md` | Added to the finder's instructions where a shop sends goods out: a pending order's goods are never found | `deliveries/finder-brief` (the items config's `:finder-brief`) | |
 | `judges/conversation.md` | The conversation judge: how a conversation left its members' inner state | `conversation.judge/instructions` | `advised-value`, `max-summary`, `keys` |
@@ -139,6 +139,7 @@ must call.
 | `judges/tools/steward.md` | The `steward` tool | `items.steward/steward-tool` | `inner` (`steward-inner.md` or `""`) |
 | `judges/tools/react.md` | The conversation judge's `react` tool | `conversation.judge/react-tool` | `advised-value`, `max-summary`, `relations` (as the judge's) |
 | `judges/tools/relations.md` | Fragment: the `relations` field, for the `judge` and `react` tools | `relations/tool-text` | |
+| `judges/tools/inspect.md` | The finder's `inspect` lookup: a closer look at some candidates before answering | `items.find/finder-request` | `max-inspect` |
 | `judges/tools/finder.md`, `seek.md`, `invitee.md`, `tradesperson.md`, `appraise.md` | The finder's, find-person's, invitation judge's, trade judge's and shop's tools | their request functions | |
 | `judges/tools/polish.md`, `appearance.md` | The persona writers' tools | `people/polish-request`, `people/appearance-request` | |
 

@@ -1202,10 +1202,11 @@ be `:fixed?` and cannot be `:consumable?`. It can also be a container of tracked
 container actions still work. `(items/store? it)` identifies stores; `(items/stores-for world
 place)` returns those at the place or serving it, in id order.
 
-Every turn, `:location :here :stores` lists `{:id :name :aspects}`, with `:at` naming the
-location id for stores elsewhere. Stores here are omitted from `here.items`. `look` also shows
-stores in scope with `:keeps`; local stores remain in its detailed items, including their
-container contents. Work may name a store in scope even when it is in another room.
+Every turn, `:location :here :stores` lists `{:id :name :aspects :keeps}`, with `:at` naming
+the location id for stores elsewhere. Stores here are omitted from `here.items`. `look` also shows
+stores in scope; local stores remain in its detailed items, including their container contents.
+`open` on a store shows its `:keeps` too. A store's stock isn't itemised, so where a store's
+`:contents` would be an empty list, agents see "Nothing else of note" instead. Work may name a store in scope even when it is in another room.
 
 #### Finding
 

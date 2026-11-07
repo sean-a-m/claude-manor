@@ -200,7 +200,7 @@
               {:role "user" :content (str "## The idle scene\n```json\n"
                                           (json/write-value-as-string
                                            {:place (select-keys (space/location world place) [:id :name :desc :aspects])
-                                            :stores (mapv #(assoc (items/store-view place %) :keeps (get-in % [:store :keeps]))
+                                            :stores (mapv #(items/store-view place %)
                                                           (items/stores-for world place))
                                             :candidates (candidates-json world candidates)
                                             :sleepers (mapv #(sleeper-json world inner-config %) sleepers)

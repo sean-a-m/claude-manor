@@ -200,8 +200,11 @@
                                             (some #{place} (get-in % [:store :serves])))))
     []))
 
-(defn store-view [place it]
-  (cond-> (select-keys it [:id :name :aspects])
+(defn store-view
+  "A store in scope of `place` as views show it: id, name, aspects and what
+  it keeps, with :at naming its location when that's elsewhere."
+  [place it]
+  (cond-> (assoc (select-keys it [:id :name :aspects]) :keeps (get-in it [:store :keeps]))
     (not= place (:place it)) (assoc :at (:place it))))
 
 (defn held-by [world agent-id] (items-where world #(= agent-id (:holder %))))

@@ -17,21 +17,35 @@
     (:fixed? it) (assoc :fixed? true)
     (items/store? it) (assoc :keeps (get-in it [:store :keeps]))))
 
+(def ^:private nothing-else
+  "What a store's empty :contents reads as: its stock is untracked, so an
+  empty list would read as an empty store."
+  "Nothing else of note")
+
+(defn- contents-seen
+  "What's inside container `it`, each shown by `seen`; for a store with
+  nothing separate inside, `nothing-else` instead of an empty list."
+  [world seen it]
+  (let [inside (mapv seen (items/contents world (:id it)))]
+    (if (and (empty? inside) (items/store? it)) nothing-else inside)))
+
 (defn- as-seen
   "`it` as `shape` shows it, and if it's a container, what can be seen of
   its inside: an open one's :contents, each shown the same way, or :closed."
   [world shape it]
   (case (:container it)
-    :open (assoc (shape it) :contents (mapv #(as-seen world shape %) (items/contents world (:id it))))
+    :open (assoc (shape it) :contents (contents-seen world #(as-seen world shape %) it))
     :closed (assoc (shape it) :closed true)
     (shape it)))
 
 (defn opened
-  "What `open` shows of a container: its name and aspects, and its contents
-  in detail, inner containers as the room would see them."
+  "What `open` shows of a container: its name and aspects, what it keeps if
+  it's a store, and its contents in detail, inner containers as the room
+  would see them."
   [world box]
-  (merge (select-keys box [:name :aspects])
-         {:contents (mapv #(as-seen world (partial look-item world) %) (items/contents world (:id box)))}))
+  (cond-> (select-keys box [:name :aspects])
+    (items/store? box) (assoc :keeps (get-in box [:store :keeps]))
+    true (assoc :contents (contents-seen world #(as-seen world (partial look-item world) %) box))))
 
 (defn- look-person [world id]
   (let [a (w/agent world id)
@@ -53,7 +67,7 @@
         people (sort (into (disj (space/present world here) actor) (physical/dead-at world here)))]
     (cond-> {:place (select-keys loc [:name :aspects :detail])}
       (seq lying) (assoc :items (mapv #(as-seen world (partial look-item world) %) lying))
-      (seq stores) (assoc :stores (mapv #(assoc (items/store-view here %) :keeps (get-in % [:store :keeps])) stores))
+      (seq stores) (assoc :stores (mapv #(items/store-view here %) stores))
       (seq people) (assoc :people (mapv #(look-person world %) people)))))
 
 (defn- carrying-names [world id] (mapv :name (items/by-name (items/held-by world id))))

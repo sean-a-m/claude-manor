@@ -1,1 +1,1 @@
-Open a container here (use its id) to see what's in it, in detail. Containers marked `closed` in your view show their contents only this way.
+Open a container here (use its id) to see what's in it, in detail. Containers marked `closed` in your view show their contents only this way. A store's `contents` lists notable or unique items in addition to what can be inferred through what it `keeps` and what its `stock` and `lacking` aspects might say.

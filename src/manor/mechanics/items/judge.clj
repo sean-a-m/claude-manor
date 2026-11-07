@@ -177,7 +177,7 @@
                      (seq carried) (assoc :carried (judged-json carried)))
         scene-json (assoc scene-json
                           :also_here (judged-json also-here)
-                          :stores (mapv #(assoc (items/store-view (:place job) %) :keeps (get-in % [:store :keeps])) stores)
+                          :stores (mapv #(items/store-view (:place job) %) stores)
                           :people (people-json world inner-config relations-config people) :recent (vec (take-last 10 recent)))
         orders (when-let [f (get-in scenario [:items :orders])] (f world (:actor job)))
         scene-json (cond-> scene-json

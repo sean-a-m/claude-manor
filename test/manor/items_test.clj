@@ -878,9 +878,10 @@
     (is (not (items/store? (items/item world "clock"))))
     (is (= [(assoc pantry :touched 0)] (items/stores-for world "hall") (items/stores-for world "shop")))
     (is (empty? (items/stores-for world "porch")))
-    (is (= [{:id "pantry" :name "Pantry shelves" :aspects {:stock "well stocked"} :at "shop"}]
+    (is (= [{:id "pantry" :name "Pantry shelves" :aspects {:stock "well stocked"}
+             :keeps "dry goods and preserves" :at "shop"}]
            (:stores (view world))))
-    (is (= [{:id "pantry" :name "Pantry shelves" :aspects {:stock "well stocked"}}]
+    (is (= [{:id "pantry" :name "Pantry shelves" :aspects {:stock "well stocked"} :keeps "dry goods and preserves"}]
            (:stores (view (at world "ben" "shop")))))
     (is (= ["basket"] (map :id (:items (view (at world "ben" "shop"))))))
     (is (= "dry goods and preserves" (:keeps (first (:stores (item-views/look world "ben"))))))
@@ -888,7 +889,10 @@
            (:keeps (first (filter #(= "pantry" (:id %)) (:items (item-views/look (at world "ben" "shop") "ben")))))))
     (is (nil? (a/check (action run :work-on) world "ben" {:items ["pantry"] :doing "taking stock"})))
     (is (= [(assoc pantry :touched 0)] (items/in-reach world {:items ["pantry"] :place "hall" :actor "ben"})))
-    (is (= {:name "Pantry shelves" :aspects {:stock "well stocked"} :contents []} (item-views/opened world pantry)))
+    (is (= {:name "Pantry shelves" :aspects {:stock "well stocked"} :keeps "dry goods and preserves"
+            :contents "Nothing else of note"}
+           (item-views/opened world pantry))
+        "an opened store shows what it keeps, and no empty list that reads as an empty store")
     (e/stop-run run)))
 
 (deftest store-checks-and-export

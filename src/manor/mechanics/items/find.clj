@@ -182,7 +182,7 @@
                                           :place (select-keys (space/location world place) [:id :name :desc :aspects])
                                           :history (place-history world events place history-lines)
                                           :here (mapv #(select-keys % [:id :name :aspects]) here)
-                                          :stores (mapv #(assoc (items/store-view place %) :keeps (get-in % [:store :keeps]))
+                                          :stores (mapv #(items/store-view place %)
                                                         (items/stores-for world place))
                                           :what what :candidates candidates} item-judge/pretty)}]
       :tools [{:type "function" :function {:name "finder" :description (prompts/render world "judges/tools/finder.md" {})

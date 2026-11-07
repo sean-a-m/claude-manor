@@ -1,179 +1,217 @@
-# Changing posts: promotion, reassignment, dismissal and resignation
+# Changing posts: reassignment and dismissal
 
-Status: **draft for discussion**, nothing built. Open questions are in section 7.
+Status: **draft, revised with the user's first answers** (section 8). Nothing built. Open
+questions are in section 9.
 
 ## 1. What exists now
 
 - A person's job is their `:role` (a position id) plus their post in `[:state :posts id]`
-  (`{:position :household :since :terms :conditions :employer}`). The one event that changes
-  both is `:people/post-changed` (`manor.mechanics.positions/post-changed`).
-- Three things emit it today:
-  - starting a run (`starting-events`),
-  - hiring: `engage` (an offer) and then `accept-place` (the candidate accepts). Anyone may
-    offer, but only to an unengaged candidate who is present (people-and-hiring decision 5:
-    "Anyone may hire. The agents decide whether that's proper"),
-  - the operator's `change-post!` (engine.clj, `dev/user.clj`), and deliveries, for a
-    courier's post.
-- **No agent can change an existing person's post.** People-and-hiring decision 14 says each
-  person keeps their position "for now", and that holding or moving between positions needs "a
-  way to take up and give up official positions". Dismissal is deferred (section 6.5 of that
-  doc sketches it as `post-changed` to `:none` plus `:people/departed`).
-- **There is no hierarchy in the data.** Who answers to whom is only in the prose of each
-  `:about`:
-  - england-1904: footman → butler (or the master); head housemaid → housekeeper (or the lady);
-    butler → master; housekeeper, governess → lady; tutor → master; constable → his sergeant
-    (off-map). Village tradespeople answer to no one in the house.
-  - qing-palace: eunuch → chief eunuch; chief eunuch → his consort; consort → the Empress and
-    Emperor (off-map); a noble lady owes the consort deference.
-  - Standings (`:family`, `:upper-servant`, `:servant`, `:outdoor`, `:tradesman`, … and in the
-    palace `:consort`, `:eunuch`, `:palace-maid`, `:merchant`) give a coarse ladder but no
-    "who directs whom".
-- What follows a role automatically once it changes: the brief's `:about`, the title and form of
-  address, capabilities (and so tools with `:needs`, e.g. `:shop-clerk`, `:architect`), the
-  trades judge's workplaces, and the "positions someone holds" list in the GM's view. What
-  **doesn't** follow: bedroom, routine, `:situation` text, the persona and inner state, the
-  mock policy's per-role script, and any scenario `:roles` brief keyed by role.
+  (`{:position :household :since :terms :conditions :employer}`). One event changes both:
+  `:people/post-changed` (`manor.mechanics.positions/post-changed`).
+- It's emitted at the start of a run, by hiring's `accept-place`, by deliveries (a courier's
+  post) and by the operator's `change-post!`. **No agent can change an existing person's post.**
+- **There's no hierarchy in the data.** Who answers to whom is only in each position's `:about`
+  prose ("You answer to the housekeeper, or to the lady of the house where there is none"). It
+  stays that way: this design adds none.
+- Once a role changes, these follow it automatically: the brief's `:about`, the title and form
+  of address, capabilities (and so tools with `:needs`), the trades judge's workplaces. The
+  bedroom, routine, `:situation`, persona and inner state don't follow it.
+- Actions can already be gated by a model: an action's `:admission` names an adjudicator that
+  answers `{:allowed true}` or `{:allowed false :reason ...}` before any effect
+  (`engine/resolve.clj` `prepare-action`; the spend-time activity check,
+  `mechanics/items/activity_check.clj`, is the one user). The post check reuses that hook.
 
-## 2. Goals
+## 2. Goals and non-goals
 
-1. A character with the authority can move someone in the household to another post (promotion,
-   demotion, reassignment), and can dismiss them.
-2. A character can give notice (resign) on their own account.
-3. By default, people with no authority, such as a village shopkeeper, can't change anyone's
-   post, their own included, apart from resigning, which is open question Q6.
-4. The change is engine-owned (one `post-changed`), validated in code by **structure only**:
-   ids, positions in the catalogue, the authority relation. Whether a change is wise or proper
-   is left to the agents, as with hiring.
+- A designated appointer can move anyone to another post, with immediate effect, from
+  anywhere, and can dismiss them.
+- Who may appoint is a **capability on positions**, not a hierarchy. An appointer who makes an
+  odd appointment (the cook made housekeeper by the hall boy's say-so) causes a social problem
+  for the agents to deal with, like a servant spending the household account. It isn't a
+  constraint.
+- **A light judge** stops only the absurd: the butler dismissing the lord, a housemaid
+  "appointing" the earl as scullery maid. It works for any positions, including the ones agents
+  may define later, without each scenario writing out a hierarchy.
+- Not now: resignation, a hierarchy, agents creating positions, several posts per person,
+  appointers outside the household (the publican and his barmaid, Q11 in section 8).
 
-## 3. Authority: two models
+## 3. Who may appoint: the `:appoints` capability
 
-### 3a. Designated appointers (recommended to start)
+A position with `:capabilities #{:appoints}` gets the tools; no one else sees them (the existing
+`:needs` mechanism). That includes the "lower" roles that, by their `:about`, direct someone:
 
-A position may carry the capability `:appoints` (capabilities already exist and drive tool
-availability through `:needs`). Only holders of it get the tools. An appointer may change the
-post of anyone **in their own household** (`positions/household-member?`), except themselves
-and except other appointers. The new position must be one of the pack's household standings
-(`household-standing?`).
+| Pack / world | Positions with `:appoints` |
+|---|---|
+| england-1904 catalogue | `:earl` `:countess` `:mistress` `:butler` `:housekeeper` `:head-housemaid` `:cook` `:head-gardener` `:coachman` |
+| claudeworth-medium `:roles` | `:baron` `:baroness` `:butler-valet` (its own entries, which don't inherit the catalogue's) |
+| qing-palace catalogue | `:consort` `:chief-eunuch` |
 
-- england-1904: `:earl`, `:countess`, `:mistress`; in claudeworth-medium `:baron`, `:baroness`
-  (world `:roles` overrides). Possibly `:butler` and `:housekeeper` (Q2).
-- qing-palace: `:consort`, possibly `:chief-eunuch` (Q2).
-- Shopkeepers, publicans, villagers, guests, candidates and children don't have it, so they
-  never see the tools.
+Notes:
 
-It's cheap: one capability, one membership check, no graph. It also matches how the household
-actually works in 1904: the master and mistress engage and dismiss, and the upper servants
-recommend.
+- `:cook` because the kitchen and scullery maids assist her, `:coachman` for the grooms under
+  him, `:head-gardener` for the garden lad. `:cook-general` (Lodge) has nobody under her, so no.
+- Not `:secretary` or `:tutor` (they direct no one), not `:son-` or `:daughter-of-the-house`,
+  not `:noble-lady`. These are judgement calls (Q1).
+- A world file adds or removes it per position by overriding `:capabilities` in `:roles`, as
+  for anything else. Note that `merge` replaces the whole set, so a world adding `:appoints` to
+  a shop position has to restate `:shop-clerk` (scenario-authoring should say so).
+- Code doesn't check *whom* an appointer moves beyond structure. The judge does the rest.
 
-### 3b. Hierarchy (later, or as well)
+## 4. Actions
 
-Positions get an optional `:answers-to`, an **ordered** vector of position ids, the first one
-held by someone being the effective superior. That is the same fallback the prose already uses:
+### `appoint` (appointers) — reassignment, immediate
 
-```clojure
-:footman {... :answers-to [:butler :earl]}
-:head-housemaid {... :answers-to [:housekeeper :countess]}
-:butler {... :answers-to [:earl]}
-:eunuch {... :answers-to [:chief-eunuch :consort]}
+`appoint {who position reason? terms?}`, kind `:final`, `:roles :all`, `:needs :appoints`,
+`:admission :people/post-check`.
+
+Code checks (structure only):
+
+- `who` is an active participant, not the GM, **not the actor** (no self-appointment, which
+  keeps resignation out too: Q2),
+- `position` is in the run's positions and isn't `:gm`, `:guest`, `:tradesman` or `:none`
+  (`hiring/not-a-post-reason` already covers these; dismissal has its own tool),
+- `who` doesn't already hold `position`,
+- `terms`, `reason` are bounded text.
+
+Effect: one `post-changed` with `:employer actor`, the household of `who`'s present post (or
+the actor's if `who` has none), visible to **both** of them. And an `:agent/updated` that
+replaces `who`'s `:situation` with one engine line ("Lady Claudeworth has made you head
+housemaid: …terms"), as `accept-place` does now. Nobody needs to be present.
+
+### `dismiss` (appointers)
+
+`dismiss {who reason?}`, kind `:final`, `:needs :appoints`, `:admission :people/post-check`.
+Same checks on `who`; `who` must hold some post other than `:none`.
+
+Effect: `post-changed` to `:none`, household nil, `:employer actor`, visible to both, plus the
+`:situation` line. What else dismissal does is Q3/Q4 below.
+
+### The GM's `change-post` (for debugging and story events)
+
+`change-post {who position household? terms?}`, `:roles #{:gm}`, no judge: the operator's
+`change-post!` as a tool, and `:none` allowed. Visible to `who` (and nobody else, as the
+operator's).
+
+### No `give-notice`
+
+Self-resignation is out for now (user's answer 6). The GM or operator can do it.
+
+## 5. The post check (judge)
+
+A new adjudicator `:people/post-check`, built like `activity-check`: one narrow call on the
+run's `:judge-model`, one tool `check-post` answering `{:allowed bool :reason?}`, a reason
+required when refused, checked by `adjudication/answer`. Mock: always allowed (tests supply
+refusals). Failure: a neutral reply, nothing changed.
+
+**What it sees** (no private state: no persona, inner state, relations, history):
+
+```json
+{"action": "dismiss" | "appoint",
+ "by": {"name": "...", "post": "Butler", "about": "...", "household": "household"},
+ "who": {"name": "...", "post": "Earl", "about": "...", "household": "household"},
+ "to": {"post": "Head housemaid", "about": "..."},
+ "reason": "the appointer's own words, if any",
+ "setting": "the pack's one-line setting"}
 ```
 
-"Above" is the transitive closure over the posts actually held in the run. Anyone above someone
-may change that person's post, to a position that is also below them, so no one can appoint a
-peer or a superior. Positions with no `:answers-to` and no one below them (shopkeepers) get
-nothing. A world file can override it per entry like any other field. Checks at load:
-the ids exist and there's no cycle.
+**Its standard** (prompt `resources/prompts/judges/post-check.md`): permissive. Allow
+anything a person in the appointer's place could plausibly do, even if improper, unwise,
+unkind or against custom: those are the characters' business. Refuse only what is absurd or
+impossible in the setting: a servant dismissing or reassigning their master or mistress, someone
+appointing a person outside any power they could have (the cook dismissing the vicar), or a
+post the person plainly can't hold (a child of eight made coachman is borderline; the earl made
+scullery maid by the footman is not). Appointers may change each other (the earl may move the
+butler, and the countess the housekeeper); the judge decides whether this pair makes sense. The
+reason it gives goes back to the appointer as the rejection.
 
-Costs: authoring `:answers-to` for about 60 england-1904 positions, which then duplicates the
-`:about` prose (it could drift; the `:about` text could be rendered from it, Q3), and more
-cases to explain to models ("you may move Rose but not Mrs Thorne").
+As with the activity check, the proposal is data, not instructions, and code never reads its
+prose.
 
-Possible middle ground: 3a decides **who may appoint at all**, and 3b, if present, narrows
-**whom** (a butler with `:appoints` could only move people below him).
+## 6. Getting it into others' contexts
 
-## 4. Actions (sketch)
+- Both parties see the `post-changed` event among their recent events at their next turn,
+  wherever they are, narrated "X now holds the post of …, on these terms: …". A line
+  "appointed by Y" is added to the narration when `:employer` is set.
+- The appointee's `:situation` is replaced, so the change stays in their prompt after the event
+  scrolls out of their recent history.
+- The appointee's view shows their post (`:hiring :posts`, already there). The appointer's view
+  shows posts where they're the `:employer` (already there), so they remember whom they've
+  appointed.
+- Nobody else is told (user's answer 9). Others learn by talk.
+- A hibernating or sleeping appointee sees it when they next take a turn. If being appointed
+  should wake a hibernated person, that's Q6.
 
-All are `:roles :all` with `:needs :appoints` unless noted, structure-checked in `:valid?` with
-actionable reasons.
+## 7. What else changes
 
-| Action | Args | Kind | Effect |
-|---|---|---|---|
-| `reassign` | `who position terms? bedroom?` | final | An **offer**, as `engage` is: `:people/offered` with `:employer actor`. The person answers with the existing `accept-place` / `decline-place`. |
-| `dismiss` | `who reason?` | final | `post-changed` to `:none`, household nil. Leaving the house is a separate question (Q5). |
-| `give-notice` | `reason?` | final | Anyone holding a household post; no `:needs`. `post-changed` to `:none`, or a notice period (Q6). |
+- **Routine:** left alone. Only village people (shopkeepers, the constable and so on) have
+  routines, and none of them hold `:appoints` or would be appointed in practice.
+- **Bedroom:** unchanged on `appoint`. On `dismiss`, see Q3.
+- **Hiring:** unchanged. `engage` stays open to anyone, by people-and-hiring decision 5. Should
+  it now need `:appoints`? That's Q5.
+- **Mock policy:** a scripted `appoint` and `dismiss` in a test fixture, not in the mock day.
+- **Docs:** `docs/scenario-authoring.md` (the `:appoints` capability, the `merge` note), the tool
+  docs in `resources/prompts/docs/people/`, the judge prompt, `docs/prompts.md`.
 
-Why an offer for `reassign`: it reuses hiring's offer/accept machinery and decision 6
-(conditions, haggling), and a demotion the person refuses becomes a story (they give notice, or
-they're dismissed) instead of an engine fiat. The alternative is an immediate change (Q4).
+Phases: (1) capability, `appoint`, `dismiss`, the judge, the GM tool, tests (mock, replay,
+the judge's refusal through a test verdict). (2) Whatever Q3–Q6 decide. A short real run of the
+judge on a few deliberately odd appointments, with your go-ahead.
 
-Validation (code, structure only):
+## 8. The user's answers (2026-11-07)
 
-- `who` is active, not the GM, not the actor, in the actor's household, and doesn't hold
-  `:appoints` (or, under 3b, is below the actor),
-- `position` exists, isn't `:gm`, `:guest`, `:tradesman` or `:none` (dismissal is its own
-  tool), and has a household standing (under 3b, is below the actor),
-- the two are together, as for `engage` (or Q7: by letter or message),
-- `bedroom`, if given, is a home-area location (as `engage-reason`).
+1–2. No hierarchy: designated appointers, including lower roles that direct someone.
+Inappropriate appointments are a social problem, not a constraint.
+3. Not applicable.
+4. Changes take effect at once.
+5. No notice period (the bedroom question is Q3 below).
+6. No self-resignation for now. Dismissals, and appointments, go through a light judge.
+7. Anywhere, for now; the change must reach the other agent's context.
+8. Routines: ignore.
+9. Only the two people hear of it.
+10. A GM tool, yes.
+11. Not now (the explanation is below).
+12. Appointers may change each other, subject to the judge: slightly inappropriate goes ahead,
+    absurd is refused.
 
-`accept-place` today assumes a candidate (`for-agent`, `:status :engaged`, the situation text
-"You have taken the … place"). It gets a second branch for an existing member: no pool record
-change, and a situation line that says the post changed.
+**On 11, why the draft tied it to households.** The publican doesn't *need* a household. In the
+first draft, code limited an appointer to people in their own household because, with no
+hierarchy and no judge, that was the only boundary available. Without it, a publican with
+`:appoints` could have reassigned the manor's housemaids. Now that the judge decides whom an
+appointer may move, that check isn't needed: giving `:publican` the `:appoints` capability is
+all it would take, and the judge would refuse him the manor's servants. What remains is minor.
+A dismissed barmaid goes to `:none` with household nil, which she already has. "Their
+employer" for the judge comes only from the `:about` prose ("you work for the publican" in the
+barmaid's), which is enough for a loose judge. So 11 is a one-line change, left out for now
+as you said.
 
-## 5. What else changes with the post
+## 9. Open questions
 
-- **Routine:** an old routine describes the old job, and hibernation leans on routines. Clear it
-  on a change (`routine-set id []`) and let the person or the GM set a new one, or keep it until
-  replaced (Q8).
-- **Bedroom:** unchanged unless `bedroom` is given. Dismissal: keep, or clear (Q5).
-- **Situation:** replaced by one engine line naming the new post and who appointed them, as
-  `accept` does now.
-- **Persona and inner state:** untouched; the work and conversation judges may react.
-- **Scenario `:roles` briefs** keyed by role, and the mock policy keyed by role: these follow the
-  role automatically; the mock gets a scripted `reassign` for one test.
-- **Tools:** refreshed between steps already, so a new capability (e.g. made shop clerk) shows
-  at once.
+- **Q1. The appointer list** in section 3: right as it stands? In particular `:cook`,
+  `:coachman`, `:head-gardener` (each directs one or two people), and whether `:secretary`
+  should act for the earl.
+- **Q2. Self-appointment** is refused in code (actor ≠ who), which also rules out resigning by
+  "appointing" oneself to `:none`. Is that right, or should the judge decide (e.g. the countess
+  taking over the housekeeping herself)?
+- **Q3. "Clearing the bedroom"**, which you asked about. Each person's bed is in
+  `[:state :bedrooms id]`. It decides where `sleep` lets them sleep ("go to a bedroom first;
+  yours is …"), and it lists them as that room's sleeper in the household's bedroom view.
+  Clearing it means a dismissed maid no longer has the maids' room as hers. She could still
+  sleep in any bedroom, as anyone can, but she'd no longer be shown as sleeping there, and the
+  bed would show as free for a new hire. So: clear the bedroom on dismissal, or leave it as a
+  social matter (she stays in her room until someone makes her go)?
+- **Q4. Does a dismissed person leave?** With the post at `:none` they're still an active agent
+  in the house, and they lose household membership (the household's books and bedroom view). The
+  options:
+  - (a) they stay until they choose to go, and get hiring's `take-leave` (today only for
+    candidates) so they can;
+  - (b) they leave at once, like a candidate sent away (`:people/departed`, away and
+    revivable);
+  - (c) they leave after the candidates' 24-hour grace, which isn't a notice period, just a
+    timeout.
 
-Visibility: the `post-changed` and the offer are seen by the two parties (as hiring now). Others
-learn by conversation, or (Q9) by an event visible to everyone present, or to the household.
-
-GM: a GM tool `change-post` mirroring the operator's, for story events (a will, a royal
-decree), is cheap and fits "GM hands-off", but it's optional (Q10).
-
-## 6. Phases
-
-1. `:appoints` capability on the family positions in both packs and the medium world; `reassign`
-   (offer) with `accept-place` extended; `dismiss` to `:none`; tests (mock, replay); rules and
-   tool docs in `resources/prompts/`; `docs/prompts.md` and `docs/scenario-authoring.md`.
-2. `give-notice`; routine/bedroom handling decided in Q5 and Q8.
-3. Optional: `:answers-to` hierarchy (3b), with load checks.
-4. Later, from decision 14: several posts per person.
-
-## 7. Open questions
-
-- **Q1. Model:** designated appointers only (3a), a hierarchy (3b), or 3a now with 3b
-  narrowing later? The draft recommends 3a.
-- **Q2. Who is designated:** only the family (earl/countess/baron/baroness/mistress; consort),
-  or also the butler, housekeeper and chief eunuch over "their" servants? If yes, that is
-  effectively 3b and needs `:answers-to`.
-- **Q3.** Under 3b, should `:about` prose stay hand-written (could contradict `:answers-to`) or
-  be rendered from it?
-- **Q4. Offer or decree:** does `reassign` need the person's acceptance (draft), or does it
-  take effect at once? Promotion by offer is natural; demotion by offer means a refused demotion
-  leaves them in place.
-- **Q5. Dismissal's consequences:** only the post (`:none`, still in the house and the bed)?
-  Or also `:people/departed` (away, as people-and-hiring 6.5 sketches), at once or after a
-  notice period, with their bedroom cleared?
-- **Q6. Resignation:** may anyone give notice, including shopkeepers leaving their own shop
-  (which would remove `:shop-clerk` and break their shop)? Draft: only household members; the
-  village has no tools at all.
-- **Q7. Presence:** must the appointer and the person be together, as for hiring, or may it be
-  done by letter or message (the butler told to pass it on)?
-- **Q8. Routine:** clear it on a change, or keep the old one until someone sets a new one?
-  Should agents get a way to set routines at all (none today, beyond the world file and
-  the operator)?
-- **Q9. Who hears of it:** only the two parties, everyone present, or the whole household
-  (servants' gossip as an engine event)?
-- **Q10.** A GM tool for post changes, or leave that to the operator?
-- **Q11. Outside the household:** should a publican be able to take on or dismiss his barmaid?
-  That would need per-shop households (barmaids hold `household nil` today). Draft: no, for now.
-- **Q12.** Should appointers be able to change each other (the earl moving the countess)? Draft:
-  no; the family's own positions are out of scope.
+  The draft leans to (a), plus `take-leave`.
+- **Q5. Hiring:** should `engage` (offering a candidate a place) also need `:appoints`, now that
+  the capability exists? At the moment anyone may hire.
+- **Q6. Hibernated appointees:** should a post change wake someone who's hibernating, or wait
+  for them?
+- **Q7. Judge model:** the run's `:judge-model`, as the other judges use (a flash model)? It's
+  one call per appointment or dismissal, so it's cheap either way.

@@ -167,7 +167,7 @@ refusals). Failure: a neutral reply, nothing changed.
  "who": {"name": "...", "post": "Earl", "about": "...", "household": "household"},
  "to": {"post": "Head housemaid", "about": "..."},
  "reason": "the appointer's own words, if any",
- "setting": "the pack's one-line setting"}
+ "setting": "the world file's :meta :setting paragraph ([:state :setting]), as the shop appraiser gets it"}
 ```
 
 **Its standard** (prompt `resources/prompts/judges/post-check.md`): permissive. Allow

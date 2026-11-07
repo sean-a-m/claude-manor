@@ -149,7 +149,7 @@
       (testing "each brief gives the position, its duties, the setting and the rules"
         (let [earl (system-prompt run world "lord-claudeworth")
               hale (system-prompt run world "hale")]
-          (is (str/includes? earl "## Your role\nYour position: Earl. You live in.\nYou are a peer and the master of the house."))
+          (is (str/includes? earl "## Your role\nYour position: Earl. You live in. You can appoint people to posts, dismiss them and assign their bedrooms.\nYou are a peer and the master of the house."))
           (is (str/includes? hale "Your position: Private secretary. You live in. You work at: Study (study)."))
           (is (str/includes? earl (get-in world [:state :setting])))
           (is (str/includes? earl "Each turn is half an hour of game time"))))

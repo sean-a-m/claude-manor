@@ -159,9 +159,11 @@
            employer (assoc :employer employer))})
 
 (defn bedroom-assigned
-  "Event: `id` sleeps in `bedroom` (a location id), or in none if nil."
-  [id bedroom]
-  {:type :people/bedroom-assigned :data {:id id :bedroom bedroom}})
+  "Event: `id` sleeps in `bedroom` (a location id), or in none if nil. With
+  `by`, someone gave it to them (manor.mechanics.appointments)."
+  ([id bedroom] (bedroom-assigned id bedroom nil))
+  ([id bedroom by]
+   {:type :people/bedroom-assigned :data (cond-> {:id id :bedroom bedroom} by (assoc :by by))}))
 
 (defn routine-set
   "Event: `id`'s routine is `routine` ([{:from \"09:00\" :at loc :doing ..}],
@@ -207,13 +209,19 @@
         (seq routine) (conj (routine-set id routine))))))
 
 (defmethod n/describe :people/post-changed [{:keys [data]} names]
-  (str (n/who names (:id data)) " now holds the post of " (or (:title data) (name (:position data)))
-       (when (:terms data) (str ", on these terms: " (:terms data))) "."))
+  (let [{:keys [id position title terms employer]} data]
+    (if (and (= :none position) employer)
+      (str (n/who names id) " no longer holds a post: dismissed by " (n/who names employer) ".")
+      (str (n/who names id) " now holds the post of " (or title (name position))
+           (when terms (str ", on these terms: " terms))
+           (when employer (str "; appointed by " (n/who names employer))) "."))))
 
 (defmethod n/describe :people/bedroom-assigned [{:keys [data]} names]
-  (if (:bedroom data)
-    (str (n/who names (:id data)) " sleeps in the " (n/place names (:bedroom data)) ".")
-    (str (n/who names (:id data)) " has no bedroom.")))
+  (let [{:keys [id bedroom by]} data]
+    (cond (and bedroom by (= by id)) (str (n/who names id) " has taken the " (n/place names bedroom) " to sleep in.")
+          (and bedroom by) (str (n/who names by) " has given " (n/who names id) " the " (n/place names bedroom) " to sleep in.")
+          bedroom (str (n/who names id) " sleeps in the " (n/place names bedroom) ".")
+          :else (str (n/who names id) " has no bedroom."))))
 
 (defmethod n/describe :people/routine-set [{:keys [data]} names]
   (str (n/who names (:id data)) "'s routine: "

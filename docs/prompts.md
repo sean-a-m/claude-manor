@@ -63,6 +63,7 @@ the rules of individual mechanics that it joins in.
 | `rules/sections/shopping.md` | Money and shopping | ″ | `paid` (`shopping-paid[-commissions].md`), `spending-tools` (`shopping-spending-tools[-commissions].md`), `money` (the pack's `money.md`), `order-book` (`shopping-order-book.md` where the world has shops, else empty) |
 | `rules/sections/shopping-order-book.md` | The order books: what `household.orders` and `shop-orders` show | `ruleset.rules/order-book` | |
 | `rules/sections/building.md` | Building, only with an architect | ″ | `sizes`, `fee-percent` |
+| `rules/sections/posts.md` | A post already held changes only by appointment (hiring still takes on newcomers), and whom to ask; only when some position in the run has `:appoints` | ″ | |
 | `rules/sections/hiring.md` | Hiring | ″ | `hiring` (`rules/hiring.md`) |
 | `rules/sections/invitations.md` | Invitations, only with visits | ″ | `visits` (`rules/visits.md`) |
 | `rules/sections/trades.md` | Tradespeople, only with visits | `trades/rules` | `lead-hours`, `idle-hours` |
@@ -95,13 +96,15 @@ for the action's kind and its per-turn limit (`docs/hints/`).
 | `docs/items/act-on.md` | Doing something to people at once | `items.actions/act-on` | `max-act-on`, `max-act-with`, `advised-doing` |
 | `docs/items/find.md`, `look.md`, `take.md`, `open.md`, `put-in.md`, `put-down.md`, `give.md` | The item actions | `items.actions/actions` | |
 | `docs/find-person.md` | `find-person` | `find-person` | `max-who` |
-| `docs/hiring/recommend.md`, `send-for.md`, `engage.md`, `accept-place.md`, `decline-place.md`, `send-away.md`, `take-leave.md` | Hiring (and `take-leave`, shared with visits) | `hiring` | `take-leave`: `max-return-days`, `example-date` |
+| `docs/hiring/recommend.md`, `send-for.md`, `engage.md`, `accept-place.md`, `decline-place.md`, `send-away.md`, `take-leave.md` | Hiring (and `take-leave`, shared with visits and the dismissed) | `hiring` | `take-leave`: `max-return-days`, `example-date` |
 | `docs/hiring/return-time-format.md` | Fragment: the date format for returns | `hiring` | `example-date` |
 | `docs/hiring/spend-time-candidate.md` | Appended to `spend-time` when a reference can be written for a candidate | `hiring/reference-activity` | |
 | `docs/visits/invite.md`, `schedule-visit.md`, `cancel-visit.md` | Invitations; the GM's visits | `visits` | `invite`: `max-person`, `example-date`, `post` (`docs/visits/post.md` or `""`) |
 | `docs/visits/time-format.md` | Fragment: the date format for visits | `visits` | `example-date` |
 | `docs/trades/recommend-trade.md` | Appended to `recommend`: the `trade` argument | `trades` | `max-trade` |
 | `docs/trades/send-for.md` | `send-for` for candidates and contacts, in place of hiring's | `trades` | `lead-hours` |
+| `docs/appointments/appoint.md`, `dismiss.md`, `assign-bedroom.md` | Changing posts and beds, for positions with `:appoints` | `appointments/actions` | |
+| `docs/gm/change-post.md` | The GM's `change-post` | `appointments/actions` | |
 | `docs/shop/quote-goods.md`, `buy.md`, `send-up.md` | The shop | `shop` | `max-lines`; send-up also `send-up-max-hours` |
 | `docs/architect/consult-references.md`, `price-list.md`, `draw-plans.md`, `show-plans.md`, `commission.md` | The architect, only with an office | `building` | setting money names |
 
@@ -114,6 +117,8 @@ must call.
 |---|---|---|---|
 | `judges/activity-check.md` | Small pre-start activity admission check; currently forbids travel, without predicting work results | `items.activity-check/request` | |
 | `judges/tools/check-activity.md` | Admission verdict: allowed, or rejected with a correction | ″ | |
+| `judges/post-check.md` | The post check: admits `appoint` and `dismiss` unless absurd in the setting | `appointments.post-check/request` | setting (`era`) |
+| `judges/tools/check-post.md` | The post check's verdict: allowed, or refused with a reason for the appointer | ″ | |
 | `judges/scene.md` | The scene judge: activity types, scene evidence, item representations and effects, people, and summary consistency; no effects for travel-dependent timed activities | `items.judge/judge-instructions` | `advised-aspect`, `max-aspects`, `max-made`, `max-impediments`, `max-summary` |
 | `judges/brief.md` | The scene judge's "## The setting": the household's brief | `ruleset.rules/judge-brief` | `setting`, `mechanics` (`brief-architect.md`, `brief-deliveries.md` when those exist) |
 | `judges/brief-architect.md`, `brief-deliveries.md` | Fragments of the brief; `brief-deliveries.md` also says how to judge work on the scene's order books (`household_orders`, `shop_orders`) and `orders` | ″ | |
@@ -136,6 +141,16 @@ must call.
 | `judges/tools/relations.md` | Fragment: the `relations` field, for the `judge` and `react` tools | `relations/tool-text` | |
 | `judges/tools/finder.md`, `seek.md`, `invitee.md`, `tradesperson.md`, `appraise.md` | The finder's, find-person's, invitation judge's, trade judge's and shop's tools | their request functions | |
 | `judges/tools/polish.md`, `appearance.md` | The persona writers' tools | `people/polish-request`, `people/appearance-request` | |
+
+## Situations (`situations/`)
+
+The engine's replacement for someone's `:situation` when their post changes.
+
+| Template | Used for | Rendered by | Parameters |
+|---|---|---|---|
+| `situations/appointed.md` | Someone appointed to a post | `appointments/appointed` | `by`, `post`, `terms` (`appointed-terms.md` or `""`) |
+| `situations/appointed-terms.md` | Fragment: the terms of the appointment | ″ | `terms` |
+| `situations/dismissed.md` | Someone dismissed: no household, no bed, `take-leave` when they go | `appointments/dismissed` | `by`, `post` |
 
 ## Writers (`writers/`)
 

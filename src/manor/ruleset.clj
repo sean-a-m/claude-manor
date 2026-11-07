@@ -26,7 +26,8 @@
   call, travel, sleep, rouse), views, hibernation, rules (the rules prompt,
   the judge brief and the briefs), init (the world file's checks, the
   starting state, holidays) and mock (the scripted mock policy)."
-  (:require [manor.mechanics.building :as building]
+  (:require [manor.mechanics.appointments :as appointments]
+            [manor.mechanics.building :as building]
             [manor.mechanics.deliveries :as deliveries]
             [manor.mechanics.find-person :as find-person]
             [manor.mechanics.following :as following]
@@ -112,7 +113,8 @@
 
 (defn scenario
   "A full scenario on the ruleset: every action, judge, bridge and system,
-  with hiring, deliveries, visits and trades installed, in that order. `opts`:
+  appointments among them (manor.mechanics.appointments), with hiring,
+  deliveries, visits and trades installed, in that order. `opts`:
   - :name, :doc, :defaults (its :world-file names the world)
   - :mock-day, a day for the scripted mock policy (a map, or a classpath EDN
     file such as \"worlds/claudeworth-day.edn\"); or :mock-policy, a policy
@@ -134,8 +136,8 @@
        :agent-brief rules/agent-brief
        :on-spawn positions/starting-events
        :actions (vec (concat actions/actions [find-person/action] following/actions building/actions
-                             shop/actions hiring/actions))
-       :adjudicators (merge shop/adjudicators hiring/adjudicators find-person/adjudicators)
+                             shop/actions hiring/actions appointments/actions))
+       :adjudicators (merge shop/adjudicators hiring/adjudicators find-person/adjudicators appointments/adjudicators)
        :bridges (merge building/bridges hiring/bridges)
        :offline-stubs (merge building/offline-stubs hiring/offline-stubs)
        :mcp-servers (merge building/mcp-servers people/mcp-servers)

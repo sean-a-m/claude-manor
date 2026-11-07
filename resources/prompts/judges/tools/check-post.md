@@ -1,0 +1,1 @@
+Return `allowed: true` if the change may go ahead. Otherwise return `allowed: false` and a short `reason`, addressed to the person making the change, saying why it can't be done. Do not describe the change as made.

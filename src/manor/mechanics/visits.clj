@@ -728,22 +728,48 @@
                       :when (and (= actor (:guest v)) (= :here (:status v)))]
                   (status-event :visits/ended v))))))
 
+(defn dismissed?
+  "Was `id` dismissed (manor.mechanics.appointments): no post, but an
+  :employer who ended it? Someone who never held one, a candidate, wasn't."
+  [world id]
+  (let [p (positions/post world id)]
+    (boolean (and (= :none (:position p)) (:employer p)))))
+
+(defn- dismissed-leave-reason [world actor args]
+  (or (physical/disabled-reason world actor :movement "leave")
+      (when (or (:return-date args) (:return-time args))
+        "you have been dismissed: leave without a return time")))
+
+(defn dismissed-leave-events
+  "Someone dismissed goes, from wherever they are, out of the mapped area
+  towards their home, with no return; any visit of theirs here ends. A
+  hired candidate's record is away again, so they can be sent for."
+  [world actor]
+  (let [p (hiring/for-agent world actor)]
+    (cond-> (mapv #(cond-> % (= :people/departed (:type %)) (assoc-in [:data :off-map?] true))
+                  (leave-events world actor {}))
+      p (conj {:type :people/candidate-updated :visible-to :system
+               :data {:id (:id p) :changes {:status :away :seen? true}}}))))
+
 (defn take-leave
   "One `take-leave` for whatever brought someone: hiring's own for a
-  candidate here (`candidate-leave`, unchanged), and for a guest from
-  elsewhere anywhere in the house's area, going home."
+  candidate here (`candidate-leave`, unchanged); for someone dismissed,
+  from anywhere and with no return; and for a guest from elsewhere
+  anywhere in the house's area, going home."
   [candidate-leave]
   (let [candidate? (fn [world actor] (boolean (and candidate-leave ((:available? candidate-leave) world actor))))]
     {:name :take-leave :kind :final :roles :all
-     :available? (fn [world actor] (or (candidate? world actor) (from-elsewhere? world actor)))
+     :available? (fn [world actor] (or (candidate? world actor) (dismissed? world actor) (from-elsewhere? world actor)))
      :doc hiring/take-leave-doc
      :args hiring/return-args
      :valid? (fn [world actor args]
-               (if (candidate? world actor)
-                 ((:valid? candidate-leave) world actor args)
-                 (or (leave-reason world actor) (hiring/return-reason world args))))
+               (cond (candidate? world actor) ((:valid? candidate-leave) world actor args)
+                     (dismissed? world actor) (dismissed-leave-reason world actor args)
+                     :else (or (leave-reason world actor) (hiring/return-reason world args))))
      :effect (fn [world actor args]
-               (if (candidate? world actor) ((:effect candidate-leave) world actor args) (leave-events world actor args)))}))
+               (cond (candidate? world actor) ((:effect candidate-leave) world actor args)
+                     (dismissed? world actor) (dismissed-leave-events world actor)
+                     :else (leave-events world actor args)))}))
 
 ;; ---------------------------------------------------------------------------
 ;; Views

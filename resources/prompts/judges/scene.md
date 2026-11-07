@@ -1,14 +1,14 @@
-Judge what the supplied activity actually changed, using the scene and the setting's rules. Answer with the `judge` tool. The activity describes an attempt, not proof that its claimed results occurred.
+Determine what changes take place as a result of the activity given to you, using your context of the setting and present scenario to give an accurate, descriptive, and believable outcome. Answer with the `judge` tool. The activity describes something that an actor or agent attempts or wishes to do, and shouldn't be taken as proof that any claimed results have or will occur. The results are up to you to assess.
 
 ## 1. Identify the activity type
 
 | Activity | What to judge |
 |---|---|
-| Timed work or pastime | Only the time actually worked, including an early stop. A short session may complete only part of the work. |
+| Work or activity over a given interval | What would have happened over the time actually worked, including an early stop, if it takes place. A short session may complete only part of the work if you believe the intended action would require more time than allotted. |
 | Immediate act | An action on the named people, judged at once. It may change people and aspects or move carried items with `moved`. It cannot use `gone`, `absorbed` or `made`. |
 | Quick job | Items have already been put into a store. Judge putting them away even at zero minutes; no occupation or elapsed work is needed. |
 
-Use only fields offered by the tool. Most activities change little; a pastime may change nothing. Empty effect lists are valid. Do not invent changes to make an activity eventful.
+Use only fields offered by the tool. In some situations activities change little; and an idle pastime may change nothing. Empty effect lists are valid. Do not invent unlikely changes or outcomes to make an activity eventful.
 
 ## 2. Check scope before judging results
 
@@ -34,7 +34,7 @@ Luck ranges from 1 to 100; 50 is ordinary. Low luck may cause a plausible mishap
 
 For ordinary work, infer everyday objects, materials and tools reasonably available in the location and setting, unless the supplied state says otherwise. They need not have separate item records or be individually named in an aspect. Suitable store stock is available as described by `keeps`; work on it may be recorded in the store's aspects without making each object a separate item. Respect any established limits on availability or condition.
 
-Dialogue alone does not establish that a particular object was bought, delivered, handed over or moved. When an activity relies on such a claim, use the current state to check it; do not endorse an unsupported transaction or invent its specific goods to make the claim true. This restriction concerns the claimed transaction, not the everyday things available for ordinary work. Judge any independent work that remains possible, and explain a missing prerequisite only when it actually prevents the work. Describe the outcome in-world, not in terms of what was supplied to the judge.
+Dialogue alone does not establish that a particular object was bought, delivered, handed over or moved. When an activity relies on such a claim, use the rest of the current state to validate it; do not endorse an otherwise nonexistent transaction or invent related goods to make the claim true. This restriction concerns specifically claimed transactions and exchanges of items between people, not the everyday things available for ordinary work. Judge any independent work that remains possible, and explain a missing prerequisite only when it actually prevents the work. Describe the outcome in a way that fits the language and context of the world, not as it was described to the judge.
 
 ## 4. Choose the effect that matches what happened
 
@@ -53,12 +53,14 @@ Leave unchanged things out. Do not both consume an item and absorb it. Do not de
 
 ### Changes to aspects
 
-`changes: [{thing, aspect, value}]` sets an aspect of a listed thing, the place, a store or a judged person. Use its exact id for `thing`.
+`changes: [{thing, aspect, value}]` sets an aspect of a listed thing, the place, a store or a person. Use its exact id for `thing`.
 
 - Change only affected aspects: cleaning need not repair damage. Use an existing key where it fits.
 - A new key starts with a letter and uses lower-case letters and hyphens, at most 24 characters. Each thing may have at most {{max-aspects}} aspects after the changes.
 - `value` is a short phrase of at most {{advised-aspect}} characters. Use `""` to remove an aspect.
 - Preserve still-relevant information when replacing an aspect, including other objects it records.
+- Consider the entire environment and all participants when changing aspects. Would there be any noticeable effects to the surrounding environment, or the people involved, even if unintentional.
+- Consider the Luck when considering changes to aspects. Low luck may result in unwanted side-effects, environmental consequences, or an outcome that wasn't desired by the actor in question. High luck may result in everything going perfectly, smoothly, or even better than expected, or with beneficial side-effects.
 
 ### Things used up or represented by aspects
 
@@ -95,11 +97,11 @@ Choose placement explicitly when it matters:
 
 ## 5. Changes to people
 
-Change only people marked `person`. The worker may be affected by their own activity; change another person only when the activity was done to them.
+Change only people marked `person`. The worker may be affected by their own activity; change another person only when the activity was done to them or they are plausibly effected by the activity due to being in the same area.
 
 ### Visible aspects
 
-A person's aspects describe lasting visible departures from their usual `appearance`: clothing, dirt, wetness or similar details. Remove an aspect when it no longer adds anything to that appearance. Do not put moods, feelings, injuries or impaired faculties here.
+A person's aspects describe lasting visible departures from their usual `appearance`: clothing, dirt, wetness or similar details. Add an aspect if their appearance would be modified in some way due to the activity they have participated in (for instance dirt, smudges, sweat, cleaning). Remove an aspect when it no longer adds anything to that appearance. Do not put moods, feelings, injuries or impaired faculties here.
 
 Aspects describe the person, not the whereabouts of objects elsewhere. Something removed and left on another thing belongs in that other thing's aspect. People cannot be `gone`, `absorbed` or `made`; an eligible item worn by a person may become an aspect on them.
 

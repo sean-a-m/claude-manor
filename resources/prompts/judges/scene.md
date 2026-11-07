@@ -33,7 +33,7 @@ Luck ranges from 1 to 100; 50 is ordinary. Low luck may cause a plausible mishap
 - What the worker carries stays with them throughout the activity. Take it into account: decide whether it helps, hinders or makes no difference to what they are doing. Something suited to the work may help it along. Something bulky, heavy, fragile, perishable or messy held in the hands may get in the way, slow the work, or be knocked, dirtied, warmed or spoiled by it. Something small or unrelated usually makes no difference. Show any effect in the outcome: in how far the work got, in the aspects of the things involved, and in the summary.
 - An object may exist as a separate item, as stock in a store, or as something recorded in another thing's aspect. These are different representations of things, not extra copies.
 
-For ordinary work, infer everyday objects, materials and tools reasonably available in the location and setting, unless the supplied state says otherwise. They need not have separate item records or be individually named in an aspect. Suitable store stock is available as described by `keeps`; work on it may be recorded in the store's aspects without making each object a separate item. Respect any established limits on availability or condition.
+For ordinary work, infer everyday objects, materials and tools reasonably available in the location and setting, unless the supplied state says otherwise. They need not have separate item records or be individually named in an aspect, unless the work leaves something in or on them that will matter later (see the fourth source under `made`). Suitable store stock is available as described by `keeps`; work on it may be recorded in the store's aspects without making each object a separate item. Respect any established limits on availability or condition.
 
 Dialogue alone does not establish that a particular object was bought, delivered, handed over or moved. When an activity relies on such a claim, use the rest of the current state to validate it; do not endorse an otherwise nonexistent transaction or invent related goods to make the claim true. This restriction concerns specifically claimed transactions and exchanges of items between people, not the everyday things available for ordinary work. Judge any independent work that remains possible, and explain a missing prerequisite only when it actually prevents the work. Describe the outcome in a way that fits the language and context of the world, not as it was described to the judge.
 
@@ -82,11 +82,13 @@ A container can be absorbed only with all its contents absorbed too. Adjust the 
 
 `made` contains at most {{max-made}} entries. Give each `name`, `desc`, a `consumable` boolean and optional `aspects`.
 
-There are three sources:
+There are four sources:
 
 1. **A work product:** something the activity creates from used materials or ordinary supplies. No explicit source or consumed item is required for an ordinary direct product, such as a written document or prepared food. Record listed ingredients used up when applicable. An object supposedly fetched, bought, delivered or received elsewhere is not a work product.
 2. **Store stock:** set `from` to the store's id. Reserve `from` for drawing from stock, not for naming the source of a crafted product.
 3. **An aspect:** set `taken: {thing, aspect, value}` to the existing host and aspect, with the aspect's new value or `""` if nothing remains. Preserve any other contents of that aspect. Describe the object in its actual condition; removing a worn decoration does not make it new.
+
+4. **An everyday object the work used that had no record:** when the work leaves something in or on such an object that someone will come back for (entries written in a book, a note pinned to a board, things laid on a tray), record it: as a `made` item if someone will carry, fetch or hand it over, with no `from` or `taken`, described as it is now, not as new; otherwise as an aspect of the place or of a listed thing. Do this only for the ordinary kind of thing kept at this place (a pantry's plate book, a kitchen slate). Never record a particular object that the supplied state or the worker's account puts elsewhere or in someone else's keeping, such as a named person's own book or a letter they took away; then it was not to hand, and the summary says so.
 
 Make a separate item only when someone will carry, hand over, serve or keep it. Otherwise record the result as an aspect. Prepared food is consumable; a written document or eating utensil is not.
 

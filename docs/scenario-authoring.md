@@ -1462,7 +1462,11 @@ classification has not yet been checked.
   `aspects`, a required boolean `consumable`, optional `from`, `held` and `in`. Writing/drawing
   products are not consumable; dishes are. Make a thing only if someone will carry, hand over,
   serve or keep it; otherwise describe the result as an aspect (the room's table "laid for
-  dinner"). Do not promote every utensil used. A made thing gets a fresh id, the consumable flag, and
+  dinner"). Do not promote every utensil used. An everyday object the work used that had no
+  record is recorded when the work leaves something in or on it that someone will come back for
+  (entries written in a book): a `made` item, as it is now, if someone will carry or fetch it,
+  otherwise an aspect of the place or a listed thing; never a particular object the state or
+  the worker's account puts elsewhere. A made thing gets a fresh id, the consumable flag, and
   the first gone thing's owner if any. A made entry may give `taken: {thing, aspect, value}`
   when it was until now only an aspect of a judged thing (the goose taken down from the game
   hooks): that thing must stay and have that aspect, which gets the new value ("" removes it).

@@ -733,14 +733,18 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   the copied plate tally lived only in narration, and later finds matched the only tracked
   household book, carried off by Lord Claudeworth elsewhere. The finder's `inspect`
   (`docs/find-context-design.md` phase 3) now lets it see that; these would go further.
-- **Work-judge rule (deferred by the user, 2026-11-07):** when an inferred everyday object comes
-  out of the work with something that matters later (entries written in it, things left in or
-  on it), promote it: a separate item if someone will carry, hand over or fetch it, otherwise an
-  aspect of the place or of a thing here. Needs a fourth `made` source in
-  `resources/prompts/judges/scene.md` (an existing object not yet recorded, as against a work
-  product, store stock or an aspect), and a paragraph saying when to use it; today the prompt
-  says inferred objects "need not have separate item records or be individually named in an
-  aspect".
+- **Work-judge rule: done (2026-11-07).** `scene.md` has a fourth `made` source: an everyday
+  object the work used that had no record, when the work leaves something in or on it that
+  someone will come back for. Checked on Merrick's two jobs, 3 samples each
+  (`old-test-runs/scene-b19-*`): counting against the book recorded nothing (right); copying the
+  tally into it gave Haiku a pantry aspect 2/3 and DeepSeek a made "Household book" 3/3. The
+  judge can't see things elsewhere, so a made item may duplicate one (DeepSeek's would, beside
+  the account book Lord Claudeworth carried): next, a duplicate check (below).
+- **Duplicate check for made items (next):** when a work answer makes an item with no `from` or
+  `taken` (about 8 of 104 jobs in that run), send it back once with the finder's candidates and
+  one `inspect`; the judge confirms the new thing (fine for things that can have many, a loaf)
+  or names the existing one, and if that's not on hand nothing is made and the summary says so.
+  Never change aspects of things not on hand.
 - **Finder candidate search:** a lookup tool (`ask-structured!` `:lookups`) that searches all
   items by keywords the finder proposes, to build its candidate list instead of the 60 most
   recently touched.

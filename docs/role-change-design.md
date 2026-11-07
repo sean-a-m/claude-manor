@@ -1,6 +1,6 @@
 # Changing posts: reassignment and dismissal
 
-Status: **draft, revised with the user's second answers** (section 9). Nothing built. Open
+Status: **draft, revised with the user's third answers** (section 9). Nothing built. Open
 questions are in section 10.
 
 ## 1. What exists now
@@ -113,9 +113,8 @@ and guests from elsewhere. It gets a third case: **someone dismissed**, i.e. who
 `:none` with an `:employer` (so a person who was always `:none`, a candidate, isn't caught by
 it). For them:
 
-- `:valid?`: movement not disabled (`physical/disabled-reason`, as for guests); no need to be
-  at the meeting place, since they may be anywhere in the house or village. Perhaps the house
-  area only, as for guests (Q1).
+- `:valid?`: movement not disabled (`physical/disabled-reason`, as for guests). From
+  anywhere: no need to be at the meeting place or in the house area.
 - `:effect`: `:people/departed` with `:towards` the home their record has (`:lives`, or
   `:candidate-home` for a hired candidate), else "elsewhere", `:off-map? true`. They become
   `:away` (no turns, no calls, notes and memory kept). No return time: the optional
@@ -126,6 +125,34 @@ it). For them:
   only the GM could bring them back. That's fine for now.
 
 The doc text for `take-leave` gets one line for this case.
+
+Dismissal should be rare, so this supports it simply and handles none of the edge cases (a
+dismissed person with nowhere to sleep who never leaves, a dismissed villager whose shop is
+left untended, coming back). The roadmap notes them for later (B11).
+
+### `assign-bedroom` (appointers)
+
+A separate tool for moving someone's bed, so that `appoint` isn't used as a workaround to
+change bedrooms (appointing someone to the post they already hold is refused anyway, and
+`appoint` takes no `bedroom`).
+
+`assign-bedroom {who bedroom}`, kind `:final`, `:roles :all`, `:needs :appoints`,
+`:admission :people/post-check` (the same judge, with `"action": "assign-bedroom"`).
+
+Code checks (structure only, as `engage`'s and `invite`'s bedroom):
+
+- `who` is an active participant, not the GM, in the household or a guest from elsewhere
+  staying with it (`visits/from-elsewhere?`): the people whose beds are the household's to
+  give. **Self is allowed** here (the countess moving to the blue room); it's not a post
+  change, and the judge sees it.
+- `bedroom` is a location in the household's home area (`space/home-location?`); any room there
+  may be assigned, as with `engage`. It isn't checked for being free: sharing is allowed, as now.
+- `who` doesn't already sleep there.
+
+Effect: `bedroom-assigned who bedroom`, visible to both, and a one-line narration ("Mrs Thorne
+has given Bessie the maids' room to sleep in"). Nothing else changes. The judge's standard is
+the same: refuse only the absurd (the head housemaid putting the earl in the scullery), allow
+the merely improper (two maids in one bed).
 
 ## 5. The post check (judge)
 
@@ -192,9 +219,8 @@ Appointers additionally see:
   capability, so it follows the post and the user doesn't have to write it into every
   `:about`).
 
-An alternative that names the appointers (a list in `reference`: "These posts can appoint and
-dismiss: Countess, Housekeeper, …") would be more certain, but it's a list of titles, not
-people, and it repeats what each `:about` already says. It's Q2.
+The generic rules text is enough (user's answer); no list of appointers. The rules section's
+last sentences gain "…and give people their bedrooms", so the bedroom tool is known too.
 
 ## 7. Getting a change into others' contexts
 
@@ -215,7 +241,7 @@ people, and it repeats what each `:about` already says. It's Q2.
 
 - **Routine:** left alone. Only village people (shopkeepers, the constable and so on) have
   routines, and none of them hold `:appoints` or would be appointed in practice.
-- **Bedroom:** unchanged on `appoint` unless the optional `bedroom` is given (Q3).
+- **Bedroom:** unchanged on `appoint` (moving it is `assign-bedroom`'s job).
   **Cleared on `dismiss`:** `[:state :bedrooms id]` is removed (the existing
   `bedroom-assigned id nil`). Its effects:
   - the household's bedroom list in everyone's view no longer shows them as sleeping in that
@@ -278,17 +304,19 @@ Second round:
    of them run on the run's model unless a run sets `:judge-model`. The post check does the
    same; it adds no new option.
 
+Third round:
+
+1. The dismissed take leave from anywhere. Dismissal should be rare: support it simply, and
+   note the edge cases (homeless agents and the like) in the roadmap for later.
+2. The generic rules text is enough.
+3. A separate bedroom command for appointers, so `appoint` isn't abused to move beds.
+
 ## 10. Open questions
 
-- **Q1. Where can the dismissed take leave?** Guests have to go back to the house area
-  first. For the dismissed: anywhere (they may be in the village already), or the same rule
-  as guests?
-- **Q2. Naming the appointers to everyone:** is the generic rules text enough ("those who
-  direct others in a household"), with each `:about` saying who directs whom? Or should
-  everyone's prompt also list the titles of the posts that can appoint, from the
-  capability?
-- **Q3. A bedroom on appointment:** should `appoint` take an optional `bedroom`, as `engage`
-  does (a housemaid made lady's maid moves rooms)? It's cheap, and otherwise someone has to
-  ask the operator or GM.
+- **Q1. Judging bedrooms:** the draft puts `assign-bedroom` through the same post check, to
+  stop the absurd (the earl put in the scullery by a housemaid). Moving a bed is low stakes;
+  should it skip the judge and leave everything to the agents?
+- **Q2. Self-assignment:** the draft lets an appointer move their own bed (the countess to the
+  blue room). Allow, or refuse as `appoint` does?
 
-
+The earlier questions are answered (section 9). The rest can be settled while building.

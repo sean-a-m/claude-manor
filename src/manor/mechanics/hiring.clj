@@ -114,7 +114,7 @@
   `reference` doesn't list them."
   #{:none :gm :guest :tradesman})
 
-(defn- not-a-post-reason
+(defn not-a-post-reason
   "Why `position` can't be filled by hiring, or nil."
   [world position]
   (let [position (keyword position)]

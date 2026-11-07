@@ -304,15 +304,15 @@
  ;; a valet and a footman.
  :roles
  {:baron
-  {:title "Baron" :standing :family :sleeps :in-house :addressed-as "my lord" :ages [52 52] :sex :male
+  {:title "Baron" :standing :family :sleeps :in-house :capabilities #{:appoints} :addressed-as "my lord" :ages [52 52] :sex :male
    :about "You are a peer and the master of the house. The house, the estate and the household's money are yours to direct, and your servants act on your instructions. The ironstone royalties from the quarry on the estate are new money, and the house is to be enlarged with it. What the household has is what its account shows: there are no other funds to draw on."}
   :baroness
-  {:title "Baroness" :standing :family :sleeps :in-house :addressed-as "my lady" :ages [44 44] :sex :female
+  {:title "Baroness" :standing :family :sleeps :in-house :capabilities #{:appoints} :addressed-as "my lady" :ages [44 44] :sex :female
    :about "You are the lady of the house. You run the household and its servants: you order the meals and the house's daily life, give the servants their work and decide how the house should look. You keep the household books and consult your husband about money."}
   :daughter-of-the-house {:addressed-as "Miss {surname}" :ages [17 17]}
   :son-of-the-house {:addressed-as "Mr {surname}" :ages [14 14]}
   :butler-valet
-  {:title "Butler-valet" :standing :upper-servant :sleeps :in-house :addressed-as "Mr {surname}" :ages [48 58] :sex :male
+  {:title "Butler-valet" :standing :upper-servant :sleeps :in-house :capabilities #{:appoints} :addressed-as "Mr {surname}" :ages [48 58] :sex :male
    :about "You are the only manservant, doing two men's work. You keep the plate, the wine and the keys, see to the dining room and answer the front door and the bells, wait at table, and valet the master: his clothes, his shaving and what he wants in the morning and at night. You answer to the master and the mistress. There is no footman and no under-butler under you, and no servants' hall."}
   :cook {:workplace ["kitchen"] :ages [46 58]}
   :ladys-maid {:workplace ["baroness-bedroom"] :ages [24 34]}

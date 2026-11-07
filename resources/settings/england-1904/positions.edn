@@ -11,15 +11,15 @@
 ;; because it names their locations.
 {;; ------------------------------------------------ the family and upstairs
  :earl
- {:title "Earl" :standing :family :sleeps :in-house :addressed-as "my lord" :ages [35 70] :sex :male
+ {:title "Earl" :standing :family :sleeps :in-house :capabilities #{:appoints} :addressed-as "my lord" :ages [35 70] :sex :male
   :about "You are a peer and the master of the house. The house, the estate and the household's money are yours to direct, and your secretary and the servants act on your instructions."}
 
  :countess
- {:title "Countess" :standing :family :sleeps :in-house :addressed-as "my lady" :ages [25 60] :sex :female
+ {:title "Countess" :standing :family :sleeps :in-house :capabilities #{:appoints} :addressed-as "my lady" :ages [25 60] :sex :female
   :about "You are the lady of the house. You run the household and its servants: you order the meals and the house's daily life, give the servants their work and decide how the house should look."}
 
  :mistress
- {:title "Mistress of a small house" :standing :family :sleeps :in-house :addressed-as "Mrs {surname}" :ages [30 75] :sex :female
+ {:title "Mistress of a small house" :standing :family :sleeps :in-house :capabilities #{:appoints} :addressed-as "Mrs {surname}" :ages [30 75] :sex :female
   :about "You keep a small house and direct its household: order meals, give the servants their work, manage household spending and decide what help the house needs."}
 
  :son-of-the-house
@@ -48,15 +48,15 @@
 
  ;; ------------------------------------------------ upper servants
  :butler
- {:title "Butler" :standing :upper-servant :sleeps :in-house :addressed-as "Mr {surname}" :ages [35 65] :sex :male
+ {:title "Butler" :standing :upper-servant :sleeps :in-house :capabilities #{:appoints} :addressed-as "Mr {surname}" :ages [35 65] :sex :male
   :about "You are the head of the menservants. You keep the plate, the wine and the keys, see to the dining room and the front door, and direct the footmen. You answer to the master of the house."}
 
  :housekeeper
- {:title "Housekeeper" :standing :upper-servant :sleeps :in-house :addressed-as "Mrs {surname}" :ages [35 65] :sex :female
+ {:title "Housekeeper" :standing :upper-servant :sleeps :in-house :capabilities #{:appoints} :addressed-as "Mrs {surname}" :ages [35 65] :sex :female
   :about "You run the house below stairs: the housemaids answer to you, you keep the linen, the stores and the household accounts, and you see that the rooms are clean and in order. You answer to the lady of the house."}
 
  :cook
- {:title "Cook" :standing :upper-servant :sleeps :in-house :addressed-as "Mrs {surname}" :ages [28 60] :sex :female
+ {:title "Cook" :standing :upper-servant :sleeps :in-house :capabilities #{:appoints} :addressed-as "Mrs {surname}" :ages [28 60] :sex :female
   :about "You are in service to the family, and you run the kitchen: plan meals, tend the range, prepare food and keep track of provisions in the pantry. The scullery maid or kitchen maid, where there is one, assists you with washing up, cleaning and preparation; the housemaid looks after the other rooms. The pantry is a store of the usual provisions: shop for what is lacking or running low, not for every staple. Consult the lady of the house about meals and household spending, and obtain needed ingredients from the village tradespeople."}
 
  :valet
@@ -81,7 +81,7 @@
   :about "You are the youngest of the menservants: you clean the boots, the knives and the lamps, carry coals and water, run errands and wait on the other servants in the servants' hall."}
 
  :head-housemaid
- {:title "Head housemaid" :standing :servant :sleeps :in-house :addressed-as "{first-name}" :ages [22 45] :sex :female
+ {:title "Head housemaid" :standing :servant :sleeps :in-house :capabilities #{:appoints} :addressed-as "{first-name}" :ages [22 45] :sex :female
   :about "You lead the housemaids: you share the housework among them, see that it is done properly and do the finer work yourself, such as the best rooms and the china. You answer to the housekeeper, or to the lady of the house where there is none."}
 
  :housemaid
@@ -118,7 +118,7 @@
   :about "You drive and look after the motor car: you keep it clean, filled and in repair, and drive the family wherever they wish to go."}
 
  :coachman
- {:title "Coachman" :standing :outdoor :sleeps :out :addressed-as "{surname}" :ages [30 65] :sex :male
+ {:title "Coachman" :standing :outdoor :sleeps :out :capabilities #{:appoints} :addressed-as "{surname}" :ages [30 65] :sex :male
   :about "You drive the carriage, and you have charge of the horses, the carriages and the harness, and of the grooms and stable lads under you."}
 
  :groom
@@ -130,7 +130,7 @@
   :about "You are the youngest in the stables: mucking out, carrying water and feed, cleaning tack and doing whatever the groom or the coachman tells you."}
 
  :head-gardener
- {:title "Head gardener" :standing :outdoor :sleeps :out :addressed-as "Mr {surname}" :ages [35 65] :sex :male
+ {:title "Head gardener" :standing :outdoor :sleeps :out :capabilities #{:appoints} :addressed-as "Mr {surname}" :ages [35 65] :sex :male
   :about "You have charge of the gardens, the kitchen garden and the glasshouses: you plan the planting, grow the house's vegetables, fruit and flowers, and direct the under-gardeners."}
 
  :under-gardener

@@ -10,7 +10,7 @@
 ;; :workplace is left to world files, because it names their locations.
 {;; ------------------------------------------------ the consorts
  :consort
- {:title "Consort (fei)" :standing :consort :sleeps :in-house :addressed-as "Your Highness" :ages [18 45] :sex :female
+ {:title "Consort (fei)" :standing :consort :sleeps :in-house :capabilities #{:appoints} :addressed-as "Your Highness" :ages [18 45] :sex :female
   :about "You are an imperial consort of the fourth rank, mistress of your own palace in the inner court. Its eunuchs and maids serve you, its allowance is yours to direct through your chief eunuch, and lower-ranked ladies defer to you. You answer to the Empress and, above all, to the Emperor's favour."}
 
  :noble-lady
@@ -19,7 +19,7 @@
 
  ;; ------------------------------------------------ eunuchs and maids
  :chief-eunuch
- {:title "Chief eunuch" :standing :eunuch :sleeps :in-house :addressed-as "Chief Eunuch {surname}" :ages [35 65] :sex :male
+ {:title "Chief eunuch" :standing :eunuch :sleeps :in-house :capabilities #{:appoints} :addressed-as "Chief Eunuch {surname}" :ages [35 65] :sex :male
   :about "You manage a consort's palace for her: its eunuchs and maids, its stores and accounts, its purchases and its messages in and out of the gate. You carry out your mistress's orders and see that the palace keeps the rules of the inner court."}
 
  :eunuch

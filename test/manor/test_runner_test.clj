@@ -24,6 +24,17 @@
     (is (= (set nses) (set (mapcat identity groups))))
     (is (= (count nses) (count (mapcat identity groups))))))
 
+(deftest sharding-balances-cost-not-namespace-count
+  (let [costs '{a-test 10 b-test 8 c-test 2}
+        nses '[a-test b-test c-test d-test e-test]
+        groups (#'runner/shards nses 2 costs)
+        loads (mapv #(reduce + (map (fn [n] (get costs n 1)) %)) groups)]
+    (is (= [11 11] loads))
+    (is (= (set nses) (set (mapcat identity groups))))
+    (is (= (count nses) (count (mapcat identity groups))))
+    (is (= groups (#'runner/shards (reverse nses) 2 costs)))
+    (is (= [nses] (#'runner/shards nses 1 costs)))))
+
 (defn- completed-worker [exit summary]
   (let [dir (io/file (System/getProperty "manor.test-runs-root" "test-runs")
                      (str "runner-unit-" (random-uuid)))

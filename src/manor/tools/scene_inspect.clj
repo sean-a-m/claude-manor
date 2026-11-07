@@ -16,18 +16,38 @@
 (defn encode-id [id]
   (str/replace (URLEncoder/encode (str id) "UTF-8") "+" "%20"))
 
+(def ^:private calls-cache
+  ;; Keep only the most recently inspected log, not every run ever opened.
+  (atom nil))
+
+(defn- completed-calls [file]
+  (let [text (slurp file)
+        end (str/last-index-of text "\n")]
+    (if end
+      (with-open [reader (java.io.BufferedReader. (java.io.StringReader. (subs text 0 end)))]
+        (into [] (comp (remove str/blank?) (map edn/read-string)) (line-seq reader)))
+      [])))
+
 (defn read-calls
   "Read completed llm.edn lines, including on loaded runs. A concurrently
-  appended, unterminated line waits for the next refresh. No log is ordinary."
+  appended, unterminated line waits for the next refresh. No log is ordinary.
+  Reuse parsed calls while the file is unchanged; repeated inspector requests
+  should not parse every historical prompt again. The cache holds one log."
   [run]
   (let [f (when (:dir run) (io/file (:dir run) "llm.edn"))]
     (if (and f (.exists f))
-      (let [text (slurp f)
-            end (str/last-index-of text "\n")]
-        (if end
-          (into [] (comp (remove str/blank?) (map edn/read-string))
-                (str/split-lines (subs text 0 end)))
-          []))
+      (let [attrs (java.nio.file.Files/readAttributes
+                   (.toPath f) java.nio.file.attribute.BasicFileAttributes
+                   (make-array java.nio.file.LinkOption 0))
+            stamp [(.getCanonicalPath f) (.fileKey attrs) (.size attrs) (.lastModifiedTime attrs)]
+            cached @calls-cache]
+        (if (= stamp (:stamp cached))
+          (:calls cached)
+          ;; Sample metadata before reading: an append during the read makes
+          ;; the next request miss, rather than hiding a newly completed line.
+          (let [calls (completed-calls f)]
+            (reset! calls-cache {:stamp stamp :calls calls})
+            calls)))
       [])))
 
 (defn- continues? [before after]

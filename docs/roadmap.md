@@ -883,6 +883,42 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
     concurrent-writer regression covers it. See README's Tests section for serial/parallel
     commands and retained logs.
 
+    **Speed investigation:** the runner now records namespace/test-var timings and balances
+    namespaces using the checked-in estimates in `test/test-costs.edn`. Production fixes avoid
+    compiling identical tool argument schemas on every step, rescanning the entire world
+    for each cast field, and reading model logs for non-agent inspectors. Agent inspectors
+    reuse parsed calls for an unchanged log (one-entry cache, invalidated by file identity,
+    size or high-resolution modification time); completed-line/partial-append semantics remain.
+
+    Measurements in the `test-speed` worktree on JDK 27, including CLI startup:
+    - Original four-worker suite: 193s; a second instrumented/JFR run: 152s.
+      Original worker times were 73/175/97/101s: a substantial imbalance.
+    - Updated four-worker suite: 120s, workers 103/95/103/96s; serial: 113s.
+      Both final checks passed with 552 tests and 10,299 assertions.
+    - Eight workers regressed (156s in one intermediate configuration). C1-only compilation
+      reduced startup but slowed the heavier tests. No JVM tuning flags or higher worker
+      default were retained.
+    - Other concurrent suites made later comparisons noisy and triggered the existing
+      layout performance ceiling in two experimental runs. A final two-worker attempt
+      timed out at 180s under competing load; it is not a usable benchmark.
+
+    Retained evidence under this worktree's `test-runs/tests/`: original
+    `60f4e688-2592-485f-9a8e-3cecb2dea749`, profiled
+    `6dc60bc1-b17f-4020-9379-dbdb32fedfe2`, final four-worker
+    `ec344d73-2fea-417c-a422-2e259c729e92`, final serial
+    `45ad367e-3950-4a5f-a378-2882df05a283`. All runs were free/offline.
+
+    **Under one minute remains open.** The major costs are JVM loading/compilation, full-day
+    simulations and scene boundary/rendering checks, not external network waits. Explicit
+    test sleeps are 300ms, 200ms and a few 2ms timestamp checks; `wait-idle` polls every 50ms,
+    and timeout/termination waits normally return immediately on completion. Retry backoff
+    tests stub the sleep. MCP coverage starts local Node/Babashka processes and deliberately
+    exercises one 500ms cancellation. No sleeps or timeout coverage were removed.
+    Next: benchmark on an otherwise idle machine, profile the remaining scene/layout work
+    and persistence, and investigate reusable isolated worker JVMs or AOT loading to avoid
+    paying repeated cold-start costs. Do not parallelize global mocks within one JVM or
+    skip integration assertions to reach the target.
+
 16. **A world file with more than one form is now refused.** Done with the `claudeworth-medium`
     work: `read-file` reads a second form and throws, instead of letting `edn/read-string`
     silently ignore everything after the first. Before, a missing or stray bracket dropped

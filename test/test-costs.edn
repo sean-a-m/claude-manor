@@ -1,0 +1,23 @@
+;; Approximate namespace execution seconds, excluding JVM/namespace loading.
+;; Scheduling hints only: unlisted/new namespaces get weight 1. Refresh these
+;; from worker summary.edn :timings :namespaces when the workload changes.
+{manor.scene-integration-test 22
+ manor.claudeworth-medium-test 19
+ manor.scenarios-test 19
+ manor.claudeworth-test 16
+ manor.visits-test 7
+ manor.scene-layout-test 6
+ manor.scene-web-test 5
+ manor.people-test 5
+ manor.claudeworth-holidays-test 4
+ manor.hiring-test 3
+ manor.deliveries-test 3
+ manor.engine-test 3
+ manor.conversation-test 3
+ manor.shop-test 2
+ manor.palace-test 2
+ manor.physical-test 2
+ manor.items-test 2
+ manor.agent-models-test 2
+ manor.lodge-test 2
+ manor.fixture-test 2}

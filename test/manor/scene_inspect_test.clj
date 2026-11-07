@@ -220,6 +220,15 @@
           (finally (e/stop-run loaded))))
       (finally (e/stop-run run)))))
 
+(deftest non-agent-inspectors-do-not-read-model-logs
+  (let [run (run-of :village)]
+    (web/show! run)
+    (with-redefs [inspect/read-calls (fn [_] (throw (ex-info "Unneeded log read" {})))]
+      (doseq [kind ["place" "item"]]
+        (is (= 200 (:status (request (str "/partial/inspect/" kind "/missing")))))
+        (is (= 200 (:status (request "/partial/scene-state" (str "kind=" kind "&id=missing")))))))
+    (e/stop-run run)))
+
 (deftest completed-log-lines-and-partial-append
   (let [dir (.toFile (java.nio.file.Files/createTempDirectory "manor-inspect-" (make-array java.nio.file.attribute.FileAttribute 0)))
         f (io/file dir "llm.edn")]
@@ -228,5 +237,18 @@
       (spit f (str (pr-str {:agent "a" :round 1}) "\n{:agent"))
       (is (= [{:agent "a" :round 1}] (inspect/read-calls {:dir dir})))
       (spit f " \"b\" :round 2}\n" :append true)
-      (is (= [{:agent "a" :round 1} {:agent "b" :round 2}] (inspect/read-calls {:dir dir})))
+      (let [calls (inspect/read-calls {:dir dir})]
+        (is (= [{:agent "a" :round 1} {:agent "b" :round 2}] calls))
+        (is (identical? calls (inspect/read-calls {:dir dir})) "unchanged logs reuse parsed calls"))
+      (spit f "{:agent \"c\" :round 3}\n")
+      (is (= [{:agent "c" :round 3}] (inspect/read-calls {:dir dir})) "truncation invalidates the cache")
+      ;; Same-size rewrites use high-resolution mtime, not just file length.
+      (spit f "{:agent \"d\" :round 4}\n")
+      (java.nio.file.Files/setLastModifiedTime
+       (.toPath f) (java.nio.file.attribute.FileTime/fromMillis (+ 2000 (.lastModified f))))
+      (is (= [{:agent "d" :round 4}] (inspect/read-calls {:dir dir})))
+      (.delete f)
+      (is (= [] (inspect/read-calls {:dir dir})))
+      (spit f "{:agent \"e\" :round 5}\n")
+      (is (= [{:agent "e" :round 5}] (inspect/read-calls {:dir dir})) "recreated files are reread")
       (finally (.delete f) (.delete dir)))))

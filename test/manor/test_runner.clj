@@ -4,6 +4,7 @@
   (:refer-clojure :exclude [test])
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.test :as t]
             [clojure.tools.cli :as cli]
             [clojure.tools.namespace.find :as find]
             [cognitect.test-runner :as runner])
@@ -34,13 +35,46 @@
       (throw (ex-info "Test var namespaces did not match the selection" {:namespaces missing})))
     (filterv #(or (nil? var-nses) (contains? var-nses %)) nses)))
 
-(defn- shards [nses workers]
-  (reduce-kv (fn [groups i n] (update groups (mod i workers) conj n))
-             (vec (repeat workers [])) nses))
+(defn- shards
+  "Longest estimated namespaces first, each on the least-loaded worker.
+  Weights affect scheduling only, never discovery or selection."
+  ([nses workers] (shards nses workers {}))
+  ([nses workers costs]
+   (let [weight #(get costs % 1)
+         ordered (sort-by (juxt (comp - weight) str) nses)]
+     (:groups
+      (reduce (fn [{:keys [loads] :as acc} n]
+                (let [i (apply min-key #(nth loads %) (reverse (range workers)))]
+                  (-> acc
+                      (update-in [:groups i] conj n)
+                      (update-in [:loads i] + (weight n)))))
+              {:groups (vec (repeat workers [])) :loads (vec (repeat workers 0))}
+              ordered)))))
 
 (defn- write-edn! [file data]
   (io/make-parents file)
   (spit file (binding [*print-length* nil *print-level* nil] (pr-str data))))
+
+(defn- timed-tests
+  "Record namespace and test-var wall times without changing fixtures or filters."
+  [options]
+  (let [started (System/nanoTime)
+        first-test (atom nil)
+        timings (atom {:namespaces {} :vars {}})
+        timed (fn [kind f]
+                (fn [x]
+                  (let [start (System/nanoTime)
+                        id (if (var? x) (symbol x) (ns-name (the-ns x)))]
+                    (compare-and-set! first-test nil start)
+                    (try (f x)
+                         (finally
+                           (swap! timings assoc-in [kind id]
+                                  (/ (- (System/nanoTime) start) 1e9)))))))
+        summary (with-redefs [t/test-ns (timed :namespaces t/test-ns)
+                              t/test-var (timed :vars t/test-var)]
+                  (runner/test options))]
+    (assoc summary :timings @timings
+           :load-seconds (/ (- (or @first-test (System/nanoTime)) started) 1e9))))
 
 (defn- worker!
   "The property must be set before any test loads manor.io.store."
@@ -49,7 +83,7 @@
         started (System/nanoTime)]
     (System/setProperty "manor.test-runs-root" root)
     (println "Test artifacts:" root)
-    (let [summary (runner/test options)]
+    (let [summary (timed-tests options)]
       (write-edn! result (assoc summary :seconds (/ (- (System/nanoTime) started) 1e9)))
       (if (zero? (+ (:fail summary) (:error summary))) 0 1))))
 
@@ -89,7 +123,12 @@
         summary (when (.exists ^File result) (edn/read-string (slurp result)))]
     (println (str "\n--- Worker " index " (exit " exit ") ---"))
     (print (slurp log))
-    (when summary (printf "Worker %d: %.2f seconds\n" index (double (:seconds summary))))
+    (when summary
+      (printf "Worker %d: %.2f seconds\n" index (double (:seconds summary)))
+      (when-let [seconds (:load-seconds summary)]
+        (printf "  Discovery/loading: %.2f seconds\n" (double seconds)))
+      (doseq [[id seconds] (take 5 (sort-by (comp - val) (get-in summary [:timings :vars])))]
+        (printf "  %.2fs %s\n" (double seconds) id)))
     (flush)
     (if (and summary (or (zero? exit) (pos? (+ (:fail summary) (:error summary)))))
       summary
@@ -101,6 +140,7 @@
     (throw (ex-info "Workers must be a positive integer" {:workers workers})))
   (let [nses (selected-namespaces options)
         workers (min workers (count nses))
+        costs (edn/read-string (slurp (io/resource "test-costs.edn")))
         root (io/file (System/getProperty "manor.test-runs-root" "test-runs")
                       "tests" (str (random-uuid)))
         active (atom [])
@@ -112,7 +152,7 @@
     (println "Running tests in" workers "isolated JVM(s). Artifacts retained at" (str root))
     (.addShutdownHook runtime hook)
     (try
-      (doseq [[i nses] (map-indexed vector (shards nses workers))]
+      (doseq [[i nses] (map-indexed vector (shards nses workers costs))]
         (swap! active conj (launch! root options i nses)))
       (let [results (mapv collect! @active)
             total (reduce #(merge-with + %1 (select-keys %2 [:test :pass :fail :error]))

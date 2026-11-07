@@ -421,6 +421,20 @@
     (testing "an unknown agent is an error"
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"no agent called Zed" (wf/set-agent-keys text "Zed" [[:manner "x"]]))))))
 
+(deftest multi-key-edits-retain-the-agent-offset
+  (let [text ";; keep\n{:agents [{:name \"Ada\" :persona \"Old\"} {:name \"Ben\" :persona \"Unchanged\"}]}\n"
+        edited (wf/set-agent-keys text "Ada"
+                                 [[:persona "Longer"] [:manner "First"] [:manner "Second"] [:sex :female]])
+        removed (wf/remove-agent-keys edited "Ada" [:persona :manner :sex])]
+    (is (= [{:name "Ada" :persona "Longer" :manner "Second" :sex :female}
+            {:name "Ben" :persona "Unchanged"}]
+           (:agents (edn/read-string edited))))
+    (is (= (update-in (edn/read-string edited) [:agents 0] dissoc :persona :manner :sex)
+           (edn/read-string removed)))
+    (is (str/starts-with? edited ";; keep\n"))
+    (is (= text (wf/set-agent-keys text "Nobody" [])))
+    (is (= text (wf/remove-agent-keys text "Nobody" [])))))
+
 (deftest remove-agent-keys-preserves-other-data-and-layout
   (doseq [text [";; intro\n{:agents [{:name \"Ada\"\n   :sketch \"An old\\\" description\"\n   :persona \"Keep me\"}]}\n"
                 "{:agents [{:sketch \"old\" :name \"Ada\" :persona \"Keep me\"}]}"

@@ -12,6 +12,23 @@
             [manor.prompt :as prompt]
             [manor.settings :as settings]))
 
+(deftest cached-tool-parameters-still-render-each-world
+  (let [action {:name :example :args [:map [:text [:string {:max 9 :advised-max 5}]]]
+                :doc (fn [world] (:doc world)) :hint (fn [world] (:hint world))}
+        first-tool (a/->tool action {:doc "First" :hint "One"})
+        next-tool (a/->tool action {:doc "Second" :hint "Two"})]
+    (is (= "First One" (get-in first-tool [:function :description])))
+    (is (= "Second Two" (get-in next-tool [:function :description])))
+    (is (identical? (get-in first-tool [:function :parameters])
+                    (get-in next-tool [:function :parameters])))
+    (is (nil? (get-in first-tool [:function :parameters :properties :text :maxLength])))
+    (is (:args (a/decode-args action {:text "123456789"})))
+    (is (:error (a/decode-args action {:text "1234567890"})))
+    (is (not= (get-in first-tool [:function :parameters])
+              (get-in (a/->tool (assoc action :args [:map [:number :int]])
+                                {:doc "First" :hint "One"})
+                      [:function :parameters])))))
+
 ;; The templates are test/prompts/test/*.md.
 
 (deftest fills-keys-and-dotted-paths

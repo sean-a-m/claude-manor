@@ -148,6 +148,11 @@
                                       (m/-update-properties s dissoc :max)
                                       s)))))
 
+(def ^:private tool-parameters
+  ;; Argument schemas are immutable and independent of the world. Compiling
+  ;; them for every offered tool at every model step repeats the same work.
+  (memoize (fn [schema] (mjs/transform (tool-schema schema)))))
+
 (defn- per-turn-hint
   "The limit in a tool's description; one that depends on the actor isn't
   told there."
@@ -179,7 +184,7 @@
    {:type "function"
     :function {:name (name (:name action))
                :description (str (description action world) " " (hint action world) (per-turn-hint action world))
-               :parameters (mjs/transform (tool-schema (args-schema action)))}}))
+               :parameters (tool-parameters (args-schema action))}}))
 
 ;; ---------------------------------------------------------------------------
 ;; Decoding and validation

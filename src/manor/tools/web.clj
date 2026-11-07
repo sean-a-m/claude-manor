@@ -413,7 +413,7 @@ table.relations{width:max-content} .relations td>div,.relations th>div{width:16e
   ([run selection]
    ;; Read completed calls first: never pair newer call evidence with an older
    ;; world prefix. The log may lag an in-flight turn; rendering never waits on it.
-   (let [calls (when selection (inspect/read-calls run))
+   (let [calls (when (= "agent" (:kind selection)) (inspect/read-calls run))
          snap (assoc (scene/snapshot run) :opts (:opts run))
          result (scene/presentation snap scene-placement)
          names (narrate/names (:world snap))]
@@ -577,7 +577,7 @@ table.relations{width:max-content} .relations td>div,.relations th>div{width:16e
     {:status (if id 200 404)
      :headers {"Content-Type" "text/html; charset=utf-8" "Cache-Control" "no-store"}
      :body (if id
-             (let [calls (inspect/read-calls run)
+             (let [calls (when (= "agent" kind) (inspect/read-calls run))
                    snap (assoc (scene/snapshot run) :opts (:opts run))]
                (html (inspect/fragment snap calls kind id)))
              "Selection no longer available.")}))

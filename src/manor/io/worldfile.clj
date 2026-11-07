@@ -406,9 +406,8 @@
 (defn- set-agent-key
   "Set one key of an agent: replace its value where it stands, or else add it
   on a line of its own after the key `after` (or the agent's last key)."
-  [^String s agent-name after k v]
-  (let [open (agent-open s agent-name)
-        es (entries s open)
+  [^String s open after k v]
+  (let [es (entries s open)
         entry (fn [k] (first (filter (fn [[[a b]]] (= (pr-str k) (subs s a b))) es)))]
     (if-let [[_ [a b]] (entry k)]
       (str (subs s 0 a) (value-str v) (subs s b))
@@ -424,19 +423,22 @@
   "World file text with the named agent's keys removed, leaving other data
   and comments untouched. Whole entry lines are removed when possible."
   [s agent-name ks]
-  (reduce
-   (fn [^String s k]
-     (if-let [[[a _] [_ b]] (first (filter (fn [[[a b]]] (= (pr-str k) (subs s a b)))
-                                          (entries s (agent-open s agent-name))))]
-       (let [line-start (inc (.lastIndexOf s "\n" (int a)))
-             newline (.indexOf s "\n" (int b))
-             line-end (if (neg? newline) (count s) newline)
-             own-line? (and (str/blank? (subs s line-start a))
-                            (str/blank? (subs s b line-end)))]
-         (str (subs s 0 (if own-line? line-start a))
-              (subs s (if own-line? (min (count s) (inc line-end)) b))))
-       s))
-   s ks))
+  (if (empty? ks)
+    s
+    (let [open (agent-open s agent-name)]
+      (reduce
+       (fn [^String s k]
+         (if-let [[[a _] [_ b]] (first (filter (fn [[[a b]]] (= (pr-str k) (subs s a b)))
+                                              (entries s open)))]
+           (let [line-start (inc (.lastIndexOf s "\n" (int a)))
+                 newline (.indexOf s "\n" (int b))
+                 line-end (if (neg? newline) (count s) newline)
+                 own-line? (and (str/blank? (subs s line-start a))
+                                (str/blank? (subs s b line-end)))]
+             (str (subs s 0 (if own-line? line-start a))
+                  (subs s (if own-line? (min (count s) (inc line-end)) b))))
+           s))
+       s ks))))
 
 (defn set-agent-keys
   "World file text `s` with the agent called `agent-name` given each [key
@@ -444,13 +446,18 @@
   of their own after its :persona (or its last key), in the order given.
   Everything else in the text, comments and layout included, is untouched."
   [s agent-name kvs]
-  (first (reduce (fn [[s after] [k v]]
-                   (let [had? (contains? (edn/read-string (subs s (agent-open s agent-name)
-                                                                (form-end s (agent-open s agent-name))))
-                                         k)]
-                     [(set-agent-key s agent-name after k v) (if had? after k)]))
-                 [s :persona]
-                 kvs)))
+  ;; Edits are inside this map, so its opening offset stays valid. Locate it
+  ;; once, rather than rescanning the whole world several times for every key.
+  (if (empty? kvs)
+    s
+    (let [open (agent-open s agent-name)
+          original (edn/read-string (subs s open (form-end s open)))]
+      (first (reduce (fn [[s after present] [k v]]
+                       [(set-agent-key s open after k v)
+                        (if (contains? present k) after k)
+                        (conj present k)])
+                     [s :persona (set (keys original))]
+                     kvs)))))
 
 (defn ->edn-string
   "Serialize a world file as EDN. Generated files have no formatting contract."

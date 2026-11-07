@@ -1,7 +1,7 @@
 # Changing posts: reassignment and dismissal
 
-Status: **draft, revised with the user's first answers** (section 8). Nothing built. Open
-questions are in section 9.
+Status: **draft, revised with the user's second answers** (section 9). Nothing built. Open
+questions are in section 10.
 
 ## 1. What exists now
 
@@ -32,8 +32,10 @@ questions are in section 9.
 - **A light judge** stops only the absurd: the butler dismissing the lord, a housemaid
   "appointing" the earl as scullery maid. It works for any positions, including the ones agents
   may define later, without each scenario writing out a hierarchy.
+- Everyone knows the mechanism exists and that it lies with the people who direct others, so
+  someone who wants a post changed knows to ask (section 6).
 - Not now: resignation, a hierarchy, agents creating positions, several posts per person,
-  appointers outside the household (the publican and his barmaid, Q11 in section 8).
+  appointers outside the household (the publican and his barmaid; section 9, answer 11).
 
 ## 3. Who may appoint: the `:appoints` capability
 
@@ -51,7 +53,7 @@ Notes:
 - `:cook` because the kitchen and scullery maids assist her, `:coachman` for the grooms under
   him, `:head-gardener` for the garden lad. `:cook-general` (Lodge) has nobody under her, so no.
 - Not `:secretary` or `:tutor` (they direct no one), not `:son-` or `:daughter-of-the-house`,
-  not `:noble-lady`. These are judgement calls (Q1).
+  not `:noble-lady`. The user accepted this list.
 - A world file adds or removes it per position by overriding `:capabilities` in `:roles`, as
   for anything else. Note that `merge` replaces the whole set, so a world adding `:appoints` to
   a shop position has to restate `:shop-clerk` (scenario-authoring should say so).
@@ -66,8 +68,8 @@ Notes:
 
 Code checks (structure only):
 
-- `who` is an active participant, not the GM, **not the actor** (no self-appointment, which
-  keeps resignation out too: Q2),
+- `who` is an active participant, not the GM, **not the actor** ("you cannot appoint or
+  dismiss yourself"; this also keeps resignation out),
 - `position` is in the run's positions and isn't `:gm`, `:guest`, `:tradesman` or `:none`
   (`hiring/not-a-post-reason` already covers these; dismissal has its own tool),
 - `who` doesn't already hold `position`,
@@ -83,8 +85,16 @@ housemaid: …terms"), as `accept-place` does now. Nobody needs to be present.
 `dismiss {who reason?}`, kind `:final`, `:needs :appoints`, `:admission :people/post-check`.
 Same checks on `who`; `who` must hold some post other than `:none`.
 
-Effect: `post-changed` to `:none`, household nil, `:employer actor`, visible to both, plus the
-`:situation` line. What else dismissal does is Q3/Q4 below.
+Effect, all visible to both:
+
+- `post-changed` to `:none`, household nil, `:employer actor`;
+- `bedroom-assigned who nil`: the bed is no longer theirs (section 7);
+- the `:situation` line: "Mr Merrick has dismissed you from your post as housemaid. You no
+  longer belong to the household and have no bed here. Stay as long as you must; use
+  `take-leave` when you go."
+
+They stay, as an ordinary active agent with no post, until they choose to go with `take-leave`
+(section 4, "Leaving").
 
 ### The GM's `change-post` (for debugging and story events)
 
@@ -94,12 +104,34 @@ operator's).
 
 ### No `give-notice`
 
-Self-resignation is out for now (user's answer 6). The GM or operator can do it.
+Self-resignation is out for now. The GM or operator can do it.
+
+### Leaving: `take-leave` for the dismissed
+
+Today `take-leave` (one shared action, `visits/take-leave`) is offered to unengaged candidates
+and guests from elsewhere. It gets a third case: **someone dismissed**, i.e. whose post is
+`:none` with an `:employer` (so a person who was always `:none`, a candidate, isn't caught by
+it). For them:
+
+- `:valid?`: movement not disabled (`physical/disabled-reason`, as for guests); no need to be
+  at the meeting place, since they may be anywhere in the house or village. Perhaps the house
+  area only, as for guests (Q1).
+- `:effect`: `:people/departed` with `:towards` the home their record has (`:lives`, or
+  `:candidate-home` for a hired candidate), else "elsewhere", `:off-map? true`. They become
+  `:away` (no turns, no calls, notes and memory kept). No return time: the optional
+  `return-date`/`return-time` is refused for them, so there's no calendar entry and nothing
+  to clean up.
+- Being away is revivable, so they could come back later through `send-for` if a candidate
+  record exists for them (a hired candidate), or a GM visit. Authored cast have no record, so
+  only the GM could bring them back. That's fine for now.
+
+The doc text for `take-leave` gets one line for this case.
 
 ## 5. The post check (judge)
 
 A new adjudicator `:people/post-check`, built like `activity-check`: one narrow call on the
-run's `:judge-model`, one tool `check-post` answering `{:allowed bool :reason?}`, a reason
+run's `:judge-model` (the same as every judge and adjudicator; see section 9, answer 6), one
+tool `check-post` answering `{:allowed bool :reason?}`, a reason
 required when refused, checked by `adjudication/answer`. Mock: always allowed (tests supply
 refusals). Failure: a neutral reply, nothing changed.
 
@@ -127,7 +159,44 @@ reason it gives goes back to the appointer as the rejection.
 As with the activity check, the proposal is data, not instructions, and code never reads its
 prose.
 
-## 6. Getting it into others' contexts
+## 6. Everyone knows the mechanism exists
+
+The user wants every agent, in any scenario, to know that posts are changed by appointment and
+that this lies with the people who direct others, so that someone who wants a post (or wants
+someone moved) asks one of them. Two parts:
+
+**A rules section for everyone.** A new section in the shared rules (`ruleset/rules.clj`
+`rules`, template `resources/prompts/rules/sections/posts.md`), shown whenever the run has at
+least one position with `:appoints`. It's in the system prompt, so it's cached and costs
+nothing per turn. The text is generic, setting-neutral, and names nobody, so it fits any
+scenario and any pack:
+
+> ### Posts
+> Posts change only by appointment. Those who direct others in a household can appoint
+> someone to a different post or dismiss them, and the change takes effect at once, wherever
+> they are; agreeing to it in conversation changes nothing until they do. If you want a
+> different post, or want someone else moved or dismissed, and can't do it yourself, ask
+> someone who can. Someone dismissed stays until they choose to go, with `take-leave`.
+
+A pack can override the template, as with any prompt (`resources/settings/<id>/prompts/`), if
+its wording should be in period, but nothing in it is setting-specific.
+
+**Who can, in their own prompt.** Saying "those who direct others" leaves it to the agent to
+work out who that is, which is the period way and needs no hierarchy: the countess's `:about`
+says she gives the servants their work, the head housemaid's says she leads the housemaids.
+Appointers additionally see:
+
+- the `appoint` and `dismiss` tools (by `:needs`), each with a short doc;
+- one line in their position line: "Your position: Housekeeper. You live in. You can appoint
+  people to posts and dismiss them." (`ruleset/rules.clj` `position-line`, from the
+  capability, so it follows the post and the user doesn't have to write it into every
+  `:about`).
+
+An alternative that names the appointers (a list in `reference`: "These posts can appoint and
+dismiss: Countess, Housekeeper, …") would be more certain, but it's a list of titles, not
+people, and it repeats what each `:about` already says. It's Q2.
+
+## 7. Getting a change into others' contexts
 
 - Both parties see the `post-changed` event among their recent events at their next turn,
   wherever they are, narrated "X now holds the post of …, on these terms: …". A line
@@ -138,80 +207,88 @@ prose.
   shows posts where they're the `:employer` (already there), so they remember whom they've
   appointed.
 - Nobody else is told (user's answer 9). Others learn by talk.
-- A hibernating or sleeping appointee sees it when they next take a turn. If being appointed
-  should wake a hibernated person, that's Q6.
+- A sleeping appointee sees it when they next take a turn. Only people with routines hibernate
+  (villagers), so a hibernated appointee would only come up if someone appointed or dismissed a
+  villager; they'd see it when they wake. Nothing extra is needed.
 
-## 7. What else changes
+## 8. What else changes
 
 - **Routine:** left alone. Only village people (shopkeepers, the constable and so on) have
   routines, and none of them hold `:appoints` or would be appointed in practice.
-- **Bedroom:** unchanged on `appoint`. On `dismiss`, see Q3.
-- **Hiring:** unchanged. `engage` stays open to anyone, by people-and-hiring decision 5. Should
-  it now need `:appoints`? That's Q5.
+- **Bedroom:** unchanged on `appoint` unless the optional `bedroom` is given (Q3).
+  **Cleared on `dismiss`:** `[:state :bedrooms id]` is removed (the existing
+  `bedroom-assigned id nil`). Its effects:
+  - the household's bedroom list in everyone's view no longer shows them as sleeping in that
+    room, so the bed shows as free for a new hire;
+  - `sleep`'s "go to a bedroom first; yours is …" no longer names a room for them. They can
+    still sleep in any room of kind `:bedroom`, as anyone can: code doesn't evict them, and
+    whether they're let stay the night is a social matter;
+  - dismissal also ends household membership (household nil), so they no longer see the
+    household's bedroom list, its books or its account entries.
+- **Hiring:** unchanged. `engage` stays open to anyone.
 - **Mock policy:** a scripted `appoint` and `dismiss` in a test fixture, not in the mock day.
 - **Docs:** `docs/scenario-authoring.md` (the `:appoints` capability, the `merge` note), the tool
   docs in `resources/prompts/docs/people/`, the judge prompt, `docs/prompts.md`.
 
-Phases: (1) capability, `appoint`, `dismiss`, the judge, the GM tool, tests (mock, replay,
-the judge's refusal through a test verdict). (2) Whatever Q3–Q6 decide. A short real run of the
-judge on a few deliberately odd appointments, with your go-ahead.
+Phases, as one build:
 
-## 8. The user's answers (2026-11-07)
+1. The capability in both catalogues and the medium world; `appoint`, `dismiss`, the post
+   check, the GM's `change-post`; bedroom clearing; `take-leave` for the dismissed.
+2. The rules section and the position line; tool docs; the judge prompt; `docs/prompts.md`,
+   `docs/scenario-authoring.md`, the roadmap.
+3. Tests: mock and replay; the judge's refusal through a test verdict; a dismissed person's
+   `take-leave`; the rules section shown only with appointers.
+4. With your go-ahead: a short real run (about 8 rounds, `:max-cost` 0.20) that starts with
+   an appointment to make, and a few deliberately odd ones put to the judge directly, to see
+   where its line falls.
+
+## 9. The user's answers
+
+First round (2026-11-07):
 
 1–2. No hierarchy: designated appointers, including lower roles that direct someone.
 Inappropriate appointments are a social problem, not a constraint.
-3. Not applicable.
 4. Changes take effect at once.
-5. No notice period (the bedroom question is Q3 below).
-6. No self-resignation for now. Dismissals, and appointments, go through a light judge.
+5. No notice period.
+6. No self-resignation for now. Dismissals and appointments go through a light judge.
 7. Anywhere, for now; the change must reach the other agent's context.
 8. Routines: ignore.
 9. Only the two people hear of it.
 10. A GM tool, yes.
-11. Not now (the explanation is below).
+11. Not now. Why the first draft tied appointment to households: with no hierarchy and no
+    judge, the household was the only boundary code could enforce, or a publican with
+    `:appoints` could have reassigned the manor's housemaids. With the judge that check isn't
+    needed, and giving `:publican` `:appoints` would be all it took.
 12. Appointers may change each other, subject to the judge: slightly inappropriate goes ahead,
     absurd is refused.
 
-**On 11, why the draft tied it to households.** The publican doesn't *need* a household. In the
-first draft, code limited an appointer to people in their own household because, with no
-hierarchy and no judge, that was the only boundary available. Without it, a publican with
-`:appoints` could have reassigned the manor's housemaids. Now that the judge decides whom an
-appointer may move, that check isn't needed: giving `:publican` the `:appoints` capability is
-all it would take, and the judge would refuse him the manor's servants. What remains is minor.
-A dismissed barmaid goes to `:none` with household nil, which she already has. "Their
-employer" for the judge comes only from the `:about` prose ("you work for the publican" in the
-barmaid's), which is enough for a loose judge. So 11 is a one-line change, left out for now
-as you said.
+Second round:
 
-## 9. Open questions
+1. The appointer list stands. Everyone should know the mechanism exists and lies with the
+   appropriate people, in a way that works in any scenario; appointers see the tools.
+2. Self-appointment refused in the tool.
+3. Clear the bedroom on dismissal.
+4. The dismissed stay until they choose to go, and get `take-leave`.
+5. Hiring stays as it is.
+6. The judge model. Every narrow call, not only the light ones, uses the run's
+   `:judge-model` (falling back to `:model`): the work judge that decides `spend-time`'s
+   outcome, the conversation judge, the steward, the find judge, the invitation and trade
+   judges, and the activity check. Only the character writers (hiring's appearance and
+   polish, `:writer? true`) use the run's `:model`. Its default is nil, so in practice all
+   of them run on the run's model unless a run sets `:judge-model`. The post check does the
+   same; it adds no new option.
 
-- **Q1. The appointer list** in section 3: right as it stands? In particular `:cook`,
-  `:coachman`, `:head-gardener` (each directs one or two people), and whether `:secretary`
-  should act for the earl.
-- **Q2. Self-appointment** is refused in code (actor ≠ who), which also rules out resigning by
-  "appointing" oneself to `:none`. Is that right, or should the judge decide (e.g. the countess
-  taking over the housekeeping herself)?
-- **Q3. "Clearing the bedroom"**, which you asked about. Each person's bed is in
-  `[:state :bedrooms id]`. It decides where `sleep` lets them sleep ("go to a bedroom first;
-  yours is …"), and it lists them as that room's sleeper in the household's bedroom view.
-  Clearing it means a dismissed maid no longer has the maids' room as hers. She could still
-  sleep in any bedroom, as anyone can, but she'd no longer be shown as sleeping there, and the
-  bed would show as free for a new hire. So: clear the bedroom on dismissal, or leave it as a
-  social matter (she stays in her room until someone makes her go)?
-- **Q4. Does a dismissed person leave?** With the post at `:none` they're still an active agent
-  in the house, and they lose household membership (the household's books and bedroom view). The
-  options:
-  - (a) they stay until they choose to go, and get hiring's `take-leave` (today only for
-    candidates) so they can;
-  - (b) they leave at once, like a candidate sent away (`:people/departed`, away and
-    revivable);
-  - (c) they leave after the candidates' 24-hour grace, which isn't a notice period, just a
-    timeout.
+## 10. Open questions
 
-  The draft leans to (a), plus `take-leave`.
-- **Q5. Hiring:** should `engage` (offering a candidate a place) also need `:appoints`, now that
-  the capability exists? At the moment anyone may hire.
-- **Q6. Hibernated appointees:** should a post change wake someone who's hibernating, or wait
-  for them?
-- **Q7. Judge model:** the run's `:judge-model`, as the other judges use (a flash model)? It's
-  one call per appointment or dismissal, so it's cheap either way.
+- **Q1. Where can the dismissed take leave?** Guests have to go back to the house area
+  first. For the dismissed: anywhere (they may be in the village already), or the same rule
+  as guests?
+- **Q2. Naming the appointers to everyone:** is the generic rules text enough ("those who
+  direct others in a household"), with each `:about` saying who directs whom? Or should
+  everyone's prompt also list the titles of the posts that can appoint, from the
+  capability?
+- **Q3. A bedroom on appointment:** should `appoint` take an optional `bedroom`, as `engage`
+  does (a housemaid made lady's maid moves rooms)? It's cheap, and otherwise someone has to
+  ask the operator or GM.
+
+

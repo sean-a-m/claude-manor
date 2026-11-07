@@ -84,23 +84,14 @@
       (let [names (n/names world)]
         (is (= "Lord Claudeworth draws Lady Claudeworth and Hale into conversation."
                (n/describe (first (of-type run :conversation/started)) names)))
-        (is (= (str "The conversation Lord Claudeworth started is over. " conversation/nothing-handed)
-               (n/describe (first (of-type run :conversation/ended)) names)))
-        (testing "unless something changed hands, or the world has no items"
-          (let [ended (first (of-type run :conversation/ended))]
-            (is (= 0 (get-in ended [:data :handed])))
-            (is (= "The conversation Lord Claudeworth started is over."
-                   (n/describe (assoc-in ended [:data :handed] 1) names)
-                   (n/describe (update ended :data dissoc :handed) names)))
-            (is (nil? (conversation/handed (dissoc world :items) [])))
-            (is (= 1 (conversation/handed world [{:type :item/given} {:type :agent/said}])))))))
+        (is (= "The conversation Lord Claudeworth started is over."
+               (n/describe (first (of-type run :conversation/ended)) names)))))
     (testing "the initiator gets the conversation back and carries on with the turn; nobody loses a turn"
       (let [calls (store/read-llm (:dir run))
             converse-call (first (filter #(and (= "lord-claudeworth" (:agent %)) (nil? (:conversation %))) calls))
             reply (:content (first (:replies converse-call)))]
         (is (str/starts-with? reply "The conversation is over: everyone had their say.\nLord Claudeworth (Dining room) says: \"Shall we build?\""))
-        (is (str/ends-with? reply (str "\n" conversation/nothing-handed " It changes hands only when someone `give`s it, "
-                                      "finding it with `find` first if they don't carry it.\nCarry on with your turn.")))
+        (is (str/ends-with? reply "has the last word\"\nCarry on with your turn."))
         (is (= ["lord-claudeworth" "lady-claudeworth" "hale"]
                (filter #{"lord-claudeworth" "lady-claudeworth" "hale"} (map :actor (of-type run :agent/passed)))))
         (is (< (:id (first (of-type run :conversation/ended)))
@@ -110,13 +101,39 @@
       (let [calls (filter :conversation (store/read-llm (:dir run)))]
         (is (= 6 (count calls)))
         (is (= {:pass :last-word} (select-keys (:conversation (last calls)) [:pass])))
-        (is (= #{"reply" "end-conversation" "note" "follow" "recommend"} (set (:tools (last calls)))))
-        (is (= #{"reply" "stay-silent" "leave" "note" "follow" "recommend"} (set (:tools (first calls))))))
+        (is (= #{"reply" "end-conversation" "note" "follow" "recommend" "give"} (set (:tools (last calls))))
+            "the earl carries his watch, so his line can give it")
+        (is (= #{"reply" "stay-silent" "leave" "note" "follow" "recommend"} (set (:tools (first calls))))
+            "the countess carries nothing, so hers can't"))
       (let [text (transcript/render (:dir run))]
         (is (re-find #"\*\*hale\*\* _\(conv-\d+, pass 2\)_ reply" text))
         (is (re-find #"\*\*lord-claudeworth\*\* _\(conv-\d+, last word\)_ reply" text))))
     (testing "the started round is recorded, and replay reproduces the world"
       (is (= 1 (:conversed-round (w/agent world "lord-claudeworth"))))
+      (is (= world (w/replay (store/read-events (:dir run))))))
+    (e/stop-run run)))
+
+(deftest giving-on-a-line
+  (let [speak (fn [{:keys [agent-id step conversation]}]
+                (cond (not= "lord-claudeworth" agent-id) {:tool :reply :args {:text "Thank you, my lord."}}
+                      (not (:final? conversation)) {:tool :reply :args {:text "Take my watch."}}
+                      (= 0 step) {:tool :give :args {:item "pocket-watch" :to "lady-claudeworth"}}
+                      (= 1 step) {:tool :give :args {:item "pocket-watch" :to "hale"}}
+                      :else {:tool :reply :args {:text "There."}}))
+        run (round! (household (earl-opens {:with ["hale"]} speak)))
+        world (e/world run)
+        [first-give second-give] (keep #(get-in % [:replies 0 :content])
+                                       (filter #(= :last-word (get-in % [:conversation :pass]))
+                                               (store/read-llm (:dir run))))]
+    (testing "a line can give what the speaker carries, to someone in the conversation only"
+      (is (str/starts-with? first-give "rejected: give on your line only to someone in this conversation"))
+      (is (= "hale" (:holder (first (filter #(= "pocket-watch" (:id %)) (vals (:items world))))))))
+    (testing "the giving is part of the conversation the initiator hears back"
+      (let [converse-call (first (filter #(and (= "lord-claudeworth" (:agent %)) (nil? (:conversation %)))
+                                         (store/read-llm (:dir run))))]
+        (is (str/includes? (:content (first (:replies converse-call))) "gives the pocket watch to Hale"))))
+    (testing "the lord has no turn to spare: nothing was forfeited, and replay reproduces the world"
+      (is (empty? (of-type run :action/forfeited)))
       (is (= world (w/replay (store/read-events (:dir run))))))
     (e/stop-run run)))
 

@@ -119,7 +119,7 @@ must call.
 | `judges/tools/check-activity.md` | Admission verdict: allowed, or rejected with a correction | ″ | |
 | `judges/post-check.md` | The post check: admits `appoint` and `dismiss` unless absurd in the setting | `appointments.post-check/request` | setting (`era`) |
 | `judges/tools/check-post.md` | The post check's verdict: allowed, or refused with a reason for the appointer | ″ | |
-| `judges/scene.md` | The scene judge: activity types, scene evidence, item representations and effects, people, and summary consistency; no effects for travel-dependent timed activities | `items.judge/judge-instructions` | `advised-aspect`, `max-aspects`, `max-made`, `max-impediments`, `max-summary` |
+| `judges/scene.md` | The scene judge: activity types, scene evidence (including how what the worker carries bears on the work), item representations and effects, people, and summary consistency; no effects for travel-dependent timed activities | `items.judge/judge-instructions` | `advised-aspect`, `max-aspects`, `max-made`, `max-impediments`, `max-summary` |
 | `judges/brief.md` | The scene judge's "## The setting": the household's brief | `ruleset.rules/judge-brief` | `setting`, `mechanics` (`brief-architect.md`, `brief-deliveries.md` when those exist) |
 | `judges/brief-architect.md`, `brief-deliveries.md` | Fragments of the brief; `brief-deliveries.md` also says how to judge work on the scene's order books (`household_orders`, `shop_orders`) and `orders` | ″ | |
 | `judges/inner.md` | The scene judge's lines on inner state | `inner/instructions` | `advised-value`, `keys` (`inner-keys.md`) |

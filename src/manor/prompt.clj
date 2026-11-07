@@ -283,12 +283,12 @@
        "
 - Your line goes in `reply`'s text. A line written as plain text, outside a tool call, isn't heard.
 - `note` is free, if you want to remember something.
-- A line can agree to something but doesn't do it: nothing is handed over, made, mended or moved by talking. What was agreed happens only when someone acts on their turn"
+- A line can agree to something but doesn't do it: nothing is handed over, made, mended or moved by talking. What was agreed happens only when someone acts"
        (if items?
-         (str "; what you hold is under `carrying` in your view, and being told you've been given or lent something "
-              "doesn't put it there. A thing changes hands only when someone `give`s it on their own turn, "
-              "finding it with `find` first if they don't carry it.")
-         ".")
+         (str ". What you hold is under `carrying` in your view, and being told you've been given or lent something "
+              "doesn't put it there. A thing changes hands only when someone `give`s it: if you hand over something you carry, "
+              "`give` it on your line, before you reply. Something you don't carry has to be found with `find` on your own turn first.")
+         " on their turn.")
        "
 - Keep each line to a few sentences, at most " conversation/line-limit " characters, spoken as your character would to the people in the conversation.
 - Say something new, or don't speak: when the matter is settled, "

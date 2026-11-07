@@ -12,6 +12,7 @@
             [manor.engine.turn :as turn]
             [manor.mechanics.conversation :as conversation]
             [manor.mechanics.conversation.judge :as conversation-judge]
+            [manor.mechanics.items :as items]
             [manor.mechanics.physical :as physical]
             [manor.narrate :as narrate]
             [manor.prompt :as prompt]
@@ -31,8 +32,22 @@
   [scenario world speaker conv]
   (let [extras (->> ((:speaking-actions scenario (constantly [])) world speaker conv)
                     (filter #(#{:free :query} (a/kind %)))
-                    (remove #(#{:reply :stay-silent :leave :end-conversation :note} (:name %))))]
+                    (remove #(#{:reply :stay-silent :leave :end-conversation :note :give} (:name %))))]
     (mapv once-per-line (a/available extras world speaker))))
+
+(defn- give-on-a-line
+  "The run's `give` for a line in `conv`, in every world with items, when
+  `speaker` carries something: handing a thing to someone in the
+  conversation as it's agreed. Nil otherwise."
+  [run world speaker {:keys [members]}]
+  (when-let [give (run/action-named run :give)]
+    (when (seq (items/held-by world speaker))
+      (update give :valid?
+              (fn [valid?]
+                (fn [world actor args]
+                  (or (when-not (some #{(:to args)} members)
+                        "give on your line only to someone in this conversation")
+                      (valid? world actor args))))))))
 
 (defn- line-queries
   "How many queries a line with the scenario tools `extra-actions` may make:
@@ -89,7 +104,8 @@
   [run conv speaker turn]
   (let [{:keys [scenario opts]} run
         world @(:world run)
-        extra-actions (extra-speaking-actions scenario world speaker conv)
+        give (give-on-a-line run world speaker conv)
+        extra-actions (cond-> (extra-speaking-actions scenario world speaker conv) give (conj give))
         queries (line-queries extra-actions)
         max-steps (speaking-turn-steps queries)
         actions (into (cond-> (conversation/speaking-actions world conv speaker)
@@ -173,19 +189,14 @@
                        (conversation-judge/judged-events (:id conv) verdict)
                        [(conversation-judge/judge-failed (:id conv) failure)])))))
 
-(def ^:private how-to-hand-over
-  "After `conversation/nothing-handed`, in the initiator's summary."
-  "It changes hands only when someone `give`s it, finding it with `find` first if they don't carry it.")
-
 (defn- conversation-summary
-  "The initiator's tool reply: visible events during the conversation, its
-  ending, and (`handed` 0) that nothing changed hands."
-  [run {:keys [id initiator]} ending handed]
+  "The initiator's tool reply: visible events during the conversation and
+  its ending."
+  [run {:keys [id initiator]} ending]
   (let [names (narrate/names @(:world run))
         lines (heard run id initiator)]
     (str "The conversation is over: " (conversation/endings ending) ".\n"
          (str/join "\n" (map #(narrate/describe % names) lines))
-         (when (= 0 handed) (str "\n" conversation/nothing-handed " " how-to-hand-over))
          "\nCarry on with your turn.")))
 
 (defn run-conversation!
@@ -202,8 +213,7 @@
         (locking (:world run)
           (run/emit! run [(conversation/started @(:world run) actor conv)])
           (run/emit! run (conversation/line-events @(:world run) actor conv text)))
-        (let [ending (converse! run conv)
-              handed (conversation/handed @(:world run) (during run (:id conv)))]
-          (run/emit! run [(conversation/ended @(:world run) conv ending handed)])
+        (let [ending (converse! run conv)]
+          (run/emit! run [(conversation/ended @(:world run) conv ending)])
           (judge! run conv ending)
-          {:summary (conversation-summary run conv ending handed)})))))
+          {:summary (conversation-summary run conv ending)})))))

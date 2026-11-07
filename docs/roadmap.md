@@ -879,6 +879,17 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
     something over. Not yet checked in a real run: watch for promised things being found and
     given after the talk, and for `find` used for stock at a shop or the bar.
 
+    *Follow-up (Mrs Thorne's groceries, `runs/claudeworth-medium-20261107-125427`, Haiku):* she
+    bought tea, candles and meat to carry, told Bessie in two conversations to take the meat to the
+    meat safe, and never handed it over or put it away; Bessie kept asking. Lines had no `give`, and
+    the hand-over hint went only to the initiator, who here held nothing. *Done:* every world with
+    items now offers `give` on a line to a speaker who carries something, limited to the
+    conversation's members, and the speaking-turn rules say to `give` on the line. The ending's
+    "nothing changed hands" sentence and the initiator's hand-over hint are gone: with buying,
+    sending up and giving all possible inside a conversation, counting hand-overs said little.
+    The scene judge is also told to weigh what the worker carries: whether it helps, hinders or
+    makes no difference to the activity. Not yet checked in a real run.
+
 15. **Tests no longer wipe `roll-cast!` records or other runs.** Done: the wholesale deletion
     fixtures are removed. The test runner retains each invocation and JVM worker under
     `test-runs/tests/<invocation>/worker-N/`; engine fixtures wait for final writes and stop

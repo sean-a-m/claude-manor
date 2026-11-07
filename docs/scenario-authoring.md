@@ -3070,8 +3070,12 @@ on with it. It uses nobody else's turn either.
   nudged to call a tool instead). These tools exist only
   in speaking turns and can't be overridden. Lines are told 400 characters and accept 1500.
   The prompt also says that a line agrees to things but doesn't do them: nothing is handed over,
-  made, mended or moved by talking, only by someone acting on their turn (and, in a world with
-  items, that what you hold is under `carrying`).
+  made, mended or moved by talking, only by someone acting (and, in a world with items, that what
+  you hold is under `carrying`, and that something you carry is handed over with `give` on your line).
+- **`give` on a line:** in every world with items, a speaker who carries something is also offered
+  the run's `give`, limited to the conversation's members, before the scenario's extra tools. It's
+  free, so the line still ends with a speaking tool. A scenario's own `:give` among its extra
+  tools is dropped.
 - **Extra tools:** optional `:speaking-actions (fn [world speaker conv] actions)` adds tools after
   the speaking tools and `note`; `conv` has `:id`, `:initiator` and `:members`. The scenario decides
   who gets them. The engine accepts only `:free` and `:query`, applies their `:available?` checks,
@@ -3089,17 +3093,13 @@ on with it. It uses nobody else's turn either.
   a call fails (the run is asked to pause). It never carries over into another round.
 - **Events,** each with `:conversation` (the id, `"conv-<n>"`) in its data and visible to everyone
   present: `:conversation/started {:members :at}`, each line an ordinary `:agent/said`, then
-  `:conversation/silent`, `:conversation/left` and `:conversation/ended {:reason :handed}`.
-  In a world with items, `:handed` counts the things that came into someone's hands during it
-  (`:item/given`, `:item/taken`, `:item/found`); when it's 0 the ending's narration adds that
-  nothing changed hands and that anything offered, lent or promised is still where it was. Bystanders hear
+  `:conversation/silent`, `:conversation/left` and `:conversation/ended {:reason}`. Bystanders hear
   every line. The started event records the round in the initiator's `:conversed-round`, which
   limits them to one conversation a round. Nothing else is world state.
 - The initiator's tool reply says how it ended and narrates every event visible to them between
   its start and end: lines, silences, departures, and extra-tool effects such as offers (with quote
   ids) and refusals. Start/end markers, usage and system events are omitted; private events stay
-  private. When nothing changed hands, it ends by saying so and that a thing changes hands only
-  through `give`, after `find` if nobody carries it. Extra-tool events need no `:conversation` tag. Speaking turns are
+  private. Extra-tool events need no `:conversation` tag. Speaking turns are
   logged in `llm.edn` with `:conversation {:id :pass}` (`:pass :last-word` for the last word),
   which the transcript shows next to the agent.
 - **Judged afterwards** in a scenario with inner state: once it has ended (and wasn't cut

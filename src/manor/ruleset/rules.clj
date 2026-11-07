@@ -55,6 +55,12 @@
     (str "\n\n" (section world "shopping-order-book"))
     ""))
 
+(defn- appointers?
+  "Does any position in the run have the :appoints capability
+  (manor.mechanics.appointments)?"
+  [world]
+  (boolean (some #(contains? (set (:capabilities %)) :appoints) (vals (get-in world [:state :positions])))))
+
 (defn rules
   "How actions work, for every role: a section for each subject, so a model
   (and whoever reads the prompt) can find what applies. Each section is a
@@ -89,6 +95,7 @@
                 (when architect?
                   (section world "building" {:sizes (str/join ", " (map :size (get-in world [:state :architect-prices :sizes])))
                                              :fee-percent building/fee-percent}))
+                (when (appointers? world) (section world "posts"))
                 (section world "hiring" {:hiring ((if visits? hiring/rules-beside-visits hiring/rules) world)})
                 (when visits? (section world "invitations" {:visits (visits/rules world)}))
                 (when visits? (trades/rules world))]))})))
@@ -112,11 +119,14 @@
 
 (defn- position-line
   "\"Your position: Private secretary. You live in. You work at: Study
-  (study).\" from the position's title, :sleeps and :workplace."
-  [world {:keys [title sleeps workplace]}]
+  (study).\" from the position's title, :sleeps, :workplace and whether
+  it :appoints."
+  [world {:keys [title sleeps workplace capabilities]}]
   (when title
     (str "Your position: " title "."
          (case sleeps :in-house " You live in." :out " You live out." nil)
+         (when (contains? (set capabilities) :appoints)
+           " You can appoint people to posts, dismiss them and assign their bedrooms.")
          (when (seq workplace)
            (str " You work at: " (str/join ", " (for [id workplace] (str (places/loc-name world id) " (" id ")"))) ".")))))
 

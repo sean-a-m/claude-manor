@@ -476,10 +476,12 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   Raw readings stay in private prompts under **Faculties**; reputation selects readings and
   written facts. See design section 3.7. Clearer period wording remains future work, without
   dropping or replacing the basic data.
-  Real simulation acceptance runs remain with the user; outdoor housing and dismissal are deferred.
-- **Changing posts (designed, not built):** `docs/role-change-design.md`. Appointers (a
+  Real simulation acceptance runs remain with the user; outdoor housing is deferred.
+- **Changing posts (built, mock-tested):** `docs/role-change-design.md`. Appointers (a
   position capability, `:appoints`) can `appoint` and `dismiss` through a light judge that
-  refuses only the absurd, and `assign-bedroom` without one; everyone's rules say the mechanism exists.
+  refuses only the absurd, and `assign-bedroom` without one; the GM has `change-post`; the
+  dismissed `take-leave` from anywhere; everyone's rules say the mechanism exists. The short
+  real run of the design's phase 4 waits for the user's go-ahead.
 - **Dismissal's edge cases (later):** dismissal is supported simply: post `:none`, household
   and bedroom cleared, and `take-leave` from anywhere. Not handled: a dismissed person with
   nowhere to sleep who never leaves, a dismissed villager's shop, workplace and routine left

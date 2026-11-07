@@ -2517,9 +2517,13 @@ An entry:
   outside every household: the catalogue's `:guest` (someone from elsewhere, see Visits), which
   has no `:sleeps` because they live elsewhere.
 - `:capabilities` are what code and tools go by (see `:needs` under `:actions`): `:shop-clerk`
-  (quote goods at a shop) and `:architect` (draw plans for clients, earn commission fees). The
-  butcher, shopkeeper, draper, publican and postmistress are separate positions with the same
-  counter capability.
+  (quote goods at a shop), `:architect` (draw plans for clients, earn commission fees) and
+  `:appoints` (change other people's posts and beds; see "Changing posts"). The butcher,
+  shopkeeper, draper, publican and postmistress are separate positions with the same counter
+  capability.
+- A world file's `:roles` entry is merged over the catalogue's, and `merge` replaces the whole
+  `:capabilities` set: a world giving `:appoints` to a shop position must restate `:shop-clerk`
+  (`:capabilities #{:shop-clerk :appoints}`), or the holder stops serving at the counter.
 
 **Forms of address** are behind the run option `:addressed-as?` (default true; CLI
 `--no-address` turns it off), so runs with and without them can be compared. When it's on, an
@@ -2535,7 +2539,42 @@ people as the world names them: "Pugh", not "Mr Pugh").
 holds what (two cooks, or none, are fine). `(change-post! "nellie" :cook {:terms "..."})` at the
 REPL (`manor.engine/change-post!`) changes a post between rounds; `:household` defaults to their
 present post's, and they see the change. Hiring's `accept-place` also changes a post and
-records optional `:employer` and `:conditions`; there is no general in-game post-changing action.
+records optional `:employer` and `:conditions`.
+
+**Changing posts** (`manor.mechanics.appointments`, installed by the ruleset;
+`docs/role-change-design.md`). A position with `:capabilities #{:appoints}` gives its holder
+three tools, each `:final` and usable from anywhere, with nobody needing to be present:
+
+- `appoint {who position terms? reason?}` moves `who` to another post at once: a
+  `post-changed` with `:employer` the appointer and the household of `who`'s present post (or
+  the appointer's), and their `:situation` replaced (`situations/appointed.md`). Refused for
+  yourself, the GM, someone not active, a position not in the run, `:gm`, `:guest`,
+  `:tradesman` or `:none`, and the post they already hold. The bedroom is unchanged.
+- `dismiss {who reason?}` ends `who`'s post: position `:none`, household nil, `:employer` the
+  dismisser, their bedroom cleared, and their situation replaced (`situations/dismissed.md`).
+  They stay as an ordinary agent until they `take-leave`, which someone dismissed (post `:none`
+  with an `:employer`) may use from anywhere their movement allows, without a return time: they
+  leave the map towards their `:lives` (or a hired candidate's home), else "elsewhere", and
+  become away. A candidate, `:none` with no employer, isn't caught by this.
+- `assign-bedroom {who bedroom}` gives someone of the household, or a guest from elsewhere
+  staying with it, any home-area room (yourself included); sharing is allowed. No judge.
+
+`appoint` and `dismiss` go through the post check, the adjudicator `:people/post-check`
+(`judges/post-check.md`, on the run's `:judge-model`): it sees only the two people's names,
+posts, `:about` and households, the new post, the appointer's reason and the world's
+`:meta :setting`, and refuses only the absurd (a servant dismissing their master); its reason
+goes back as the rejection. Mock runs always allow it; a scenario's `[:adjudicators
+:people/post-check :mock]` can supply refusals. Every change is visible to the two people
+only. The GM has `change-post {who position household? terms?}`, the operator's
+`change-post!` as a tool, with `none` allowed and no judge.
+
+Whenever some position in the run has `:appoints`, the rules gain a "Posts" section
+(`rules/sections/posts.md`): posts change only by appointment, by those who direct others, so
+ask one of them. An appointer's position line adds "You can appoint people to posts, dismiss
+them and assign their bedrooms." The bundled appointers are the england-1904 catalogue's
+`:earl`, `:countess`, `:mistress`, `:butler`, `:housekeeper`, `:head-housemaid`, `:cook`,
+`:head-gardener` and `:coachman`, the qing-palace's `:consort` and `:chief-eunuch`, and
+Claudeworth-medium's `:baron`, `:baroness` and `:butler-valet`.
 
 **Bedrooms and routines** are kept by person in `[:state :bedrooms]` and `[:state :routines]`,
 set by `:people/bedroom-assigned` and `:people/routine-set`. Claudeworth's `:on-spawn` sets an

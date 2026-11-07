@@ -12,8 +12,10 @@
             [manor.mechanics.appointments :as appointments]
             [manor.mechanics.appointments.post-check :as post-check]
             [manor.mechanics.positions :as positions]
+            [manor.mechanics.visits :as visits]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
+            [manor.ruleset.rules :as rules]
             [manor.scenarios.claudeworth :as cw]
             [manor.test-support :as support]
             [manor.world :as w]))
@@ -183,3 +185,67 @@
           (is (:error (post-check/check-answer bad)))))
       (is (= appointments/adjudicators (select-keys (get-in cw/scenario [:adjudicators]) [:people/post-check])))
       (finally (e/stop-run run)))))
+
+(deftest the-posts-rules-show-only-with-appointers
+  (let [run (start)
+        world (e/world run)]
+    (try
+      (is (str/includes? (rules/rules world) "### Posts\nPosts change only by appointment."))
+      (let [none (update-in world [:state :positions] update-vals #(update % :capabilities disj :appoints))]
+        (is (not (str/includes? (rules/rules none) "### Posts"))))
+      (testing "an appointer's position line says what they can do; others' don't"
+        (is (str/includes? (rules/agent-brief world "mrs-finch")
+                           "Your position: Cook. You live in. You can appoint people to posts, dismiss them and assign their bedrooms."))
+        (is (not (str/includes? (rules/agent-brief world "nellie") "You can appoint"))))
+      (finally (e/stop-run run)))))
+
+(defn- offered? [run world id] (contains? (set (map :name (a/available (:actions run) world id))) :take-leave))
+
+(deftest the-dismissed-take-leave
+  (let [run (start)]
+    (try
+      (testing "nobody with a post, or never dismissed, is offered it"
+        (is (not (offered? run (e/world run) "daisy"))))
+      (is (:ok (act! run "mrs-finch" :dismiss {:who "daisy"})))
+      (let [world (e/world run)]
+        (is (visits/dismissed? world "daisy"))
+        (is (offered? run world "daisy"))
+        (testing "from anywhere: the scullery, not the meeting place"
+          (is (= "scullery" (:location (w/agent world "daisy")))))
+        (testing "no return time"
+          (is (str/includes? (:rejected (act! run "daisy" :take-leave {:return-date "1904-10-16" :return-time "09:00"}))
+                             "without a return time")))
+        (testing "not with their movement disabled"
+          @(e/afflict! run "daisy" {:faculty :movement :level :disabled})
+          (is (str/includes? (:rejected (act! run "daisy" :take-leave {})) "can't leave"))
+          @(e/afflict! run "daisy" {:faculty :movement :level :normal})))
+      (let [before (count (e/events run))]
+        (is (:ok (act! run "daisy" :take-leave {})))
+        (let [world (e/world run)
+              departed (first (filter #(= :people/departed (:type %)) (new-events run before)))]
+          (is (= :away (:status (w/agent world "daisy"))))
+          (is (nil? (:location (w/agent world "daisy"))))
+          (is (= {:id "daisy" :reason "takes leave" :towards "elsewhere" :off-map? true} (:data departed)))
+          (is (not-any? #(= :calendar/added (:type %)) (new-events run before)))))
+      (is (replayed? run))
+      (finally (e/stop-run run)))))
+
+(deftest a-dismissed-hired-candidate-can-be-sent-for-again
+  (let [run (start)]
+    (try
+      (is (:ok (act! run "mrs-finch" :dismiss {:who "daisy"})))
+      (let [world (w/apply-event (e/world run) {:type :people/pooled
+                                                :data {:id "candidate-1" :agent-id "daisy" :seeks [:scullery-maid]
+                                                       :status :engaged :candidate-home "a cottage at Ely" :known-to #{"mrs-finch"}}})
+            events (visits/dismissed-leave-events world "daisy")
+            after (reduce w/apply-event world events)]
+        (is (= "a cottage at Ely" (get-in (first (filter #(= :people/departed (:type %)) events)) [:data :towards])))
+        (is (= :away (get-in after [:state :pool "candidate-1" :status])))
+        (is (= :away (:status (w/agent after "daisy")))))
+      (finally (e/stop-run run)))))
+
+(deftest a-candidate-with-no-post-was-not-dismissed
+  (let [world (e/world (doto (start) e/stop-run))
+        candidate (w/apply-event world (positions/post-changed world "hale" :none {:household nil}))]
+    (is (not (visits/dismissed? candidate "hale")))
+    (is (not (visits/dismissed? world "nellie")))))

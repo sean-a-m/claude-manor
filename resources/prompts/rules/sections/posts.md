@@ -1,0 +1,2 @@
+### Posts
+Posts change only by appointment. Those who direct others in a household can appoint someone to a different post, dismiss them or give them a different bedroom, and the change takes effect at once, wherever they are; agreeing to it in conversation changes nothing until they do. If you want a different post or room, or want someone else moved or dismissed, and can't do it yourself, ask someone who can. Someone dismissed stays until they choose to go, with `take-leave`.

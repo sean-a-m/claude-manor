@@ -1,6 +1,18 @@
 # Changing posts: reassignment and dismissal
 
-Status: **design settled** (the user's answers are in section 9). Nothing built.
+Status: **built** (the user's answers are in section 9), mock- and offline-tested
+(`test/manor/appointments_test.clj`). Phase 4, the short real run, waits for the user's go-ahead.
+
+As built, the differences from the text below are small:
+
+- `take-leave` for the dismissed is `visits/take-leave`'s third case (`visits/dismissed?`).
+  Its departure is the guest's (`visits/leave-events`, with `:off-map? true`): towards the
+  agent's `:lives`, a hired candidate's `:candidate-home`, the record's `:lives`, else
+  "elsewhere", and any visit of theirs that is `:here` ends. A hired candidate's pool record
+  goes back to `:away` (it was `:engaged`), so `send-for` can bring them back as section 4
+  expects.
+- The position line's sentence and the post narration are in code beside the lines they join
+  (`ruleset.rules/position-line`, `positions` describe), as the text around them is.
 
 ## 1. What exists now
 

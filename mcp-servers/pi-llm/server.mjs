@@ -21,12 +21,16 @@
 // message back, sends pi's original instead. pi-ai passes thinking only to
 // the model that wrote it.
 //
-// Providers that pi extensions add aren't loaded. pi-claude-bridge's
-// "claude-bridge" couldn't serve these calls anyway: it works only inside
-// pi's agent loop and always runs Claude Code's own system prompt.
+// Providers from pi extensions are loaded only when PI_LLM_EXTENSIONS names
+// them; the providers they register are then available too. This still does
+// not make pi-claude-bridge's "claude-bridge" usable: it is not a provider,
+// it works only inside pi's agent loop and always runs Claude Code's own
+// system prompt. pi-claude-code's "claude-code" is a provider and does work
+// this way.
 //
 // Environment:
 //   PI_LLM_MODULE             pi-coding-agent's module   default: found from `pi` on PATH
+//   PI_LLM_EXTENSIONS         colon-separated extension paths to load   default: none
 //   MANOR_OPENROUTER_API_KEY  used for OpenRouter models in place of pi's key (in memory only)
 // MCP transport: newline-delimited JSON-RPC 2.0 on stdin/stdout. Logs go to stderr.
 
@@ -53,9 +57,32 @@ function piModule() {
   throw new Error(`no pi-coding-agent package above ${bin}; set PI_LLM_MODULE`);
 }
 
-const { ModelRuntime } = await import(pathToFileURL(piModule()).href);
-const runtime = await ModelRuntime.create();
+const pi = await import(pathToFileURL(piModule()).href);
+const runtime = await pi.ModelRuntime.create();
 if (env.MANOR_OPENROUTER_API_KEY) await runtime.setRuntimeApiKey("openrouter", env.MANOR_OPENROUTER_API_KEY);
+
+// Extensions named in PI_LLM_EXTENSIONS (colon-separated paths) are loaded
+// with pi's own loader, and the providers they register are added to this
+// runtime, so e.g. pi-claude-code's "claude-code" provider can serve
+// "claude-code/<model id>". Off unless the variable is set. pi's loader also
+// looks at the global and project extension directories; anything it loads
+// there that registers a provider is added too.
+const extensionPaths = (env.PI_LLM_EXTENSIONS || "").split(":").map((p) => p.trim()).filter(Boolean);
+if (extensionPaths.length > 0) {
+  if (typeof pi.discoverAndLoadExtensions !== "function") {
+    throw new Error("this pi-coding-agent cannot load extensions; unset PI_LLM_EXTENSIONS");
+  }
+  const loaded = await pi.discoverAndLoadExtensions(extensionPaths, process.cwd());
+  for (const e of loaded.errors) log("extension failed:", e.path, e.error);
+  for (const { provider } of loaded.runtime.pendingNativeProviderRegistrations ?? []) {
+    try { runtime.registerNativeProvider(provider); log("extension provider", provider.id); }
+    catch (e) { log("could not register provider", provider.id, ":", e.message); }
+  }
+  for (const { name, config } of loaded.runtime.pendingProviderRegistrations ?? []) {
+    try { runtime.registerProvider(name, config); log("extension provider", name); }
+    catch (e) { log("could not register provider", name, ":", e.message); }
+  }
+}
 
 function resolveModel(name) {
   const i = name.indexOf("/");

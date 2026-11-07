@@ -73,3 +73,23 @@
       (testing "provider errors throw with their message"
         (is (thrown-with-msg? Exception #"boom" (llm/complete client (assoc request :model "fake/error")))))
       (finally (.close ^java.io.Closeable client)))))
+
+(defn- one-call
+  "One plain call naming an extension provider, through a fresh helper."
+  [env]
+  (let [dir (str (io/file store/test-runs-root (str (gensym "pi-llm-ext-"))))
+        client (pi-llm/pi-llm {:run-id "pi-llm-ext" :run-dir dir} (assoc fake-server :env env))]
+    (try
+      (seen (llm/complete client {:model "fakeext/m1"
+                                  :messages [{:role "system" :content "You are Ann."}
+                                             {:role "user" :content "It is morning."}]}))
+      (finally (.close ^java.io.Closeable client)))))
+
+(deftest loads-extension-providers
+  (testing "PI_LLM_EXTENSIONS loads a provider the helper can then use"
+    (is (= "fakeext/m1"
+           (:model (one-call {"PI_LLM_MODULE" (.getAbsolutePath (io/file "test/fixtures/fake-pi-runtime.mjs"))
+                              "PI_LLM_EXTENSIONS" "/extension/fake"})))))
+  (testing "without it, the name is just an OpenRouter id"
+    (is (= "openrouter/fakeext/m1"
+           (:model (one-call {"PI_LLM_MODULE" (.getAbsolutePath (io/file "test/fixtures/fake-pi-runtime.mjs"))}))))))

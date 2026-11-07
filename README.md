@@ -33,7 +33,10 @@ clojure -M:run claudeworth --pi --model openai/gpt-6-luna                # pi: t
 A run keeps its choice in `config.edn`, so `--load` uses it again. Per-agent `:model`s in a world
 file must name models the run's route knows. Costs for subscription providers are pi's estimates
 from catalog prices, so `:max-cost` caps notional dollars there. Providers added by pi extensions
-(`claude-bridge`) don't work: see `mcp-servers/pi-llm/server.mjs`.
+work only when `PI_LLM_EXTENSIONS` (set under `:pi-llm :env` in `config/mcp.edn`) names them.
+`pi-claude-code`'s `claude-code` provider does, so `--pi --model claude-code/claude-opus-5-5` runs
+on a Claude Code subscription via `claude -p`. `pi-claude-bridge` is not a provider and doesn't
+work: see `mcp-servers/pi-llm/server.mjs`.
 
 
 ## Web UI

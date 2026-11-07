@@ -9,4 +9,12 @@
             ;; pi tools the assistant may use; empty = none (chat only).
             ;; e.g. "read,grep,find,ls" (read-only) or "read,bash,edit,write"
             "PI_MCP_TOOLS" ""
-            "PI_MCP_MODEL" "deepseek/deepseek-v4.1-flash"}}}
+            "PI_MCP_MODEL" "deepseek/deepseek-v4.1-flash"}}
+
+ ;; `--pi` model calls run through mcp-servers/pi-llm/server.mjs. Providers
+ ;; added by pi extensions are offered only when PI_LLM_EXTENSIONS names them
+ ;; (colon-separated paths), and are then used as "<provider>/<model id>".
+ ;; pi-claude-code's "claude-code" provider runs Claude Code's `claude -p` on a
+ ;; Claude subscription, e.g. `--pi --model claude-code/claude-opus-5-5`.
+ :pi-llm {:env {;; "PI_LLM_EXTENSIONS" "/home/you/.pi/agent/git/github.com/earendil-works/pi-claude-code"
+               }}}

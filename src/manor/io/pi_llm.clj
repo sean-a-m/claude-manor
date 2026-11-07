@@ -14,8 +14,12 @@
   stderr goes to <run-dir>/mcp-pi-llm.log.
 
   Machine settings (e.g. :env {\"PI_LLM_MODULE\" ...}) go under :pi-llm in
-  config/mcp.edn, as for MCP servers. Providers that pi extensions add
-  aren't available (see the helper's header)."
+  config/mcp.edn, as for MCP servers. Providers from pi extensions are
+  available when the helper's PI_LLM_EXTENSIONS (a colon-separated list of
+  extension paths) names them: pi-claude-code's claude-code provider then
+  serves claude-code/<model id>, using Claude Code's claude -p on a Claude
+  subscription. Not pi-claude-bridge: it is not a provider (see the helper's
+  header)."
   (:require [manor.io.llm :as llm]
             [manor.io.mcp :as mcp])
   (:import (java.io Closeable)))

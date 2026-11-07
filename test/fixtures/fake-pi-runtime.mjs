@@ -9,15 +9,34 @@
 const usage = (input) => ({ input, output: 20, cacheRead: 100, cacheWrite: 0, reasoning: 5, totalTokens: input + 120,
                             cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0.0021 } });
 
+// A stand-in for pi's extension loader: it pretends the named path is an
+// extension registering the "fakeext" provider, so the helper's
+// PI_LLM_EXTENSIONS path can be checked offline (see manor.pi-llm-test).
+export async function discoverAndLoadExtensions(paths, _cwd) {
+  return {
+    extensions: paths,
+    errors: [],
+    runtime: {
+      pendingNativeProviderRegistrations: [{ provider: { id: "fakeext" }, extensionPath: paths[0] }],
+      pendingProviderRegistrations: [],
+    },
+  };
+}
+
 let calls = 0;
 
 export class ModelRuntime {
+  constructor() { this.registered = new Set(); }
   static async create() { return new ModelRuntime(); }
 
   async setRuntimeApiKey() {}
 
+  registerNativeProvider(provider) { this.registered.add(provider.id); }
+  registerProvider(name) { this.registered.add(name); }
+
   getModel(provider, id) {
-    return provider === "fake" || provider === "openrouter" ? { provider, id, api: "fake-api" } : undefined;
+    return provider === "fake" || provider === "openrouter" || this.registered.has(provider)
+      ? { provider, id, api: "fake-api" } : undefined;
   }
 
   async completeSimple(model, context, options) {

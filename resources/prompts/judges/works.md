@@ -5,9 +5,11 @@ You plan works for a household in a simulation set in {{era}}: lasting changes t
 - Otherwise give a plan:
   - `summary`: one sentence saying what will be done, plainly ("Install a brass gasolier over the dining table.").
   - `who`: who is best placed to do it: a trade, or a position of the household ("a strong manservant, such as a footman"), and what is likely to go wrong in the wrong hands. It is a recommendation only: anyone may be given the work.
+  - `household`: true if the household's own people can do it (carrying, lifting, simple fixing), false if it wants a tradesperson.
+  - `trade` (only when `household` is false): the trade it wants, in a few words, as one would ask for it ("gas fitter", "cabinet maker").
   - `item` (install only): the new thing as it will be: `name`, `desc`, and optionally `aspects`, short keyed phrases.
   - `fate` (remove only): what becomes of the thing, briefly ("broken up and carted away").
-  - `estimate`: what the work would cost if a tradesman were paid for it, materials included, in whole units of the smallest coin. For work the household's own people can do, the estimate is the materials alone. At most {{max-estimate}}. {{money}}
+  - `estimate`: what the work would cost if a tradesman were paid for it, materials included, in whole units of the smallest coin. For household work, the estimate is the materials alone. At most {{max-estimate}}. {{money}}
   - `materials`: what the materials cost, included in the estimate; 0 if none are needed.
   - `phases`: exactly {{max-phases}} phase, of exactly {{phase-minutes}} minutes, with `doing`, what the worker does in it in a short phrase ("carrying the piano through to the morning room").
 - One worker is always enough for the work: plan it for one, never for a gang.

@@ -3059,7 +3059,7 @@ a contact is a record like a candidate, and sending for one is a visit.
 
 ### Works (`manor.mechanics.works`)
 
-[fixtures-design.md](fixtures-design.md), phase 1: lasting changes to the things of a place,
+[fixtures-design.md](fixtures-design.md), phases 1 and 2: lasting changes to the things of a place,
 fixed ones included (install, move, remove), planned by anyone, given to anyone and carried out
 as an ordinary timed item job whose outcome the scene judge decides. `spend-time` makes only
 passing changes; a work is how a piano gets to the dining room. Money (estimate, materials,
@@ -3075,7 +3075,9 @@ acceptance (phase 2a).
 - **The record** in `[:state :work-orders]` by id (`"work-1"`, …, numbered by
   `[:state :work-order-count]`; `[:state :works]` is the architect's): `:planner`, `:kind`
   (`:install`, `:move`, `:remove`), `:place`, `:target`, `:to`, `:request` (the planner's words),
-  the judge's `:summary`, `:who` (a recommendation, never enforced), `:item` (install), `:fate`
+  the judge's `:summary`, `:who` (a recommendation, never enforced), `:household` (true when
+  the household's own people can do it), `:trade` (when it wants a tradesperson: "gas fitter";
+  advice only), `:item` (install), `:fate`
   (remove), `:estimate`, `:materials`, `:phases [{:doing :minutes :done}]`, `:known-to`, and
   once given `:orderer`, `:worker`, `:price`, `:priced-by` and `:account` (the paying account:
   `"household"` or the orderer's id). `:status` goes `:planned` →
@@ -3084,16 +3086,21 @@ acceptance (phase 2a).
 - **The works judge** (`manor.mechanics.works.judge`, template `judges/works.md`, tool
   `work_plan` from `judges/tools/work-plan.md`): one checked narrow call per `plan-work`. It sees
   the setting's period and money guidance, the planner, the place and its things, the target, the
-  destination and the request as data, and answers `{refused}` or a plan (`summary who item? fate?
-  estimate materials phases`). Code checks only structure: materials ≤ estimate ≤ £500 (authored
+  destination and the request as data, and answers `{refused}` or a plan (`summary who household trade? item? fate?
+  estimate materials phases`). Code checks only structure: `household` a boolean and, when it's
+  false, a `trade` of at most 80 characters; materials ≤ estimate ≤ £500 (authored
   units), the item's lengths, an item for an install and a fate for a removal, exactly one phase
-  of 120 minutes. A bad answer gets one retry. `judge/mock-judge` plans everything as household
-  work at no cost but an install's materials, and refuses a request starting with "refuse".
+  of 120 minutes. A bad answer gets one retry. `judge/mock-judge` plans a move or removal as
+  household work and an install as a gas fitter's, at no cost but an install's materials, and refuses a request starting with "refuse".
 - **Actions** (tool docs in `docs/works/`):
   - `plan-work {kind request target? to?}`, a query, anyone: at the place; an install takes no
     target, a move or removal a thing here (not carried, not inside something, not a store, not
     identity-bound); only a move takes `to`, another place in the home; at most 3 plans not yet
-    given out. `:works/planned`, seen by the planner only.
+    given out. `:works/planned`, seen by the planner only. When the plan names a trade, its
+    narration (`works/trade-hint`) says how to find one: someone `recommend`s with that `trade`,
+    the planner `send-for`s the contact with the work's id in the job, and `order-work`s it to
+    them when they come. Nothing in trades knows of works: a tradesperson sent for is an ordinary
+    contact, and anyone may still be given the plan.
   - `order-work {id worker price? from?}`, free: a plan the actor knows, still planned; the
     worker someone here (any living participant, never checked for fitness) or the actor; `price`
     money text in the setting's money as people write it (`"£15 10s"`, `"3 taels 250 cash"`,
@@ -3140,11 +3147,13 @@ acceptance (phase 2a).
 - **Staying on task.** `:early-reminder` (scenario key: `(fn [world agent-id] text-or-nil)`,
   added to the early turn reminder by `engine.seat`): one `agent/reminder-work.md` sentence per
   accepted work the agent isn't carrying out now. On acceptance the worker gets an all-day
-  calendar entry `works-<id>` for today. `works/open-work?` (accepted or finishing) keeps a
-  tradesperson from going home idle and keeps the worker out of hibernation.
+  calendar entry `works-<id>` for today. `works/open-work?` (accepted or finishing) keeps the
+  worker out of hibernation; `works/engaged?` (that, or a work on offer to them) keeps a
+  tradesperson from elsewhere from going home idle while the terms are settled and the work done.
 - **`:items :fixed-hint`** ends `take`'s and `put-in`'s refusal of a fixed thing; works set it to
   "to move it, plan a work with plan-work".
-- **Views:** `works`, the plans `id` knows except cancelled ones: id, kind, summary, who, status,
+- **Views:** `works`, the plans `id` knows except cancelled ones: id, kind, summary, who, trade
+  (when wanted), status,
   `ordered-by`, `worker` ("you" for the worker), `price` (in the setting's money), `priced-by`,
   `paid-from` ("household", "your purse" or "<name>'s purse"); while offered `next`, saying
   whether to answer (accept-work or revise-work, or decline-work for the worker) or whom
@@ -3153,7 +3162,9 @@ acceptance (phase 2a).
   `result`.
 - **Mock days** script works with plain tool entries: ids are deterministic (`"work-1"` for the
   run's first plan), so `[:order-work {:id "work-1" :worker "nellie"}]` follows a `plan-work`.
-  `works_test/a-scripted-day-moves-the-cabinet` is the example.
+  `works_test/a-scripted-day-moves-the-cabinet` is the example;
+  `a-gas-fitter-is-sent-for-and-fits-the-gasolier` scripts a tradesperson from elsewhere (whose
+  id isn't known in advance) with a policy that maps a placeholder to `contact-1`'s person.
 
 ### Occupation: sleep and other long activities
 

@@ -144,7 +144,7 @@ must call.
 | `judges/find-person.md` | Whom a `find-person` seeker means | `find-person/instructions` | |
 | `judges/invitation.md` | Whom an `invite` means | `visits.judge/instructions` | `invitation-examples` (the pack's fragment) |
 | `judges/trade.md` | Whom a `recommend` with `trade` means | `trades.judge/instructions` | |
-| `judges/works.md` | The works judge's planning: a `plan-work` request as a work plan (one phase of two hours, one worker, `who` a recommendation only), or refused | `works.judge/instructions` | `phase-minutes`, `max-phases`, `max-estimate`; the pack's `money-pricing.md` |
+| `judges/works.md` | The works judge's planning: a `plan-work` request as a work plan (one phase of two hours, one worker, `who` a recommendation only, `household` or the `trade` it wants), or refused | `works.judge/instructions` | `phase-minutes`, `max-phases`, `max-estimate`; the pack's `money-pricing.md` |
 | `judges/tools/work-plan.md` | The works judge's `work_plan` tool | `works.judge/request` | |
 | `judges/shop-appraiser.md` | The shop's appraisal of requested goods | `shop/instructions` | `max-lead-hours`, `max-quantity`; the pack's `money-pricing.md` |
 | `judges/tools/judge.md` | The scene judge's `judge` tool | `items.judge/judge-tool` | `activity` (act or work), `advised-aspect`, `max-summary`, `inner` (`judge-inner.md` + `" "`, or `""`), `relations` (`tools/relations.md` + `" "`, or `""`), `effects` (`judge-act.md` or `judge-work.md`, which takes `max-made`, followed for a work's job by `judge-work-order.md`, the `work` field) |

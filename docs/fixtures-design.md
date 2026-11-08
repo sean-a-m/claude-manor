@@ -1,6 +1,6 @@
 # Fixtures and work orders: design proposal
 
-**Status:** phase 1 and step 2a built and mock-tested (section 7); 2b next. Written 2026-11-07 from the user's brief and revised the same day with their
+**Status:** phases 1 and 2 built and mock-tested (section 7); no real-model check yet. Written 2026-11-07 from the user's brief and revised the same day with their
 answers (section 2). Agents should be able to add, change, move and remove fixtures and fixed items
 (a chandelier, a new dining table, a brick oven) in every scenario. Section 6 lists the awkward
 cases still to settle.
@@ -427,6 +427,30 @@ Still to watch in the build:
      trade reaches the scene judge (done in 1d). A mock end-to-end test: a gasolier planned,
      a gas fitter recommended and sent for, the price haggled once, paid, fitted; and the same
      plan given to a kitchen maid with a scripted flawed verdict.
+     *Done:* the works judge's answer has `household` (a boolean: the household's own people
+     can do it) and, when it's false, `trade` ("gas fitter", at most 80 characters, as
+     `recommend` takes it); code checks only presence, types and lengths, and the record keeps
+     `:household` and `:trade`. When a plan has a trade, its narration (`works/trade-hint`) and
+     the `plan-work` doc say to have someone `recommend` with that trade, `send-for` the contact
+     with the work's id in the job, and `order-work` it to them when they come; the `works` view
+     shows `trade`. Never enforced. The mock works judge plans a move or removal as household work
+     and an install as a gas fitter's. Trades needed one fix: a tradesperson from elsewhere went
+     home idle while a work was only *offered* to them (the 1e hold covered accepted work only),
+     so `works/engaged?` (offered to them, or accepted and unfinished) now holds back the idle
+     departure. The tradesman position's text (both packs) and the rules' trades section, which
+     said work was done with `spend-time` and never charged, now mention works given with
+     `order-work` and paid at the agreed price. Tests in `works_test.clj`:
+     `a-gas-fitter-is-sent-for-and-fits-the-gasolier` scripts a whole day on the trades test world
+     (test/fixtures/visits.edn, from 08:00): Hale plans the gasolier, the earl recommends a gas
+     fitter (someone new from Ely), Hale sends for him with "work-1: …", he arrives at noon and
+     walks to the drawing room, Hale orders at the estimate (£2), he revises to £3 10s, Hale
+     accepts, the household pays £3 10s and £1 10s goes to his purse, he carries it out and the
+     gasolier is fixed there; the scene judge hears "a gas fitter (by trade)", the book says done,
+     replay matches. `a-maid-botches-the-gasolier` orders the same plan to Nellie on the test
+     household with a scripted flawed verdict: a crooked gasolier with a stiff tap, and the dining
+     room's `air` "smelling faintly of gas".
+
+   **Phase 2 is done** (without `alter`), mock-tested only; no real-model check yet.
 
 3. **Polish.** GM and operator tools, the panel's scene view.
 4. **Later, when needed:** several phases, with a flawed phase adding work; several workers;

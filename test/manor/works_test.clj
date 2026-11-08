@@ -1,5 +1,5 @@
 (ns manor.works-test
-  "Works, steps 1a to 1f (docs/fixtures-design.md 7): `plan-work`, the works
+  "Works, steps 1a to 2c (docs/fixtures-design.md 7): `plan-work`, the works
   judge and the private plan; offering it with order-work, accept-work,
   decline-work and cancel-work; carrying it out with carry-out; the
   outcome from the scene judge's `work`; staying on task (the early
@@ -21,6 +21,7 @@
             [manor.mechanics.purchases :as purchases]
             [manor.mechanics.space :as space]
             [manor.mechanics.trades :as trades]
+            [manor.mechanics.visits :as visits]
             [manor.mechanics.works :as works]
             [manor.mechanics.works.judge :as judge]
             [manor.narrate :as narrate]
@@ -889,6 +890,7 @@
         (is (= "carriage-sweep" (space/location-of world tuner)) "he has arrived")
         (is (leaves? idle) "idle long enough, he would go home")
         (is (not (leaves? (given :accepted))) "not with accepted work unfinished")
+        (is (not (leaves? (given :offered))) "nor while its terms are being settled")
         (is (not (leaves? (given :finishing))))
         (is (leaves? (given :done)) "once it's done, he goes")
         (is (nil? (check run (given :accepted) tuner :take-leave {})) "take-leave stays allowed"))
@@ -945,5 +947,153 @@
         (testing "Nellie's calendar entry was made and is cancelled now"
           (is (= #{"nellie"} (:visible-to entry)))
           (is (= :cancelled (get-in entry [:lifecycle :status])))))
+      (replay! run)
+      (finally (e/stop-run run)))))
+
+;; ---------------------------------------------------------------------------
+;; Step 2c: tradespeople
+
+(deftest a-plan-names-the-trade-it-wants
+  (let [run (start-with household/scenario {})
+        world (planned-world run)
+        wo (works/work-order world "work-1")
+        c #(judge/check-answer world "install" %)
+        ok (:args (judge/mock-judge {:input {:kind "install" :request "a range"}}))]
+    (try
+      (testing "the mock wants a gas fitter for an install, the household for a move"
+        (is (= {:household false :trade "gas fitter"} (select-keys wo [:household :trade])))
+        (is (true? (get-in (judge/mock-judge {:input {:kind "move" :request "x"}}) [:args :household]))))
+      (testing "the plan says how to find one, and the view names the trade"
+        (let [text (works/describe-plan wo (narrate/names world))]
+          (is (str/includes? text "recommend with trade \"gas fitter\""))
+          (is (str/includes? text "send-for them")))
+        (is (= "gas fitter" (:trade (view-work run world "hale")))))
+      (testing "household work has no hint"
+        (is (nil? (works/trade-hint {:id "work-1"}))))
+      (testing "only structure is checked"
+        (is (str/includes? (:error (c (dissoc ok :household))) "household"))
+        (is (str/includes? (:error (c (dissoc ok :trade))) "trade"))
+        (is (nil? (:trade (:plan (c (assoc ok :household true))))) "household work keeps no trade")
+        (is (some? (:error (c (assoc ok :trade (apply str (repeat 81 "x"))))))))
+      (finally (e/stop-run run)))))
+
+(def gas-fitter-day
+  "On the trades test world from 08:00: Hale plans a gasolier for the
+  drawing room (the mock judge wants a gas fitter); the earl comes home and
+  recommends one, from Ely; Hale sends for him with the work's id in the
+  job. He arrives at the carriage sweep at noon and walks in; Hale orders
+  him the work at the estimate (£2, all materials), he asks £3 10s, Hale
+  accepts, and he carries it out: two hours from 14:30. \"@tradesman\" in a
+  script is the gas fitter's id, and \"tradesman\" his script."
+  {"hale" {"08:00" [[:plan-work {:kind "install" :request "a three-light gas chandelier over the drawing-room fireplace"}]
+                    [:pass {}]]
+           "09:00" [[:send-for {:id "contact-1" :job "work-1: fit the gasolier in the drawing room"}]]
+           "13:00" [[:order-work {:id "work-1" :worker "@tradesman"}] [:pass {}]]
+           "14:00" [[:accept-work {:id "work-1"}] [:pass {}]]}
+   "lord-claudeworth" {"08:00" [[:travel {:to "drawing-room"}]]
+                       "08:30" [[:recommend {:trade "a gas fitter" :for "hale"}] [:pass {}]]}
+   "tradesman" {"12:30" [[:walk {:to "drawing-room"}] [:pass {}]]
+                "13:30" [[:revise-work {:id "work-1" :price "£3 10s"}] [:pass {}]]
+                "14:30" [[:carry-out {:id "work-1"}]]}})
+
+(defn- tradesman-policy
+  "The scripted policy for `day`, with the gas fitter (contact-1's person)
+  following the \"tradesman\" script and \"@tradesman\" in any args his id."
+  [day]
+  (fn [{:keys [world agent-id] :as ctx}]
+    (let [fitter (:agent-id (trades/contact world "contact-1"))
+          day (cond-> day (= fitter agent-id) (assoc agent-id (get day "tradesman")))
+          answer (mock/scripted-policy day ctx)]
+      (update answer :args #(update-vals (or % {}) (fn [v] (if (= "@tradesman" v) fitter v)))))))
+
+(deftest a-gas-fitter-is-sent-for-and-fits-the-gasolier
+  (let [scenario (with-scene-judge cw/scenario (constantly {:outcome "as-planned"}))
+        run (with-redefs [e/load-scenario (constantly (assoc scenario :mock-policy (tradesman-policy gas-fitter-day)))]
+              (e/start-run :claudeworth {:test? true :llm :mock :offline? true :gm :off :max-cost 0.20 :start "1904-10-15T08:00"
+                                         :world-file "test/fixtures/visits.edn" :run-id (str (gensym "works-gas-"))}))]
+    (try
+      (until! run 3)
+      (let [world (e/world run)
+            fitter (:agent-id (trades/contact world "contact-1"))]
+        (testing "the plan named the trade and how to find one"
+          (is (= "gas fitter" (:trade (works/work-order world "work-1"))))
+          (is (str/includes? (first (replies-to run "hale" "plan-work")) "recommend with trade \"gas fitter\"")))
+        (testing "the gas fitter is recommended and sent for with the work's id"
+          (is (= {:trade "gas fitter" :known-to #{"hale" "lord-claudeworth"}}
+                 (select-keys (trades/contact world "contact-1") [:trade :known-to])))
+          (is (= "work-1: fit the gasolier in the drawing room" (:stay (visits/visit world "visit-1"))))
+          (is (= :away (:status (w/agent world fitter))))))
+      (until! run 18)
+      (let [world (e/world run)
+            fitter (:agent-id (trades/contact world "contact-1"))
+            wo (works/work-order world "work-1")
+            it (items/item world (:made wo))
+            start (* 100 240)]
+        (testing "ordered at the estimate, haggled once, accepted and paid"
+          (is (= [:works/planned :works/offered :works/revised :works/accepted :works/phase-done :works/done]
+                 (map :type (filter #(= "works" (namespace (:type %))) (e/events run)))))
+          (is (= {:status :done :outcome :as-planned :orderer "hale" :worker fitter :price 840 :priced-by fitter :account "household"}
+                 (select-keys wo [:status :outcome :orderer :worker :price :priced-by :account]))))
+        (testing "the household (starting with £100) paid £3 10s, and £1 10s of it is his labour"
+          (is (= (- start 840) (funds world "household")))
+          (is (= 360 (funds world fitter))))
+        (testing "the gasolier is fixed in the drawing room"
+          (is (= {:place "drawing-room" :fixed? true :owner "household"} (select-keys it [:place :fixed? :owner]))))
+        (testing "the scene judge was told he's a gas fitter by trade"
+          (is (some #(str/includes? (get-in % [:messages 1 :content]) "a gas fitter (by trade)") (scene-judge-calls run))))
+        (testing "the household's book shows it done"
+          (let [[e] (work-entries world)]
+            (is (= {:done-by (:name (w/agent world fitter)) :ordered-by "Hale" :price "£3 10s"} (select-keys e [:done-by :ordered-by :price])))
+            (is (str/starts-with? (:status e) "done at "))))
+        (testing "no forfeits or refused calls"
+          (is (empty? (of-type run :action/forfeited)))
+          (is (not-any? #(re-find #"^(error:|rejected:)" (:content % "")) (mapcat :replies (store/read-llm (:dir run)))))))
+      (replay! run)
+      (finally (e/stop-run run)))))
+
+(def maid-day
+  "Lady Claudeworth plans a gasolier for the dining room and orders it to
+  Nellie, the housemaid, who accepts and carries it out from 09:30."
+  {"lady-claudeworth" {"08:00" [[:walk {:to "dining-room"}] [:pass {}]]
+                       "08:30" [[:plan-work {:kind "install" :request "a three-light gas chandelier over the dining table"}]
+                                [:order-work {:id "work-1" :worker "nellie"}]
+                                [:pass {}]]}
+   "nellie" {"08:00" [[:walk {:to "dining-room"}] [:pass {}]]
+             "09:00" [[:accept-work {:id "work-1"}] [:pass {}]]
+             "09:30" [[:carry-out {:id "work-1"}]]}})
+
+(defn- with-gas-in-the-air
+  "`scenario`'s scene judge, as with-scene-judge with a flawed work, also
+  saying the place's air smells of gas."
+  [scenario]
+  (let [s (with-scene-judge scenario (constantly {:outcome "flawed"
+                                                   :item {:name "Brass gasolier" :desc "A three-light brass gasolier."
+                                                          :aspects {"repair" "hanging crooked, one tap stiff"}}}))
+        judge (:mock-judge s)]
+    (assoc s :mock-judge
+           (fn [ctx]
+             (cond-> (judge ctx)
+               (get-in ctx [:job :work-order])
+               (update-in [:args :changes] (fnil conj [])
+                          {:thing (get-in ctx [:job :place]) :aspect "air" :value "smelling faintly of gas"}))))))
+
+(deftest a-maid-botches-the-gasolier
+  (let [run (start-with (with-gas-in-the-air move-household) maid-day)]
+    (try
+      (until! run 9)
+      (let [world (e/world run)
+            wo (works/work-order world "work-1")
+            it (items/item world (:made wo))]
+        (testing "anyone may be given it: the plan wanted a gas fitter, Nellie took it"
+          (is (= {:trade "gas fitter" :worker "nellie" :status :done :outcome :flawed}
+                 (select-keys wo [:trade :worker :status :outcome]))))
+        (testing "the flawed gasolier is fixed in the dining room, with its fault"
+          (is (= {:name "Brass gasolier" :place "dining-room" :fixed? true :aspects {:repair "hanging crooked, one tap stiff"}}
+                 (select-keys it [:name :place :fixed? :aspects]))))
+        (testing "and the dining room smells of gas"
+          (is (= "smelling faintly of gas" (get-in (space/location world "dining-room") [:aspects :air]))))
+        (testing "the scene judge was told she's a housemaid"
+          (is (some #(str/includes? (get-in % [:messages 1 :content]) "The worker is: Housemaid") (scene-judge-calls run))))
+        (is (empty? (of-type run :action/forfeited))))
       (replay! run)
       (finally (e/stop-run run)))))

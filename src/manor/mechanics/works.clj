@@ -82,10 +82,20 @@
        (when fate (str "The old thing: " fate ". "))
        (materials-text names data)))
 
+(defn trade-hint
+  "How to find the tradesperson a plan wants, or nil for household work. A
+  hint only: the plan may still be given to anyone."
+  [{:keys [id trade]}]
+  (when trade
+    (str " It wants a " trade ": to find one, ask someone who might know to recommend with trade \"" trade
+         "\", then send-for them with the contact's id and a job naming " id
+         ", and give them the plan with order-work when they come.")))
+
 (defn describe-plan
   "A plan as its knowers read it."
   [{:keys [id] :as data} names]
   (str (plan-text data names)
+       (trade-hint data)
        " Use order-work with id \"" id "\" to give it to someone to carry out."))
 
 (defmethod n/describe :works/planned [{:keys [data]} names]
@@ -864,7 +874,7 @@
   [world id {:keys [orderer worker price status] :as wo}]
   (let [who #(n/who (n/names world) %)
         place (work-place world wo)]
-    (cond-> (-> (select-keys wo [:id :kind :summary :who :status])
+    (cond-> (-> (select-keys wo [:id :kind :summary :who :trade :status])
                 (update :kind name) (update :status name))
       (and orderer (not= id orderer)) (assoc :ordered-by (who orderer))
       (and worker (not= id worker)) (assoc :worker (who worker))
@@ -901,6 +911,14 @@
   elsewhere from going home idle, and keeps them out of hibernation."
   [world id]
   (boolean (seq (open-works world id))))
+
+(defn engaged?
+  "Is `id` the worker of a work on offer to them, or one they've accepted
+  and not finished? A tradesperson from elsewhere doesn't go home idle while
+  the terms are still being settled, nor with the work to do."
+  [world id]
+  (boolean (or (open-work? world id)
+               (some #(and (= id (:worker %)) (= :offered (:status %))) (vals (work-orders world))))))
 
 (defn early-reminder
   "A scenario :early-reminder: for each work `id` has accepted and isn't

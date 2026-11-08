@@ -22,6 +22,9 @@
 (def max-summary 300)
 (def max-who 300)
 (def max-doing 200)
+;; The trade a plan names when it wants a tradesperson, as `recommend` takes it
+;; (manor.mechanics.trades.judge/max-trade).
+(def max-trade 80)
 ;; For now a work has exactly one phase of two hours (decision 7).
 (def max-phases 1)
 (def phase-minutes 120)
@@ -48,6 +51,8 @@
    [:refused {:optional true} (text 300)]
    [:summary {:optional true} (text max-summary)]
    [:who {:optional true} (text max-who)]
+   [:household {:optional true} :boolean]
+   [:trade {:optional true} (text max-trade)]
    [:item {:optional true} item-schema]
    [:fate {:optional true} (text items/max-aspect)]
    [:estimate {:optional true} [:int {:min 0}]]
@@ -115,8 +120,10 @@
 
 (defn plan-problem
   "Why the plan `p` for `kind` isn't well formed, or nil."
-  [world kind {:keys [summary who item fate estimate materials phases]}]
+  [world kind {:keys [summary who household trade item fate estimate materials phases]}]
   (cond (some str/blank? [summary who]) "a plan needs a summary and who"
+        (not (boolean? household)) "a plan needs household: true if the household's own people can do it, false if it wants a tradesperson"
+        (and (false? household) (str/blank? trade)) "a plan with household false needs trade, the trade it wants (\"gas fitter\")"
         (not (and (int? estimate) (int? materials))) "a plan needs estimate and materials, whole numbers"
         (> materials estimate) "materials can't be more than the estimate, which includes them"
         (> estimate (max-estimate world)) (str "the estimate is at most " (max-estimate world))
@@ -132,8 +139,9 @@
 (defn- plan-of
   "The parts of a checked plan that `kind` uses."
   [kind args]
-  (cond-> (select-keys args [:summary :who :estimate :materials])
+  (cond-> (select-keys args [:summary :who :household :estimate :materials])
     true (update-vals trimmed)
+    (false? (:household args)) (assoc :trade (str/trim (:trade args)))
     true (assoc :phases (mapv #(-> % (select-keys [:doing :minutes]) (update :doing str/trim)) (:phases args)))
     (= "install" kind) (assoc :item (-> (:item args) (update :name str/trim) (update :desc str/trim)
                                         (cond-> (empty? (:aspects (:item args))) (dissoc :aspects))))
@@ -169,10 +177,10 @@
 ;; The mock, for --mock runs and tests
 
 (defn mock-judge
-  "A stand-in judge: it plans any request as household work, for the
-  request's own words, costing nothing but an install's materials (480 in
-  the smallest unit, £2 in England); it refuses a request that starts with
-  \"refuse\"."
+  "A stand-in judge: it plans a move or a remove as household work and an
+  install as a gas fitter's, for the request's own words, costing nothing
+  but an install's materials (480 in the smallest unit, £2 in England); it
+  refuses a request that starts with \"refuse\"."
   [{:keys [input]}]
   (let [{:keys [kind request target to]} input
         what (or (:name target) request)]
@@ -183,10 +191,14 @@
                                  "install" (str "Install " request ".")
                                  "move" (str "Move the " what " to the " to ".")
                                  (str "Remove the " what "."))
-                      :who "A strong servant of the household; no tradesman needed."
+                      :who (if (= "install" kind)
+                             "A gas fitter; anyone else risks a leak."
+                             "A strong servant of the household; no tradesman needed.")
+                      :household (not= "install" kind)
                       :estimate (if (= "install" kind) 480 0)
                       :materials (if (= "install" kind) 480 0)
                       :phases [{:doing (str "working at it: " request) :minutes phase-minutes}]}
+               (= "install" kind) (assoc :trade "gas fitter")
                (= "install" kind) (assoc :item {:name "New fitting" :desc (str "Newly put in: " request)})
                (= "remove" kind) (assoc :fate "carted away")))}))
 

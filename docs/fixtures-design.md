@@ -471,7 +471,15 @@ architect laying brickwork on the old hall footings). It made no fixed things, o
 
    **Phase 2 is done** (without `alter`), mock-tested only; no real-model check yet.
 
-3. **Polish.** GM and operator tools, the panel's scene view.
+3. **Polish: the scene view (done, mock-tested).** The user wanted only works shown in a view
+   (2026-11-08); GM and operator tools are left out. The ruleset's scene hooks
+   (`manor.tools.scene-ruleset`, through `works/operator-entries`, omniscient, never shown to a
+   character) add: a **Works** panel under the household funds in the toolbar, open works
+   listed and finished or cancelled ones folded away, each with where, who planned it and who
+   should do it, the trade, who ordered it, the worker, estimate, materials, price and who set
+   it, who pays, the phase and progress, who is at it now and the result; a badge on the room a
+   work is done in ("1 work", ", under way" while someone is at it); and in the inspectors, the
+   works done in a place, and the works a person planned, ordered or works on.
 4. **Later, when needed:** several phases, with a flawed phase adding work; several workers;
    lead times for goods made off site; merchants by letter; shared deposits and bills; refunds
    and lapsing.

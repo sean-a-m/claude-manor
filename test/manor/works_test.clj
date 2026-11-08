@@ -9,6 +9,7 @@
   in the drawing room, Hale's notebook in his pocket)."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
+            [hiccup2.core :as hiccup]
             [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
@@ -917,10 +918,34 @@
   "The test household with Nellie and a calendar."
   (ruleset/scenario {:name :household :defaults {:world-file household/world-file :leave-out []}}))
 
+(defn- html [x] (str (hiccup/html x)))
+
 (deftest a-scripted-day-moves-the-cabinet
   (let [run (start-with move-household move-day)]
     (try
+      (until! run 5)
+      (testing "the scene view shows the work under way: listed, a badge on its room, in the inspectors"
+        (let [world (e/world run)
+              hooks (:scene (:scenario run))
+              toolbar (html ((:toolbar hooks) world))]
+          (is (str/includes? toolbar "Works: "))
+          (is (str/includes? toolbar "1 open"))
+          (is (str/includes? toolbar "work-1"))
+          (is (str/includes? toolbar "Nellie"))
+          (is (some #(str/starts-with? % "1 work") ((:badges hooks) world "drawing-room")))
+          (is (empty? ((:badges hooks) world "dining-room")) "the badge is on the room the work is done in")
+          (is (str/includes? (html ((:inspect hooks) world "place" "drawing-room")) "Works here"))
+          (is (str/includes? (html ((:inspect hooks) world "agent" "nellie")) "work-1"))
+          (is (str/includes? (html ((:inspect hooks) world "agent" "lady-claudeworth")) "work-1"))
+          (is (nil? ((:inspect hooks) world "agent" "hale")) "nobody else's works")))
       (until! run 9)
+      (testing "once it's done, the scene view folds it away with its result"
+        (let [world (e/world run)
+              hooks (:scene (:scenario run))
+              toolbar (html ((:toolbar hooks) world))]
+          (is (str/includes? toolbar "0 open, 1 finished or cancelled"))
+          (is (str/includes? toolbar "done as planned"))
+          (is (empty? ((:badges hooks) world "drawing-room")))))
       (let [world (e/world run)
             calls (store/read-llm (:dir run))
             reminders (for [c calls :when (= "nellie" (:agent c)) r (:replies c)

@@ -911,6 +911,37 @@
     (cond-> view
       (seq known) (assoc :works (mapv #(view-entry world id %) known)))))
 
+;; ---------------------------------------------------------------------------
+;; For the operator (the panel's scene view): every work, omniscient
+
+(def open-statuses #{:planned :offered :accepted :finishing})
+
+(defn operator-entry
+  "Work `wo` as the operator sees it: everything, in plain fields. Never
+  shown to a character."
+  [world {:keys [planner orderer worker price account status] :as wo}]
+  (let [who #(n/who (n/names world) %)
+        job (job-for world (:id wo))]
+    (cond-> {:id (:id wo) :kind (name (:kind wo)) :status (name status) :summary (:summary wo)
+             :where (where-text wo (n/names world)) :place (work-place world wo)
+             :planner (who planner) :who (:who wo)
+             :estimate (show-money-in world (:estimate wo)) :materials (show-money-in world (:materials wo))
+             :people (set (remove nil? [planner orderer worker]))}
+      (:trade wo) (assoc :trade (:trade wo))
+      orderer (assoc :ordered-by (who orderer))
+      worker (assoc :worker (who worker))
+      price (assoc :price (show-money-in world price))
+      (:priced-by wo) (assoc :priced-by (who (:priced-by wo)))
+      account (assoc :paid-from (if (= "household" account) "household" (str (who account) "'s purse")))
+      (#{:accepted :finishing} status) (merge (phase-entry wo))
+      job (assoc :under-way (str (who (:actor job)) ": " (:doing job)))
+      (#{:done :failed} status) (assoc :result (result-text world wo)))))
+
+(defn operator-entries
+  "Every work, oldest first, as the operator sees them."
+  [world]
+  (mapv #(operator-entry world %) (ordered world)))
+
 (def actions [plan-action order-action revise-action accept-action decline-action cancel-action carry-out-action])
 
 ;; ---------------------------------------------------------------------------

@@ -87,6 +87,7 @@
                 (section world "things" {:find-for-sale (section world (if (find-everywhere? world)
                                                                           "things-find-everywhere"
                                                                           "things-find-not-at-trade"))})
+                (section world "works")
                 (section world "people" {:physical (physical/rules world)})
                 (section world "shopping" {:paid (section world (if architect? "shopping-paid-commissions" "shopping-paid"))
                                            :spending-tools (section world (if architect? "shopping-spending-tools-commissions" "shopping-spending-tools"))

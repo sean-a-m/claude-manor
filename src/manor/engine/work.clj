@@ -21,13 +21,18 @@
   "Record and apply a prepared ending in job order. Build new item ids on
   the live world, so independent jobs making identically named things agree
   with sequential judging too. Changes to inner state and bodies follow the
-  public :item/work-done as their own events (item-work/result-events)."
+  public :item/work-done as their own events (item-work/result-events).
+  Then the scenario's :after-job hooks, each (fn [world job work result])
+  on the world after those events, may add events of their own (works
+  record progress on a work order this way)."
   [run {:keys [job] :as work} {:keys [ended records] :as result}]
   (doseq [record! records] (record!))
   (let [world @(:world run)]
     (run/emit! run (if ended
                      [(item-work/work-ended world job ended)]
-                     (item-work/result-events world job (item-work/work-done world job work (:verdict result)) result)))))
+                     (item-work/result-events world job (item-work/work-done world job work (:verdict result)) result))))
+  (doseq [hook (get-in run [:scenario :after-job])]
+    (run/emit! run (hook @(:world run) job work result))))
 
 (defn- independent-prefix
   "The longest consecutive prefix with disjoint scopes. Never move a job

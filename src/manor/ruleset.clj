@@ -37,6 +37,7 @@
             [manor.mechanics.shop :as shop]
             [manor.mechanics.trades :as trades]
             [manor.mechanics.visits :as visits]
+            [manor.mechanics.works :as works]
             [manor.ruleset.actions :as actions]
             [manor.ruleset.hibernation :as hibernation]
             [manor.ruleset.init :as init]
@@ -63,12 +64,14 @@
   decline a place offered; an open counter's clerk can check goods; the
   keeper of a shop that sends goods out can send goods up from it, open or
   not; a customer with
-  quotes made for them at this shop can buy."
-  [world speaker {:keys [members]}]
-  (cond-> [(to-a-member :recommend :for "recommend to someone in this conversation" members)
-           (to-a-member :engage :who "offer a place to someone in this conversation" members)
-           (hiring-action :accept-place)
-           (hiring-action :decline-place)]
+  quotes made for them at this shop can buy; anyone can order a work to
+  someone in it, or accept or decline one offered."
+  [world speaker {:keys [members] :as conv}]
+  (cond-> (into [(to-a-member :recommend :for "recommend to someone in this conversation" members)
+                 (to-a-member :engage :who "offer a place to someone in this conversation" members)
+                 (hiring-action :accept-place)
+                 (hiring-action :decline-place)]
+                (works/speaking-actions world speaker conv))
     (not (shop/service-reason world speaker))
     (into (filter #(= :quote-goods (:name %)) shop/actions))
     (nil? (shop/sending-reason world speaker))
@@ -114,7 +117,7 @@
 (defn scenario
   "A full scenario on the ruleset: every action, judge, bridge and system,
   appointments among them (manor.mechanics.appointments), with hiring,
-  deliveries, visits and trades installed, in that order. `opts`:
+  deliveries, visits, trades and works installed, in that order. `opts`:
   - :name, :doc, :defaults (its :world-file names the world)
   - :mock-day, a day for the scripted mock policy (a map, or a classpath EDN
     file such as \"worlds/claudeworth-day.edn\"); or :mock-policy, a policy
@@ -156,4 +159,5 @@
       hiring/install
       deliveries/install
       visits/install
-      trades/install))
+      trades/install
+      works/install))

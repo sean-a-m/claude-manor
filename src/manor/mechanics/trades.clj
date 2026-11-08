@@ -20,6 +20,7 @@
             [manor.mechanics.space :as space]
             [manor.mechanics.trades.judge :as judge]
             [manor.mechanics.visits :as visits]
+            [manor.mechanics.works :as works]
             [manor.narrate :as n]
             [manor.prompts :as prompts]
             [manor.world :as w])
@@ -249,12 +250,14 @@
 
 (defn- idle-departure
   "A tradesperson from elsewhere, here on a visit by :sent-for, goes home
-  after `idle-hours` without a conversation or work."
+  after `idle-hours` without a conversation or work, but not while a work
+  is on offer to them or accepted and not yet finished (manor.mechanics.works)."
   [world c]
   (let [id (:agent-id c)
         v (sent-for-visit world id)]
     (when (and (not (:local? c)) v (= :here (:status v)) (:from-away? v) (w/active? world id)
                (nil? (w/busy world id)) (not (physical/held-in-place? world id))
+               (not (works/engaged? world id))
                (>= (hiring/idle-rounds world id (:arrived v)) (clock/rounds-for (:clock world) (* 60 idle-hours))))
       (visits/leave-events world id {}))))
 

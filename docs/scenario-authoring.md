@@ -86,6 +86,8 @@ world file (`test/fixtures/hamlet.edn`), with a clock and a `sleep` action.
    :mcp-servers   {...}                    ; optional, MCP servers that bridges call
    :systems       [...]                    ; optional, per-round world processes
    :items         {:judge-brief (fn [world] "...")}   ; optional, turns on items (see Items)
+   :after-job     [(fn [world job work result] [events])]  ; optional: after each item job's ending is emitted (works use it)
+   :early-reminder (fn [world agent-id] "..." or nil)  ; optional: added to the early turn reminder (works: accepted work not yet done)
    :calendar      {:lookahead-days 30}     ; optional, in-world schedule (requires a clock)
    :inner         {:keys {:mood "gloss" ...} :open 2}  ; optional, turns on inner state (see Inner state)
    :relations     {:keep 20}               ; optional, needs :inner: turns on relations (see Relations)
@@ -444,7 +446,12 @@ sends on any account. Both are shown even when empty: the latest 6 entries and e
 still to come, each entry the lines bought together (`from`, `for`, `bought`, `goods`, `total`,
 `status`, and `sent-up-by` for a delivery to come). `orders` keeps only the pending orders a
 person is party to that are in no book they see (own-purse deliveries, mostly). The shopping
-rules say what the books show (`rules/sections/shopping-order-book.md`).
+rules say what the books show (`rules/sections/shopping-order-book.md`). Works paid from the
+household's account are in its book too: records of `:kind :work` kept by the reducers of
+`:works/accepted` (`purchases/work-accepted`), `:works/done` and `:works/failed`
+(`purchases/work-settled`), each its own entry (`work` "work-1: …", `done-by`, `ordered-by`,
+`agreed`, `price`, `status`: agreed and paid, done (with faults), or came to nothing), always
+shown while accepted. Own-purse works aren't in it.
 
 `deliveries/install` also sets hooks, so the judges see what was really ordered.
 `:items :orders` (`deliveries/judge-orders`, `(fn [world id] {...})`) gives a map of keys for
@@ -1226,6 +1233,8 @@ Without the hook, finding is allowed. Claudeworth allows it everywhere by defaul
 publican can find the house's lantern to lend; its rules tell customers to ask and `buy` goods
 for sale, never `find` them. With the option `:find-everywhere? false` it refuses at places with
 `:services` (shops, the public house, the trades, the architect's office), keepers included.
+`:items {:fixed-hint "..."}` ends `take`'s (and `put-in`'s) refusal of a fixed thing; works set
+it to "to move it, plan a work with plan-work".
 
 Every find asks the oracle; there is no deterministic name match. (One existed until
 2026-10-30: in all real runs it answered 9 of 321 finds, models paraphrase what they look for,
@@ -1581,6 +1590,17 @@ classification has not yet been checked.
   `:reasoning` and `:max-tokens`, without holding the world lock. Each call is in `llm.edn` as
   agent `"judge"` and its usage is an `:llm/usage` event, so it counts towards `:max-cost`;
   replay uses the recorded events and never calls it.
+  **A work's job** (one with `:work-order`, from `carry-out`; see `docs/fixtures-design.md`)
+  also asks for `work: {outcome: "as-planned" | "flawed" | "failed", item?: {name, desc,
+  aspects?}}`, before the summary; only then is `work` in the tool. It's required: an answer
+  without it is sent back ("this job carries out a work: give work, ..."), and the item's
+  aspects are checked like `made`'s. The verdict's `:work` is `{:outcome kw :item?}`. The
+  scenario's `:items :work-brief` (`(fn [world job] {:instructions :section})`, set by
+  `works/install`) adds `judges/scene-work.md` to the instructions and a `## The work`
+  section (the plan, its `who`, the phase, the planned thing, the target and destination, and
+  the worker's position or contact trade) after the activity. The work itself is applied only
+  from `work`, by `works/after-job` (`:works/done` or `:works/failed`); side effects come
+  from the ordinary fields.
 - **Checks on the answer:** a change names a judged thing ("you may change only these things:
   hall, clock; not umbrella"); its aspect's name is normalised as argument names are
   (`glass_eye` and `glassEye` are `:glass-eye`) and must then be a key (`items/aspect-key?`); a
@@ -3041,6 +3061,115 @@ a contact is a record like a candidate, and sending for one is a visit.
   last conversed (`hiring/idle-rounds`).
 - **Views:** `contacts`, the contacts `id` knows: id, name, trade, then `works-at` and
   `on-the-map` or `based`, and `sent-for` while a visit for them is expected or under way.
+
+### Works (`manor.mechanics.works`)
+
+[fixtures-design.md](fixtures-design.md), phases 1 and 2: lasting changes to the things of a place,
+fixed ones included (install, move, remove), planned by anyone, given to anyone and carried out
+as an ordinary timed item job whose outcome the scene judge decides. `spend-time` makes only
+passing changes; a work is how a piano gets to the dining room. Money (estimate, materials,
+price) is integers in the setting's smallest unit (England: old pence), paid in full on
+acceptance (phase 2a).
+
+- **Install** with `(works/install scenario)`: it adds the actions below, the works judge
+  (`:works/plan` in `:adjudicators`, with its mock), `:after-job` `works/after-job`,
+  `:early-reminder` `works/early-reminder`, under `:items` the `:work-brief` and `:fixed-hint`,
+  and with a `:calendar` the managed owner `:works`. It's idempotent. Its `:observe` should call
+  `(works/add-to-view view world id)`. Every ruleset scenario installs it, and the ruleset's rules
+  have the `rules/sections/works.md` section after "Things".
+- **The record** in `[:state :work-orders]` by id (`"work-1"`, …, numbered by
+  `[:state :work-order-count]`; `[:state :works]` is the architect's): `:planner`, `:kind`
+  (`:install`, `:move`, `:remove`), `:place`, `:target`, `:to`, `:request` (the planner's words),
+  the judge's `:summary`, `:who` (a recommendation, never enforced), `:household` (true when
+  the household's own people can do it), `:trade` (when it wants a tradesperson: "gas fitter";
+  advice only), `:item` (install), `:fate`
+  (remove), `:estimate`, `:materials`, `:phases [{:doing :minutes :done}]`, `:known-to`, and
+  once given `:orderer`, `:worker`, `:price`, `:priced-by` and `:account` (the paying account:
+  `"household"` or the orderer's id). `:status` goes `:planned` →
+  `:offered` → `:accepted` → `:finishing` → `:done` or `:failed` (with `:outcome`, `:failure`
+  and an install's `:made`); `:cancelled` before acceptance; a decline returns it to `:planned`.
+- **The works judge** (`manor.mechanics.works.judge`, template `judges/works.md`, tool
+  `work_plan` from `judges/tools/work-plan.md`): one checked narrow call per `plan-work`. It sees
+  the setting's period and money guidance, the planner, the place and its things, the target, the
+  destination and the request as data, and answers `{refused}` or a plan (`summary who household trade? item? fate?
+  estimate materials phases`). Code checks only structure: `household` a boolean and, when it's
+  false, a `trade` of at most 80 characters; materials ≤ estimate ≤ £500 (authored
+  units), the item's lengths, an item for an install and a fate for a removal, exactly one phase
+  of 120 minutes. A bad answer gets one retry. `judge/mock-judge` plans a move or removal as
+  household work and an install as a gas fitter's, at no cost but an install's materials, and refuses a request starting with "refuse".
+- **Actions** (tool docs in `docs/works/`):
+  - `plan-work {kind request target? to?}`, a query, anyone: at the place; an install takes no
+    target, a move or removal a thing here (not carried, not inside something, not a store, not
+    identity-bound); only a move takes `to`, another place in the home; at most 3 plans not yet
+    given out. `:works/planned`, seen by the planner only. When the plan names a trade, its
+    narration (`works/trade-hint`) says how to find one: someone `recommend`s with that `trade`,
+    the planner `send-for`s the contact with the work's id in the job, and `order-work`s it to
+    them when they come. Nothing in trades knows of works: a tradesperson sent for is an ordinary
+    contact, and anyone may still be given the plan.
+  - `order-work {id worker price? from?}`, free: a plan the actor knows, still planned; the
+    worker someone here (any living participant, never checked for fitness) or the actor; `price`
+    money text in the setting's money as people write it (`"£15 10s"`, `"3 taels 250 cash"`,
+    read by `money/parse` against the pack's `:units`; a bare number or anything else is refused
+    with an example from `money/example`), from the materials to the bound, the estimate by
+    default; `from` `"household"` (default) or
+    `"own"` (`money/account`; "own" needs a purse). `:works/offered` (both), or to oneself
+    `:works/accepted` at once at the materials' price, paid then (the account must cover them).
+  - `revise-work {id price}`, free, the orderer or the worker while offered, the two together;
+    `price` money text as for `order-work`, materials ≤ price ≤ the bound. `:works/revised` (both) sets `:price` and `:priced-by`.
+  - `accept-work {id}`, free, whoever didn't set the current price (`works/answerer`: the worker
+    after an order or the orderer's revision, the orderer after the worker's), the two together,
+    the account able to pay (`money/spend-reason` for the orderer, who may hear the balance; the
+    worker hears only "the household account can't cover £2", never a balance).
+    `:works/accepted` (both) carries `:account :paid :labour`; its reducer debits `:paid` from
+    `[:state :accounts account]` and credits `:labour` (price − materials) to the worker's
+    purse (`fnil +`, opened if absent). Ordering to oneself pays the materials only, no labour.
+    Paid from the household, the work enters its order book (above), settled by its outcome.
+  - `decline-work {id}`, free, the worker only, needing no one present: `:works/declined`
+    (both), back to planned.
+  - `cancel-work {id}`, free, the planner or orderer, before acceptance: `:works/cancelled`, seen
+    by everyone who knows the plan.
+  - `carry-out {id}`, final, the worker, at the work's place (an install's place, else where the
+    target lies), the target still there and not carried, no job for the work already going:
+    an `:item/work-begun` with `:work-order {:id :phase}`, `:doing` the phase's text, due after
+    the phase's minutes not yet worked, and the occupation. The job's item is the target, or the
+    place for an install.
+  - `order-work`, `revise-work`, `accept-work` and `decline-work` are also speaking-turn tools
+    (`works/speaking-actions`; ordering only to someone in the conversation or oneself). Each
+    tool is offered only while there's something for it to act on.
+- **The scene judge's `work` entry.** For a job with `:work-order`, `:items :work-brief` adds
+  `judges/scene-work.md` and a `## The work` section, and the tool asks for `work: {outcome
+  "as-planned"|"flawed"|"failed", item?}` (`judges/tools/judge-work-order.md`); see Work and the
+  judge. The work itself happens only through `work`, never `made` or `gone`.
+- **`:after-job`** (scenario key: fns `[world job work result]`, run by `manor.engine.work` after
+  a job's ending is emitted, returning events). `works/after-job`: stopped early with time worked,
+  `:works/progressed` adds the minutes to the phase; finished, `:works/phase-done` (status
+  `:finishing`) and, on the last phase, `:works/done` or `:works/failed` from the verdict's
+  `work`, seen by those at the place, the worker, the planner and the orderer, plus the
+  calendar entry's cancellation. Done: an install's new fixed thing owned by the paying account (the
+  judge's `item` if flawed and given), a moved target, or a removed one (`items-gone`, what was
+  directly in it left at its place). No verdict counts as as-planned; a move or removal whose
+  target has gone fails.
+- **Staying on task.** `:early-reminder` (scenario key: `(fn [world agent-id] text-or-nil)`,
+  added to the early turn reminder by `engine.seat`): one `agent/reminder-work.md` sentence per
+  accepted work the agent isn't carrying out now. On acceptance the worker gets an all-day
+  calendar entry `works-<id>` for today. `works/open-work?` (accepted or finishing) keeps the
+  worker out of hibernation; `works/engaged?` (that, or a work on offer to them) keeps a
+  tradesperson from elsewhere from going home idle while the terms are settled and the work done.
+- **`:items :fixed-hint`** ends `take`'s and `put-in`'s refusal of a fixed thing; works set it to
+  "to move it, plan a work with plan-work".
+- **Views:** `works`, the plans `id` knows except cancelled ones: id, kind, summary, who, trade
+  (when wanted), status,
+  `ordered-by`, `worker` ("you" for the worker), `price` (in the setting's money), `priced-by`,
+  `paid-from` ("household", "your purse" or "<name>'s purse"); while offered `next`, saying
+  whether to answer (accept-work or revise-work, or decline-work for the worker) or whom
+  they're waiting for; while accepted or finishing `phase` and
+  `progress`, and for the worker `next` (the carry-out hint with the place); once settled
+  `result`.
+- **Mock days** script works with plain tool entries: ids are deterministic (`"work-1"` for the
+  run's first plan), so `[:order-work {:id "work-1" :worker "nellie"}]` follows a `plan-work`.
+  `works_test/a-scripted-day-moves-the-cabinet` is the example;
+  `a-gas-fitter-is-sent-for-and-fits-the-gasolier` scripts a tradesperson from elsewhere (whose
+  id isn't known in advance) with a policy that maps a placeholder to `contact-1`'s person.
 
 ### Occupation: sleep and other long activities
 

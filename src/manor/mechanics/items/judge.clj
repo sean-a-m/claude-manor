@@ -77,6 +77,22 @@
                              taken-entry]]]
    [:summary [:string {:min 1 :max items/max-summary}]]])
 
+(def work-outcomes ["as-planned" "flawed" "failed"])
+
+(def work-entry
+  "How a work's phase came out, required when the judged job carries one
+  out (a job with :work-order, see manor.mechanics.works): the outcome and,
+  for a flawed install, the thing as it really is."
+  [:work {:optional true}
+   [:map
+    [:outcome (into [:enum] work-outcomes)]
+    [:item {:optional true}
+     [:map
+      [:name [:string {:min 1 :max items/max-name}]]
+      [:desc [:string {:min 1 :max items/max-desc}]]
+      ;; value lengths are checked by items/aspects-problem
+      [:aspects {:optional true} [:map-of :keyword :string]]]]]])
+
 (def ^:private not-in-acts
   "What an immediate act can't do: make things gone, absorb or make them."
   #{:gone :absorbed :made})
@@ -87,20 +103,28 @@
   manor.mechanics.inner) an `inner` list beside `changes`, and with
   relations (the scenario's :relations, see manor.mechanics.relations) a
   `relations` list after it. For an immediate act (`act?`), nothing used
-  up, absorbed or made, and `moved` instead. The steward's schema comes
-  from it, without relations."
+  up, absorbed or made, and `moved` instead. For a work's job (`work?`),
+  `work-entry` before the summary. The steward's schema comes from it,
+  without relations."
   ([inner-config] (answer-schema inner-config false))
   ([inner-config act?] (answer-schema inner-config act? nil))
-  ([inner-config act? relations-config]
+  ([inner-config act? relations-config] (answer-schema inner-config act? relations-config false))
+  ([inner-config act? relations-config work?]
    (let [[m changes & more] judge-schema
          summary (last more)
          more (cond->> (butlast more) act? (remove #(not-in-acts (first %))))]
      (into [m changes] (concat (when inner-config [inner/answer-entry])
                                (when relations-config [relations/answer-entry])
                                more physical-entries
-                               (when act? [moved-entry]) [summary])))))
+                               (when act? [moved-entry])
+                               (when work? [work-entry]) [summary])))))
 
-(defn- judge-tool [world inner-config act? relations-config]
+(defn work-job?
+  "Does `job` carry out a work's phase (manor.mechanics.works)?"
+  [job]
+  (boolean (:work-order job)))
+
+(defn- judge-tool [world inner-config act? relations-config work?]
   {:type "function"
    :function {:name "judge"
               :description (prompts/render world "judges/tools/judge.md"
@@ -110,8 +134,9 @@
                                             :relations (relations/tool-text world relations-config)
                                             :effects (if act?
                                                        (prompts/render world "judges/tools/judge-act.md" {})
-                                                       (prompts/render world "judges/tools/judge-work.md" {:max-made items/max-made}))})
-              :parameters (mjs/transform (answer-schema inner-config act? relations-config))}})
+                                                       (str (prompts/render world "judges/tools/judge-work.md" {:max-made items/max-made})
+                                                            (when work? (prompts/render world "judges/tools/judge-work-order.md" {}))))})
+              :parameters (mjs/transform (answer-schema inner-config act? relations-config work?))}})
 
 (defn judge-instructions
   "The scene judge's instructions, before the suggested aspect keys, inner
@@ -163,9 +188,14 @@
   "The scene judge's request, including only the worker's shared recent lines
   supplied by the engine through prompt/scene-recent, and the worker's
   order books and pending orders from the scenario's :items :orders (a map
-  of scene keys, see deliveries/judge-orders), if any."
+  of scene keys, see deliveries/judge-orders), if any. For a work's job,
+  the scenario's :items :work-brief, (fn [world job] {:instructions
+  :section}), adds its instructions to the system message and its section
+  (headed The work) after the activity, and the tool asks for `work`."
   [scenario world job {:keys [minutes stopped-early? luck recent]}]
   (let [act? (:act? job)
+        work? (work-job? job)
+        work-brief (when work? (when-let [f (get-in scenario [:items :work-brief])] (f world job)))
         worker (w/agent world (:actor job))
         brief (when-let [f (get-in scenario [:items :judge-brief])] (f world))
         suggested (get-in scenario [:items :aspect-keys])
@@ -183,7 +213,7 @@
         scene-json (cond-> scene-json
                      (:reference job) (assoc :reference (:reference job))
                      (seq orders) (merge orders))]
-    {:tools [(judge-tool world inner-config act? relations-config)]
+    {:tools [(judge-tool world inner-config act? relations-config work?)]
      :messages
      [{:role "system"
        :content (str (judge-instructions world)
@@ -192,6 +222,7 @@
                             (str/join "\n" (for [[k gloss] (sort-by key suggested)] (str "- " (name k) ": " gloss)))))
                      (when inner-config (str "\n\n" (inner/instructions world inner-config)))
                      (when relations-config (str "\n\n" (relations/instructions world)))
+                     (when-not (str/blank? (:instructions work-brief)) (str "\n\n" (:instructions work-brief)))
                      (when-not (str/blank? brief) (str "\n\n## The setting\n" brief)))}
       {:role "user"
        :content (str "# The activity\n\n"
@@ -207,6 +238,7 @@
                      (when (:quick? job) "- Quick job: putting things away; no occupation or time needed\n")
                      (when-not act? (str "- Time worked: " minutes " minutes" (if stopped-early? "; they stopped early" ", as planned") "\n"))
                      "- Luck: " luck "\n\n"
+                     (when-not (str/blank? (:section work-brief)) (str (:section work-brief) "\n\n"))
                      "## The scene\n```json\n"
                      (json/write-value-as-string scene-json pretty)
                      "\n```\n\nCall `judge` now.")}]}))
@@ -516,12 +548,36 @@
   (let [checked (relations/checked-entries relations-config world (map :id (filter :person? things)) answers)]
     (if (:error checked) checked (merge v checked))))
 
+(defn work-problem
+  "Why a work's job's `work` entry won't do, or nil: it must be there, its
+  item's aspects well formed."
+  [{:keys [item] :as work}]
+  (cond (nil? work) (str "this job carries out a work: give work, its outcome (" (str/join ", " work-outcomes) ")")
+        (and item (some str/blank? [(:name item) (:desc item)])) "work item needs a name and desc"
+        (and (:aspects item) (items/aspects-problem (:aspects item))) (str "work item: " (items/aspects-problem (:aspects item)))))
+
+(defn- with-work
+  "`v` (a checked verdict) with the work's checked outcome under :work
+  ({:outcome kw :item?}), or the reason it won't do."
+  [v {:keys [work]}]
+  (let [item (when-let [it (:item work)]
+               (let [it (-> (select-keys it [:name :desc :aspects])
+                            (update :name str/trim) (update :desc str/trim)
+                            (update :aspects update-keys a/kebab-key))]
+                 (if (seq (:aspects it)) it (dissoc it :aspects))))
+        work (some-> work (assoc :item item) (cond-> (nil? item) (dissoc :item)))]
+    (if-let [p (work-problem work)]
+      {:error p}
+      (assoc v :work (cond-> {:outcome (keyword (:outcome work))} item (assoc :item item))))))
+
 (defn- verdict [world arguments things inner-config job relations-config]
   (let [act? (:act? job)
-        {:keys [args error]} (a/decode-args {:args (answer-schema inner-config act? relations-config)} arguments)
+        work? (work-job? job)
+        {:keys [args error]} (a/decode-args {:args (answer-schema inner-config act? relations-config work?)} arguments)
         place (:id (first (filter :room? things)))
         v (when-not error (checked-verdict world args things (items/stores-for world place) false job))
         v (if (or error (:error v)) v (with-physical v world things args act?))
+        v (if (or error (:error v) (not work?)) v (with-work v args))
         v (if (or error (:error v) (nil? inner-config)) v (with-inner v inner-config world things (:inner args)))]
     (cond error {:error error}
           (or (:error v) (nil? relations-config)) v
@@ -567,10 +623,11 @@
   "Focused things get cleanliness just seen to, and the people named who are
   still here a state just seen to; the worker is left alone unless named,
   and unfocused pastimes are quiet. Quick put-away jobs absorb consumables
-  and clear matching shortages. An immediate act changes nothing."
+  and clear matching shortages. An immediate act changes nothing. A work's
+  job comes out as planned."
   [{:keys [world job stopped-early?]}]
   {:tool :judge
-   :args (assoc (cond
+   :args (cond-> (assoc (cond
                   (:act? job) {}
                   (:quick? job) (mock-put-away world job)
                   :else
@@ -580,4 +637,5 @@
                                     {:thing id :aspect "state" :value "just seen to"}))})
                 :summary (if (:act? job)
                            (str (:name (w/agent world (:actor job))) " acts: " (:doing job) ".")
-                           (item-work/neutral-summary world job stopped-early?)))})
+                           (item-work/neutral-summary world job stopped-early?)))
+           (work-job? job) (assoc :work {:outcome "as-planned"}))})

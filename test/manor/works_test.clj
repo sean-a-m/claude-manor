@@ -97,7 +97,8 @@
           (is (= #{"hale"} (:visible-to ev)))
           (is (str/includes? (first (replies-to run "hale" "plan-work")) "order-work with id \"work-1\"")))
         (testing "it's under works in his view, not in the earl's"
-          (is (= [{:id "work-1" :kind "move" :summary (:summary plan) :who (:who plan) :status "planned"}]
+          (is (= [{:id "work-1" :kind "move" :summary (:summary plan) :who (:who plan) :status "planned"
+                   :where "From the Drawing room (drawing-room) to the Dining room (dining-room)."}]
                  (:works (prompt/agent-view (:scenario run) world "hale"))))
           (is (nil? (:works (prompt/agent-view (:scenario run) world "lord-claudeworth"))))))
       (replay! run)
@@ -970,6 +971,13 @@
         (is (= "gas fitter" (:trade (view-work run world "hale")))))
       (testing "household work has no hint"
         (is (nil? (works/trade-hint {:id "work-1"}))))
+      (testing "the plan says where it goes, that a price agreed in talk must be given, and how to re-plan"
+        (let [text (works/describe-plan wo (narrate/names world))
+              place (:place wo)]
+          (is (str/includes? text (str "(" place "), where it was planned")))
+          (is (str/includes? text "give that"))
+          (is (str/includes? text "cancel-work it and plan it again"))
+          (is (= (works/where-text wo (narrate/names world)) (:where (view-work run world "hale"))))))
       (testing "only structure is checked"
         (is (str/includes? (:error (c (dissoc ok :household))) "household"))
         (is (str/includes? (:error (c (dissoc ok :trade))) "trade"))

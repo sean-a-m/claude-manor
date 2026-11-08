@@ -261,6 +261,25 @@ Still to watch in the build:
 - **Who sees the outcome:** everyone at the place, as with `spend-time`. The planner and
   orderer, if elsewhere, see the work's status change in their views.
 
+### First real run (`runs/claudeworth-small-20261108-121046`, the user's, 2026-11-08)
+
+Agents planned works and sent for the tradespeople the plans named, but two things went wrong.
+The earl planned a range while standing in the front yard, so it would have gone there; he
+cancelled it and planned again in the kitchen. And a price was agreed in talk with the
+range-setter but not given to `order-work`, which offers at the estimate. Two fixes
+(the user, 2026-11-08), on the `works-guidance` branch:
+
+- **Where it goes.** A plan's text, its offer and the `works` view (`where`) say where the work
+  is done: an install "goes in the Kitchen (kitchen), where it was planned", a move "from …
+  to …". An install's plan adds: if this isn't where it should go, cancel it and plan it again
+  in the right place. `plan-work`'s doc says an install goes in the room where you stand.
+- **Agreed prices.** The plan's text and `order-work`'s doc say it's offered at the estimate
+  unless a price is given, so a price agreed in talk must be given there; `revise-work`'s doc
+  says a price named in talk changes nothing until it's given.
+
+Left alone for now (the user): construction done with `spend-time` outside works (the
+architect laying brickwork on the old hall footings). It made no fixed things, only aspects.
+
 ## 7. Phases
 
 1. **Plans and household work (done).** The record, the planning judge (template and an offline mock),

@@ -1,6 +1,6 @@
 Plan a work: a lasting change to the things where you are, done by someone's labour. The plan is private to you; it says what will be done, what it would cost, and who is best placed to do it.
 
-- `kind`: `install` (something new fixed here: a range, a gasolier), `move` (a thing here to another place in the home) or `remove` (a thing here taken away for good).
+- `kind`: `install` (something new fixed here, in the room where you stand: a range, a gasolier; go to the room it belongs in first), `move` (a thing here to another place in the home) or `remove` (a thing here taken away for good).
 - `request`: what you want, in your words ("a three-light gas chandelier over the dining table").
 - `target`: for move and remove, the id of a thing here (not carried).
 - `to`: for move, the id of a place in the home.

@@ -71,11 +71,22 @@
           (zero? materials) (str "Materials: none. Estimate: " (show estimate) ".")
           :else (str "Materials: " (show materials) ". Estimate: " (show estimate) ", materials included."))))
 
+(defn where-text
+  "Where the work is done, so a plan made in the wrong place shows it: an
+  install goes in the planner's place; a move takes the thing from there to
+  `to`; a removal takes it from there."
+  [{:keys [kind place to]} names]
+  (case kind
+    :install (str "It goes in the " (n/place names place) " (" place "), where it was planned.")
+    :move (str "From the " (n/place names place) " (" place ") to the " (n/place names to) " (" to ").")
+    :remove (str "From the " (n/place names place) " (" place ").")
+    nil))
+
 (defn- plan-text
-  "What a plan says: the work, who should do it, its stages, what it makes
-  or what becomes of the old thing, and its money."
+  "What a plan says: the work and where, who should do it, its stages,
+  what it makes or what becomes of the old thing, and its money."
   [{:keys [id summary who phases item fate] :as data} names]
-  (str "Work plan " id ": " summary " Who should do it: " who
+  (str "Work plan " id ": " summary " " (where-text data names) " Who should do it: " who
        " " (count phases) (if (= 1 (count phases)) " stage, " " stages, ")
        (str/join "; " (map #(str (quot (:minutes %) 60) " hours: \"" (:doing %) "\"") phases)) ". "
        (when item (str "It makes: " (:name item) ", " (:desc item) " "))
@@ -96,7 +107,10 @@
   [{:keys [id] :as data} names]
   (str (plan-text data names)
        (trade-hint data)
-       " Use order-work with id \"" id "\" to give it to someone to carry out."))
+       " Use order-work with id \"" id "\" to give it to someone to carry out; it is offered at the estimate"
+       " unless you give price, so if you've agreed another price with them, give that."
+       (when (= :install (:kind data))
+         (str " If this isn't where it should go, cancel-work it and plan it again in the right place."))))
 
 (defmethod n/describe :works/planned [{:keys [data]} names]
   (describe-plan data names))
@@ -434,7 +448,7 @@
   [world ev]
   (let [wo (work-order world (get-in ev [:data :id]))]
     (update ev :data assoc :summary (:summary wo)
-            :plan (select-keys wo [:summary :who :phases :item :fate :estimate :materials]))))
+            :plan (select-keys wo [:summary :who :phases :item :fate :estimate :materials :kind :place :to]))))
 
 (declare work-place place-name)
 
@@ -875,7 +889,8 @@
   (let [who #(n/who (n/names world) %)
         place (work-place world wo)]
     (cond-> (-> (select-keys wo [:id :kind :summary :who :trade :status])
-                (update :kind name) (update :status name))
+                (update :kind name) (update :status name)
+                (assoc :where (where-text wo (n/names world))))
       (and orderer (not= id orderer)) (assoc :ordered-by (who orderer))
       (and worker (not= id worker)) (assoc :worker (who worker))
       (and worker (= id worker)) (assoc :worker "you")

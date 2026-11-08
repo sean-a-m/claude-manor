@@ -17,6 +17,8 @@
             [manor.mechanics.calendar :as calendar]
             [manor.mechanics.items :as items]
             [manor.mechanics.items.judge :as item-judge]
+            [manor.mechanics.money :as money]
+            [manor.mechanics.purchases :as purchases]
             [manor.mechanics.space :as space]
             [manor.mechanics.trades :as trades]
             [manor.mechanics.works :as works]
@@ -213,7 +215,7 @@
           (is (= {:status "accepted" :worker "Lady Claudeworth"}
                  (select-keys (first (:works (prompt/agent-view (:scenario run) world "hale"))) [:status :worker :ordered-by])))
           (is (nil? (:works (prompt/agent-view (:scenario run) world "lord-claudeworth")))))
-        (is (= ["You have accepted work work-1: it is yours to carry out."] (replies-to run "lady-claudeworth" "accept-work"))))
+        (is (= ["You have accepted work work-1 at 0d: it is yours to carry out."] (replies-to run "lady-claudeworth" "accept-work"))))
       (replay! run)
       (finally (e/stop-run run)))))
 
@@ -238,7 +240,7 @@
   (let [run (start-with household/scenario {})]
     (try
       (let [world (planned-world run)
-            offered (act run world "hale" :order-work {:id "work-1" :worker "lady-claudeworth" :price 600})
+            offered (act run world "hale" :order-work {:id "work-1" :worker "lady-claudeworth" :price "£2 10s"})
             declined (act run offered "lady-claudeworth" :decline-work {:id "work-1"})
             again (act run declined "hale" :order-work {:id "work-1" :worker "lord-claudeworth"})]
         (is (= {:status :offered :worker "lady-claudeworth" :price 600} (select-keys (works/work-order offered "work-1") [:status :worker :price])))
@@ -250,7 +252,7 @@
             (is (str/includes? (narrate/describe ev (narrate/names offered)) "declines"))))
         (testing "Lady Claudeworth still knows the plan, but it isn't hers to answer any more"
           (is (contains? (:known-to (works/work-order again "work-1")) "lady-claudeworth"))
-          (is (str/includes? (check run again "lady-claudeworth" :accept-work {:id "work-1"}) "isn't offered to you")))
+          (is (str/includes? (check run again "lady-claudeworth" :accept-work {:id "work-1"}) "only they can accept it")))
         (is (= {:status :offered :worker "lord-claudeworth" :price 480}
                (select-keys (works/work-order again "work-1") [:status :worker :price])))
         (is (= :accepted (:status (works/work-order (act run again "lord-claudeworth" :accept-work {:id "work-1"}) "work-1")))))
@@ -293,14 +295,14 @@
                            "is here with you"))
         (is (str/includes? (c world "hale" :order-work {:id "work-1" :worker "nobody"}) "is here with you")))
       (testing "the price covers the materials"
-        (is (str/includes? (c world "hale" :order-work {:id "work-1" :worker "lady-claudeworth" :price 100}) "must cover the materials"))
-        (is (nil? (c world "hale" :order-work {:id "work-1" :worker "lady-claudeworth" :price 480}))))
-      (testing "only the worker accepts, with the orderer present"
+        (is (str/includes? (c world "hale" :order-work {:id "work-1" :worker "lady-claudeworth" :price "8s 4d"}) "must cover the materials"))
+        (is (nil? (c world "hale" :order-work {:id "work-1" :worker "lady-claudeworth" :price "£2"}))))
+      (testing "only the worker accepts an order, with the orderer present"
         (let [offered (act run world "hale" :order-work {:id "work-1" :worker "lady-claudeworth"})]
-          (is (str/includes? (c offered "hale" :accept-work {:id "work-1"}) "isn't offered to you"))
+          (is (str/includes? (c offered "hale" :accept-work {:id "work-1"}) "you set the price"))
           (is (str/includes? (c offered "lord-claudeworth" :accept-work {:id "work-1"}) "you know of no work"))
           (is (str/includes? (c (assoc-in offered [:agents "hale" :location] "kitchen") "lady-claudeworth" :accept-work {:id "work-1"})
-                             "must be here to hear your answer"))
+                             "must be here with you to settle"))
           (is (nil? (c (assoc-in offered [:agents "hale" :location] "kitchen") "lady-claudeworth" :decline-work {:id "work-1"})))
           (is (str/includes? (c offered "hale" :order-work {:id "work-1" :worker "lord-claudeworth"}) "is offered to Lady Claudeworth"))))
       (finally (e/stop-run run)))))
@@ -311,10 +313,188 @@
         tools (ruleset/speaking-actions world "hale" {:members ["hale" "lady-claudeworth"]})
         order (first (filter #(= :order-work (:name %)) tools))]
     (try
-      (is (every? (set (map :name tools)) [:order-work :accept-work :decline-work]))
+      (is (every? (set (map :name tools)) [:order-work :revise-work :accept-work :decline-work]))
       (is (nil? (a/check order world "hale" {:id "work-1" :worker "lady-claudeworth"})))
       (is (nil? (a/check order world "hale" {:id "work-1" :worker "hale"})))
       (is (str/includes? (a/check order world "hale" {:id "work-1" :worker "lord-claudeworth"}) "someone in this conversation"))
+      (finally (e/stop-run run)))))
+
+;; ---------------------------------------------------------------------------
+;; Step 2a: prices and payment
+
+(defn- funds [world account] (get-in world [:state :accounts account]))
+(defn- view-work [run world id] (first (:works (prompt/agent-view (:scenario run) world id))))
+
+(deftest a-price-is-haggled-and-paid
+  (let [run (start-with household/scenario {})]
+    (try
+      (let [world (planned-world run)
+            before (funds world "household")
+            ordered (act run world "hale" :order-work {:id "work-1" :worker "lady-claudeworth"})
+            up (act run ordered "lady-claudeworth" :revise-work {:id "work-1" :price "£3 15s"})
+            down (act run up "hale" :revise-work {:id "work-1" :price "£3"})
+            rev-ev (first (a/effect-events (action run :revise-work) ordered "lady-claudeworth" {:id "work-1" :price "£3 15s"}))
+            acc-evs (a/effect-events (action run :accept-work) down "lady-claudeworth" {:id "work-1"})
+            done (reduce w/apply-event down acc-evs)]
+        (testing "the order is at the estimate, paid from the household, and the worker is to answer"
+          (is (= {:price 480 :priced-by "hale" :account "household"}
+                 (select-keys (works/work-order ordered "work-1") [:price :priced-by :account])))
+          (is (= {:price "£2" :priced-by "Hale" :paid-from "household"}
+                 (select-keys (view-work run ordered "lady-claudeworth") [:price :priced-by :paid-from])))
+          (is (str/starts-with? (:next (view-work run ordered "lady-claudeworth")) "answer with accept-work"))
+          (is (str/starts-with? (:next (view-work run ordered "hale")) "waiting for Lady Claudeworth")))
+        (testing "the worker asks more: seen by both, and the orderer is to answer"
+          (is (= #{"hale" "lady-claudeworth"} (:visible-to rev-ev)))
+          (let [text (narrate/describe rev-ev (narrate/names ordered))]
+            (is (str/includes? text "£3 15s"))
+            (is (str/includes? text "Hale is to answer")))
+          (is (= {:price 900 :priced-by "lady-claudeworth"} (select-keys (works/work-order up "work-1") [:price :priced-by])))
+          (is (= "you" (:priced-by (view-work run up "lady-claudeworth"))))
+          (is (str/starts-with? (:next (view-work run up "hale")) "answer with accept-work"))
+          (is (str/includes? (check run up "lady-claudeworth" :accept-work {:id "work-1"}) "you set the price"))
+          (is (nil? (check run up "hale" :accept-work {:id "work-1"}))))
+        (testing "the orderer comes down; now the worker answers"
+          (is (str/includes? (check run down "hale" :accept-work {:id "work-1"}) "you set the price"))
+          (is (nil? (check run down "lady-claudeworth" :accept-work {:id "work-1"}))))
+        (testing "accepted: the household pays the price, the worker's purse gets the labour"
+          (is (= :accepted (:status (works/work-order done "work-1"))))
+          (is (= (- before 720) (funds done "household")))
+          (is (= 240 (funds done "lady-claudeworth")))
+          (is (str/includes? (narrate/describe (first acc-evs) (narrate/names down)) "£1 of it to Lady Claudeworth"))))
+      (finally (e/stop-run run)))))
+
+(deftest checks-on-prices
+  (let [run (start-with household/scenario {})
+        world (planned-world run)
+        ordered (act run world "hale" :order-work {:id "work-1" :worker "lady-claudeworth"})
+        c #(check run %1 %2 %3 %4)]
+    (try
+      (testing "a revised price covers the materials and stays under the bound"
+        (is (str/includes? (c ordered "lady-claudeworth" :revise-work {:id "work-1" :price "8s 4d"}) "must cover the materials"))
+        (is (str/includes? (c ordered "hale" :revise-work {:id "work-1" :price (money/display (money/spec world) (inc (judge/max-estimate world)))}) "at most")))
+      (testing "only the two sides, together, while it's offered"
+        (is (str/includes? (c ordered "lord-claudeworth" :revise-work {:id "work-1" :price "£2 10s"}) "you know of no work"))
+        (is (str/includes? (c (assoc-in ordered [:agents "hale" :location] "kitchen") "lady-claudeworth" :revise-work {:id "work-1" :price "£2 10s"})
+                           "must be here with you"))
+        (is (str/includes? (c world "hale" :revise-work {:id "work-1" :price "£2 10s"}) "isn't on offer")))
+      (testing "an account that can't cover the price: the orderer hears the balance, the worker doesn't"
+        (let [poor (assoc-in ordered [:state :accounts "household"] 300)
+              up (act run poor "lady-claudeworth" :revise-work {:id "work-1" :price "£2 10s"})]
+          (is (= "the household account can't cover £2" (c poor "lady-claudeworth" :accept-work {:id "work-1"})))
+          (is (= "it costs £2 10s; the household has £1 5s" (c up "hale" :accept-work {:id "work-1"})))))
+      (testing "an own purse: the orderer must have one"
+        (is (str/includes? (c world "hale" :order-work {:id "work-1" :worker "lady-claudeworth" :from "own"}) "no personal account")))
+      (testing "the worker never hears the orderer's balance"
+        (let [own (act run (assoc-in world [:state :accounts "hale"] 1000) "hale" :order-work
+                       {:id "work-1" :worker "lady-claudeworth" :from "own"})
+              broke (assoc-in own [:state :accounts "hale"] 100)
+              reason (c broke "lady-claudeworth" :accept-work {:id "work-1"})]
+          (is (= "Hale's purse can't cover £2" reason))
+          (is (not (str/includes? reason "8s 4d")))))
+      (finally (e/stop-run run)))))
+
+(deftest paid-from-an-own-purse
+  (let [run (start-with household/scenario {})]
+    (try
+      (let [world (assoc-in (planned-world run) [:state :accounts "hale"] 1000)
+            hh (funds world "household")
+            done (-> (act run world "hale" :order-work {:id "work-1" :worker "lady-claudeworth" :price "£2 10s" :from "own"})
+                     (as-> w (act run w "lady-claudeworth" :accept-work {:id "work-1"})))]
+        (is (= "hale" (:account (works/work-order done "work-1"))) "recorded as the account's owner")
+        (is (= 400 (funds done "hale")))
+        (is (= hh (funds done "household")))
+        (is (= 120 (funds done "lady-claudeworth")))
+        (is (= "Hale's purse" (:paid-from (view-work run done "lady-claudeworth")))))
+      (finally (e/stop-run run)))))
+
+(deftest a-self-order-pays-the-materials-at-once
+  (let [run (start-with household/scenario {})]
+    (try
+      (let [world (assoc-in (planned-world run) [:state :accounts "hale"] 1000)
+            hh (funds world "household")
+            own (act run world "hale" :order-work {:id "work-1" :worker "hale" :from "own"})
+            household (act run world "hale" :order-work {:id "work-1" :worker "hale" :price "£3 15s"})]
+        (is (= {:status :accepted :price 480 :account "hale"} (select-keys (works/work-order own "work-1") [:status :price :account])))
+        (is (= 520 (funds own "hale")))
+        (is (= hh (funds own "household")))
+        (testing "from the household: the materials only, and no labour to himself"
+          (is (= (- hh 480) (funds household "household")))
+          (is (= 1000 (funds household "hale"))))
+        (testing "an account that can't cover the materials"
+          (is (str/includes? (check run (assoc-in world [:state :accounts "hale"] 100) "hale" :order-work {:id "work-1" :worker "hale" :from "own"})
+                             "your purse has"))))
+      (finally (e/stop-run run)))))
+
+(def haggle-day
+  "Hale plans a range and orders it to Lady Claudeworth at the estimate; she asks more,
+  he comes down, she accepts. Replayed."
+  {"hale" {"08:00" [[:walk {:to "drawing-room"}]
+                    [:plan-work {:kind "install" :request "a new range"}]
+                    [:order-work {:id "work-1" :worker "lady-claudeworth"}]
+                    [:pass {}]]
+           "08:30" [[:revise-work {:id "work-1" :price "£3"}] [:pass {}]]}
+   "lady-claudeworth" {"08:00" [[:walk {:to "drawing-room"}] [:pass {}]]
+                       "08:30" [[:revise-work {:id "work-1" :price "£3 15s"}] [:pass {}]]
+                       "09:00" [[:accept-work {:id "work-1"}] [:pass {}]]}})
+
+(deftest a-haggled-day-replays
+  (let [run (start-with household/scenario haggle-day)]
+    (try
+      (until! run 3)
+      (let [world (e/world run)]
+        (is (= {:status :accepted :price 720 :priced-by "hale"}
+               (select-keys (works/work-order world "work-1") [:status :price :priced-by])))
+        (is (= 240 (funds world "lady-claudeworth")))
+        (is (= 2 (count (of-type run :works/revised)))))
+      (replay! run)
+      (finally (e/stop-run run)))))
+
+;; ---------------------------------------------------------------------------
+;; Step 2b: the order book
+
+(defn- work-entries [world] (filter :work (purchases/household-book world)))
+
+(deftest prices-are-money-text
+  (let [run (start-with household/scenario {})
+        world (planned-world run)
+        c #(check run world "hale" :order-work (assoc {:id "work-1" :worker "lady-claudeworth"} :price %))]
+    (try
+      (is (nil? (c "£2 10s")))
+      (is (= 600 (:price (works/work-order (act run world "hale" :order-work {:id "work-1" :worker "lady-claudeworth" :price "£2 10s"}) "work-1"))))
+      (is (str/includes? (c "600") "a bare number"))
+      (is (str/includes? (c "600") "\"£3 10s\""))
+      (is (str/includes? (c "two pounds") "isn't an amount of money"))
+      (is (str/includes? (:error (a/decode-args (action run :order-work) {:id "work-1" :worker "x" :price 600})) "price"))
+      (is (str/includes? ((:doc (action run :order-work)) world) "\"£3 10s\""))
+      (finally (e/stop-run run)))))
+
+(deftest household-works-are-in-its-book
+  (let [run (start-with household/scenario {})]
+    (try
+      (let [world (planned-world run)
+            ordered (act run world "hale" :order-work {:id "work-1" :worker "lady-claudeworth" :price "£3"})
+            accepted (act run ordered "lady-claudeworth" :accept-work {:id "work-1"})
+            failed (w/apply-event accepted {:type :works/failed :data {:id "work-1" :kind :install :outcome :failed :reason :judged}})]
+        (is (empty? (work-entries ordered)) "an offer isn't in the book")
+        (testing "accepted: what, who, the price, agreed and paid"
+          (let [[e] (work-entries accepted)]
+            (is (str/starts-with? (:work e) "work-1: "))
+            (is (= {:done-by "Lady Claudeworth" :ordered-by "Hale" :price "£3" :status "agreed and paid, to be carried out"}
+                   (select-keys e [:done-by :ordered-by :price :status])))))
+        (testing "the household's members see it in their view, and the judge's books"
+          (is (= 1 (count (filter :work (get-in (prompt/agent-view (:scenario run) accepted "hale") [:household :orders])))))
+          (is (= 1 (count (filter :work (:household_orders (purchases/judge-books accepted ["hale"])))))))
+        (is (str/starts-with? (:status (first (work-entries failed))) "came to nothing")))
+      (finally (e/stop-run run)))))
+
+(deftest own-purse-works-are-not-in-the-household-book
+  (let [run (start-with household/scenario {})]
+    (try
+      (let [world (assoc-in (planned-world run) [:state :accounts "hale"] 1000)
+            done (-> (act run world "hale" :order-work {:id "work-1" :worker "lady-claudeworth" :price "£2 10s" :from "own"})
+                     (as-> w (act run w "lady-claudeworth" :accept-work {:id "work-1"})))]
+        (is (= :accepted (:status (works/work-order done "work-1"))))
+        (is (empty? (work-entries done))))
       (finally (e/stop-run run)))))
 
 ;; ---------------------------------------------------------------------------
@@ -758,6 +938,10 @@
         (testing "the early reminder came once, while the work was accepted and not begun"
           (is (= 1 (count reminders)))
           (is (str/includes? (first reminders) "in the Drawing room (drawing-room)")))
+        (testing "the household's book has the work, done"
+          (let [[e] (work-entries world)]
+            (is (= {:done-by "Nellie" :ordered-by "Lady Claudeworth" :price "0d"} (select-keys e [:done-by :ordered-by :price])))
+            (is (str/starts-with? (:status e) "done at "))))
         (testing "Nellie's calendar entry was made and is cancelled now"
           (is (= #{"nellie"} (:visible-to entry)))
           (is (= :cancelled (get-in entry [:lifecycle :status])))))

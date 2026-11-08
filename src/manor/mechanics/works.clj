@@ -4,23 +4,30 @@
   engine-owned record in [:state :work-orders], keyed by its id (\"work-N\").
   `plan-work`, a query, asks the works judge (manor.mechanics.works.judge)
   for a private plan, `install`, `move` or `remove`. `order-work` offers a
-  plan someone knows to a worker with them at a price, or takes it on
-  oneself; the worker answers with `accept-work` or `decline-work`;
-  `cancel-work` drops a plan not yet accepted. Planner, orderer and worker
+  plan someone knows to a worker with them at a price, paid from the
+  household or the orderer's own purse, or takes it on oneself (paying the
+  materials at once); the two haggle with `revise-work` until whoever
+  didn't set the current price answers with `accept-work`, which pays the
+  price and puts the labour (price less materials) in the worker's purse;
+  the worker may `decline-work`; `cancel-work` drops a plan not yet
+  accepted. Planner, orderer and worker
   see it under `works` in their views. The worker does it with `carry-out`:
   each phase an ordinary timed item job with a :work-order reference,
   which can be stopped and resumed. The scene judge's `work` entry on the
   last phase decides the outcome (:works/done or :works/failed), which
   applies the install, move or removal. Accepted work keeps its worker on
   task: a calendar entry, the early reminder, no idle departure or
-  hibernation. Nothing is paid yet: the estimate, materials and price are
-  recorded numbers."
+  hibernation. Money is kept in the setting's smallest unit; tools take
+  prices as money text (\"£15 10s\"), read by `money/parse`. Works paid
+  from the household's account are in its order book
+  (manor.mechanics.purchases, :kind :work records)."
   (:require [clojure.string :as str]
             [manor.clock :as clock]
             [manor.mechanics.builtins :as b]
             [manor.mechanics.calendar :as calendar]
             [manor.mechanics.items :as items]
             [manor.mechanics.money :as money]
+            [manor.mechanics.purchases :as purchases]
             [manor.mechanics.space :as space]
             [manor.mechanics.works.judge :as judge]
             [manor.narrate :as n]
@@ -183,32 +190,78 @@
                      (space/together? world actor worker)))
     (str "no one with id " worker " is here with you; offer work to someone present, or to yourself")))
 
+(defn price-of
+  "A price as a tool takes it, money text in the setting's money (\"£15 10s\"),
+  in the smallest unit; nil if it isn't money."
+  [world price]
+  (money/parse (money/spec world) price))
+
 (defn- price-reason
-  "Why `price` won't do for work `id`, or nil: at least its materials, at
-  most the bound on estimates."
+  "Why `price` (money text) won't do for work `id`, or nil: money as people
+  write it, at least the work's materials, at most the bound on estimates."
   [world id price]
-  (let [{:keys [materials]} (work-order world id)
+  (let [spec (money/spec world)
+        {:keys [materials]} (work-order world id)
         most (judge/max-estimate world)]
-    (cond (< price materials) (str "the price must cover the materials, " (show-money-in world materials) " (" materials ")")
-          (> price most) (str "the price is at most " (show-money-in world most) " (" most ")"))))
+    (if-let [n (price-of world price)]
+      (cond (< n materials) (str "the price must cover the materials, " (show-money-in world materials))
+            (> n most) (str "the price is at most " (show-money-in world most)))
+      (str "price: " (money/parse-reason spec price)))))
+
+(defn- self-order? [actor worker] (= actor worker))
+
+(defn- account-reason
+  "Why `account` can't pay `n` for a work, or nil; nothing to pay needs no
+  account. The orderer (`payer?`) hears the balance, as `buy` says it;
+  the worker hears only that it can't be covered, never the balance."
+  [world actor payer? account n]
+  (when (pos? n)
+    (if payer?
+      (some->> (money/spend-reason world actor (if (= account actor) "own" "household") n)
+               (str "it costs " (show-money-in world n) "; "))
+      (when (> n (get-in world [:state :accounts account] 0))
+        (str (if (= "household" account) "the household account" (str (n/who (n/names world) account) "'s purse"))
+             " can't cover " (show-money-in world n))))))
 
 (defn order-reason
-  "Why `actor` can't order work `id` to `worker`, or nil."
-  [world actor {:keys [id worker price]}]
+  "Why `actor` can't order work `id` to `worker`, or nil. Ordering to
+  oneself pays the materials at once, so the account must cover them."
+  [world actor {:keys [id worker price from]}]
   (or (known-reason world actor id)
       (status-reason world id :planned "ordered")
       (worker-reason world actor worker)
-      (when price (price-reason world id price))))
+      (when price (price-reason world id price))
+      (when (self-order? actor worker)
+        (account-reason world actor true (money/account actor from) (:materials (work-order world id))))
+      (when (and (= "own" from) (nil? (get-in world [:state :accounts actor])))
+        "you have no personal account; use from \"household\" instead")))
+
+(defn- payment
+  "What accepting work `wo` pays: the price from its account, the labour
+  (price less materials) to the worker's purse. Someone working for
+  themselves pays only the materials, and no labour moves."
+  [{:keys [orderer worker price materials account]}]
+  (if (= orderer worker)
+    {:account account :paid materials :labour 0}
+    {:account account :paid price :labour (- price materials)}))
 
 (defn offered
   "The event for a checked order: offered to `worker`, seen by both; or, to
-  oneself, taken on at once."
-  [world actor {:keys [id worker price]}]
-  (let [price (or price (:estimate (work-order world id)))
-        data {:id id :orderer actor :worker worker :price price :priced-by actor}]
-    (if (= actor worker)
-      {:type :works/accepted :visible-to #{actor} :data data}
+  oneself, taken on and paid for at once (the materials only)."
+  [world actor {:keys [id worker price from]}]
+  (let [{:keys [estimate materials]} (work-order world id)
+        self? (self-order? actor worker)
+        data {:id id :orderer actor :worker worker :account (money/account actor from)
+              :price (if self? materials (or (price-of world price) estimate)) :priced-by actor}]
+    (if self?
+      {:type :works/accepted :visible-to #{actor}
+       :data (merge data (payment (assoc data :materials materials)))}
       {:type :works/offered :visible-to #{actor worker} :data data})))
+
+(defn answerer
+  "Who is to answer offered work `wo`: whoever didn't set its current price."
+  [{:keys [orderer worker priced-by]}]
+  (if (= priced-by worker) orderer worker))
 
 (defn- offer-of
   "Work `id` as offered to `actor`, or nil."
@@ -217,26 +270,63 @@
     (when (and (= :offered (:status wo)) (= actor (:worker wo))) wo)))
 
 (defn answer-reason
-  "Why `actor` can't answer the offer of work `id`, or nil."
+  "Why `actor` can't decline the offer of work `id`, or nil: only its worker can."
   [world actor {:keys [id]}]
   (or (known-reason world actor id)
       (when-not (offer-of world actor id)
-        (str "work " id " isn't offered to you; only the person it's offered to can answer it"))))
+        (str "work " id " isn't offered to you; only the person it's offered to can decline it"))))
+
+(defn- other-party [{:keys [orderer worker]} actor] (if (= actor orderer) worker orderer))
+
+(defn- together-reason
+  "Why `actor` and the other side of offered work `wo` can't settle it now, or nil."
+  [world actor wo]
+  (let [other (other-party wo actor)]
+    (when-not (and (w/active? world other) (space/together? world actor other))
+      (str (n/who (n/names world) other) " (" other ") must be here with you to settle work " (:id wo)
+           (when (= actor (:worker wo)) "; go to them, or decline-work")))))
+
+(defn- party-reason
+  "Why `actor` isn't a side of offered work `id`, or nil."
+  [world actor id what]
+  (let [{:keys [orderer worker status] :as wo} (work-order world id)]
+    (or (known-reason world actor id)
+        (when-not (= :offered status) (str "work " id " isn't on offer; only an offered work can be settled"))
+        (when-not (some #{actor} [orderer worker])
+          (str "work " id " is between " (n/who (n/names world) orderer) " and " (n/who (n/names world) worker)
+               "; only they can " what " it"))
+        (together-reason world actor wo))))
 
 (defn accept-reason
-  "Why `actor` can't accept work `id`, or nil: they must be its worker and
-  with the orderer."
-  [world actor args]
-  (or (answer-reason world actor args)
-      (let [orderer (:orderer (work-order world (:id args)))]
-        (when-not (and (w/active? world orderer) (space/together? world actor orderer))
-          (str (n/who (n/names world) orderer) " (" orderer ") offered it and must be here to hear your answer; "
-               "go to them, or decline-work")))))
+  "Why `actor` can't accept work `id`, or nil: they must be the side that
+  didn't set the current price, with the other side, and its account must
+  cover the price."
+  [world actor {:keys [id] :as args}]
+  (let [wo (work-order world id)]
+    (or (party-reason world actor id "accept")
+        (when-not (= actor (answerer wo))
+          (str "you set the price of work " id "; " (n/who (n/names world) (other-party wo actor))
+               " is to answer it with accept-work or revise-work"))
+        (let [{:keys [account paid]} (payment wo)]
+          (account-reason world actor (= actor (:orderer wo)) account paid)))))
+
+(defn revise-reason
+  "Why `actor` can't revise the price of work `id` to `price`, or nil: they
+  must be its orderer or worker, with the other, while it's offered; the
+  price at least the materials and at most the bound."
+  [world actor {:keys [id price]}]
+  (or (party-reason world actor id "revise")
+      (price-reason world id price)))
+
+(defn- revised [world actor {:keys [id price]}]
+  (let [wo (work-order world id)]
+    [{:type :works/revised :visible-to #{(:orderer wo) (:worker wo)}
+      :data {:id id :price (price-of world price) :priced-by actor :orderer (:orderer wo) :worker (:worker wo)}}]))
 
 (defn- accepted [world _ {:keys [id]}]
   (let [wo (work-order world id)]
     [{:type :works/accepted :visible-to #{(:orderer wo) (:worker wo)}
-      :data (select-keys wo [:id :orderer :worker :price :priced-by])}]))
+      :data (merge (select-keys wo [:id :orderer :worker :price :priced-by :account]) (payment wo))}]))
 
 (defn- declined [world _ {:keys [id]}]
   (let [wo (work-order world id)]
@@ -256,7 +346,7 @@
 (defn- cancelled [world actor {:keys [id]}]
   [{:type :works/cancelled :visible-to (:known-to (work-order world id)) :data {:id id :by actor}}])
 
-(def ^:private terms [:orderer :worker :price :priced-by])
+(def ^:private terms [:orderer :worker :price :priced-by :account])
 
 (defn- given
   "Work `id` with the terms in `data`, at `status`, known to the worker."
@@ -265,7 +355,20 @@
              #(-> (merge % (select-keys data terms)) (assoc :status status) (update :known-to conj (:worker data)))))
 
 (defmethod w/apply-event :works/offered [world {:keys [data]}] (given world data :offered))
-(defmethod w/apply-event :works/accepted [world {:keys [data]}] (given world data :accepted))
+
+(defn- pay
+  "The payment of an acceptance: `paid` from the account, `labour` to the
+  worker's purse (opened if they have none)."
+  [world {:keys [account paid labour worker]}]
+  (cond-> world
+    (pos? (or paid 0)) (update-in [:state :accounts account] (fnil - 0) paid)
+    (pos? (or labour 0)) (update-in [:state :accounts worker] (fnil + 0) labour)))
+
+(defmethod w/apply-event :works/accepted [world {:keys [data]}]
+  (-> world (given data :accepted) (pay data) (purchases/work-accepted data)))
+
+(defmethod w/apply-event :works/revised [world {:keys [data]}]
+  (update-in world [:state :work-orders (:id data)] merge (select-keys data [:price :priced-by])))
 
 (defmethod w/apply-event :works/declined [world {:keys [data]}]
   (update-in world [:state :work-orders (:id data)]
@@ -274,20 +377,38 @@
 (defmethod w/apply-event :works/cancelled [world {:keys [data]}]
   (assoc-in world [:state :work-orders (:id data) :status] :cancelled))
 
+(defn- paid-by
+  "Who pays, as the narration says it."
+  [names account]
+  (if (= "household" account) "the household account" (str (n/who names account) "'s own purse")))
+
 (defmethod n/describe :works/offered [{:keys [data]} names]
-  (let [{:keys [id orderer worker price]} data]
+  (let [{:keys [id orderer worker price account]} data]
     (str (n/who names orderer) " offers " (n/who names worker) " work " id " at a price of "
-         (show-money names price) ". " (plan-text (assoc (:plan data) :id id) names)
-         " " (n/who names worker) " answers with accept-work or decline-work with id \"" id "\"; "
-         (n/who names orderer) " must be there to hear the answer, and may cancel-work before it.")))
+         (show-money names price) ", paid from " (paid-by names account) ". "
+         (plan-text (assoc (:plan data) :id id) names)
+         " " (n/who names worker) " answers with accept-work, revise-work (another price) or decline-work with id \"" id "\"; "
+         "the two must be together to settle it, and " (n/who names orderer) " may cancel-work before it is accepted.")))
+
+(defmethod n/describe :works/revised [{:keys [data]} names]
+  (let [{:keys [id price priced-by orderer worker]} data
+        other (if (= priced-by worker) orderer worker)]
+    (str (n/who names priced-by) " asks a price of " (show-money names price) " for work " id ". "
+         (n/who names other) " is to answer with accept-work, or revise-work with another price"
+         (when (= other worker) ", or decline-work") ".")))
 
 (defmethod n/describe :works/accepted [{:keys [data]} names]
-  (let [{:keys [id orderer worker price summary]} data]
+  (let [{:keys [id orderer worker price summary account paid labour]} data]
     (if (= orderer worker)
       (str (n/who names worker) " takes on work " id " themselves: " summary
+           (when (pos? (or paid 0)) (str " The materials, " (show-money names paid) ", are paid from " (paid-by names account) "."))
            " It is theirs to carry out.")
-      (str (n/who names worker) " accepts work " id " from " (n/who names orderer) " at a price of "
-           (show-money names price) ": " summary " It is now " (n/who names worker) "'s to carry out."))))
+      (str "Work " id " is agreed between " (n/who names orderer) " and " (n/who names worker) " at a price of "
+           (show-money names price) ": " summary
+           (when (pos? (or paid 0)) (str " It is paid from " (paid-by names account)
+                                         (when (pos? (or labour 0)) (str ", " (show-money names labour) " of it to " (n/who names worker) " for the labour"))
+                                         "; the materials are there."))
+           " It is now " (n/who names worker) "'s to carry out."))))
 
 (defmethod n/describe :works/declined [{:keys [data]} names]
   (let [{:keys [id orderer worker]} data]
@@ -344,36 +465,67 @@
         (mapcat #(when (= :works/accepted (:type %)) (calendar-entry world (get-in % [:data :id]) (get-in % [:data :worker]))))
         events))
 
+(defn- money-doc
+  "A tool's description from the template at `path`, with {{money-example}}:
+  a price in the setting's money as people write it."
+  [path]
+  (fn [world] (prompts/render world path {:money-example (money/example (money/spec world))})))
+
 (def order-action
   {:name :order-work
-   :doc (prompts/doc "docs/works/order-work.md")
+   :doc (money-doc "docs/works/order-work.md")
    :roles :all
    :kind :free
    :available? (fn [world actor] (boolean (some #(and (= :planned (:status %)) (contains? (:known-to %) actor))
                                                 (vals (work-orders world)))))
-   :args [:map [:id :string] [:worker :string] [:price {:optional true} [:int {:min 0}]]]
+   :args [:map [:id :string] [:worker :string] [:price {:optional true} :string]
+          [:from {:optional true} [:enum "household" "own"]]]
    :valid? order-reason
    :effect (fn [world actor args] (with-entry world [(with-plan world (offered world actor args))]))
    :reply (fn [world actor {:keys [id worker]}]
             (let [{:keys [price]} (work-order world id)]
               (if (= actor worker)
-                (str "You have taken on work " id " yourself: it is yours to carry out.")
+                (str "You have taken on work " id " yourself"
+                     (when (pos? price) (str ", its materials paid (" (show-money-in world price) ")"))
+                     ": it is yours to carry out.")
                 (str "You have offered work " id " to " (n/who (n/names world) worker) " at " (show-money-in world price)
-                     ". Stay with them until they answer with accept-work or decline-work: you must be present to hear it."))))})
+                     ". Stay with them until they answer with accept-work, revise-work or decline-work: you must be together to settle it."))))})
 
 (defn- offered-to? [world actor]
   (boolean (some #(and (= :offered (:status %)) (= actor (:worker %))) (vals (work-orders world)))))
+
+(defn- to-answer? [world actor]
+  (boolean (some #(and (= :offered (:status %)) (= actor (answerer %))) (vals (work-orders world)))))
+
+(defn- haggling? [world actor]
+  (boolean (some #(and (= :offered (:status %)) (some #{actor} [(:orderer %) (:worker %)])) (vals (work-orders world)))))
 
 (def accept-action
   {:name :accept-work
    :doc (prompts/doc "docs/works/accept-work.md")
    :roles :all
    :kind :free
-   :available? offered-to?
+   :available? to-answer?
    :args [:map [:id :string]]
    :valid? accept-reason
    :effect (fn [world actor args] (with-entry world (mapv #(with-plan world %) (accepted world actor args))))
-   :reply (fn [_ _ {:keys [id]}] (str "You have accepted work " id ": it is yours to carry out."))})
+   :reply (fn [world actor {:keys [id]}]
+            (let [{:keys [worker price]} (work-order world id)]
+              (str "You have accepted work " id " at " (show-money-in world price) ": "
+                   (if (= actor worker) "it is yours to carry out." (str "it is " (n/who (n/names world) worker) "'s to carry out.")))))})
+
+(def revise-action
+  {:name :revise-work
+   :doc (money-doc "docs/works/revise-work.md")
+   :roles :all
+   :kind :free
+   :available? haggling?
+   :args [:map [:id :string] [:price :string]]
+   :valid? revise-reason
+   :effect revised
+   :reply (fn [world actor {:keys [id price]}]
+            (str "You have asked " (show-money-in world (price-of world price)) " for work " id "; "
+                 (n/who (n/names world) (other-party (work-order world id) actor)) " is to answer."))})
 
 (def decline-action
   {:name :decline-work
@@ -407,6 +559,7 @@
              (fn [world actor args]
                (or (when-not (some #{(:worker args)} members) "order work on your line only to someone in this conversation, or yourself")
                    (valid? world actor args)))))
+   revise-action
    accept-action
    decline-action])
 
@@ -558,11 +711,11 @@
 (defn- installed-item
   "The new fixed thing an install leaves at `place`: the judge's `item` for
   a flawed one if it gave one, else the planned one; owned by the
-  household for now. A fresh id on `world`."
+  paying account. A fresh id on `world`."
   [world wo place {:keys [outcome item]}]
   (let [fields (if (and (= :flawed outcome) item) item (:item wo))]
     (items/new-item world (assoc (select-keys fields [:name :desc :aspects])
-                                 :place place :fixed? true :owner "household"))))
+                                 :place place :fixed? true :owner (:account wo "household")))))
 
 (defn- left-behind
   "Ids of the things directly inside `target`: a removal leaves them at its place."
@@ -623,10 +776,13 @@
   (-> world
       (apply-done data)
       (settle data :done)
-      (cond-> (:item data) (assoc-in [:state :work-orders (:id data) :made] (get-in data [:item :id])))))
+      (cond-> (:item data) (assoc-in [:state :work-orders (:id data) :made] (get-in data [:item :id])))
+      (purchases/work-settled (:id data) :done (:outcome data))))
 
 (defmethod w/apply-event :works/failed [world {:keys [data]}]
-  (settle world data :failed))
+  (-> world
+      (settle data :failed)
+      (purchases/work-settled (:id data) :failed nil)))
 
 (defn- flaw-note [outcome] (when (= :flawed outcome) ", though not as well as it should be"))
 
@@ -694,6 +850,15 @@
                      :move (str ": now in the " (place-name world to))
                      ""))))
 
+(defn- offer-next
+  "For an offered work: what `id` is to do, or whom they're waiting for."
+  [world id wo]
+  (let [to (answerer wo)]
+    (if (= id to)
+      (str "answer with accept-work, or revise-work with another price"
+           (when (= id (:worker wo)) ", or decline-work") " (id \"" (:id wo) "\")")
+      (str "waiting for " (n/who (n/names world) to) " to accept or revise the price"))))
+
 (defn- view-entry
   "A work as `id` sees it under `works`."
   [world id {:keys [orderer worker price status] :as wo}]
@@ -705,6 +870,9 @@
       (and worker (not= id worker)) (assoc :worker (who worker))
       (and worker (= id worker)) (assoc :worker "you")
       price (assoc :price (show-money-in world price))
+      (and price (:priced-by wo)) (assoc :priced-by (if (= id (:priced-by wo)) "you" (who (:priced-by wo))))
+      (:account wo) (assoc :paid-from (if (= "household" (:account wo)) "household" (if (= id (:account wo)) "your purse" (str (who (:account wo)) "'s purse"))))
+      (= :offered status) (assoc :next (offer-next world id wo))
       (#{:done :failed} status) (assoc :result (result-text world wo))
       (#{:accepted :finishing} status) (merge (phase-entry wo))
       (and (= id worker) (= :accepted status))
@@ -718,7 +886,7 @@
     (cond-> view
       (seq known) (assoc :works (mapv #(view-entry world id %) known)))))
 
-(def actions [plan-action order-action accept-action decline-action cancel-action carry-out-action])
+(def actions [plan-action order-action revise-action accept-action decline-action cancel-action carry-out-action])
 
 ;; ---------------------------------------------------------------------------
 ;; Staying on task (docs/fixtures-design.md 5.5)

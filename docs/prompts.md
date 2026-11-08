@@ -106,8 +106,9 @@ for the action's kind and its per-turn limit (`docs/hints/`).
 | `docs/trades/recommend-trade.md` | Appended to `recommend`: the `trade` argument | `trades` | `max-trade` |
 | `docs/trades/send-for.md` | `send-for` for candidates and contacts, in place of hiring's | `trades` | `lead-hours` |
 | `docs/works/plan-work.md` | `plan-work`: planning a work (install, move, remove) | `works` | `max-open-plans` |
-| `docs/works/order-work.md` | `order-work`: offering a plan to someone here, or taking it on oneself, at a price | `works` | |
-| `docs/works/accept-work.md` | `accept-work`: taking on a work offered | `works` | |
+| `docs/works/order-work.md` | `order-work`: offering a plan to someone here, or taking it on oneself, at a price, paid from the household or one's own purse | `works` | `money-example` (`money/example`: a price in the setting's money) |
+| `docs/works/revise-work.md` | `revise-work`: asking another price for a work on offer (haggling) | `works` | `money-example` (`money/example`: a price in the setting's money) |
+| `docs/works/accept-work.md` | `accept-work`: accepting the price the other side set; pays it, labour to the worker | `works` | |
 | `docs/works/decline-work.md` | `decline-work`: refusing a work offered | `works` | |
 | `docs/works/cancel-work.md` | `cancel-work`: dropping a plan not yet accepted | `works` | |
 | `docs/works/carry-out.md` | `carry-out`: doing an accepted work's current stage as a timed job, resumable | `works` | |

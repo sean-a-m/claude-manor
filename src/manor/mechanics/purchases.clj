@@ -22,7 +22,19 @@
 
   :status is :taken (carried away), :left (waiting at the shop as item
   :item-id), :ordered (to be delivered at :to by :due) or :delivered (at
-  :to, in round :delivered). See docs/deliveries-design.md."
+  :to, in round :delivered). See docs/deliveries-design.md.
+
+  Works paid from the household's account (manor.mechanics.works) are kept
+  here too, as records of :kind :work, by the reducers of :works/accepted,
+  :works/done and :works/failed (`work-accepted`, `work-settled`):
+
+    {:kind :work :id \"work-1\" :account \"household\" :orderer \"hale\"
+     :worker \"nellie\" :item \"The china cabinet moved ...\" :price 720
+     :bought 3 :status :accepted}
+
+  :status is :accepted (to be carried out), then :done (:outcome :as-planned
+  or :flawed) or :failed. Only the household's book shows them, and an
+  accepted work, like a delivery to come, is always shown."
   (:require [clojure.string :as str]
             [manor.clock :as clock]
             [manor.mechanics.items :as items]
@@ -51,7 +63,12 @@
     (str (:name person) ", the " (:name (space/location world shop) shop) "'s "
          (str/lower-case (get-in world [:state :positions position :title] (name position))))))
 
-(defn- pending? [r] (= :ordered (:status r)))
+(defn- work? [r] (= :work (:kind r)))
+
+(defn- pending?
+  "Is record `r` still open: a delivery to come, or a work not yet finished?"
+  [r]
+  (or (= :ordered (:status r)) (and (work? r) (= :accepted (:status r)))))
 
 (defn- trimmed
   "`rs` within max-records, the oldest settled records dropped first."
@@ -101,6 +118,22 @@
                             #(assoc % :status :ordered :order-id id :due due :to to)))
           world orders))
 
+(defn work-accepted
+  "The world with work `data` (:works/accepted's) recorded as bought now,
+  if it's paid from the household's account; `summary` says what it is."
+  [world {:keys [id account orderer worker paid price summary]}]
+  (if (= positions/household account)
+    (add world [{:kind :work :id id :account account :orderer orderer :worker worker
+                 :item summary :price (or paid price 0) :bought (:round world) :status :accepted}])
+    world))
+
+(defn work-settled
+  "The world with work `id`'s record, if it has one, at `status` (:done or
+  :failed) with its `outcome`, now."
+  [world id status outcome]
+  (update-records world #(and (work? %) (= id (:id %)))
+                  #(cond-> (assoc % :status status :settled (:round world)) outcome (assoc :outcome outcome))))
+
 (defn arrived
   "The world with the orders `order-ids` recorded as delivered at `place` now."
   [world order-ids place]
@@ -143,6 +176,15 @@
   (when-let [it (and (:item-id r) (items/item world (:item-id r)))]
     (items/waiting? world it)))
 
+(defn- work-status
+  "How a work in the book stands, in words."
+  [world r]
+  (let [at #(clock/short-label (:clock world) % (:round world))]
+    (case (:status r)
+      :accepted "agreed and paid, to be carried out"
+      :done (str "done" (when (= :flawed (:outcome r)) ", but with faults") " at " (at (:settled r)))
+      :failed (str "came to nothing at " (at (:settled r))))))
+
 (defn- status
   "Where a record's goods are now, in words."
   [world r]
@@ -157,8 +199,20 @@
                     "to be delivered at the " (place (:to r)) " by " (at (:due r)))
       :delivered (str "delivered at the " (place (:to r)) " at " (at (:delivered r))))))
 
-(defn- entry
-  "One entry: records bought together, with the same status."
+(defn- work-entry
+  "A work's entry: what it is, who did it and who ordered it, when it was
+  agreed, its price and how it stands."
+  [world r]
+  (let [who #(:name (w/agent world %) %)]
+    {:work (str (:id r) ": " (:item r))
+     :done-by (who (:worker r))
+     :ordered-by (who (:orderer r))
+     :agreed (clock/short-label (:clock world) (:bought r) (:round world))
+     :price (money/display (money/spec world) (:price r))
+     :status (work-status world r)}))
+
+(defn- shop-entry
+  "One entry of shop purchases: records bought together, with the same status."
   [world [r :as rs] own-purse?]
   (let [spec (money/spec world)]
     (cond-> {:from (:name (space/location world (:shop r)) (:shop r))
@@ -170,12 +224,19 @@
       (and (pending? r) (courier-line world (:shop r))) (assoc :sent-up-by (courier-line world (:shop r)))
       own-purse? (assoc :paid "from the buyer's own purse"))))
 
+(defn- entry
+  "One entry: records bought together, with the same status; a work alone."
+  [world [r :as rs] own-purse?]
+  (if (work? r)
+    (work-entry world r)
+    (shop-entry world rs own-purse?)))
+
 (defn- book
   "The entries for `rs`, oldest first: the latest `shown`, and every one
-  with a delivery still to come. With `purses?`, entries not paid from the
+  with a delivery still to come or a work not yet finished. With `purses?`, entries not paid from the
   household's account say so."
   [world rs purses?]
-  (let [groups (vec (partition-by (juxt :shop :buyer :bought :account #(status world %)) rs))
+  (let [groups (vec (partition-by #(if (work? %) [:work (:id %)] [(:shop %) (:buyer %) (:bought %) (:account %) (status world %)]) rs))
         start (- (count groups) shown)]
     (vec (keep-indexed (fn [i g]
                          (when (or (>= i start) (some pending? g))

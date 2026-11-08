@@ -677,7 +677,7 @@
         (let [world (e/world run)
               conv {:members ["employer" "recommender"]}
               recommend (first (ruleset/speaking-actions world "recommender" conv))]
-          (is (= [:recommend :engage :accept-place :decline-place :order-work :accept-work :decline-work]
+          (is (= [:recommend :engage :accept-place :decline-place :order-work :revise-work :accept-work :decline-work]
                  (mapv :name (ruleset/speaking-actions world "recommender" conv))))
           (is (nil? (a/check recommend world "recommender" {:position "housemaid" :for "employer"})))
           (is (= "recommend to someone in this conversation"

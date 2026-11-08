@@ -785,8 +785,9 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   reminder, a calendar entry, hibernation and tradespeople staying, the rules and `take`'s
   pointer, and a scripted day moving the china cabinet end to end. Contract under Works in
   `scenario-authoring.md`.
-- **Next: phase 2** (money and trades): prices paid, `revise-work`, the labour to the worker's
-  purse, the order book, a tradesperson staying until done, a mock day with a gas fitter sent
+- **Phase 2a is done** (mock-tested): `from` on `order-work`, `revise-work` haggling, payment
+  on acceptance with the labour to the worker's purse.
+- **Next: the rest of phase 2** (money and trades): the order book, a tradesperson staying until done, a mock day with a gas fitter sent
   for, then a short real run with the user's go-ahead. Phases 3 (GM/operator tools, the panel)
   and 4 (several phases and workers, lead times) follow.
 

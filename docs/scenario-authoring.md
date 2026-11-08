@@ -446,7 +446,12 @@ sends on any account. Both are shown even when empty: the latest 6 entries and e
 still to come, each entry the lines bought together (`from`, `for`, `bought`, `goods`, `total`,
 `status`, and `sent-up-by` for a delivery to come). `orders` keeps only the pending orders a
 person is party to that are in no book they see (own-purse deliveries, mostly). The shopping
-rules say what the books show (`rules/sections/shopping-order-book.md`).
+rules say what the books show (`rules/sections/shopping-order-book.md`). Works paid from the
+household's account are in its book too: records of `:kind :work` kept by the reducers of
+`:works/accepted` (`purchases/work-accepted`), `:works/done` and `:works/failed`
+(`purchases/work-settled`), each its own entry (`work` "work-1: …", `done-by`, `ordered-by`,
+`agreed`, `price`, `status`: agreed and paid, done (with faults), or came to nothing), always
+shown while accepted. Own-purse works aren't in it.
 
 `deliveries/install` also sets hooks, so the judges see what was really ordered.
 `:items :orders` (`deliveries/judge-orders`, `(fn [world id] {...})`) gives a map of keys for
@@ -3057,8 +3062,9 @@ a contact is a record like a candidate, and sending for one is a visit.
 [fixtures-design.md](fixtures-design.md), phase 1: lasting changes to the things of a place,
 fixed ones included (install, move, remove), planned by anyone, given to anyone and carried out
 as an ordinary timed item job whose outcome the scene judge decides. `spend-time` makes only
-passing changes; a work is how a piano gets to the dining room. Nothing is paid yet (phase 2):
-the estimate, materials and price are recorded numbers.
+passing changes; a work is how a piano gets to the dining room. Money (estimate, materials,
+price) is integers in the setting's smallest unit (England: old pence), paid in full on
+acceptance (phase 2a).
 
 - **Install** with `(works/install scenario)`: it adds the actions below, the works judge
   (`:works/plan` in `:adjudicators`, with its mock), `:after-job` `works/after-job`,
@@ -3071,7 +3077,8 @@ the estimate, materials and price are recorded numbers.
   (`:install`, `:move`, `:remove`), `:place`, `:target`, `:to`, `:request` (the planner's words),
   the judge's `:summary`, `:who` (a recommendation, never enforced), `:item` (install), `:fate`
   (remove), `:estimate`, `:materials`, `:phases [{:doing :minutes :done}]`, `:known-to`, and
-  once given `:orderer`, `:worker`, `:price`, `:priced-by`. `:status` goes `:planned` →
+  once given `:orderer`, `:worker`, `:price`, `:priced-by` and `:account` (the paying account:
+  `"household"` or the orderer's id). `:status` goes `:planned` →
   `:offered` → `:accepted` → `:finishing` → `:done` or `:failed` (with `:outcome`, `:failure`
   and an install's `:made`); `:cancelled` before acceptance; a decline returns it to `:planned`.
 - **The works judge** (`manor.mechanics.works.judge`, template `judges/works.md`, tool
@@ -3087,12 +3094,26 @@ the estimate, materials and price are recorded numbers.
     target, a move or removal a thing here (not carried, not inside something, not a store, not
     identity-bound); only a move takes `to`, another place in the home; at most 3 plans not yet
     given out. `:works/planned`, seen by the planner only.
-  - `order-work {id worker price?}`, free: a plan the actor knows, still planned; the worker
-    someone here (any living participant, never checked for fitness) or the actor; `price` from
-    the materials to the bound, the estimate by default. `:works/offered` (both), or to oneself
-    `:works/accepted` at once.
-  - `accept-work {id}` / `decline-work {id}`, free, the worker; accepting needs the orderer
-    present. `:works/accepted` / `:works/declined` (both).
+  - `order-work {id worker price? from?}`, free: a plan the actor knows, still planned; the
+    worker someone here (any living participant, never checked for fitness) or the actor; `price`
+    money text in the setting's money as people write it (`"£15 10s"`, `"3 taels 250 cash"`,
+    read by `money/parse` against the pack's `:units`; a bare number or anything else is refused
+    with an example from `money/example`), from the materials to the bound, the estimate by
+    default; `from` `"household"` (default) or
+    `"own"` (`money/account`; "own" needs a purse). `:works/offered` (both), or to oneself
+    `:works/accepted` at once at the materials' price, paid then (the account must cover them).
+  - `revise-work {id price}`, free, the orderer or the worker while offered, the two together;
+    `price` money text as for `order-work`, materials ≤ price ≤ the bound. `:works/revised` (both) sets `:price` and `:priced-by`.
+  - `accept-work {id}`, free, whoever didn't set the current price (`works/answerer`: the worker
+    after an order or the orderer's revision, the orderer after the worker's), the two together,
+    the account able to pay (`money/spend-reason` for the orderer, who may hear the balance; the
+    worker hears only "the household account can't cover £2", never a balance).
+    `:works/accepted` (both) carries `:account :paid :labour`; its reducer debits `:paid` from
+    `[:state :accounts account]` and credits `:labour` (price − materials) to the worker's
+    purse (`fnil +`, opened if absent). Ordering to oneself pays the materials only, no labour.
+    Paid from the household, the work enters its order book (above), settled by its outcome.
+  - `decline-work {id}`, free, the worker only, needing no one present: `:works/declined`
+    (both), back to planned.
   - `cancel-work {id}`, free, the planner or orderer, before acceptance: `:works/cancelled`, seen
     by everyone who knows the plan.
   - `carry-out {id}`, final, the worker, at the work's place (an install's place, else where the
@@ -3100,7 +3121,7 @@ the estimate, materials and price are recorded numbers.
     an `:item/work-begun` with `:work-order {:id :phase}`, `:doing` the phase's text, due after
     the phase's minutes not yet worked, and the occupation. The job's item is the target, or the
     place for an install.
-  - `order-work`, `accept-work` and `decline-work` are also speaking-turn tools
+  - `order-work`, `revise-work`, `accept-work` and `decline-work` are also speaking-turn tools
     (`works/speaking-actions`; ordering only to someone in the conversation or oneself). Each
     tool is offered only while there's something for it to act on.
 - **The scene judge's `work` entry.** For a job with `:work-order`, `:items :work-brief` adds
@@ -3112,7 +3133,7 @@ the estimate, materials and price are recorded numbers.
   `:works/progressed` adds the minutes to the phase; finished, `:works/phase-done` (status
   `:finishing`) and, on the last phase, `:works/done` or `:works/failed` from the verdict's
   `work`, seen by those at the place, the worker, the planner and the orderer, plus the
-  calendar entry's cancellation. Done: an install's new fixed thing owned by `"household"` (the
+  calendar entry's cancellation. Done: an install's new fixed thing owned by the paying account (the
   judge's `item` if flawed and given), a moved target, or a removed one (`items-gone`, what was
   directly in it left at its place). No verdict counts as as-planned; a move or removal whose
   target has gone fails.
@@ -3124,7 +3145,10 @@ the estimate, materials and price are recorded numbers.
 - **`:items :fixed-hint`** ends `take`'s and `put-in`'s refusal of a fixed thing; works set it to
   "to move it, plan a work with plan-work".
 - **Views:** `works`, the plans `id` knows except cancelled ones: id, kind, summary, who, status,
-  `ordered-by`, `worker` ("you" for the worker), `price`; while accepted or finishing `phase` and
+  `ordered-by`, `worker` ("you" for the worker), `price` (in the setting's money), `priced-by`,
+  `paid-from` ("household", "your purse" or "<name>'s purse"); while offered `next`, saying
+  whether to answer (accept-work or revise-work, or decline-work for the worker) or whom
+  they're waiting for; while accepted or finishing `phase` and
   `progress`, and for the worker `next` (the carry-out hint with the place); once settled
   `result`.
 - **Mock days** script works with plain tool entries: ids are deterministic (`"work-1"` for the

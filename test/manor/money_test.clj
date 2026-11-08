@@ -52,3 +52,18 @@
            (narrate/describe {:type :shop/bought :actor "buyer"
                               :data {:item "tea" :qty 1 :unit "1 tin" :price 1001 :location "counter"}}
                              (narrate/names world))))))
+
+(deftest money-text-is-parsed
+  (doseq [[text n] [["£15 10s" 3720] ["15s 6d" 186] ["£3" 720] ["7d" 7] ["£1 1s 6d" 258]
+                    [" £2, 6d " 486] ["£ 2 10 s" 600] ["10S" 120] ["0d" 0]]]
+    (is (= n (money/parse england text)) text))
+  (doseq [[text n] [["3 taels 250 cash" 3250] ["1 tael" 1000] ["250 cash" 250] ["2 Taels" 2000]]]
+    (is (= n (money/parse tael text)) text))
+  (doseq [bad [nil 600 "600" "" "two pounds" "15s £1" "£1 £2" "£15 10" "5 shillings" "3 taels 250"]]
+    (is (nil? (money/parse england bad)) (pr-str bad)))
+  (is (nil? (money/parse tael "3000")))
+  (is (= "£3 10s" (money/example england)))
+  (is (= "3 taels 10 cash" (money/example tael)))
+  (is (re-find #"bare number.*\"£3 10s\"" (money/parse-reason england "600")))
+  (is (re-find #"isn't an amount.*\"3 taels 10 cash\"" (money/parse-reason tael "three taels")))
+  (is (nil? (money/parse-reason england "£2"))))

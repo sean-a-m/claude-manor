@@ -1,6 +1,6 @@
 # Fixtures and work orders: design proposal
 
-**Status:** phase 1 built and mock-tested (section 7); phase 2 next. Written 2026-11-07 from the user's brief and revised the same day with their
+**Status:** phase 1 and step 2a built and mock-tested (section 7); 2b next. Written 2026-11-07 from the user's brief and revised the same day with their
 answers (section 2). Agents should be able to add, change, move and remove fixtures and fixed items
 (a chandelier, a new dining table, a brick oven) in every scenario. Section 6 lists the awkward
 cases still to settle.
@@ -381,6 +381,53 @@ Still to watch in the build:
    order book, a tradesperson staying until the work's done; `alter` if it's still wanted. A
    mock day with a gasolier fitted by a sent-for contact, and one botched by a maid. Then a short
    real run with the user's go-ahead, started with the gas fitter already sent for.
+
+   `alter` is left out for now (the user, 2026-11-08). Built in these steps:
+
+   - **2a. Prices and payment.** `from` (household or own) on `order-work`; `revise-work {id
+     price}` by the orderer or the worker while offered; `accept-work` by whoever didn't set the
+     current price (the worker after an order or the orderer's revision, the orderer after the
+     worker's); on acceptance `money/spend-reason` on the orderer's account, the price debited,
+     the labour (price − materials) credited to the worker's purse; ordering to yourself pays
+     at once. Views show the price, who set it and who is to answer.
+     *Done:* in `manor.mechanics.works`, with the tool doc `docs/works/revise-work.md` and
+     `order-work.md`/`accept-work.md` updated. Prices stay integers in the setting's smallest
+     unit (England: old pence), as 1b took them; the docs name it with `money.base-name`. The
+     record keeps `:account` (`"household"` or the orderer's id, from `money/account`), and
+     `:works/accepted` carries `:account :paid :labour`; its reducer debits `:paid` and credits
+     `:labour` to the worker's purse (`fnil +`). `revise-work` is offered on speaking turns.
+     Choices where this design was silent: "together" is checked for `revise-work` and
+     `accept-work` (a speaking turn is always together, so it holds there by itself); the
+     account is checked when someone accepts: the orderer hears the balance as `buy` says it,
+     the worker only "the household account can't cover £2" (never a balance); `from "own"`
+     without a purse is refused at ordering; ordering to yourself records and pays the
+     materials as the price, with no labour to yourself (`price` is ignored then), and the
+     account must cover them; `decline-work` stays the worker's (the orderer backs out with
+     `cancel-work`) and needs no one present; an install's new item is owned by the paying
+     account; views show `price`, `priced-by`, `paid-from` and, while offered, `next`
+     ("answer with accept-work, or revise-work …" or "waiting for … to accept or revise").
+   - **2b. The order book.** Works paid from the household account appear in the household's
+     book (`manor.mechanics.purchases`), with what, who did it, the price and its status, so
+     the housekeeper can see where the money went; the conversation judge's order books see
+     them too.
+     *Done:* records of `:kind :work` in `[:state :purchases]`, kept by purchases' recording
+     functions (`work-accepted`, `work-settled`) called from the works reducers of
+     `:works/accepted`, `:works/done` and `:works/failed` (as deliveries call `ordered` and
+     `arrived`), so purchases needn't know works' events and works' reducers stay in one place.
+     Only household-paid works are recorded (paid = the price, or the materials for a self-order);
+     the household book shows each as its own entry (`work` "work-1: summary", `done-by`,
+     `ordered-by`, `agreed`, `price`, `status`), always while accepted, like a delivery to come;
+     the judges' `household_orders` show them with no template change. Also here: **prices are
+     money text** (`"£15 10s"`), read by the new `money/parse` against the pack's `:units`
+     (prefix/suffix or singular/plural forms, descending, each unit at most once, case-blind);
+     a bare number is refused (it doesn't say which coin), and refusals show `money/example`
+     ("£3 10s", "3 taels 10 cash"), which the tool docs show too (`{{money-example}}`).
+   - **2c. Tradespeople.** The plan's reply says how to find a tradesperson when `who` names a
+     trade (`recommend` with `trade`, then `send-for` with the work id in the job); a contact's
+     trade reaches the scene judge (done in 1d). A mock end-to-end test: a gasolier planned,
+     a gas fitter recommended and sent for, the price haggled once, paid, fitted; and the same
+     plan given to a kitchen maid with a scripted flawed verdict.
+
 3. **Polish.** GM and operator tools, the panel's scene view.
 4. **Later, when needed:** several phases, with a flawed phase adding work; several workers;
    lead times for goods made off site; merchants by letter; shared deposits and bills; refunds

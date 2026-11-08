@@ -141,7 +141,7 @@ must call.
 | `judges/tools/relations.md` | Fragment: the `relations` field, for the `judge` and `react` tools | `relations/tool-text` | |
 | `judges/tools/inspect.md` | The finder's `inspect` lookup: a closer look at some candidates before answering | `items.find/finder-request` | `max-inspect` |
 | `judges/tools/finder.md`, `seek.md`, `invitee.md`, `tradesperson.md`, `appraise.md` | The finder's, find-person's, invitation judge's, trade judge's and shop's tools | their request functions | |
-| `judges/tools/polish.md`, `appearance.md` | The persona writers' tools | `people/polish-request`, `people/appearance-request` | |
+| `judges/tools/polish.md`, `appearance.md` | The persona writers' tools | `people/polish-request`, `people/appearance-request` | `polish.md`: `belongings` (conditional output-field description; no kit recommendations) |
 
 ## Situations (`situations/`)
 
@@ -157,7 +157,9 @@ The engine's replacement for someone's `:situation` when their post changes.
 
 | Template | Used for | Rendered by | Parameters |
 |---|---|---|---|
-| `writers/persona.md` | The polish: circumstances, persona, manner and appearance from a person's traits, and optional starting goals and aspects | `people/instructions` | `max-circumstance`, `advised-persona`, `max-persona`, `max-manner`, `advised-appearance`, `max-appearance`, `max-goals`, `goal-limit`, `max-aspects`, `advised-aspect` |
+| `writers/persona.md` | The polish: circumstances, persona, manner and appearance from a person's traits, optional starting goals/aspects, and explicitly enabled first-arrival belongings | `people/instructions` | `max-circumstance`, `advised-persona`, `max-persona`, `max-manner`, `advised-appearance`, `max-appearance`, `max-goals`, `goal-limit`, `max-aspects`, `advised-aspect`, `belongings` |
+| `writers/belongings.md` | Conditional first-arrival object contract, rendered inside the private persona writer, not another model call | `people/instructions` | `max-roots`, `max-objects`, `max-name`, `max-desc`, `max-item-aspects`, `max-aspect`, `setting-guidance` |
+| `writers/belongings-setting.md` | Setting-specific recommendations inside that contract; shared modest-effects guidance, overridden by England for a servant's box and appropriate written character | `people/instructions` | |
 | `writers/appearance.md` | A runtime candidate's appearance | `people/appearance-request` | `advised-appearance`, `max-appearance` |
 
 ## The GM (`gm/`)

@@ -33,6 +33,7 @@
             [manor.mechanics.adjudication :as adjudication]
             [manor.mechanics.goals :as goals]
             [manor.mechanics.items :as items]
+            [manor.mechanics.items.belongings :as belongings]
             [manor.mechanics.positions :as positions]
             [manor.prompts :as prompts]
             [manor.settings :as settings]))
@@ -142,12 +143,25 @@
    [:aspects {:optional true} [:vector {:max max-polish-aspects}
                                [:map [:key :string] [:value [:string {:min 1 :max items/max-aspect :json-schema/maxLength items/advised-aspect}]]]]]])
 
-(defn instructions [world]
-  (prompts/render world "writers/persona.md"
+(defn- answer-schema [belongings-mode]
+  (cond-> polish-schema
+    (= :first-arrival belongings-mode) (conj [:belongings belongings/schema])))
+
+(defn instructions
+  ([world] (instructions world nil))
+  ([world belongings-mode]
+   (prompts/render world "writers/persona.md"
                   {:max-circumstance max-circumstance :advised-persona advised-persona :max-persona max-persona
                    :max-manner max-manner :advised-appearance advised-appearance :max-appearance max-appearance
                    :max-goals max-goals :goal-limit goals/goal-limit
-                   :max-aspects max-polish-aspects :advised-aspect items/advised-aspect}))
+                   :max-aspects max-polish-aspects :advised-aspect items/advised-aspect
+                   :belongings (if (= :first-arrival belongings-mode)
+                                 (prompts/render world "writers/belongings.md"
+                                                 {:max-roots belongings/max-roots :max-objects belongings/max-objects
+                                                  :max-name items/max-name :max-desc items/max-desc
+                                                  :max-item-aspects items/max-aspects :max-aspect items/max-aspect
+                                                  :setting-guidance (prompts/render world "writers/belongings-setting.md" {})})
+                                 "Do not supply belongings. Background and appearance grant no items.")})))
 
 (defn- answer-aspects
   "The polish's aspects list ([{:key :value}]) as a person's aspects map, or nil."
@@ -162,15 +176,27 @@
   lengths, nothing blank, aspect keys): point of view, wording and what an
   appearance may say are left to the instructions and to review, never to
   phrase or pattern checks (AGENTS.md)."
-  [record raw]
-  (let [{:keys [args error]} (a/decode-args {:args polish-schema} raw)
+  [belongings-mode arrival-context raw]
+  (let [enabled? (= :first-arrival belongings-mode)
+        ;; Nested tool argument names get the same normalisation as top-level ones.
+        raw (if enabled?
+              (try
+                (let [parsed (if (map? raw) raw (json/read-value raw json/keyword-keys-object-mapper))
+                      parsed (update-keys parsed a/kebab-key)]
+                  (cond-> parsed (contains? parsed :belongings) (update :belongings belongings/normalise-arguments)))
+                (catch Exception _ raw))
+              raw)
+        {:keys [args error]} (a/decode-args {:args (answer-schema belongings-mode)} raw)
+        belongings-problem (when (and enabled? (not error))
+                             (belongings/problem (:belongings args) (= :candidate (:kind arrival-context))))
         {:keys [persona manner appearance circumstances goals aspects] :as answer}
         (when-not error
           (cond-> (-> (select-keys args [:persona :manner :appearance])
                       (update-vals str/trim)
                       (assoc :circumstances (mapv str/trim (:circumstances args))))
             (seq (:goals args)) (assoc :goals (mapv str/trim (:goals args)))
-            (seq (:aspects args)) (assoc :aspects (answer-aspects (:aspects args)))))]
+            (seq (:aspects args)) (assoc :aspects (answer-aspects (:aspects args)))
+            enabled? (assoc :belongings (:belongings args))))]
     (cond
       error {:error error}
       (some str/blank? (concat [persona manner appearance] circumstances goals))
@@ -178,43 +204,57 @@
       (and aspects (items/aspects-problem aspects))
       {:error (str "aspects: each key a word of lower-case letters and hyphens (dress, hands), each value a short phrase, no key twice: "
                    (items/aspects-problem aspects))}
-      :else answer)))
+      belongings-problem {:error belongings-problem}
+      :else (cond-> answer enabled? (update :belongings belongings/descriptions)))))
 
 (defn check-polish
-  "The checked polish of `record`."
-  [record response]
-  (adjudication/answer "polish" response (partial checked-polish record)))
+  "The checked polish of `record`, with optional explicit arrival context."
+  ([record response] (check-polish record {} response))
+  ([_ {:keys [belongings-mode arrival-context]} response]
+   (adjudication/answer "polish" response (partial checked-polish belongings-mode arrival-context))))
 
 (defn polish-request
   "The polish call for one person. Only the setting, the position, the base
   record, any authored notes and any earlier goals (`goals`, to keep those
-  that still fit) reach the model."
+  that still fit) reach the model. Explicit :belongings-mode :first-arrival
+  also supplies :arrival-context and requires a checked belongings answer."
   ([input] (polish-request {} input))
-  ([world {:keys [setting position record notes goals]}]
+  ([world {:keys [setting position record notes goals belongings-mode arrival-context]}]
   (let [record (base-record record)
         data (cond-> {:setting setting :position position :record record}
                (not (str/blank? notes)) (assoc :notes notes)
-               (seq goals) (assoc :goals (vec goals)))]
-    {:messages [{:role "system" :content (instructions world)}
+               (seq goals) (assoc :goals (vec goals))
+               (= :first-arrival belongings-mode) (assoc :belongings-mode belongings-mode :arrival-context arrival-context))]
+    {:messages [{:role "system" :content (instructions world belongings-mode)}
                 {:role "user" :content (json/write-value-as-string data)}]
      :tools [{:type "function"
-              :function {:name "polish" :description (prompts/render world "judges/tools/polish.md" {})
-                         :parameters (mjs/transform polish-schema)}}]
-     :ctx {:role :adjudicator :task :people/polish :record record}
-     :check #(check-polish record %)})))
+              :function {:name "polish"
+                         :description (prompts/render world "judges/tools/polish.md"
+                                                      {:belongings (if (= :first-arrival belongings-mode)
+                                                                     " Required belongings: ordinary first-arrival objects, including [] when none."
+                                                                     "")})
+                         :parameters (mjs/transform (answer-schema belongings-mode))}}]
+     :ctx (cond-> {:role :adjudicator :task :people/polish :record record}
+            (= :first-arrival belongings-mode) (assoc :belongings-mode belongings-mode :arrival-context arrival-context))
+     :check #(check-polish record {:belongings-mode belongings-mode :arrival-context arrival-context} %)})))
 
 (defn mock-polish
   "A free deterministic fixture for tests and --mock, not a production writer.
   It reads basic levels, never stock descriptors. Circumstances and visible prose
   are plain fixtures; real characters are written by the model."
-  [{:keys [record]}]
+  [{:keys [record belongings-mode arrival-context]}]
   (let [persona (str "You are the " (:position record) ". "
                      (str/join "; " (map #(str (:axis %) ": " (:level %)) (:temperament record))))]
     {:tool :polish
-     :args {:circumstances ["Has a cousin living some way off."]
-            :persona (subs persona 0 (min max-persona (count persona)))
-            :manner "You seem civil and plain to strangers."
-            :appearance "A slight figure in plain, well-worn clothes, standing with shoulders drawn back."}}))
+     :args (cond-> {:circumstances ["Has a cousin living some way off."]
+                    :persona (subs persona 0 (min max-persona (count persona)))
+                    :manner "You seem civil and plain to strangers."
+                    :appearance "A slight figure in plain, well-worn clothes, standing with shoulders drawn back."}
+             (= :first-arrival belongings-mode)
+             (assoc :belongings [{:name "Travelling box" :desc "A small worn wooden box." :container :closed
+                                  :aspects {:contents "Spare linen and a few mending things."}
+                                  :contents [(cond-> {:name "Written character" :desc "A signed character from a former employer."}
+                                               (= :candidate (:kind arrival-context)) (assoc :candidate-reference? true))]}]))}))
 
 (defn visible-record
   "The only input allowed to the runtime appearance writer. Small senses

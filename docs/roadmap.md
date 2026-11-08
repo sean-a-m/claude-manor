@@ -477,6 +477,23 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   written facts. See design section 3.7. Clearer period wording remains future work, without
   dropping or replacing the basic data.
   Real simulation acceptance runs remain with the user; outdoor housing is deferred.
+- **Generated arrival belongings (built, independently reviewed, full-suite offline-tested):** [arrival-belongings-design.md](arrival-belongings-design.md).
+  In `runs/claudeworth-medium-20261107-132710`, Edith Gates promised a reference at off-map
+  lodgings, could not reach them, and returned empty-handed even after `take-leave`. In the
+  next run, Mabel's generated background granted a bundle and reference absent from inventory.
+  Extend the existing people writer with a small structured carried kit, materialised once
+  through item events on first arrival. User decisions agreed: candidates first with reusable
+  plumbing; prompt-level strong default for references and a period-appropriate box with usual
+  contents summarised as an aspect, a separate letter when needed. Retrieval on return and
+  new leave mechanics are excluded for now. The existing private polish now supplies checked
+  pending descriptions only for new candidates in items-enabled scenarios; successful first
+  arrival creates owner-private ordinary item events once and clears pending state. Regression
+  coverage includes container/reference handling, privacy, blocked arrival, return persistence,
+  replay/load/branch, empty kits and disabled callers. Correctness and contract/test reviews
+  found no issues; final focused validation passed 81 tests / 1,549 assertions and the complete
+  `clojure -M:test` passed 573 tests / 10,617 assertions, all with zero failures/errors.
+  Evidence paths and review dispositions are in design section 9. No paid-model assessment,
+  cast refresh, retrieval feature or new leave mechanics were added.
 - **Changing posts (built, mock-tested):** `docs/role-change-design.md`. Appointers (a
   position capability, `:appoints`) can `appoint` and `dismiss` through a light judge that
   refuses only the absurd, and `assign-bedroom` without one; the GM has `change-post`; the

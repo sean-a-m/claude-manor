@@ -54,8 +54,11 @@
   in a container (at any depth, open or closed), and not be fixed, or be
   held (or be in something held) by someone here who can't keep hold of it.
   Something inside what anyone else keeps hold of is just \"not here\", so
-  nothing hidden leaks. With their grasp disabled, they can't take anything."
-  [world actor {id :item}]
+  nothing hidden leaks. With their grasp disabled, they can't take anything.
+  `fixed-hint` (the scenario's :items :fixed-hint), if given, ends the
+  refusal of a fixed thing, saying how it could be moved."
+  ([world actor args] (take-reason nil world actor args))
+  ([fixed-hint world actor {id :item}]
   (let [it (items/item world id)
         holder (:holder it)]
     (cond
@@ -66,7 +69,7 @@
       (and holder (space/together? world actor holder))
       (str (:name (w/agent world holder)) " is holding the " (:name it))
       (not (and it (items/reachable? world actor it))) (str id " is not here; " (here-list world actor))
-      (:fixed? it) (str "the " (:name it) " is fixed in place"))))
+      (:fixed? it) (str "the " (:name it) " is fixed in place" (when fixed-hint (str "; " fixed-hint)))))))
 
 (defn- container-reason
   "Why `actor` can't get at the container `id`, or nil."
@@ -80,10 +83,10 @@
   "Why `actor` can't put the item `id` in the container `to`, or nil: the
   item is carried or could be taken here, the container is here or carried,
   and the item isn't the container or around it."
-  [world actor {id :item to :container}]
+  [fixed-hint world actor {id :item to :container}]
   (let [it (items/item world id)]
     (or (grasp-reason world actor "put things in anything")
-        (when-not (and it (= actor (:holder it))) (take-reason world actor {:item id}))
+        (when-not (and it (= actor (:holder it))) (take-reason fixed-hint world actor {:item id}))
         (container-reason world actor to "put things in")
         (cond
           (or (= id to) (some #(= to (:id %)) (items/within world id)))
@@ -277,9 +280,9 @@
 (defn actions
   "The item actions, configured by a scenario's :items: `find-allowed?`
   (fn [world actor place]) => nil or why not, and `act-on?` to offer
-  `act-on`."
+  `act-on`, and `fixed-hint`, the end of take's refusal of a fixed thing."
   ([] (actions {}))
-  ([{:keys [find-allowed? act-on?]}]
+  ([{:keys [find-allowed? act-on? fixed-hint]}]
    (cond->
     [{:name :find
       :kind :query :per-turn 1
@@ -305,7 +308,7 @@
       :kind :free
       :doc (prompts/doc "docs/items/take.md")
       :args [:map [:item :string]]
-      :valid? take-reason
+      :valid? (partial take-reason fixed-hint)
       :effect (fn [world actor {id :item}]
                 (let [it (items/item world id)
                       from (held-by-helpless world actor it)]
@@ -325,7 +328,7 @@
       :kind :free
       :doc (prompts/doc "docs/items/put-in.md")
       :args [:map [:item :string] [:container :string]]
-      :valid? put-in-reason
+      :valid? (partial put-in-reason fixed-hint)
       :effect put-in-events}
 
      {:name :put-down

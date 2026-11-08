@@ -40,6 +40,7 @@ template uses them.
 | `agent/goals-review.md` | Asks for a review of the agent's goals with `set-goals`, every `:goals-every` rounds; goes into the turn closing | `goals/review-request` | `goals-max` |
 | `agent/reminder-early.md` | Reminder after two calls without a turn-ending action | `engine.turn/turn-reminder` | `actions` (an or-list), `wait` (`" "` + `reminder-pass.md`, or `""`) |
 | `agent/reminder-last.md` | Reminder before the last call of a turn | ″ | ″ |
+| `agent/reminder-work.md` | Fragment added to the early reminder, one per work the agent has accepted and isn't at yet (only then) | `works/early-reminder` (the scenario's `:early-reminder`) | `id`, `where` (the place's name and id) |
 | `agent/reminder-pass.md` | Fragment: `pass` is a fine way to wait (only when `pass` is offered) | ″ | |
 | `agent/reminder-speaking-last.md` | Reminder before the last call of a speaking turn | `engine.talk/speaking-reminder` | `actions` |
 | `agent/nudge-length.md` | Reply to a response cut off by `:max-tokens` with no tool call | `engine.turn/nudge` | |
@@ -59,6 +60,7 @@ the rules of individual mechanics that it joins in.
 | `rules/sections/speaking.md` | `say`, `whisper`, `converse` | ″ | `speech-limit`, `max-others`, `passes` |
 | `rules/sections/work.md` | `spend-time` | ″ | `max-work-hours` |
 | `rules/sections/things.md` | Items and `find` | ″ | `find-for-sale` (`things-find-everywhere.md` or `things-find-not-at-trade.md`) |
+| `rules/sections/works.md` | Fixed things change only through works: `plan-work`, then `order-work`; `spend-time` makes only passing changes | ″ | |
 | `rules/sections/people.md` | Aspects of people, inner state, feelings toward others, the body | ″ | `physical` (`rules/physical.md`) |
 | `rules/sections/shopping.md` | Money and shopping | ″ | `paid` (`shopping-paid[-commissions].md`), `spending-tools` (`shopping-spending-tools[-commissions].md`), `money` (the pack's `money.md`), `order-book` (`shopping-order-book.md` where the world has shops, else empty) |
 | `rules/sections/shopping-order-book.md` | The order books: what `household.orders` and `shop-orders` show | `ruleset.rules/order-book` | |
@@ -103,6 +105,12 @@ for the action's kind and its per-turn limit (`docs/hints/`).
 | `docs/visits/time-format.md` | Fragment: the date format for visits | `visits` | `example-date` |
 | `docs/trades/recommend-trade.md` | Appended to `recommend`: the `trade` argument | `trades` | `max-trade` |
 | `docs/trades/send-for.md` | `send-for` for candidates and contacts, in place of hiring's | `trades` | `lead-hours` |
+| `docs/works/plan-work.md` | `plan-work`: planning a work (install, move, remove) | `works` | `max-open-plans` |
+| `docs/works/order-work.md` | `order-work`: offering a plan to someone here, or taking it on oneself, at a price | `works` | |
+| `docs/works/accept-work.md` | `accept-work`: taking on a work offered | `works` | |
+| `docs/works/decline-work.md` | `decline-work`: refusing a work offered | `works` | |
+| `docs/works/cancel-work.md` | `cancel-work`: dropping a plan not yet accepted | `works` | |
+| `docs/works/carry-out.md` | `carry-out`: doing an accepted work's current stage as a timed job, resumable | `works` | |
 | `docs/appointments/appoint.md`, `dismiss.md`, `assign-bedroom.md` | Changing posts and beds, for positions with `:appoints` | `appointments/actions` | |
 | `docs/gm/change-post.md` | The GM's `change-post` | `appointments/actions` | |
 | `docs/shop/quote-goods.md`, `buy.md`, `send-up.md` | The shop | `shop` | `max-lines`; send-up also `send-up-max-hours` |
@@ -120,6 +128,7 @@ must call.
 | `judges/post-check.md` | The post check: admits `appoint` and `dismiss` unless absurd in the setting | `appointments.post-check/request` | setting (`era`) |
 | `judges/tools/check-post.md` | The post check's verdict: allowed, or refused with a reason for the appointer | ″ | |
 | `judges/scene.md` | The scene judge: activity types, scene evidence (including how what the worker carries bears on the work), item representations and effects, people, and summary consistency; no effects for travel-dependent timed activities | `items.judge/judge-instructions` | `advised-aspect`, `max-aspects`, `max-made`, `max-impediments`, `max-summary` |
+| `judges/scene-work.md` | The scene judge on a work's job: weigh the worker's fitness (position or trade against the plan's `who`) with the luck, the outcomes, the work happening only through `work` (never `made`, `gone` or `absorbed` for it), side effects in the ordinary fields | `works/work-brief` (the scenario's `:items :work-brief`, joined by `items.judge/judge-request`) | |
 | `judges/brief.md` | The scene judge's "## The setting": the household's brief | `ruleset.rules/judge-brief` | `setting`, `mechanics` (`brief-architect.md`, `brief-deliveries.md` when those exist) |
 | `judges/brief-architect.md`, `brief-deliveries.md` | Fragments of the brief; `brief-deliveries.md` also says how to judge work on the scene's order books (`household_orders`, `shop_orders`) and `orders` | ″ | |
 | `judges/inner.md` | The scene judge's lines on inner state | `inner/instructions` | `advised-value`, `keys` (`inner-keys.md`) |
@@ -134,8 +143,10 @@ must call.
 | `judges/find-person.md` | Whom a `find-person` seeker means | `find-person/instructions` | |
 | `judges/invitation.md` | Whom an `invite` means | `visits.judge/instructions` | `invitation-examples` (the pack's fragment) |
 | `judges/trade.md` | Whom a `recommend` with `trade` means | `trades.judge/instructions` | |
+| `judges/works.md` | The works judge's planning: a `plan-work` request as a work plan (one phase of two hours, one worker, `who` a recommendation only), or refused | `works.judge/instructions` | `phase-minutes`, `max-phases`, `max-estimate`; the pack's `money-pricing.md` |
+| `judges/tools/work-plan.md` | The works judge's `work_plan` tool | `works.judge/request` | |
 | `judges/shop-appraiser.md` | The shop's appraisal of requested goods | `shop/instructions` | `max-lead-hours`, `max-quantity`; the pack's `money-pricing.md` |
-| `judges/tools/judge.md` | The scene judge's `judge` tool | `items.judge/judge-tool` | `activity` (act or work), `advised-aspect`, `max-summary`, `inner` (`judge-inner.md` + `" "`, or `""`), `relations` (`tools/relations.md` + `" "`, or `""`), `effects` (`judge-act.md` or `judge-work.md`, which takes `max-made`) |
+| `judges/tools/judge.md` | The scene judge's `judge` tool | `items.judge/judge-tool` | `activity` (act or work), `advised-aspect`, `max-summary`, `inner` (`judge-inner.md` + `" "`, or `""`), `relations` (`tools/relations.md` + `" "`, or `""`), `effects` (`judge-act.md` or `judge-work.md`, which takes `max-made`, followed for a work's job by `judge-work-order.md`, the `work` field) |
 | `judges/tools/steward.md` | The `steward` tool | `items.steward/steward-tool` | `inner` (`steward-inner.md` or `""`) |
 | `judges/tools/react.md` | The conversation judge's `react` tool | `conversation.judge/react-tool` | `advised-value`, `max-summary`, `relations` (as the judge's) |
 | `judges/tools/relations.md` | Fragment: the `relations` field, for the `judge` and `react` tools | `relations/tool-text` | |

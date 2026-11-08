@@ -5,6 +5,7 @@
   (:require [manor.mechanics.builtins :as b]
             [manor.mechanics.space :as space]
             [manor.mechanics.visits :as visits]
+            [manor.mechanics.works :as works]
             [manor.ruleset.places :as places]
             [manor.world :as w])
   (:import (java.time LocalTime)))
@@ -51,11 +52,12 @@
   "Where `id`'s routine puts them now, {:activity :location}, as long as
   nobody else is in the place they're in or the place it puts them in
   (when visiting another area: anywhere in that area), and no visit keeps
-  them in play (an invited guest, on the day); else nil. So people
+  them in play (an invited guest, on the day) and they have no accepted work
+  unfinished (manor.mechanics.works); else nil. So people
   elsewhere in the village don't wake them, nobody sees them taken off, and
   anyone arriving finds them where their routine has them."
   [world id]
   (when-let [{:keys [at doing]} (routine-now world id)]
-    (when-not (or (visits/keeps-awake? world id) (company? world id (watched world id at)))
+    (when-not (or (visits/keeps-awake? world id) (works/open-work? world id) (company? world id (watched world id at)))
       {:activity doing :location at})))
 

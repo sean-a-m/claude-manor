@@ -773,6 +773,23 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
 
 ---
 
+### B20. Works: installing, moving and removing things
+
+- **Why:** fixed things (a piano, a range, a gasolier) could never change: `take` refuses them
+  and `spend-time` makes only passing changes. A household that means to improve its house
+  needs lasting changes, done by the right hands or botched by the wrong ones.
+- **Design:** [fixtures-design.md](fixtures-design.md), with the user's decisions of
+  2026-11-07. **Phase 1 is done, mock-tested only** (no real-model check yet): `plan-work` and
+  the works judge, `order-work`/`accept-work`/`decline-work`/`cancel-work`, `carry-out` as a
+  timed item job, the scene judge's `work` entry deciding install, move and removal, the early
+  reminder, a calendar entry, hibernation and tradespeople staying, the rules and `take`'s
+  pointer, and a scripted day moving the china cabinet end to end. Contract under Works in
+  `scenario-authoring.md`.
+- **Next: phase 2** (money and trades): prices paid, `revise-work`, the labour to the worker's
+  purse, the order book, a tradesperson staying until done, a mock day with a gas fitter sent
+  for, then a short real run with the user's go-ahead. Phases 3 (GM/operator tools, the panel)
+  and 4 (several phases and workers, lead times) follow.
+
 ## C. Known issues and small fixes
 
 1. **Act bridges aren't re-checked when executed.** `:valid?` runs when the request is made; the

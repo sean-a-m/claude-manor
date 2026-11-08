@@ -128,8 +128,10 @@
   "A reminder for an agent that has made `calls-made` calls this turn without
   a turn-ending action, or nil: once `early-reminder-at` calls have passed,
   and again before the last call. `final-names` are the turn-ending actions
-  it has."
-  [world calls-made max-steps final-names]
+  it has. `extra`, if given, is added to the early reminder (a scenario's
+  :early-reminder, such as accepted work not yet done)."
+  ([world calls-made max-steps final-names] (turn-reminder world calls-made max-steps final-names nil))
+  ([world calls-made max-steps final-names extra]
   (let [params {:actions (or-list final-names)
                 :wait (if (some #{"pass"} final-names)
                         (str " " (prompts/render world "agent/reminder-pass.md" {}))
@@ -137,7 +139,9 @@
     (cond
       (>= calls-made max-steps) nil
       (= calls-made (dec max-steps)) (prompts/render world "agent/reminder-last.md" params)
-      (= calls-made early-reminder-at) (prompts/render world "agent/reminder-early.md" params))))
+      (= calls-made early-reminder-at)
+      (cond-> (prompts/render world "agent/reminder-early.md" params)
+        (not (str/blank? extra)) (str " " extra))))))
 
 (defn- nudge
   "The reply to a response without tool calls. One cut off by `:max-tokens`

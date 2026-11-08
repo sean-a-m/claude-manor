@@ -48,8 +48,10 @@
                 ;; the GM's turn has no forfeit, so only participants are reminded
                      :remind (fn [st calls-made next-actions]
                                (when (and (not gm?) (empty? (:finals st)))
-                                 (turn/turn-reminder @(:world run) calls-made max-steps
-                                                     (map (comp name :name) (filter a/ends-turn? next-actions)))))
+                                 (let [world @(:world run)]
+                                   (turn/turn-reminder world calls-made max-steps
+                                                       (map (comp name :name) (filter a/ends-turn? next-actions))
+                                                       (when-let [f (:early-reminder scenario)] (f world agent-id))))))
                      :ctx {:role role :reasons reasons}})))
 
 (defn- activate-human

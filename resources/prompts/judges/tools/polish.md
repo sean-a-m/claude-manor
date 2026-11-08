@@ -1,1 +1,1 @@
-One or two circumstances, a consistent persona and manner, and public appearance, written from basic traits; optionally the goals the person starts with and aspects of how they look just now.
+One or two circumstances, a consistent persona and manner, and public appearance, written from basic traits; optionally the goals the person starts with and aspects of how they look just now.{{belongings}}

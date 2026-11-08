@@ -2199,7 +2199,8 @@ data, so there's one source and no call.
   `{circumstances persona manner appearance}` in one checked model call, and optionally `goals`
   (at most 3, the aims the person starts with) and `aspects` (at most 2, how they look just now,
   as `[{key value}]`). It receives only setting, position, basic identity/readings, optional
-  authored notes and optional earlier `goals`; legacy descriptors, circumstances and prose are
+  authored notes, optional earlier `goals` and explicitly enabled arrival context (below);
+  legacy descriptors, circumstances and prose are
   stripped from its record and mock context. Its instructions put each fact in one field: aims
   in goals, passing looks in aspects, lasting character in persona, fixed features in appearance.
   Circumstances are **one or two external personal facts**, inspired by the whole record
@@ -2207,7 +2208,8 @@ data, so there's one source and no call.
   (which belong in goals).
   Ordinary lives are allowed. Off-stage relatives and past employment may be invented;
   connections to existing named characters, present jobs/authority/capabilities, money,
-  items, property and actionable assets may not. Background prose grants no engine state.
+  property and actionable assets may not. Items must be structured belongings when explicitly
+  enabled (below); otherwise they too are forbidden. Background prose grants no engine state.
 - Persona/manner address the person in the second person; public appearance uses the third.
   The prompt treats basic readings as actual characteristics, not theories to discount.
   Raw levels/sizes and definitions remain in the private prompt under **Faculties** alongside
@@ -2279,6 +2281,45 @@ or promised. It does not select an existing villager.
   recommender, who then chooses what to say. `:none`, `:gm` and `:guest` (a visitor, see Visits)
   aren't posts: `recommend` and `engage` refuse them ("guest is not a post"), and
   `hiring/reference` doesn't list them.
+- **First-arrival belongings (candidates only):** `hiring/install` snapshots the scenario's
+  `:items` opt-in as `[:state :hiring-belongings?]`, including an items scenario with no
+  starting objects. Only a new hiring candidate in such a scenario opts the existing private
+  polish into `:belongings-mode :first-arrival`, with `:arrival-context` naming candidate,
+  post and interview occasion. There is no extra model call. The answer must include
+  `:belongings`, even `[]`; default/disabled writers ignore unsolicited belongings.
+  `writers/persona.md` includes the conditional `writers/belongings.md` contract and pack
+  `writers/belongings-setting.md` guidance. England strongly prefers a written character for
+  appropriate previous service, usually as a separate letter inside an ordinary servant's
+  box; ordinary remaining contents are summarised in a contents aspect, not a wardrobe list.
+  This is prompt guidance, not a compulsory kit selected or semantically checked by code.
+- Each description has `:name` (1–60 characters) and `:desc` (1–400), optionally `:container`
+  (`:open`/`:closed`), `:contents`, `:aspects` (the normal four keyed phrases, at most 200
+  characters each), `:consumable` (boolean), and `:candidate-reference?` (boolean, candidate
+  context only, at most one true). At most four roots and six total objects; contents require
+  a container, and child containers/contents are forbidden. Blank strings, bad aspects and
+  malformed structure receive the usual checked-answer correction. Argument-name
+  normalisation and unknown-key dropping apply; no model ids, holders, ownership, places,
+  order/waiting markers or arbitrary effects are accepted. No prose phrase checks are used.
+- `hiring/write-person`'s fourth argument supplies those explicit options; its existing
+  two-/three-argument callers remain disabled. Checked descriptions are kept separately in
+  private pool `:pending-belongings`, never as traits/circumstances or in recommendations,
+  reputation requests or `hiring/observe`. The public appearance writer sees no belongings.
+  Pooled reuse keeps the same descriptions. No item exists until a successful first arrival.
+  After spawning, `items.belongings/arrival-events` allocates ordinary `:item/added` events
+  against sequential temporary worlds. Roots have the new agent as holder/owner, children
+  have `:in` pointing to their new parent (and the same owner); a flagged paper gets the
+  existing pool `:candidate-id`. These events are owner-only, including child descriptions;
+  the public arrival event carries no manifest. Normal carried-root and open/look views
+  handle discovery; the owner can open their own closed box and take/give the letter.
+  No new item identity protection is introduced.
+- The same private candidate-update batch clears pending descriptions to nil, including an
+  empty kit. A cap-blocked or physically blocked arrival consumes nothing. Repeat ticks,
+  replay, loading, branching and returning do not generate items: the paper given away stays
+  with its recipient, a box left on-map stays there, and actual carried items stay carried.
+  `take-leave` schedules return only, never retrieval. Applicants are told to use their real
+  items and say when no reference is available, not invent one at inaccessible lodgings.
+  Off-map homes remain background. Guests, tradespeople, couriers, authored spawns,
+  world-file inventories and `roll-cast!` do not opt in; no-items scenarios remain unchanged.
 - A written person's polish `goals` and `aspects` go with them when they're spawned
   (`hiring/spawn-spec`: hires, couriers and guests from elsewhere).
 - Runtime appearance uses `people/appearance-request`: **only** age, sex, position and small

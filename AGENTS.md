@@ -20,6 +20,7 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/claudeworth-design.md` | design, phases and numbered decisions for the Claudeworth Manor scenario |
 | `docs/stores-and-aspects-design.md` | phased plan: stores, keyed aspects, the scene judge, `find`, the steward |
 | `docs/people-and-hiring-design.md` | phased plan: the people server and traits, positions, a small test world, hiring |
+| `docs/arrival-belongings-design.md` | agreed design: the people writer generates first-arrival belongings for candidates, using containers/aspects; retrieval on return excluded for now |
 | `docs/scene-view-design.md` | graphical scene page: phases 1–5 implemented and integration-checked; independent review pending |
 | `docs/inner-state-design.md` | proposal: private inner state, changed by the work judge, a conversation judge and the steward |
 | `docs/relations-design.md` | per-person relations: a capped queue of judged feelings toward each other person, the user's decisions of 2026-10-29; built and mock-tested |

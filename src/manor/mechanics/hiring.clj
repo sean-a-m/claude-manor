@@ -7,6 +7,7 @@
             [manor.mechanics.builtins :as b]
             [manor.mechanics.calendar :as calendar]
             [manor.mechanics.items.actions :as item-actions]
+            [manor.mechanics.items.belongings :as belongings]
             [manor.mechanics.people :as people]
             [manor.mechanics.physical :as physical]
             [manor.mechanics.positions :as positions]
@@ -54,9 +55,10 @@
                        :request (fn [world _ {:keys [record]} _] (people/appearance-request world record))
                        :mock (fn [_] {:tool :appearance :args {:appearance "A young figure in plain working clothes and spectacles."}})}
    :people/polish {:writer? true
-                   :request (fn [world _ {:keys [record appearance notes]} _]
+                   :request (fn [world _ {:keys [record appearance notes belongings-mode arrival-context]} _]
                               (people/polish-request world {:setting (get-in world [:state :setting])
                                                       :position (:position record) :record record
+                                                      :belongings-mode belongings-mode :arrival-context arrival-context
                                                       :notes (str (when-not (str/blank? notes) (str notes "\n\n"))
                                                                   "Keep these visible physical facts consistent: " appearance)}))
                    :mock people/mock-polish}})
@@ -166,23 +168,31 @@
 (defn write-person
   "The second half: a public appearance and a private polish for person `p`
   from `person-record`, adding :persona :manner :appearance and the record's
-  circumstances, and the polish's :goals and :aspects if it gave any. `notes`, if given, go to the polish (who they are, for a
-  guest written to order)."
+  circumstances, and the polish's :goals and :aspects if it gave any. `notes`,
+  if given, go to the polish (who they are, for a guest written to order).
+  Explicit first-arrival options preserve checked descriptions privately as
+  :pending-belongings, never as traits or public appearance input."
   ([services p] (write-person services p nil))
-  ([{:keys [adjudicate]} {:keys [record] :as p} notes]
+  ([services p notes] (write-person services p notes {}))
+  ([{:keys [adjudicate]} {:keys [record] :as p} notes {:keys [belongings-mode arrival-context]}]
    (let [public (adjudicate :people/appearance {:record record})
+         enabled? (= :first-arrival belongings-mode)
          polish (adjudicate :people/polish (cond-> {:record record :appearance (:appearance public)}
-                                             notes (assoc :notes notes)))]
-     (merge (assoc-in p [:record :circumstances] (:circumstances polish))
-            (select-keys polish [:persona :manner :goals :aspects]) public))))
+                                             notes (assoc :notes notes)
+                                             enabled? (assoc :belongings-mode belongings-mode :arrival-context arrival-context)))]
+     (cond-> (merge (assoc-in p [:record :circumstances] (:circumstances polish))
+                    (select-keys polish [:persona :manner :goals :aspects]) public)
+       enabled? (assoc :pending-belongings (:belongings polish))))))
 
 (defn new-person
   "A fresh person for `position`, made through the composed-query services:
   {:name :record :lives | :candidate-home :persona :manner :appearance}, with
-  any :goals and :aspects. Candidates and couriers
-  are both made here, so a change to how people are written reaches both."
+  any :goals and :aspects. Explicit first-arrival options apply only to a
+  candidate in an items-enabled scenario; other shared callers stay disabled."
   [world services opts]
-  (write-person services (person-record world services opts)))
+  (write-person services (person-record world services opts) nil
+                (when (and (:candidate? opts) (get-in world [:state :hiring-belongings?]))
+                  (select-keys opts [:belongings-mode :arrival-context]))))
 
 (defn spawn-spec
   "What an agent spawned from person `p` is made of: their hidden traits, the
@@ -205,6 +215,8 @@
         p (or old (merge {:id (str "candidate-" (inc (:seq world))) :created (inc (:seq world))
                           :area (area world actor) :seeks [position] :known-to #{} :status :pooled}
                          (new-person world services {:position position :area (area world actor) :candidate? true
+                                                     :belongings-mode :first-arrival
+                                                     :arrival-context {:kind :candidate :position position :occasion "coming for interview"}
                                                      :seed (str (:seed world) "/candidate/" (inc (:seq world)))
                                                      :taken-names (taken-names world)})))
         record (:record p)
@@ -345,10 +357,13 @@
                        "Remain locally available while a decision is pending: wait anywhere in the mapped area, "
                        "and tell the interviewer where you will be. Walking there does not end your application. "
                        "Use take-leave only when you mean to leave the area completely, not to wait nearby: you are gone until someone sends for you, "
-                       "unless you give take-leave a return-date and return-time for when to come back again."
+                       "unless you give take-leave a return-date and return-time for when to come back again. "
                        (if (:clock world)
                          "You leave automatically only after a full 24 hours without a conversation involving you. "
                          "You leave automatically only after 24 rounds without a conversation involving you. ")
+                       "The things you brought are your actual carried items; open your own containers to see their contents. "
+                       "Use ordinary item actions to show or give a paper. If no written character is available, say so rather than inventing one at inaccessible lodgings. "
+                       "Leaving and returning does not retrieve unrecorded goods. "
                        (when-let [home (:candidate-home p)]
                          (str "Your home is " home ". It is outside the mapped area, not a walking destination. ")))
         returning? (= :away (:status (w/agent world (:agent-id p))))
@@ -356,10 +371,15 @@
                                      (if returning?
                                        {:id (:agent-id p) :situation situation :also [(:summoner p)]}
                                        {:spawn (merge (spawn-spec p) {:role :none :situation situation :household nil})}))
-        audience (conj (space/present world at) id (:summoner p))]
+        audience (conj (space/present world at) id (:summoner p))
+        first-belongings? (and (nil? (:agent-id p)) (contains? p :pending-belongings))
+        item-events (when first-belongings?
+                      (belongings/arrival-events (reduce w/apply-event world events) id (:pending-belongings p)
+                                                 {:candidate-id (:id p)}))]
     (vec (concat
-          events
-          [(changed (:id p) {:status :here :agent-id id :arrived (:round world) :return-at nil :return-entries nil})
+          events item-events
+          [(changed (:id p) (cond-> {:status :here :agent-id id :arrived (:round world) :return-at nil :return-entries nil}
+                             first-belongings? (assoc :pending-belongings nil)))
            {:type :people/arrived :visible-to audience :data {:id id :at at :name (:name p)}}]))))
 (defmethod n/describe :people/arrived [{:keys [data]} names]
   (str (:name data) " (" (:id data) ") arrives at " (n/place names (:at data)) " to talk about a place."))
@@ -629,7 +649,9 @@
         (cond-> (:calendar scenario) (assoc-in [:calendar :managed :hiring] calendar-owner))
         (assoc :init (fn [opts]
                        (update (init opts) :state merge
-                               {:hiring-max-agents (get-in scenario [:limits :max-agents] b/default-max-agents)})))
+                               {:hiring-max-agents (get-in scenario [:limits :max-agents] b/default-max-agents)
+                                ;; An items-enabled scenario may have no actual items yet.
+                                :hiring-belongings? (boolean (:items scenario))})))
         (cond-> (:items scenario)
           (update :actions (fn [actions]
                              (conj (vec (remove #(= :spend-time (:name %)) actions))

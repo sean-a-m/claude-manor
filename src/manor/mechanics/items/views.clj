@@ -79,8 +79,17 @@
   (cond-> (select-keys it [:id :name])
     (items/waiting? world it) (assoc :waiting-for (owner-name world (get-in it [:waiting :for])))))
 
+(defn- carried-seen
+  "Something `it` an agent carries, as their own view shows it: its id, name
+  and aspects, and if it's a container, everything inside it, open or
+  closed, since they've had time to see what's in their own things."
+  [world it]
+  (cond-> (select-keys it [:id :name :aspects])
+    (:container it) (assoc :contents (mapv #(carried-seen world %) (items/contents world (:id it))))))
+
 (defn add-to-view
-  "The item parts of an agent's view: what they carry (with its aspects),
+  "The item parts of an agent's view: what they carry (with its aspects, and
+  what's inside any container of it, closed ones too),
   the items in their place (names only, with what's in open containers and
   closed ones marked, and whom goods are waiting for), and what the people here carry. The agent's own
   :carrying is always there, empty when they hold nothing, so a claim to have
@@ -91,7 +100,7 @@
         here (when (get-in view [:location :here]) (space/location-of world agent-id))
         lying (items/by-name (remove items/store? (items/items-at world here)))
         stores (items/stores-for world here)]
-    (cond-> (assoc-in view [:you :carrying] (mapv #(select-keys % [:id :name :aspects]) carried))
+    (cond-> (assoc-in view [:you :carrying] (mapv #(carried-seen world %) carried))
       (seq stores) (assoc-in [:location :here :stores] (mapv #(items/store-view here %) stores))
       (seq lying) (assoc-in [:location :here :items] (mapv #(as-seen world (partial here-item world) %) lying))
       (get-in view [:location :people-here])

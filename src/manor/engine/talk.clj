@@ -14,6 +14,7 @@
             [manor.mechanics.conversation.judge :as conversation-judge]
             [manor.mechanics.items :as items]
             [manor.mechanics.physical :as physical]
+            [manor.mechanics.space :as space]
             [manor.narrate :as narrate]
             [manor.prompt :as prompt]
             [manor.prompts :as prompts]
@@ -49,6 +50,16 @@
                         "give on your line only to someone in this conversation")
                       (valid? world actor args))))))))
 
+(defn- open-on-a-line
+  "The run's `open` for a line, when `speaker` carries a container or one can
+  be seen where they are: looking inside a box or a drawer while talking, to
+  find something asked for. Nil otherwise."
+  [run world speaker]
+  (when-let [open (run/action-named run :open)]
+    (let [here (space/location-of world speaker)
+          things (concat (items/held-by world speaker) (when here (items/visible-at world here)))]
+      (when (some :container things) open))))
+
 (defn- line-queries
   "How many queries a line with the scenario tools `extra-actions` may make:
   one for each query tool offered."
@@ -56,9 +67,10 @@
   (count (filter #(= :query (a/kind %)) extra-actions)))
 
 (defn- speaking-turn-steps
-  "Three calls for a line and retries; one more for each query it may make."
-  [queries]
-  (+ 3 queries))
+  "Three calls for a line and retries; one more for each query it may make,
+  and one more when it may `open` something first."
+  [queries open?]
+  (cond-> (+ 3 queries) open? inc))
 
 (defn- speaking-reminder
   "The reminder before a speaking turn's last call."
@@ -105,9 +117,12 @@
   (let [{:keys [scenario opts]} run
         world @(:world run)
         give (give-on-a-line run world speaker conv)
-        extra-actions (cond-> (extra-speaking-actions scenario world speaker conv) give (conj give))
+        open (open-on-a-line run world speaker)
+        extra-actions (cond-> (extra-speaking-actions scenario world speaker conv)
+                        open (conj open)
+                        give (conj give))
         queries (line-queries extra-actions)
-        max-steps (speaking-turn-steps queries)
+        max-steps (speaking-turn-steps queries (some? open))
         actions (into (cond-> (conversation/speaking-actions world conv speaker)
                         (run/action-named run :note) (conj (run/action-named run :note)))
                       extra-actions)

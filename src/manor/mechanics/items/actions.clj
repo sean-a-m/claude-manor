@@ -101,9 +101,17 @@
   (when-not (= actor (:holder (items/item world id)))
     (str "you are not carrying " id "; " (carried-list world actor))))
 
-(defn- give-reason [world actor {id :item to :to}]
+(defn- carried-or-packed?
+  "Does `actor` carry the item `id`, or something it's inside?"
+  [world actor id]
+  (some->> (items/item world id) (items/outermost world) :holder (= actor)))
+
+(defn- give-reason
+  "Why `actor` can't give the item `id` to `to`, or nil: they carry it, or
+  something it's in, and `to` is someone else here."
+  [world actor {id :item to :to}]
   (or (grasp-reason world actor "hand things over")
-      (carrying-reason world actor id)
+      (when-not (carried-or-packed? world actor id) (carrying-reason world actor id))
       (cond (= to actor) "you already have it; give it to someone else here"
             (not (some #(= to (:id %)) (w/active-agents world))) (str "no one has the id " to)
             (not (space/together? world actor to)) (str to " is not here"))))
@@ -345,7 +353,9 @@
       :args [:map [:item :string] [:to :string]]
       :valid? give-reason
       :effect (fn [world actor {id :item to :to}]
-                [{:type :item/given :data {:item id :to to} :visible-to (space/here world actor)}])}
+                (let [box (:in (items/item world id))]
+                  [{:type :item/given :data (cond-> {:item id :to to} box (assoc :from-item box))
+                    :visible-to (space/here world actor)}]))}
 
      (timed-activity :spend-time act-on?)
      (timed-activity :work-on act-on?)]

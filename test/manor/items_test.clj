@@ -217,6 +217,28 @@
         (e/stop-run village)))
     (e/stop-run run)))
 
+(deftest a-carried-box
+  (let [run (start)
+        _ (e/emit! run (items/init-events
+                        [{:id "box" :name "Servant's box" :desc "A deal box." :holder "ben" :container :closed
+                          :aspects {:contents "Aprons and stockings."}}
+                         {:id "letter" :name "Character" :desc "A signed character." :in "box"}]))
+        world (assoc (e/world run) :round 1)          ; Ada and Ben in the hall
+        check (fn [world actor n args] (a/check (action run n) world actor args))]
+    (testing "the carrier sees what's in a closed box they carry; others only that they carry it"
+      (is (= {:id "box" :name "Servant's box" :aspects {:contents "Aprons and stockings."}
+              :contents [{:id "letter" :name "Character"}]}
+             (first (filter #(= "box" (:id %)) (get-in (prompt/agent-view (:scenario run) world "ben") [:you :carrying])))))
+      (is (not (str/includes? (pr-str (prompt/agent-view (:scenario run) world "ada")) "letter"))))
+    (testing "give hands over something from a box you carry, taking it out"
+      (is (str/starts-with? (check world "ada" :give {:item "letter" :to "ben"}) "you are not carrying letter"))
+      (let [[given [e]] (perform run world "ben" :give {:item "letter" :to "ada"})]
+        (is (= {:item "letter" :to "ada" :from-item "box"} (:data e)))
+        (is (= "ada" (:holder (items/item given "letter"))))
+        (is (nil? (:in (items/item given "letter"))))
+        (is (= "Ben gives the character from the servant's box to Ada." (n/describe e (n/names given))))))
+    (e/stop-run run)))
+
 ;; ---------------------------------------------------------------------------
 ;; Goods waiting for someone: Ada keeps a goose in the hall for Ben
 

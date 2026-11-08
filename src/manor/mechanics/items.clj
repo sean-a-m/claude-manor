@@ -430,7 +430,7 @@
 
 (defmethod w/apply-event :item/given [world {:keys [data]}]
   (-> world
-      (assoc-in [:items (:item data) :holder] (:to data))
+      (update-in [:items (:item data)] #(-> % (dissoc :in) (assoc :holder (:to data))))
       (settle-waiting (:item data))
       (touch (:item data))))
 
@@ -597,7 +597,9 @@
   (str (n/who names actor) " puts down " (the names (:item data)) "."))
 
 (defmethod n/describe :item/given [{:keys [actor data]} names]
-  (str (n/who names actor) " gives " (the names (:item data)) " to " (n/who names (:to data)) "."))
+  (str (n/who names actor) " gives " (the names (:item data))
+       (when-let [box (:from-item data)] (str " from " (the names box)))
+       " to " (n/who names (:to data)) "."))
 
 (defn work-opener
   "\"Hale finishes dusting the china cabinet.\", or \"leaves off\" when they stopped early."

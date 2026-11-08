@@ -287,7 +287,8 @@
        (if items?
          (str ". What you hold is under `carrying` in your view, and being told you've been given or lent something "
               "doesn't put it there. A thing changes hands only when someone `give`s it: if you hand over something you carry, "
-              "`give` it on your line, before you reply. Something you don't carry has to be found with `find` on your own turn first.")
+              "`give` it on your line, before you reply; that includes something inside a box or bag you carry, as listed under its `contents`. "
+              "Something you don't carry has to be found with `find` on your own turn first.")
          " on their turn.")
        "
 - Keep each line to a few sentences, at most " conversation/line-limit " characters, spoken as your character would to the people in the conversation.

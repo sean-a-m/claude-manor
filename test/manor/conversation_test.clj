@@ -8,6 +8,7 @@
             [manor.io.store :as store]
             [manor.mechanics.builtins :as b]
             [manor.mechanics.conversation :as conversation]
+            [manor.mechanics.items :as items]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.tools.transcript :as transcript]
@@ -134,6 +135,29 @@
         (is (str/includes? (:content (first (:replies converse-call))) "gives the pocket watch to Hale"))))
     (testing "the lord has no turn to spare: nothing was forfeited, and replay reproduces the world"
       (is (empty? (of-type run :action/forfeited)))
+      (is (= world (w/replay (store/read-events (:dir run))))))
+    (e/stop-run run)))
+
+(deftest opening-and-giving-from-a-box-on-a-line
+  (let [speak (fn [{:keys [agent-id step conversation]}]
+                (cond (not= "lord-claudeworth" agent-id) {:tool :reply :args {:text "Thank you, my lord."}}
+                      (not (:final? conversation)) {:tool :reply :args {:text "My character is in my box."}}
+                      (= 0 step) {:tool :open :args {:container "earls-box"}}
+                      (= 1 step) {:tool :give :args {:item "earls-letter" :to "hale"}}
+                      :else {:tool :reply :args {:text "There."}}))
+        run (household (earl-opens {:with ["hale"]} speak))
+        _ (e/emit! run (items/init-events
+                        [{:id "earls-box" :name "Box" :desc "A deal box." :holder "lord-claudeworth" :container :closed}
+                         {:id "earls-letter" :name "Letter" :desc "A character." :in "earls-box"}]))
+        run (round! run)
+        world (e/world run)
+        last-word (first (filter #(= :last-word (get-in % [:conversation :pass])) (store/read-llm (:dir run))))]
+    (testing "a line carrying a closed box is offered open, and can give what's inside"
+      (is (some #{"open"} (:tools last-word)))
+      (is (str/includes? (get-in last-word [:replies 0 :content]) "Letter"))
+      (is (= "hale" (:holder (items/item world "earls-letter"))))
+      (is (nil? (:in (items/item world "earls-letter")))))
+    (testing "replay reproduces the world"
       (is (= world (w/replay (store/read-events (:dir run))))))
     (e/stop-run run)))
 

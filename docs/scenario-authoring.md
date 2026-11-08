@@ -1076,8 +1076,11 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
     allowed; everyone here sees it.
   - `open {container}` and `put-in {item container}`: see Containers.
   - `put-down {item}`: you carry it; it's left where you are.
-  - `give {item to}`: you carry it, and `to` is someone else here.
-- **Views:** the engine adds to every agent's view `:you :carrying [{:id :name :aspects}]`,
+  - `give {item to}`: you carry it, or it's inside a container you carry (it comes out as it's
+    handed over; the event's `:from-item` names the container), and `to` is someone else here.
+- **Views:** the engine adds to every agent's view `:you :carrying [{:id :name :aspects}]`
+  (a carried container adds `:contents`, everything inside it, open or closed, nested the same
+  way: people know what's in their own things),
   `:location :here :items [{:id :name}]` (names only; containers as in Containers; goods shown
   as waiting add `waiting-for`, the person's name) and
   `:carrying ["Umbrella" ...]` on each of `:people-here`. The agent's own `:carrying` is always
@@ -1153,7 +1156,9 @@ things in it as habits ("usually in a print frock and apron").
 
 An item with `:container` holds other items, whose `:in` names it. Furniture is the use so far
 (shelves, a sideboard, a glass-fronted cabinet); carried containers aren't forbidden, but nothing
-supports or tests them (a basket's contents don't show in `carrying`).
+supports them only so far: the carrier's `carrying` lists what's inside (closed too), `give` can hand
+over something from inside, and a conversation line is offered `open` when the speaker carries a
+container or one can be seen where they are. Others see only that they carry the container.
 
 - `:container :open`: what's inside can be seen from the room (shelves, glass). `:closed`: only
   `open` shows it (a cupboard). It's a fixed fact: there are no open or closed states, no locks,

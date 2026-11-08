@@ -168,10 +168,13 @@ src/manor/
   scenarios/     village.clj (full example), treasure.clj (small example), quiz.clj (MCP/pi);
                  on the ruleset: claudeworth.clj (Claudeworth Manor: daily life, the small test
                  house), claudeworth_medium.clj (the larger household of
-                 docs/household-1904-proposal.md), lodge.clj (Ashby Lodge), palace.clj (a Qing palace
+                 docs/household-1904-proposal.md), claudeworth_small.clj (a
+                 baron, baroness and one butler with a £30,000 legacy and a shabby farmhouse to build
+                 out: a test bed for building, furnishing and hiring), lodge.clj (Ashby Lodge), palace.clj (a Qing palace
                  skeleton: the second setting)
 resources/worlds/ world files on the classpath; claudeworth.edn is the small test world,
                  claudeworth-medium.edn the larger household (see docs/household-1904-proposal.md);
+                 claudeworth-small.edn the build-out test bed (same village and abbey as medium);
                  palace.edn the Qing palace skeleton; claudeworth-day.edn, lodge-day.edn and palace-day.edn
                  are mock days
 resources/prompts/ shared prompt templates (see manor.prompts; catalogued in docs/prompts.md)

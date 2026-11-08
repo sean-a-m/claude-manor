@@ -9,7 +9,7 @@ examples include:
 - `src/manor/scenarios/quiz.clj`: an MCP bridge. Each contestant messages a private,
   persistent pi assistant through the pi MCP server.
 
-The household scenarios (`claudeworth`, `claudeworth-medium`, `lodge`) are a few lines each over
+The household scenarios (`claudeworth`, `claudeworth-medium`, `claudeworth-small`, `lodge`) are a few lines each over
 the **shared ruleset**, `manor.ruleset`: every household mechanic (walk/call/travel/sleep/rouse,
 items, hiring, the shop and deliveries, building, visits, physical status, inner state,
 relations, hibernation, the rules prompt and briefs) installed once. A scenario on it is its world file and

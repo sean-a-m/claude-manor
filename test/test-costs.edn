@@ -3,6 +3,7 @@
 ;; from worker summary.edn :timings :namespaces when the workload changes.
 {manor.scene-integration-test 22
  manor.claudeworth-medium-test 19
+ manor.claudeworth-small-test 6
  manor.scenarios-test 19
  manor.claudeworth-test 16
  manor.visits-test 7

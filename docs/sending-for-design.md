@@ -352,17 +352,24 @@ Each phase ends with `clojure -M:test` passing and a mock run of `claudeworth-sm
      until 1.2; `you.visit` still says `job` for a visit by `:sent-for` (1.2's arrival work); the
      doc fragments are `docs/contacts/recommend.md` (appended to hiring's `recommend` doc, for
      now) and `docs/contacts/send-for.md`. Tests in `contacts_test.clj`.
-   - **1.2 Settling at arrival.** The arrival situation from a template (`situations/sent-for.md`),
-     the arrival event saying what they came about (4.5), the `:caller` text, `engage`, `send-away`
-     and `accept-place` on contacts here by `:sent-for` with no post, refusing established agents
-     (4.7), and accepting ends the visit. The trades idle departure goes: contacts leave with visits'
-     `take-leave` (4.8).
+   - **1.2 Settling at arrival**, in two commits (a first attempt at it in one timed out):
+     - **1.2a Arrival.** The arrival situation from a template (`situations/sent-for.md`), passed into
+       visits by contacts rather than visits requiring contacts (they require it); the arrival event
+       and `you.visit` saying what they came about (`about`, not `job`) (4.5); the `:caller` text; the
+       contacts idle departure goes, so contacts leave with visits' `take-leave` (4.8).
+     - **1.2b Engaging.** `engage`, `accept-place`, `decline-place` and `send-away` on contacts here by
+       `:sent-for` with no post, refusing established agents (4.7), and accepting ends the visit.
+       `contacts/install` wraps hiring's versions, as it wraps `recommend` and `send-for`, since
+       hiring can't require contacts or visits.
    - **1.3 The pool goes.** `recommend {wanted for}` only. The pool, its events and statuses,
      `recommend!`, `reusable`, hiring's arrival, tick, `sent-for`, its own `take-leave` and return
      calendar entries go (section 5); the view drops `hiring.candidates`; visits, `visits/judge` and
      appointments read contacts. The mock policy and mock days use `wanted`. To keep belongings
      working, new contacts are written with first-arrival belongings using the existing writer
      prompt, and the reference marker points at the contact id (phase 2 does the rest).
+     With no candidates left, contacts defines `recommend`, `send-for`, `engage`, `accept-place`,
+     `decline-place` and `send-away` outright instead of wrapping hiring's, and hiring keeps only the
+     shared parts (making people, `arrival`, the post).
 1b. **Lodging** (4.11): the `:lodging` flag, `sleep`, the refusal, the three Claudeworth world files.
    Independent of the rest; can go before or after.
 2. **Belongings** for everyone written, the reference marker renamed, the mock polish varied.

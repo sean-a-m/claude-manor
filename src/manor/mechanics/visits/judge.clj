@@ -50,12 +50,11 @@
 
 (defn- lives
   "Where `id` lives, as far as anyone can say: their :lives, the house for
-  its household, a candidate's home, or their bedroom's name."
+  its household, a contact's home, or their bedroom's name."
   [world id]
   (or (:lives (w/agent world id))
       (when (positions/household-member? world id) (get-in world [:state :visit-config :house]))
-      (:candidate-home (hiring/for-agent world id))
-      (:lives (hiring/for-agent world id))
+      (:based (hiring/contact-of world id))
       (some->> (get-in world [:state :bedrooms id]) (space/location world) :name)))
 
 (defn- can-come?
@@ -67,14 +66,14 @@
 
 (defn- known-ids
   "The people `actor` knows of: everyone active, their household away
-  members included, the away people they've met, and the candidates
-  recommended to them who have come before."
+  members included, the away people they've met, and the contacts
+  recommended to them."
   [world actor]
   (let [h (:household (positions/post world actor))]
     (concat (map :id (w/active-agents world))
             (when h (keep #(when (positions/household-member? world (:id %) h) (:id %)) (w/agents-in-order world)))
             (map :id (space/away-acquaintances world actor))
-            (keep #(when (contains? (:known-to %) actor) (:agent-id %)) (sort-by :id (vals (hiring/pool world)))))))
+            (keep #(when (contains? (:known-to %) actor) (:agent-id %)) (sort-by :created (vals (get-in world [:state :contacts])))))))
 
 (defn visit-number
   "A visit id's number, for putting visits in order: \"visit-3\" → 3."

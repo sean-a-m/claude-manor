@@ -158,7 +158,6 @@
      "find-person-instructions.md" (find-person/instructions world)
      "find-person-request.md" (request-text "find-person" (find-person/seek-request world "hale" {:who "the housemaid" :recent []}))
      "hiring-rules.md" (hiring/rules world)
-     "hiring-rules-beside-visits.md" (hiring/rules-beside-visits world)
      "visits-rules.md" (visits/rules world)
      "invitation-judge-instructions.md" (visits-judge/instructions world)
      "invitation-request.md" (request-text "invitee" (visits-judge/invitation-request
@@ -192,7 +191,6 @@
      "physical-rules.md" (physical/rules world)
      "find-person-request.md" (request-text "find-person" (find-person/seek-request world "sumuru-wanxia" {:who "the maid" :recent []}))
      "hiring-rules.md" (hiring/rules world)
-     "hiring-rules-beside-visits.md" (hiring/rules-beside-visits world)
      "visits-rules.md" (visits/rules world)
      "invitation-request.md" (request-text "invitee" (visits-judge/invitation-request
                                                       world "sumuru-wanxia"

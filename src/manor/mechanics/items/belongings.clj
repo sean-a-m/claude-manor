@@ -47,7 +47,7 @@
 (defn problem
   "Why decoded descriptions are invalid, or nil. Only structure is checked;
   the writer, not code, judges the plausibility of the possessions."
-  [objects candidate?]
+  [objects sent-for?]
   (let [all (all-objects objects)
         children (mapcat :contents objects)
         references (filter :candidate-reference? all)
@@ -58,9 +58,9 @@
       "belongings may have only one level of contents, without child containers"
       (some #(and (contains? % :contents) (not (:container %))) objects)
       "contents require a container"
-      (and (not candidate?) (some #(contains? % :candidate-reference?) all))
-      "candidate-reference? is only available for hiring candidates"
-      (> (count references) 1) "at most one candidate reference"
+      (and (not sent-for?) (some #(contains? % :candidate-reference?) all))
+      "candidate-reference? is only available for someone sent for"
+      (> (count references) 1) "at most one reference marked candidate-reference?"
       (some #(str/blank? %) (mapcat (juxt :name :desc) all)) "belonging names and descriptions must not be blank"
       aspect-problem aspect-problem
       (some #(some str/blank? (vals (:aspects %))) all) "belonging aspects must not be blank")))

@@ -185,9 +185,10 @@
   (let [run (start-with cw/scenario {})
         world (e/world run)]
     (try
-      (is (= "give position or wanted, not both"
-             (check run world "lord-claudeworth" :recommend {:position "cook" :wanted "a sweep" :for "hale"})))
-      (is (str/starts-with? (check run world "lord-claudeworth" :recommend {:for "hale"}) "give wanted"))
+      (is (= "the person asking must be here"
+             (check run world "lord-claudeworth" :recommend {:position "cook" :wanted "a sweep" :for "hale"}))
+          "position is no argument of recommend's, and is dropped")
+      (is (str/includes? (check run world "lord-claudeworth" :recommend {:position "cook" :for "hale"}) "wanted"))
       (is (some? (check run world "lord-claudeworth" :recommend {:wanted (apply str (repeat 121 "x")) :for "hale"})))
       (is (= "the person asking must be here"
              (check run world "lord-claudeworth" :recommend {:wanted "a sweep" :for "hale"})))

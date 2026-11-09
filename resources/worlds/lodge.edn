@@ -43,7 +43,7 @@
  {:mistress {:workplace ["parlour"]}
   :cook-general {:workplace ["kitchen"]}
   :shopkeeper {:workplace ["general-store"]}
-  :gm {:about "A small village household going about its day; a maid is wanted. Candidates and tradespeople arrive only through send-for after a recommendation; never invent or spawn new people."}}
+  :gm {:about "A small village household going about its day; a maid is wanted. People wanted for a place or a job arrive only through send-for after a recommendation; never invent or spawn new people."}}
 
  :items
  [{:id "kitchen-range" :name "Kitchen range" :place "kitchen" :owner "household" :fixed? true

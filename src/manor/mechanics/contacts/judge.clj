@@ -131,22 +131,42 @@
 ;; ---------------------------------------------------------------------------
 ;; The mock, for --mock runs and tests
 
+(defn- mock-position
+  "The catalogue position with the longest title `text` names, as [id
+  entry], or nil: a mock's rule, not a reading of prose."
+  [world text]
+  (last (sort-by (fn [[id p]] [(count (:title p)) (name id)])
+                 (for [[id p] (get-in world [:state :positions])
+                       :when (and (not (not-work id)) (:title p)
+                                  (str/includes? text (str/lower-case (:title p))))]
+                   [id p]))))
+
 (defn mock-judge
   "A stand-in judge, not a reader of prose: a listed contact whose line, or a
-  local person whose position, `wanted` names is them; anyone else is
-  someone new from Ely, whose line is `wanted` itself."
-  [{:keys [wanted local contacts]}]
+  local person whose position, `wanted` names is them. Otherwise, for a
+  catalogue position `wanted` names, a listed contact seeking a place as it,
+  or someone new from Ely of its sex and age; for anything else, someone new
+  from Ely whose line is `wanted` itself."
+  [{:keys [world wanted local contacts]}]
   (let [text (str/lower-case wanted)
         names? #(and (not (str/blank? %)) (str/includes? text (str/lower-case %)))
+        [_ position] (mock-position world text)
+        line (if position
+               (str (str/lower-case (:title position)) " seeking a place")
+               (str/replace (str/trim wanted) #"^(?i)(a|an|the)\s+" ""))
+        line (subs line 0 (min max-line (count line)))
         match (or (first (filter #(names? (:line %)) contacts))
-                  (first (filter #(names? (:position %)) local)))
-        line (str/replace (str/trim wanted) #"^(?i)(a|an|the)\s+" "")
-        line (subs line 0 (min max-line (count line)))]
+                  (first (filter #(names? (:position %)) local))
+                  (first (filter #(= line (:line %)) contacts)))]
     {:tool :recommendation
-     :args (if match
-             {:existing (:id match)}
-             {:new {:line line :sex "male" :age 45 :based "Ely" :known-as (str line " from Ely")
-                    :situation (str "You work from Ely, and go out to houses in the country round about when sent for: " line ".")}})}))
+     :args (cond
+             match {:existing (:id match)}
+             position {:new {:line line :sex (name (:sex position :female)) :age (first (:ages position [25]))
+                             :based "Ely" :known-as (str "a " line ", of Ely")
+                             :situation (str "You live in Ely and are " (str/lower-case (:title position))
+                                             " by trade, seeking a new place in service.")}}
+             :else {:new {:line line :sex "male" :age 45 :based "Ely" :known-as (str line " from Ely")
+                          :situation (str "You work from Ely, and go out to houses in the country round about when sent for: " line ".")}})}))
 
 (def adjudicators
   {:contacts/recommendation {:request (fn [world actor args _] (request world actor args)) :mock mock-judge}})

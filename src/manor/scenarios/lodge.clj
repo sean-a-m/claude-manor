@@ -4,21 +4,21 @@
   building business, and no calendar (so none of the setting pack's
   holidays: a content choice; visits work without one)."
   (:require [clojure.walk :as walk]
-            [manor.mechanics.hiring :as hiring]
+            [manor.mechanics.contacts :as contacts]
             [manor.ruleset :as ruleset]
             [manor.ruleset.mock :as mock]))
 
 (def mock-day (mock/read-day "worlds/lodge-day.edn"))
 
 (defn mock-policy
-  "Lodge's day, with the first candidate (\"@candidate\", \"@record\") taking
-  the place and settling in."
+  "Lodge's day, with the first contact (\"@caller\" for their person,
+  \"@contact\" for the contact's id) taking the place and settling in."
   [{:keys [world] :as ctx}]
-  (let [p (first (sort-by :created (vals (hiring/pool world))))
-        day (walk/postwalk #(case % "@candidate" (:agent-id p) "@record" (:id p) %) mock-day)
+  (let [p (first (sort-by :created (vals (contacts/contacts world))))
+        day (walk/postwalk #(case % "@caller" (:agent-id p) "@contact" (:id p) %) mock-day)
         day (if-let [id (:agent-id p)]
-              (assoc day id {"09:30" [[:accept-place {:conditions "Sunday afternoons free."}]]
-                             "10:00" [[:walk {:to "maids-room"}] [:spend-time {:doing "unpacking" :hours 0.5}]]
+              (assoc day id {"11:30" [[:accept-place {:conditions "Sunday afternoons free."}]]
+                             "12:00" [[:walk {:to "maids-room"}] [:spend-time {:doing "unpacking" :hours 0.5}]]
                              "22:00" [[:sleep {:until "07:00"}]]}) day)]
     (mock/scripted-policy day ctx)))
 

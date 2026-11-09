@@ -70,7 +70,7 @@ the rules of individual mechanics that it joins in.
 | `rules/sections/invitations.md` | Invitations, only with visits | ″ | `visits` (`rules/visits.md`) |
 | `rules/sections/contacts.md` | Tradespeople (contacts, `recommend` with `wanted`), only with visits | `contacts/rules` | `lead-hours` |
 | `rules/physical.md` | Physical status: hindered faculties, impediments | `physical/rules` | |
-| `rules/hiring.md` | How hiring works | `hiring/rules`, `hiring/rules-beside-visits` | `arrivals` (`rules/hiring-arrivals.md` or `rules/hiring-arrivals-beside-visits.md`) |
+| `rules/hiring.md` | How hiring works: staff found with `recommend`, sent for, settled at arrival with `engage`; papers, belongings, leaving | `hiring/rules` | |
 | `rules/visits.md` | How invitations and guests work | `visits/rules` | `post` (`rules/visits-post.md` or `""`), `calendar` (`rules/visits-calendar.md` or `""`) |
 
 ## Tool descriptions (`docs/`)
@@ -98,13 +98,13 @@ for the action's kind and its per-turn limit (`docs/hints/`).
 | `docs/items/act-on.md` | Doing something to people at once | `items.actions/act-on` | `max-act-on`, `max-act-with`, `advised-doing` |
 | `docs/items/find.md`, `look.md`, `take.md`, `open.md`, `put-in.md`, `put-down.md`, `give.md` | The item actions | `items.actions/actions` | |
 | `docs/find-person.md` | `find-person` | `find-person` | `max-who` |
-| `docs/hiring/recommend.md`, `send-for.md`, `engage.md`, `accept-place.md`, `decline-place.md`, `send-away.md`, `take-leave.md` | Hiring (and `take-leave`, shared with visits and the dismissed) | `hiring` | `take-leave`: `max-return-days`, `example-date` |
+| `docs/hiring/engage.md`, `accept-place.md`, `decline-place.md`, `send-away.md`, `take-leave.md` | Contacts' place tools (and `take-leave`, visits', shared by guests, people sent for and the dismissed) | `contacts`, `visits` | `take-leave`: `max-return-days`, `example-date` |
 | `docs/hiring/return-time-format.md` | Fragment: the date format for returns | `hiring` | `example-date` |
-| `docs/hiring/spend-time-candidate.md` | Appended to `spend-time` when a reference can be written for a candidate | `hiring/reference-activity` | |
+| `docs/hiring/spend-time-contact.md` | Appended to `spend-time`: `contact`, to write the character of someone recommended | `hiring/reference-activity` | |
 | `docs/visits/invite.md`, `schedule-visit.md`, `cancel-visit.md` | Invitations; the GM's visits | `visits` | `invite`: `max-person`, `example-date`, `post` (`docs/visits/post.md` or `""`) |
 | `docs/visits/time-format.md` | Fragment: the date format for visits | `visits` | `example-date` |
-| `docs/contacts/recommend.md` | Appended to `recommend`: the `wanted` argument | `contacts` | `max-wanted` |
-| `docs/contacts/send-for.md` | `send-for` for candidates and contacts (`about`), in place of hiring's | `contacts` | `lead-hours` |
+| `docs/contacts/recommend.md` | `recommend {wanted for}` | `contacts` | `max-wanted` |
+| `docs/contacts/send-for.md` | `send-for {id about?}` for a contact | `contacts` | `lead-hours` |
 | `docs/works/plan-work.md` | `plan-work`: planning a work (install, move, remove) | `works` | `max-open-plans` |
 | `docs/works/order-work.md` | `order-work`: offering a plan to someone here, or taking it on oneself, at a price, paid from the household or one's own purse | `works` | `money-example` (`money/example`: a price in the setting's money) |
 | `docs/works/revise-work.md` | `revise-work`: asking another price for a work on offer (haggling) | `works` | `money-example` (`money/example`: a price in the setting's money) |
@@ -174,7 +174,7 @@ The engine's replacement for someone's `:situation` when their post changes, or 
 | `writers/persona.md` | The polish: circumstances, persona, manner and appearance from a person's traits, optional starting goals/aspects, and explicitly enabled first-arrival belongings | `people/instructions` | `max-circumstance`, `advised-persona`, `max-persona`, `max-manner`, `advised-appearance`, `max-appearance`, `max-goals`, `goal-limit`, `max-aspects`, `advised-aspect`, `belongings` |
 | `writers/belongings.md` | Conditional first-arrival object contract, rendered inside the private persona writer, not another model call | `people/instructions` | `max-roots`, `max-objects`, `max-name`, `max-desc`, `max-item-aspects`, `max-aspect`, `setting-guidance` |
 | `writers/belongings-setting.md` | Setting-specific recommendations inside that contract; shared modest-effects guidance, overridden by England for a servant's box and appropriate written character | `people/instructions` | |
-| `writers/appearance.md` | A runtime candidate's appearance | `people/appearance-request` | `advised-appearance`, `max-appearance` |
+| `writers/appearance.md` | A runtime person's appearance | `people/appearance-request` | `advised-appearance`, `max-appearance` |
 
 ## The GM (`gm/`)
 

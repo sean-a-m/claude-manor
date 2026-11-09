@@ -817,7 +817,9 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   `situations/sent-for.md`, the arrival event and `you.visit` saying what about, the `:caller`
   text, no idle departure (mock-tested). Phase 1.2b done: `engage`, `accept-place`, `decline-place`
   and `send-away` take contacts here by `:sent-for` with no post, refusing everyone else; accepting
-  ends the visit (mock-tested). Phase 1.3 (the pool goes) next.
+  ends the visit (mock-tested). Phase 1.3 done: the candidate pool is gone; `recommend {wanted for}`
+  only, contacts own all six tools, new contacts bring first-arrival belongings (mock-tested).
+  Phase 1b (lodging) or 2 (belongings for everyone) next.
 
 ## C. Known issues and small fixes
 

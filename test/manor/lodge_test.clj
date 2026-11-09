@@ -6,7 +6,8 @@
             [manor.test-support :as support]
             [manor.io.store :as store]
             [manor.io.worldfile :as worldfile]
-            [manor.mechanics.hiring :as hiring]
+            [manor.mechanics.contacts :as contacts]
+            [manor.mechanics.visits :as visits]
             [manor.mechanics.items :as items]
             [manor.mechanics.space :as space]
             [manor.mechanics.visits :as visits]
@@ -71,12 +72,16 @@
             events (e/events run)
             calls (store/read-llm (:dir run))]
         (is (= 48 (:round world)))
-        (let [p (first (vals (hiring/pool world))) id (:agent-id p)]
-          (is (= :engaged (:status p)))
+        (let [p (first (vals (contacts/contacts world))) id (:agent-id p)]
+          (testing "the housemaid was recommended for a place, sent for, came with her things and was engaged"
+            (is (= "housemaid seeking a place" (:line p)))
+            (is (seq (items/held-by world id)) "she brought her box")
+            (is (some #(= (:id p) (:candidate-id %)) (items/all world)) "and a written character")
+            (is (not (visits/from-elsewhere? world id)) "taking the place ended her visit"))
           (is (= :housemaid (:role (w/agent world id))))
           (is (= "maids-room" (get-in world [:state :bedrooms id])))
           (is (= "Sunday afternoons free." (get-in world [:state :posts id :conditions]))))
-        (doseq [type [:people/recommended :people/sent-for :people/arrived :people/offered
+        (doseq [type [:contacts/recommended :contacts/sent-for :visits/arrived :people/offered
                       :conversation/started :shop/goods-quoted :shop/bought
                       :item/put-in :item/work-done :items/steward-ran]]
           (is (some #(= type (:type %)) events) (name type)))

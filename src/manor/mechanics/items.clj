@@ -262,8 +262,8 @@
                    (and (= keeper (:holder o)) (= at (space/location-of world keeper))))))))
 
 (defn identity-bound?
-  "Does a mechanic depend on this particular item: a hiring reference
-  (:candidate-id), goods sent up by a shop (:order-id), or goods waiting for
+  "Does a mechanic depend on this particular item: a written character
+  (:candidate-id, which holds the contact id of the person it's for), goods sent up by a shop (:order-id), or goods waiting for
   someone (:waiting)? Such things are never turned into aspects. Don't add
   to this list unless there's no other way (AGENTS.md)."
   [it]

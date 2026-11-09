@@ -35,14 +35,12 @@
   #{:guest :caller})
 
 (defn- visitor-reason
-  "Why `who` is here on a visit or for a place rather than in a post, or nil:
-  a guest or caller, or a candidate who hasn't been engaged (hiring's
-  `engage` takes them on)."
+  "Why `who` is here on a visit rather than in a post, or nil: a guest, or
+  a caller sent for (contacts' `engage` offers them a place)."
   [world who]
-  (cond (visitor-roles (:role (w/agent world who)))
-        (str (agent-name world who) " is a visitor here, not someone in a post")
-        (= :here (:status (hiring/for-agent world who)))
-        (str (agent-name world who) " is a candidate: use engage to offer them a place")))
+  (when (visitor-roles (:role (w/agent world who)))
+    (str (agent-name world who) " is a visitor here, not someone in a post"
+         (when (= :caller (:role (w/agent world who))) "; to take them on, use engage to offer them a place"))))
 
 (defn- other-person-reason
   "Why `actor` can't appoint or dismiss `who`, or nil."

@@ -188,7 +188,7 @@
               raw)
         {:keys [args error]} (a/decode-args {:args (answer-schema belongings-mode)} raw)
         belongings-problem (when (and enabled? (not error))
-                             (belongings/problem (:belongings args) (= :candidate (:kind arrival-context))))
+                             (belongings/problem (:belongings args) (= :sent-for (:kind arrival-context))))
         {:keys [persona manner appearance circumstances goals aspects] :as answer}
         (when-not error
           (cond-> (-> (select-keys args [:persona :manner :appearance])
@@ -254,7 +254,7 @@
              (assoc :belongings [{:name "Travelling box" :desc "A small worn wooden box." :container :closed
                                   :aspects {:contents "Spare linen and a few mending things."}
                                   :contents [(cond-> {:name "Written character" :desc "A signed character from a former employer."}
-                                               (= :candidate (:kind arrival-context)) (assoc :candidate-reference? true))]}]))}))
+                                               (= :sent-for (:kind arrival-context)) (assoc :candidate-reference? true))]}]))}))
 
 (defn visible-record
   "The only input allowed to the runtime appearance writer. Small senses
@@ -268,7 +268,7 @@
 (def appearance-schema [:map [:appearance [:string {:min 1 :max max-appearance}]]])
 
 (defn appearance-request
-  "Write a runtime candidate's public appearance from a whitelisted record."
+  "Write a runtime person's public appearance from a whitelisted record."
   ([record] (appearance-request {} record))
   ([world record]
   (let [visible (visible-record record)]

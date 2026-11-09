@@ -1,6 +1,6 @@
 # Sending for people: one path for staff and tradespeople
 
-**Status:** draft design; phase 0 (the speaking-turn tools) and phase 1.1 (the contact record and the judge) done and mock-tested, the rest not started. Written 2026-11-08 from the user's brief and two rounds of
+**Status:** draft design; phases 0 (the speaking-turn tools) and 1 (contacts, settling at arrival, the pool gone) done and mock-tested, the rest not started. Written 2026-11-08 from the user's brief and two rounds of
 answers the same day (section 2). Section 9 lists what is still open.
 
 Read `AGENTS.md` first, then `docs/works-run-review-2026-11-08.md` (items 11, 12 and 14),
@@ -399,6 +399,32 @@ Each phase ends with `clojure -M:test` passing and a mock run of `claudeworth-sm
      With no candidates left, contacts defines `recommend`, `send-for`, `engage`, `accept-place`,
      `decline-place` and `send-away` outright instead of wrapping hiring's, and hiring keeps only the
      shared parts (making people, `arrival`, the post).
+     **Done:** `contacts/actions` defines all six (installed in place of any of the same names);
+     `hiring.clj` keeps making people, reputations, arrival, offers and `place-taken`, return times,
+     `reference-activity` and `install` (the agent cap, `:hiring-belongings?`, the `spend-time`
+     extension); the pool, its events, tick, `:people/visits` system, `:hiring` calendar owner,
+     `rules-beside-visits` and `rules/hiring-arrivals*.md`, `docs/hiring/recommend.md` and
+     `send-for.md` went. Visits' `take-leave` is one plain spec; `returning-situation`,
+     `leave-events`, `visits/judge` and `appointments/visitor-reason` read contacts
+     (`hiring/contact-of`, so visits needn't require contacts); a `:caller` refused `appoint` is
+     told to use `engage`. Belongings: a new contact from elsewhere in a scenario with items is
+     written with `:arrival-context {:kind :sent-for :line :wanted}`, kept as the contact's
+     `:pending-belongings`, and `visits/coming` adds `hiring/first-arrival-events` at the first
+     arrival (then `:people/belongings-brought` clears them); `belongings/problem` allows
+     `:candidate-reference?` for `:sent-for`; items keep `:candidate-id`, now the contact id.
+     `spend-time`'s argument is `contact` (doc `docs/hiring/spend-time-contact.md`), checked
+     against `:known-to`. The mock judge gives "<title> seeking a place" for a `wanted` naming a
+     catalogue position (the longest title it contains), of that position's sex and youngest age,
+     reusing a listed contact with that line; Lodge's mock day hires its housemaid through
+     `"@contact"`/`"@caller"`, two hours after sending for her. Differences from the plan:
+     coming back at a time given to `take-leave` (a visit `:by :returning`) still counts as sent
+     for, so they may be engaged then, and they keep their own situation rather than
+     `returning-situation`'s; `rules/hiring.md`, the `engage`, `send-away`, `take-leave`, `recommend`
+     and `send-for` docs, `writers/belongings.md`, the England belongings fragment and the worlds'
+     GM texts were rewritten minimally (no candidates, no pool, no "next round"), the merged
+     section staying for phase 3; the people server still takes `candidate` (unused). Tests:
+     `hiring_test` and `arrival_belongings_test` rewritten on the visits world; reuse, eviction,
+     the 24-hour departure and the return calendar entries' tests went.
 1b. **Lodging** (4.11): the `:lodging` flag, `sleep`, the refusal, the three Claudeworth world files.
    Independent of the rest; can go before or after.
 2. **Belongings** for everyone written, the reference marker renamed, the mock polish varied.

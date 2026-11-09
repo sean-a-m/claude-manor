@@ -239,7 +239,7 @@
   :butler
   {:title "Butler" :standing :upper-servant :sleeps :in-house :capabilities #{:appoints} :addressed-as "Mr {surname}" :ages [45 62] :sex :male
    :about "You are the butler, and for now the only servant in the house, so you do every servant's work: answering the door, waiting at table, valeting the master, cleaning, fetching coal and water, lighting fires and, as best you can, cooking. You answer to the master and the mistress. As the household grows the other servants will answer to you."}
-  :gm {:about "A small, shabby farmhouse in 1904 whose titled owners have come into a great deal of money and mean to make it a manor: their one servant, the village tradespeople going about their days, and a house to be built out, furnished and staffed. Household purchases are paid from the household account; there are no rents or other income, and no gains beyond it. Candidates and tradespeople arrive only through send-for after a recommendation; never invent or spawn new people."}
+  :gm {:about "A small, shabby farmhouse in 1904 whose titled owners have come into a great deal of money and mean to make it a manor: their one servant, the village tradespeople going about their days, and a house to be built out, furnished and staffed. Household purchases are paid from the household account; there are no rents or other income, and no gains beyond it. People wanted for a place or a job arrive only through send-for after a recommendation; never invent or spawn new people."}
   :architect {:workplace ["architects-office"]}
   :shopkeeper {:workplace ["general-store"]}
   :butcher {:workplace ["butchers-shop"]}

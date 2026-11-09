@@ -97,7 +97,7 @@
                   (section world "building" {:sizes (str/join ", " (map :size (get-in world [:state :architect-prices :sizes])))
                                              :fee-percent building/fee-percent}))
                 (when (appointers? world) (section world "posts"))
-                (section world "hiring" {:hiring ((if visits? hiring/rules-beside-visits hiring/rules) world)})
+                (section world "hiring" {:hiring (hiring/rules world)})
                 (when visits? (section world "invitations" {:visits (visits/rules world)}))
                 (when visits? (contacts/rules world))]))})))
 

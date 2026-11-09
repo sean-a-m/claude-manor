@@ -1,6 +1,6 @@
-Offer a post to someone present with you who was sent for (with `send-for`) and holds no post: an unengaged candidate, or anyone who came when sent for, whatever about. Nobody else can be offered a place. This creates an offer; it does not hire them until they call `accept-place`.
+Offer a post to someone present with you who was sent for (with `send-for`) and holds no post, whatever they came about. Nobody else can be offered a place. This creates an offer; it does not hire them until they call `accept-place`.
 
-- `who`: their agent id, not their candidate or contact id.
+- `who`: their agent id, not their contact id.
 - `position`: a position id from the catalogue.
 - `terms` (optional): the offered terms in free text.
 - `bedroom` (optional): an existing room id in the household's home area. It need not be marked as a bedroom; arrange suitable sleeping accommodation for live-in staff.

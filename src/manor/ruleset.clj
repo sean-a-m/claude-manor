@@ -61,15 +61,16 @@
 
 (defn speaking-actions
   "Tools for a line, before speaking: anyone can recommend someone to
-  someone in the conversation, send for someone recommended to them, offer a
-  candidate in it a place, or accept or decline a place offered; an open
+  someone in the conversation, send for someone recommended to them, offer
+  someone sent for in it a place, or accept or decline a place offered; an open
   counter's clerk can check goods; the keeper of a shop that sends goods out
   can send goods up from it, open or not; a customer with quotes made for
   them at this shop can buy; anyone can order a work to someone in it, or
-  accept or decline one offered. The hiring tools are taken from `actions`,
+  accept or decline one offered. The contacts tools are taken from `actions`,
   the scenario's installed actions (so `recommend` and `send-for` are the
-  ones its turns offer, contacts' among them); hiring's own without it."
-  ([world speaker conv] (speaking-actions hiring/actions world speaker conv))
+  ones its turns offer); without it, contacts' own, as a scenario with no
+  roles of its own would have them."
+  ([world speaker conv] (speaking-actions (contacts/actions {}) world speaker conv))
   ([actions world speaker {:keys [members] :as conv}]
    (cond-> (into [(to-a-member actions :recommend :for "recommend to someone in this conversation" members)
                   (named actions :send-for)
@@ -146,7 +147,7 @@
        :agent-brief rules/agent-brief
        :on-spawn positions/starting-events
        :actions (vec (concat actions/actions [find-person/action] following/actions building/actions
-                             shop/actions hiring/actions appointments/actions))
+                             shop/actions appointments/actions))
        :adjudicators (merge shop/adjudicators hiring/adjudicators find-person/adjudicators appointments/adjudicators)
        :bridges (merge building/bridges hiring/bridges)
        :offline-stubs (merge building/offline-stubs hiring/offline-stubs)

@@ -79,7 +79,9 @@ Items 11–14 are taken up by [sending-for-design.md](sending-for-design.md) (ro
 13. **Visitors who stay overnight have nowhere to sleep.** Open work keeps a tradesperson from
     elsewhere from going home, so Thorne stayed. His `sleep` was refused three times ("go to a
     bedroom first"). He used `spend-time` for "sleeping in the lumber room" (a room assigned to
-    the cook and the maids) and asked the butler to "put it in the house's book".
+    the cook and the maids) and asked the butler to "put it in the house's book". Fixed: lodging
+    (`:lodging true`, the Crown's back chamber), named in `sleep`'s refusal and the rules; see
+    roadmap B21.
 14. **`send-for` isn't offered on speaking turns.** Pugh and the earl both noted in their
     thoughts that they couldn't send for Thorne during the conversation that settled it, and
     did it on their next turn. It cost only a short delay. Fixed: see A4.

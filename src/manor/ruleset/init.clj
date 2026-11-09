@@ -14,7 +14,7 @@
 
 (defn problems
   "The scenario's own checks on a world file: the meeting place and home
-  area, bedrooms, opening hours, the setting, the positions (its catalogue
+  area, bedrooms, opening hours, lodging, the setting, the positions (its catalogue
   and :roles), with an :about for every position an agent holds, and where
   they work."
   [{:keys [locations agents meta] :as wf}]
@@ -35,6 +35,9 @@
            :when (and (some? hours)
                       (not (and (vector? hours) (= 2 (count hours)) (every? clock/hh-mm? hours))))]
        (str "location " (pr-str id) ": :hours must be two times like [\"09:00\" \"18:00\"], not " (pr-str hours)))
+     (for [{:keys [id] :as loc} locations
+           :when (and (contains? loc :lodging) (not (boolean? (:lodging loc))))]
+       (str "location " (pr-str id) ": :lodging must be true or false, not " (pr-str (:lodging loc))))
      (for [{:keys [name routine]} agents
            {:keys [from at doing] :as entry} routine
            :when (not (and (clock/hh-mm? from) (by-id at) (string? doing) (not (str/blank? doing))))]

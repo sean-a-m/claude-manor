@@ -56,7 +56,8 @@ the rules of individual mechanics that it joins in.
 | `rules/how-things-work.md` | The section around the parts below | `ruleset.rules/rules` | `sections` (joined by a blank line) |
 | `rules/sections/turns.md` | Turns, time, queries | ″ | `turn`, `max-queries`, `counted` (`turns-counted-architect.md` or `turns-counted.md`) |
 | `rules/sections/getting-about.md` | `walk`, `travel`, `call` | ″ | |
-| `rules/sections/sleep.md` | Sleep and being busy | ″ | setting |
+| `rules/sections/sleep.md` | Sleep and being busy | ″ | setting, `lodging` (`sleep-lodging.md` where the world has lodging, else empty) |
+| `rules/sections/sleep-lodging.md` | Anyone without a bed may sleep at the world's lodging | ″ | `lodgings` ("Crown's back chamber (crown-chamber)") |
 | `rules/sections/speaking.md` | `say`, `whisper`, `converse` | ″ | `speech-limit`, `max-others`, `passes` |
 | `rules/sections/work.md` | `spend-time` | ″ | `max-work-hours` |
 | `rules/sections/things.md` | Items and `find` | ″ | `find-for-sale` (`things-find-everywhere.md` or `things-find-not-at-trade.md`) |

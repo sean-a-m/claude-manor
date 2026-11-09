@@ -55,6 +55,14 @@
     (str "\n\n" (section world "shopping-order-book"))
     ""))
 
+(defn- lodging
+  "The sleep rules' sentence naming the world's lodging (`:lodging true`
+  locations), or \"\" where it has none."
+  [world]
+  (if-let [ids (seq (places/lodgings world))]
+    (section world "sleep-lodging" {:lodgings (places/named world ids)})
+    ""))
+
 (defn- appointers?
   "Does any position in the run have the :appoints capability
   (manor.mechanics.appointments)?"
@@ -82,7 +90,7 @@
                 (section world "getting-about")
                 (section world "speaking" {:speech-limit b/speech-limit :max-others conversation/max-others
                                            :passes conversation/passes})
-                (section world "sleep")
+                (section world "sleep" {:lodging (lodging world)})
                 (section world "work" {:max-work-hours items/max-work-hours})
                 (section world "things" {:find-for-sale (section world (if (find-everywhere? world)
                                                                           "things-find-everywhere"

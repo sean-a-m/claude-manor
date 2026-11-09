@@ -427,6 +427,18 @@ Each phase ends with `clojure -M:test` passing and a mock run of `claudeworth-sm
      the 24-hour departure and the return calendar entries' tests went.
 1b. **Lodging** (4.11): the `:lodging` flag, `sleep`, the refusal, the three Claudeworth world files.
    Independent of the rest; can go before or after.
+   **Done:** `places/lodgings` (sorted ids of `:lodging true` locations); `sleep` allows them, and
+   its refusal adds "; anyone without a bed of their own may sleep at <name> (<id>)" (several joined
+   with " or "); `rules/sections/sleep.md` takes a `lodging` parameter, the new
+   `sleep-lodging.md` or empty; `ruleset.init/problems` checks it's a boolean. The Crown's back
+   chamber (`crown-chamber`, `:kind :bedroom`, `:domain :village`, off `public-house`) in the three
+   Claudeworth worlds; the Crown's `:desc` says the publican lets it, its `:store-profile` that a bed
+   is arranged with the publican, not bought over the bar; "There are no guest rooms" went from the
+   publican's room. Differences from the plan: the `:caller`/`:guest` texts and
+   `situations/sent-for.md` don't mention lodging (the rules, which every visitor reads, do); the
+   refusal stays in code beside the other `sleep` reasons.
+   Tests in `claudeworth_test.clj` (`lodging`, `claudeworth-worlds-have-lodging-at-the-crown`, and
+   the no-lodging refusal in `sleeping-pastimes-and-rousing`).
 2. **Belongings** for everyone written, the reference marker renamed, the mock polish varied.
 3. **Prompts and docs:** the merged rules section, the docs of section 6, `works`' plan text, worlds'
    GM texts, `scenario-authoring.md`, `prompts.md`.

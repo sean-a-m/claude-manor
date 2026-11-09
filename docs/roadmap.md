@@ -819,7 +819,9 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   and `send-away` take contacts here by `:sent-for` with no post, refusing everyone else; accepting
   ends the visit (mock-tested). Phase 1.3 done: the candidate pool is gone; `recommend {wanted for}`
   only, contacts own all six tools, new contacts bring first-arrival belongings (mock-tested).
-  Phase 1b (lodging) or 2 (belongings for everyone) next.
+  Phase 1b done: locations with `:lodging true` where anyone may `sleep`, named in the refusal and
+  the rules; the Crown's back chamber in the three Claudeworth worlds (mock-tested). Phase 2
+  (belongings for everyone) next.
 
 ## C. Known issues and small fixes
 

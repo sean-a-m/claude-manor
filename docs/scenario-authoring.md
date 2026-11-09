@@ -2033,6 +2033,7 @@ in `:init`:
               :detail "Coats on pegs and a worn rug."  ; optional, shown only by look (see Items)
               :aspects {:cleanliness "muddy"}         ; optional (see Locations)
               :connects-to ["bedroom" "porch"]      ; next door (:travel 0); either side is enough
+              :lodging true                         ; optional, ruleset worlds: anyone may sleep here (see Positions, posts and situations)
               :domain :house :kind :hall}           ; other keys are kept on the location
              ...]
  :routes [["porch" "green" 1]]                     ; journeys, as in :space
@@ -2598,7 +2599,14 @@ and other locations assigned to active sleepers, with who sleeps in each, under
 `household.bedrooms` in their view. The home area is `space/home-domain` (not a hard-coded
 `:house`). Hiring and guest invitations may assign any existing home-area location, so a box
 room need not change its kind to become someone's bedroom. `sleep` permits any `:bedroom`-kind
-location or the actor's own assigned sleeping room; an unassigned ordinary room is still refused.
+location, the actor's own assigned sleeping room, or the world's **lodging**: any location with
+`:lodging true` (a boolean, checked by `problems`), where anyone may sleep with or without a bed of
+their own, and which nobody is assigned, so it holds any number of people. An unassigned ordinary
+room is still refused, and where the world has lodging the refusal names it ("go to a bedroom first;
+yours is …; anyone without a bed of their own may sleep at Crown's back chamber (crown-chamber)"),
+as the rules' sleep section does (`rules/sections/sleep-lodging.md`), so visitors staying the night
+know without being told. Lodging is free for now. Claudeworth's three worlds have one, the Crown's
+back chamber off the public house.
 Starting world-file assignments accept any home-area location too, or a `:bedroom`-kind location
 elsewhere (for residents who live out, such as shopkeepers); unknown locations and ordinary
 off-home locations are refused. Routines and bedtime already follow the assigned id, not its kind.

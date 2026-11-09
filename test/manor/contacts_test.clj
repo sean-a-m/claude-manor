@@ -16,8 +16,11 @@
             [manor.mechanics.calendar :as calendar]
             [manor.mechanics.contacts :as contacts]
             [manor.mechanics.contacts.judge :as judge]
+            [manor.mechanics.physical :as physical]
             [manor.mechanics.space :as space]
             [manor.mechanics.visits :as visits]
+            [manor.mechanics.works :as works]
+            [manor.mechanics.works.judge :as works-judge]
             [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.ruleset.mock :as mock]
@@ -284,4 +287,117 @@
         (is (= "existing must be the id of someone listed in local or contacts"
                (:error (check {:tool-calls [{:id "1" :name "recommendation" :arguments {:existing "hale"}}]}))))
         (is (some? (:error (check {:tool-calls [{:id "1" :name "recommendation" :arguments {:existing "contact-1" :impossible "x"}}]})))))
+      (finally (e/stop-run run)))))
+
+;; ---------------------------------------------------------------------------
+;; Engaging someone sent for (phase 1.2b)
+
+(def footman-day
+  "Hale recommends a footman to the earl at the post office; the earl sends
+  for him and goes home to meet him at the carriage sweep."
+  {"hale" {"20:00" [[:travel {:to "post-office"}]]
+           "20:30" [[:recommend {:wanted "a footman wanting a place" :for "lord-claudeworth"}] [:pass {}]]}
+   "lord-claudeworth" {"20:00" [[:pass {}]]
+                       "20:30" [[:pass {}]]
+                       "21:00" [[:send-for {:id "contact-1"}]]
+                       "21:30" [[:travel {:to "carriage-sweep"}]]}})
+
+(defn- act
+  "`world` after `actor` does `tool` with `args`, checked as the engine
+  checks it; throws with the reason if refused."
+  [run world actor tool args]
+  (let [spec (action run tool)]
+    (when-let [r (check run world actor tool args)] (throw (ex-info r {:tool tool})))
+    (reduce w/apply-event world (a/effect-events spec world actor (:args (a/decode-args spec args))))))
+
+(defn- act!
+  "As `act`, emitted on the run."
+  [run actor tool args]
+  (let [spec (action run tool)
+        world (e/world run)]
+    (when-let [r (check run world actor tool args)] (throw (ex-info r {:tool tool})))
+    (e/emit! run (a/effect-events spec world actor (:args (a/decode-args spec args))))))
+
+(def only-sent-for "only someone sent for, who holds no post, can be offered a place or sent away")
+
+(deftest someone-sent-for-is-engaged-accepts-and-is-one-of-the-household
+  (let [run (start-with cw/scenario footman-day)]
+    (try
+      (until! run 7)
+      (let [world (e/world run)
+            id (:agent-id (contacts/contact world "contact-1"))
+            earl "lord-claudeworth"]
+        (is (= "carriage-sweep" (space/location-of world id) (space/location-of world earl)))
+        (testing "engage is offered and checks as for a candidate, refusing established agents"
+          (is ((:available? (action run :engage)) world earl))
+          (is (nil? (check run world earl :engage {:who id :position "footman" :bedroom "blue-room"})))
+          (is (= "use a position id from the catalogue" (check run world earl :engage {:who id :position "caller"})))
+          (is (str/starts-with? (str (check run world earl :engage {:who id :position "footman" :bedroom "post-office"})) "bedroom must"))
+          (is (= only-sent-for (check run world earl :engage {:who "carter" :position "footman"})) "a villager")
+          (is (= only-sent-for (check run world earl :engage {:who "hale" :position "footman"})) "one of the household")
+          (is (= only-sent-for (check run world earl :engage {:who "captain-hart" :position "footman"})) "an invited guest")
+          (is (= "you cannot offer yourself a place" (check run world id :engage {:who id :position "footman"})))
+          (is (str/ends-with? (check run world "hale" :engage {:who id :position "footman"}) "must be present")))
+        (testing "engage on a speaking turn is the turn's, for the contact too"
+          (let [line (into {} (map (juxt :name identity))
+                           ((:speaking-actions (:scenario run)) world earl {:id "c" :initiator earl :members [earl id]}))]
+            (is (nil? (a/check (:engage line) world earl {:who id :position "footman"})))
+            (is (= "nobody has offered you a place" (a/check (:accept-place line) world id {})))))
+        (testing "a contact declines; the offer closes and he stays on his visit"
+          (let [offered (act run world earl :engage {:who id :position "footman"})
+                declined (act run offered id :decline-place {:reason "Too little."})]
+            (is (nil? (get-in declined [:state :place-offers id])))
+            (is (= :here (:status (visits/visit declined "visit-1"))))
+            (is (= "nobody has offered you a place" (check run declined id :accept-place {}))))))
+      (act! run "lord-claudeworth" :engage {:who (:agent-id (contacts/contact (e/world run) "contact-1"))
+                                            :position "footman" :terms "Twenty-four pounds a year." :bedroom "blue-room"})
+      (let [id (:agent-id (contacts/contact (e/world run) "contact-1"))]
+        (act! run id :accept-place {:conditions "Sundays off."})
+        (let [world (e/world run)]
+          (testing "accepting gives the post and bedroom, closes the offer and ends the visit"
+            (is (= {:position :footman :household "household" :terms "Twenty-four pounds a year." :conditions "Sundays off."
+                    :employer "lord-claudeworth"}
+                   (select-keys (get-in world [:state :posts id]) [:position :household :terms :conditions :employer])))
+            (is (= :footman (:role (w/agent world id))))
+            (is (= "blue-room" (get-in world [:state :bedrooms id])))
+            (is (nil? (get-in world [:state :place-offers id])))
+            (is (= :ended (:status (visits/visit world "visit-1")))))
+          (testing "he's no longer a visitor: no take-leave, not kept awake as one, not sent for"
+            (is (not (visits/from-elsewhere? world id)))
+            (is (not ((:available? (action run :take-leave)) world id)))
+            (is (not (visits/keeps-awake? world id)))
+            (is (nil? (get-in (prompt/agent-view (:scenario run) world id) [:you :visit])))
+            (is (nil? (:sent-for (first (:contacts (prompt/agent-view (:scenario run) world "lord-claudeworth")))))))
+          (testing "nor can he be engaged or sent away again"
+            (is (= only-sent-for (check run world "lord-claudeworth" :engage {:who id :position "cook"})))
+            (is (= only-sent-for (check run world "lord-claudeworth" :send-away {:who id}))))))
+      (is (empty? (of-type run :action/forfeited)))
+      (replay! run)
+      (finally (e/stop-run run)))))
+
+(deftest someone-sent-for-a-place-is-given-a-work-or-sent-away
+  (let [run (start-with cw/scenario footman-day)]
+    (try
+      (until! run 7)
+      (let [world (e/world run)
+            id (:agent-id (contacts/contact world "contact-1"))
+            earl "lord-claudeworth"]
+        (testing "a contact recommended for a place can be ordered a work and accept it"
+          (let [planned (w/apply-event world (works/planned world earl {:kind "install" :request "a range"}
+                                                             (:args (works-judge/mock-judge {:input {:kind "install" :request "a range"}}))))
+                ordered (act run planned earl :order-work {:id "work-1" :worker id :price "£3"})
+                accepted (act run ordered id :accept-work {:id "work-1"})]
+            (is (= :accepted (:status (works/work-order accepted "work-1"))))))
+        (testing "send-away sends him home, ending his visit"
+          (is ((:available? (action run :send-away)) world earl))
+          (is (= only-sent-for (check run world earl :send-away {:who "hale"})))
+          (let [gone (act run world earl :send-away {:who id})
+                [departed] (filter #(= :people/departed (:type %))
+                                   (a/effect-events (action run :send-away) world earl {:who id}))]
+            (is (= :away (:status (w/agent gone id))))
+            (is (= :ended (:status (visits/visit gone "visit-1"))))
+            (is (= {:reason "sent away" :towards "Ely"} (select-keys (:data departed) [:reason :towards])))))
+        (testing "but not while he's held in place"
+          (with-redefs [physical/held-in-place? (fn [_ who] (= id who))]
+            (is (str/includes? (str (check run world earl :send-away {:who id})) "cannot leave")))))
       (finally (e/stop-run run)))))

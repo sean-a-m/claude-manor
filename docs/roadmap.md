@@ -815,7 +815,9 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   `recommend {wanted}` beside `position`, `:wanted` per knower, `send-for {id about?}` (2 hours),
   the `:caller` role (mock-tested). Phase 1.2a done: the arrival situation from
   `situations/sent-for.md`, the arrival event and `you.visit` saying what about, the `:caller`
-  text, no idle departure (mock-tested). Phase 1.2b (engaging contacts) next.
+  text, no idle departure (mock-tested). Phase 1.2b done: `engage`, `accept-place`, `decline-place`
+  and `send-away` take contacts here by `:sent-for` with no post, refusing everyone else; accepting
+  ends the visit (mock-tested). Phase 1.3 (the pool goes) next.
 
 ## C. Known issues and small fixes
 

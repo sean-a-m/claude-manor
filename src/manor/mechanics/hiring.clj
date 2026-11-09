@@ -404,52 +404,89 @@
         [(reduce w/apply-event world evs) (into events evs)]))
     [world []] (ordered world))))
 
+(defn candidate-here?
+  "Is `who` an unengaged candidate here, sent for and arrived?"
+  [world who]
+  (and (w/active? world who) (= :here (:status (for-agent world who)))))
+
 (defn- present-candidate-reason [world actor who]
   (cond
-    (not (and (w/active? world who) (= :here (:status (for-agent world who))))) "that person is not an unengaged candidate here"
+    (not (candidate-here? world who)) "that person is not an unengaged candidate here"
     (not (space/together? world actor who)) "the candidate must be present"))
 
-(defn- departure-reason [world actor who]
-  (or (present-candidate-reason world actor who)
-      (when (physical/held-in-place? world who)
-        (str (:name (w/agent world who)) " cannot leave: "
-             (if (physical/unconscious? world who)
-               "they are unconscious; revive them first"
-               "their movement is disabled; restore their movement first")))))
+(defn held-reason
+  "Why `who` can't be sent off now (unconscious, or their movement
+  disabled), or nil."
+  [world who]
+  (when (physical/held-in-place? world who)
+    (str (:name (w/agent world who)) " cannot leave: "
+         (if (physical/unconscious? world who)
+           "they are unconscious; revive them first"
+           "their movement is disabled; restore their movement first"))))
 
-(defn engage-reason [world actor {:keys [who position bedroom]}]
-  (or (present-candidate-reason world actor who)
-      (when (= actor who) "you cannot offer yourself a place")
+(defn- departure-reason [world actor who]
+  (or (present-candidate-reason world actor who) (held-reason world who)))
+
+(defn offer-terms-reason
+  "Why `actor` can't offer `who` this place, whoever `who` is, or nil:
+  not oneself, a catalogue position, a bedroom in the home area. Shared
+  with contacts."
+  [world actor {:keys [who position bedroom]}]
+  (or (when (= actor who) "you cannot offer yourself a place")
       (when-let [r (not-a-post-reason world position)]
         (if (= :guest (keyword position)) r "use a position id from the catalogue"))
       (when (and bedroom (not (space/home-location? world bedroom)))
         "bedroom must name an existing location in the household's home area; any room there may be assigned")))
-(defn- offer-reason [world actor _]
-  (let [offer (get-in world [:state :place-offers actor])]
-    (or (when-not offer "nobody has offered you a place")
-        (present-candidate-reason world actor actor)
-        (when-not (and (w/active? world (:employer offer)) (space/together? world actor (:employer offer)))
-          (str (:name (w/agent world (:employer offer))) " (" (:employer offer) ") made the offer and must be present to hear your answer. "
-               "Use find-person and walk to them, or ask them to come to you; once together, accept-place to take the place or decline-place to refuse it.")))))
 
-(defn accept [world actor {:keys [conditions]}]
+(defn engage-reason [world actor {:keys [who] :as args}]
+  (or (present-candidate-reason world actor who) (offer-terms-reason world actor args)))
+
+(defn- offerer-reason
+  "Why `actor` can't answer their offer now: its offerer isn't here."
+  [world actor]
+  (let [offer (get-in world [:state :place-offers actor])]
+    (when-not (and (w/active? world (:employer offer)) (space/together? world actor (:employer offer)))
+      (str (:name (w/agent world (:employer offer))) " (" (:employer offer) ") made the offer and must be present to hear your answer. "
+           "Use find-person and walk to them, or ask them to come to you; once together, accept-place to take the place or decline-place to refuse it."))))
+
+(defn answer-reason
+  "Why `actor` can't answer their offer, given why they aren't someone who
+  may be offered one (`unplaced-reason`, nil if they are), or nil. Shared
+  with contacts."
+  [world actor unplaced-reason]
+  (or (when-not (get-in world [:state :place-offers actor]) "nobody has offered you a place")
+      unplaced-reason
+      (offerer-reason world actor)))
+
+(defn- offer-reason [world actor _]
+  (answer-reason world actor (present-candidate-reason world actor actor)))
+
+(defn place-taken
+  "`actor` takes the place they were offered: the post, the offer closed,
+  their situation and any bedroom. Shared with contacts; `accept` adds a
+  candidate's bookkeeping."
+  [world actor {:keys [conditions]}]
   (let [{:keys [position household terms bedroom employer]} (get-in world [:state :place-offers actor])
-        p (for-agent world actor)
         audience #{actor employer}]
     (cond-> [(positions/post-changed world actor position {:household household :terms terms :conditions conditions
                                                            :employer employer :visible-to audience})
-             (changed (:id p) {:status :engaged})
              {:type :people/offer-closed :visible-to :system :data {:who actor}}
              {:type :agent/updated :visible-to :system
               :data {:id actor :changes {:situation (str "You have taken the " (name position) " place with "
                                                          (:name (w/agent world employer)) ". Your post records the agreed terms.")}}}]
       bedroom (conj (assoc (positions/bedroom-assigned actor bedroom) :visible-to audience)))))
 
+(defn accept
+  "A candidate takes the place offered: as `place-taken`, engaged in the pool."
+  [world actor args]
+  (let [[post & more] (place-taken world actor args)]
+    (into [post (changed (:id (for-agent world actor)) {:status :engaged})] more)))
+
 (defmethod n/describe :people/offered [{:keys [data]} names]
   (str (n/who names (:employer data)) " offers " (n/who names (:who data)) " the " (name (:position data))
        " place" (when (:terms data) (str ": " (:terms data)))
        ". Answer with accept-place (optional conditions) or decline-place while together; you may discuss a different offer. "
-       "The offerer must stay with the candidate until they answer; making the offer in a conversation with them lets them accept there."))
+       "The offerer must stay with them until they answer; making the offer in a conversation with them lets them accept there."))
 (defmethod n/describe :people/declined [{:keys [actor data]} names]
   (str (n/who names actor) " declines the place" (when (:reason data) (str ": " (:reason data))) "."))
 

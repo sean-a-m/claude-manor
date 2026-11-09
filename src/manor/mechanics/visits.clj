@@ -721,6 +721,14 @@
                                        :reason "Coming back, as they said when they left."}
                                 (:known-to v) (assoc :known-to (:known-to v)))))))
 
+(defn ended-events
+  "Events ending `guest`'s visits that are :here: they're no longer a
+  visitor (they've gone, or taken a place, manor.mechanics.contacts)."
+  [world guest]
+  (for [v (map #(visit world %) (ordered-ids world))
+        :when (and (= guest (:guest v)) (= :here (:status v)))]
+    (status-event :visits/ended v)))
+
 (defn leave-events
   "A guest from elsewhere goes home, towards where they live, and their
   visits here end; with a return time, a visit for their return begins."
@@ -733,9 +741,7 @@
                                              (:candidate-home (hiring/for-agent world actor))
                                              (:lives (hiring/for-agent world actor)) "elsewhere")}
                          at (assoc :returns {:at (meeting-place world) :when (clock/when-label world at)}))}
-                (for [v (map #(visit world %) (ordered-ids world))
-                      :when (and (= actor (:guest v)) (= :here (:status v)))]
-                  (status-event :visits/ended v))))))
+                (ended-events world actor)))))
 
 (defn dismissed?
   "Was `id` dismissed (manor.mechanics.appointments): no post, but an

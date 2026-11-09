@@ -19,6 +19,7 @@
             [manor.clock :as clock]
             [manor.mechanics.builtins :as b]
             [manor.mechanics.hiring :as hiring]
+            [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
             [manor.mechanics.contacts.judge :as judge]
             [manor.mechanics.visits :as visits]
@@ -268,6 +269,70 @@
        (n/place names (:at data)) " at " (:when data) ": " (:about data) "."))
 
 ;; ---------------------------------------------------------------------------
+;; Engaging someone sent for
+
+(defn unplaced?
+  "Does `id` hold no post: none, `:none`, or the :caller they came as?"
+  [world id]
+  (contains? #{nil :none :caller} (:position (positions/post world id))))
+
+(defn sent-for-here?
+  "Is `id` a contact here on a visit by :sent-for who holds no post, and so
+  someone who may be offered a place (decision 6)?"
+  [world id]
+  (boolean (and (for-agent world id) (w/active? world id) (unplaced? world id)
+                (= :here (:status (sent-for-visit world id))))))
+
+(defn- offerable-reason
+  "Why `actor` can't offer `who` a place, or send them away, as someone
+  sent for, or nil."
+  [world actor who]
+  (cond (not (sent-for-here? world who)) "only someone sent for, who holds no post, can be offered a place or sent away"
+        (not (space/together? world actor who)) (str (agent-name world who) " must be present")))
+
+(defn- engage-reason
+  "Why `actor` can't offer `who` this place: a candidate's (as hiring), or
+  a contact's."
+  [hiring-reason world actor {:keys [who] :as args}]
+  (if (hiring/candidate-here? world who)
+    (hiring-reason world actor args)
+    (or (offerable-reason world actor who) (hiring/offer-terms-reason world actor args))))
+
+(defn- answer-reason
+  "Why `actor` can't answer their offer: a candidate's (as hiring), or a
+  contact's."
+  [hiring-reason world actor args]
+  (if (hiring/candidate-here? world actor)
+    (hiring-reason world actor args)
+    (hiring/answer-reason world actor (when-not (sent-for-here? world actor)
+                                        "only someone sent for, who holds no post, can take a place offered"))))
+
+(defn place-accepted
+  "Contact `actor` takes the place offered: the post (as hiring), and their
+  visit by :sent-for ends, since they're one of the household now."
+  [world actor args]
+  (into (vec (hiring/place-taken world actor args)) (visits/ended-events world actor)))
+
+(defn- send-away-reason [world actor who]
+  (or (when (= actor who) "you can't send yourself away; use take-leave")
+      (offerable-reason world actor who)
+      (hiring/held-reason world who)))
+
+(defn sent-away
+  "Contact `who` is sent away: they go home as `take-leave` would, with no
+  return, their visit ended and any offer to them closed."
+  [world who]
+  (conj (mapv #(cond-> % (= :people/departed (:type %)) (assoc-in [:data :reason] "sent away"))
+              (visits/leave-events world who {}))
+        {:type :people/offer-closed :visible-to :system :data {:who who}}))
+
+(defn- someone-here?
+  "Is a contact sent for here with `actor`, not `actor`, who holds no post?"
+  [world actor]
+  (boolean (some #(and (not= actor (:agent-id %)) (nil? (offerable-reason world actor (:agent-id %))))
+                 (vals (contacts world)))))
+
+;; ---------------------------------------------------------------------------
 ;; Views and rules
 
 (defn add-to-view
@@ -326,16 +391,59 @@
          :valid? send-for-reason
          :effect sent-for))
 
+(defn- either
+  "Hiring's `f` for a candidate (`candidate` is who the args name), else
+  `g` for a contact."
+  [candidate f g]
+  (fn [world actor args]
+    (if (hiring/candidate-here? world (candidate actor args)) (f world actor args) (g world actor args))))
+
+(defn- engage-action
+  "Hiring's `engage`, for someone sent for too."
+  [engage]
+  (assoc engage
+         :available? (fn [world actor] (or ((:available? engage) world actor) (someone-here? world actor)))
+         :valid? (partial engage-reason (:valid? engage))))
+
+(defn- answer-action
+  "Hiring's `accept-place` or `decline-place`, for someone sent for too,
+  with `effect` for them if given."
+  [answer effect]
+  (cond-> (assoc answer :valid? (partial answer-reason (:valid? answer)))
+    effect (assoc :effect (either (fn [actor _] actor) (:effect answer) effect))))
+
+(defn- send-away-action
+  "Hiring's `send-away`, for someone sent for too."
+  [send-away]
+  (let [who (fn [_ args] (:who args))]
+    (assoc send-away
+           :available? (fn [world actor] (or ((:available? send-away) world actor) (someone-here? world actor)))
+           :valid? (either who (:valid? send-away) (fn [world actor {:keys [who]}] (send-away-reason world actor who)))
+           :effect (either who (:effect send-away) (fn [world _ {:keys [who]}] (sent-away world who))))))
+
+(defn- wrapped
+  "Action `spec` wrapped for contacts, once."
+  [scenario spec]
+  (if (::contacts spec)
+    spec
+    (-> (case (:name spec)
+          :recommend (recommend-action scenario spec)
+          :send-for (send-for-action spec)
+          :engage (engage-action spec)
+          :accept-place (answer-action spec place-accepted)
+          :decline-place (answer-action spec nil)
+          :send-away (send-away-action spec))
+        (assoc ::contacts true))))
+
+(def ^:private wrapped-names #{:recommend :send-for :engage :accept-place :decline-place :send-away})
+
 (defn install
-  "Add contacts to a scenario on hiring and visits: `recommend` and
-  `send-for` in place of theirs, and the recommendation judge. Idempotent. The world's positions need a :caller for people from
-  elsewhere."
+  "Add contacts to a scenario on hiring and visits: `recommend`, `send-for`,
+  `engage`, `accept-place`, `decline-place` and `send-away` in place of
+  theirs (taking contacts too, and passing candidates to hiring's), and the
+  recommendation judge. Idempotent. The world's positions need a :caller for
+  people from elsewhere."
   [scenario]
   (-> scenario
-      (update :actions (fn [actions]
-                         (mapv #(case (:name %)
-                                  :recommend (if (::contacts %) % (assoc (recommend-action scenario %) ::contacts true))
-                                  :send-for (if (::contacts %) % (assoc (send-for-action %) ::contacts true))
-                                  %)
-                               actions)))
+      (update :actions (fn [actions] (mapv #(if (wrapped-names (:name %)) (wrapped scenario %) %) actions)))
       (update :adjudicators merge judge/adjudicators)))

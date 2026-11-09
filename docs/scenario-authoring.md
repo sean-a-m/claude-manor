@@ -2371,7 +2371,7 @@ or promised. It does not select an existing villager.
   `hiring/observe` includes `:candidate-home` only for known candidates; the applicant's own
   situation names their home and explicitly says it is off-map, not a walking destination.
 - `engage {who position terms? bedroom?}` is free (it doesn't end the turn) and replaces any previous offer. Anyone
-  may offer a present candidate any position that is a post; no authority, sex or vacancy restriction.
+  may offer a present candidate (or, with contacts installed, someone sent for: see Contacts) any position that is a post; no authority, sex or vacancy restriction.
   `who` is the arrived agent id, not the pool id. Walking to the candidate and interviewing
   with `converse` makes `engage` available on the next model step of the same turn.
   `accept-place {conditions?}` and `decline-place {reason?}` are free too. Discuss a new offer to haggle.
@@ -3081,6 +3081,20 @@ candidates (`recommend` with `position`) stay beside it until phase 1.3.
   on the map keeps their own. The `:visits/arrived` event of a visit by `:sent-for` carries
   `:host` and `:about` (the stay), and its narration says who sent for them and what about, so
   the sender (who sees it wherever they are) and those at the meeting place learn it.
+- **Engaging.** Contacts wraps hiring's `engage`, `accept-place`, `decline-place` and `send-away`
+  (once, marked like `recommend` and `send-for`, so the speaking-turn tools are the same). A
+  candidate here goes to hiring's as before. Otherwise `engage` takes only someone sent for
+  (`contacts/sent-for-here?`: a contact whose visit by `:sent-for` is `:here`, holding no post,
+  `:none` or `:caller`): anyone else, villagers, the household and invited guests among them, is
+  refused "only someone sent for, who holds no post, can be offered a place or sent away". The
+  other checks are hiring's (`hiring/offer-terms-reason`: not oneself, a post from the catalogue,
+  a bedroom in the home area), and they must be present. `accept-place` gives the post as
+  hiring's does (`hiring/place-taken`: post, role, situation, bedroom, offer closed) and ends the
+  visit (`visits/ended-events`), so they are one of the household: no visitor's `take-leave`, not
+  kept awake as a guest, no `you.visit`. `decline-place` closes the offer; they stay on their
+  visit. `send-away {who}` sends someone sent for and unplaced home as `take-leave` without a
+  return does, reason "sent away", closing any offer; refused while they're held in place.
+  Someone sent for may as well be given a work with `order-work`, whatever they were wanted for.
 - **Going home.** The visitor decides: someone from elsewhere goes with visits' `take-leave`
   (`visits/leave-events`). Nothing sends them home by itself.
 - **Views:** `contacts`, the contacts `id` knows: id, name, line, then `works-at` and

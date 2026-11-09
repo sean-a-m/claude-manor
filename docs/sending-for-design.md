@@ -375,6 +375,21 @@ Each phase ends with `clojure -M:test` passing and a mock run of `claudeworth-sm
        `:sent-for` with no post, refusing established agents (4.7), and accepting ends the visit.
        `contacts/install` wraps hiring's versions, as it wraps `recommend` and `send-for`, since
        hiring can't require contacts or visits.
+       **Done:** `contacts/install` wraps all six (marked, idempotent); a candidate here goes to
+       hiring's, anyone else must be `contacts/sent-for-here?` (a contact whose visit by `:sent-for`
+       is `:here`, post nil, `:none` or `:caller`). Hiring's checks and effects were split into
+       shared parts: `candidate-here?`, `offer-terms-reason`, `answer-reason`, `held-reason` and
+       `place-taken` (`accept` adds the pool's `:engaged`); visits gained `ended-events`, which
+       `leave-events` now uses. `accept-place` for a contact is `place-taken` plus the visit ended;
+       the post-changed event makes the role the post, so `appointments/visitor-reason`, `take-leave`
+       (`from-elsewhere?`), `keeps-awake?`, `you.visit` and the contacts view's `sent-for` all follow.
+       `send-away` for a contact is `visits/leave-events` with the reason "sent away" and the offer
+       closed. Differences from the plan: one refusal text covers `engage` and `send-away` ("only
+       someone sent for, who holds no post, can be offered a place or sent away"); `accept-place` and
+       `decline-place` for someone neither a candidate nor sent for say "only someone sent for, who
+       holds no post, can take a place offered" (after "nobody has offered you a place"); `send-away`
+       refuses oneself ("use take-leave"). The `engage` and `send-away` docs say someone sent for.
+       Tests in `contacts_test.clj`.
    - **1.3 The pool goes.** `recommend {wanted for}` only. The pool, its events and statuses,
      `recommend!`, `reusable`, hiring's arrival, tick, `sent-for`, its own `take-leave` and return
      calendar entries go (section 5); the view drops `hiring.candidates`; visits, `visits/judge` and

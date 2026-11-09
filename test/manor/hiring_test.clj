@@ -41,7 +41,7 @@
     (cond
       (and (= agent-id "recommender") (= 1 (:round world)) (not (some #{"recommend"} used)))
       {:tool :recommend :args {:position "housemaid" :for "employer"}}
-      (and (= agent-id "employer") (= 2 (:round world)))
+      (and (= agent-id "employer") (= 2 (:round world)) (not (some #{"send-for"} used)))
       {:tool :send-for :args {:id (:id p)}}
       :else {:tool :pass})))
 
@@ -206,28 +206,31 @@
                                            {:tool :say :args {:text "I know someone."}}
                                            {:tool :say :args {:text "Another word."}}
                                            recommend recommend
-                                           {:tool :send-for :args {:id (:id (first-person world))}}]
+                                           {:tool :send-for :args {:id (:id (first-person world))}}
+                                           {:tool :pass}]
                                           step {:tool :pass})
                                      {:tool :pass}))}
-                   {:max-steps 6 :max-queries 2})]
+                   {:max-steps 7 :max-queries 2})]
     (try
       (rounds! run 2)
       (let [events (e/events run)
             calls (filterv #(and (= "recommender" (:agent %)) (= 1 (:round %)))
                            (store/read-llm (:dir run)))
             replies (mapv #(get-in % [:replies 0 :content]) calls)]
-        (is (= 6 (count calls)))
+        (is (= 7 (count calls)))
         (is (= 2 (count (filter #(= :people/recommended (:type %)) events))))
         (is (= 1 (count (filter #(= :agent/said (:type %)) events))))
         (is (= "rejected: you can use say or whisper only once per turn; take your turn-ending action now, and use them again next turn"
                (replies 2)))
         (is (= "error: query limit reached for this turn (2); take your action now, and query again next turn"
                (replies 4)))
-        (is (= "done" (replies 5)) "send-for works once the query has made the candidate")
+        (is (= "ok" (replies 5)) "send-for works once the query has made the candidate")
+        (is (= "done" (replies 6)) "send-for is free: the turn ends with pass")
         (is (= :here (:status (first-person (e/world run)))))
         (is (= 1 (:round (first (filter #(= :people/sent-for (:type %)) events)))))
-        (is (some #(and (= "user" (:role %)) (str/includes? (:content %) "`send-for`"))
-                  (:replies (calls 1))) "reminders name the refreshed turn-ending tools")
+        (is (some #(and (= "user" (:role %)) (str/includes? (:content %) "turn-ending action: `pass`"))
+                  (:replies (calls 1))) "reminders name the turn-ending tools")
+        (is (not-any? #(str/includes? (:content %) "`send-for`") (:replies (calls 1))) "send-for is free, not turn-ending")
         (is (not-any? #(#{:action/forfeited :run/pause-requested} (:type %)) events)))
       (replay! run)
       (finally (e/stop-run run)))))
@@ -677,7 +680,7 @@
         (let [world (e/world run)
               conv {:members ["employer" "recommender"]}
               recommend (first (ruleset/speaking-actions world "recommender" conv))]
-          (is (= [:recommend :engage :accept-place :decline-place :order-work :revise-work :accept-work :decline-work]
+          (is (= [:recommend :send-for :engage :accept-place :decline-place :order-work :revise-work :accept-work :decline-work]
                  (mapv :name (ruleset/speaking-actions world "recommender" conv))))
           (is (nil? (a/check recommend world "recommender" {:position "housemaid" :for "employer"})))
           (is (= "recommend to someone in this conversation"
@@ -688,7 +691,7 @@
                    (cond
                      (and (= "employer" agent-id) (= 1 (:round world)) (not (some #{"converse"} used)))
                      {:tool :converse :args {:with ["recommender"] :text "Do you know of a housemaid?"}}
-                     (and (= "employer" agent-id) (= 2 (:round world)))
+                     (and (= "employer" agent-id) (= 2 (:round world)) (not (some #{"send-for"} used)))
                      {:tool :send-for :args {:id (:id (first-person world))}}
                      :else {:tool :pass}))
           conversation (fn [{:keys [agent-id used]}]

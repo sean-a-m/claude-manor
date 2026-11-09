@@ -554,7 +554,7 @@
              (if (seq events)
                (str/join "\n" (map #(n/describe % {}) (filter #(#{:people/recommended :people/reputation-known} (:type %)) events)))
                "No recommendation was made: the people or candidate pool are no longer ready."))}
-   {:name :send-for :kind :final :roles :all
+   {:name :send-for :kind :free :roles :all
     :doc (prompts/doc "docs/hiring/send-for.md")
     :args [:map [:id :string]] :valid? send-for-reason :effect sent-for}
    {:name :engage :kind :free :roles :all

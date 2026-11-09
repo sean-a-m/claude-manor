@@ -28,6 +28,12 @@ Design: `docs/fixtures-design.md`. Roadmap: B20.
    gave it himself.
 3. **The operator couldn't see works.** The scene view now has a works panel in the toolbar,
    badges on rooms with open works, and works in the place and person inspectors.
+4. **Speaking turns offered hiring's own `recommend` and no `send-for`** (items 11 and 14).
+   A line's `recommend` only took `position`, so every wrong `recommend {position:
+   "estate-carpenter"}` in the run was made on a speaking turn. Speaking turns now take
+   `recommend`, `send-for` and the place tools from the scenario's installed actions (trades'
+   `recommend` with `trade`), and `send-for` is free, so it's offered there too (sending-for
+   phase 0).
 
 ## B. Works
 
@@ -76,7 +82,7 @@ Items 11–14 are taken up by [sending-for-design.md](sending-for-design.md) (ro
     the cook and the maids) and asked the butler to "put it in the house's book".
 14. **`send-for` isn't offered on speaking turns.** Pugh and the earl both noted in their
     thoughts that they couldn't send for Thorne during the conversation that settled it, and
-    did it on their next turn. It cost only a short delay.
+    did it on their next turn. It cost only a short delay. Fixed: see A4.
 15. **What someone is given in a conversation may not show in their view until later
     (unconfirmed).** The earl was handed Rudd's written character during a conversation and
     thought "my carrying list isn't refreshed"; he also had no way to read it.

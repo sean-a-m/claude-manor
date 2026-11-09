@@ -1,6 +1,6 @@
 # Sending for people: one path for staff and tradespeople
 
-**Status:** draft design, not started. Written 2026-11-08 from the user's brief and two rounds of
+**Status:** draft design; phase 0 (the speaking-turn tools) done and mock-tested, the rest not started. Written 2026-11-08 from the user's brief and two rounds of
 answers the same day (section 2). Section 9 lists what is still open.
 
 Read `AGENTS.md` first, then `docs/works-run-review-2026-11-08.md` (items 11, 12 and 14),
@@ -324,7 +324,11 @@ Old runs won't load (AGENTS.md: no backwards compatibility needed for a change l
 Each phase ends with `clojure -M:test` passing and a mock run of `claudeworth-small`.
 
 0. **Speaking turns** (4.10), on the existing code: `recommend` with `trade` and `send-for` in
-   conversations. Small, and useful even if the rest waits.
+   conversations. Small, and useful even if the rest waits. **Done:** `ruleset/scenario` builds
+   its `:speaking-actions` hook last, over the installed `:actions`, so a line's `recommend`,
+   `send-for`, `engage`, `accept-place` and `decline-place` are the turn's (`recommend` and
+   `engage` still only to a member); hiring's and trades' `send-for` are `:kind :free` and their
+   docs no longer say it ends the turn. Tests in `trades_test.clj`.
 1. **Contacts.** The one record, the judge, `recommend {wanted for}`, the view; the pool goes.
    `send-for` and arrival for everyone through visits, the `:caller` role, the arrival situation and
    event, `engage` on contacts, one `take-leave`, no idle departures.

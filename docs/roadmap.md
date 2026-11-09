@@ -809,7 +809,9 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   2026-11-08: `recommend {wanted for}` and a judge for who is meant, one contact record, `send-for`
   for everyone (2 hours, not turn-ending, offered on speaking turns), arrival as a `:caller`
   settled by `engage` or `order-work`, belongings that suit the person, visitors who decide when
-  to go, and lodging marked in world files. Not started; phase 0 (the speaking-turn tools) first.
+  to go, and lodging marked in world files. Phase 0 done: speaking turns take `recommend`,
+  `send-for` and the place tools from the scenario's installed actions, and `send-for` is free
+  (mock-tested). Phase 1 (contacts) next.
 
 ## C. Known issues and small fixes
 

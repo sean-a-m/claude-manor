@@ -2296,7 +2296,10 @@ or promised. It does not select an existing villager.
 
 - `recommend {position for}`: one query, one candidate. Both parties must be present
   and distinct; self-recommendation is rejected with directions to ask someone else.
-  Claudeworth also offers it on a speaking turn, where `for` must be in the conversation.
+  Claudeworth also offers it on a speaking turn, where `for` must be in the conversation. The
+  ruleset's speaking turns take `recommend`, `send-for`, `engage`, `accept-place` and
+  `decline-place` from the scenario's installed actions (built after every install), so a line
+  offers the same specs as a turn, trades' `recommend` with `trade` among them.
   Reuse a pooled/away person seeking that position in the same walking area, else generate
   one through the people server. The raw record is kept in `[:state :pool]`, never in a
   character's observation. The pool limit is 40, FIFO among pooled/away records not owned
@@ -2353,7 +2356,8 @@ or promised. It does not select an existing villager.
   is discarded. These calls use the run's default model and normal cost budget, with checked
   lengths/blanks and one correction, never lexical prose checks. Offline bridge fixtures and
   mock adjudicators keep `--mock --offline` entirely free.
-- `send-for {id}` (a candidate id) is final. Everyone is offered it, so that a character who
+- `send-for {id}` (a candidate id) is free: it only schedules, so it doesn't end the turn, and
+  Claudeworth offers it on speaking turns too. Everyone is offered it, so that a character who
   hasn't been recommended anyone learns why from the refusal ("nobody of that id has been
   recommended to you; ask someone who might know to `recommend` …"). Only someone who knows the
   current pool record may use it.
@@ -3042,7 +3046,7 @@ a contact is a record like a candidate, and sending for one is a visit.
   reason}`. Code checks only the shape; a bad answer is sent back once, then the query fails
   neutrally. `judge/mock-judge`: a contact whose trade, or a local person whose position, the
   trade contains is them; anyone else is new, from Ely.
-- **`send-for {id, job?}`** is final; trades' version takes a candidate's or a contact's id (they
+- **`send-for {id, job?}`** is free (also on speaking turns); trades' version takes a candidate's or a contact's id (they
   never collide) in the one field. For a candidate it is hiring's, and `job` is ignored. For a
   contact, the actor must know it and give `job` (1-300 characters); refused for themselves, a
   dead or retired person, someone with a `:sent-for` visit expected or under way, someone from
@@ -3282,6 +3286,8 @@ on with it. It uses nobody else's turn either.
   who gets them. The engine accepts only `:free` and `:query`, applies their `:available?` checks,
   and drops names reserved for the speaking tools or `note`. Normal argument decoding and
   `:valid?` still apply. Turn-ending actions (including `buy`) and nested `converse` aren't allowed.
+  To offer one of the scenario's own actions on a line, build the hook from the installed
+  `:actions` (as `ruleset/scenario` does, last), so the line's spec is the turn's.
   A speaking turn may use each query tool offered once (it gets `:per-turn 1` unless it has a
   limit of its own), so it has one query slot per query tool and 3 model calls plus one per
   slot: a keeper of a delivering shop can quote and send goods up on one line, and a clerk can

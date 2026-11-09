@@ -173,6 +173,63 @@
       (is (str/includes? (rules/rules world) "### Tradespeople"))
       (finally (e/stop-run run)))))
 
+(deftest a-line-offers-the-turns-recommend-and-send-for
+  (let [run (start-with cw/scenario {})
+        world (e/world run)
+        conv {:id "c" :initiator "lord-claudeworth" :members ["lord-claudeworth" "hale"]}
+        line (into {} (map (juxt :name identity)) ((:speaking-actions (:scenario run)) world "hale" conv))]
+    (try
+      (testing "recommend is trades' (with trade), only limited to the conversation's members"
+        (is (= (dissoc (action run :recommend) :valid?) (dissoc (:recommend line) :valid?)))
+        (is (some #{:trade} (map first (rest (a/args-schema (:recommend line))))))
+        (is (= "recommend to someone in this conversation"
+               (a/check (:recommend line) world "hale" {:trade "a sweep" :for "mrs-bell"}))))
+      (testing "send-for is the turn's, and free"
+        (is (= (action run :send-for) (:send-for line)))
+        (is (= :free (a/kind (:send-for line)))))
+      (finally (e/stop-run run)))))
+
+(def tuner-talk-day
+  "Hale goes down to the post office; the earl asks him there about a piano
+  tuner, and passes after."
+  {"hale" {"20:00" [[:travel {:to "post-office"}]]}
+   "lord-claudeworth" {"20:00" [[:pass {}]]
+                       "20:30" [[:converse {:with ["hale"] :text "Do you know of a piano tuner, Hale?"}] [:pass {}]]}})
+
+(defn- tuner-talk
+  "Hale recommends a tuner on his line; the earl sends for him on his last word."
+  [{:keys [agent-id used conversation]}]
+  (cond
+    (= "hale" agent-id)
+    (if (or (some #{"recommend"} used) (not= 1 (:pass conversation)))
+      {:tool :reply :args {:text "I know of one in Ely, my lord."}}
+      {:tool :recommend :args {:trade "a piano tuner" :for "lord-claudeworth"}})
+    (and (= "lord-claudeworth" agent-id) (:final? conversation))
+    (if (some #{"send-for"} used)
+      {:tool :end-conversation}
+      {:tool :send-for :args {:id "contact-1" :job "tune the drawing-room piano"}})
+    :else {:tool :reply :args {:text "Go on."}}))
+
+(deftest a-tradesman-recommended-and-sent-for-in-a-conversation
+  (let [run (start-with (assoc cw/scenario :mock-conversation tuner-talk) tuner-talk-day)]
+    (try
+      (until! run 2)
+      (let [world (e/world run)
+            evs (e/events run)
+            started (:id (first (of-type run :conversation/started)))
+            ended (:id (first (of-type run :conversation/ended)))
+            [recommended] (of-type run :contacts/recommended)
+            [sent] (of-type run :trades/sent-for)]
+        (is (< started (:id recommended) (:id sent) ended) "both on lines of the conversation")
+        (is (= "piano tuner" (:trade (trades/contact world "contact-1"))))
+        (is (= {:host "lord-claudeworth" :by :sent-for :stay "tune the drawing-room piano" :status :scheduled}
+               (select-keys (visits/visit world "visit-1") [:host :by :stay :status])))
+        (is (some #(and (= :agent/passed (:type %)) (= "lord-claudeworth" (:actor %))) evs)
+            "the earl's turn goes on after the conversation")
+        (is (empty? (of-type run :action/forfeited))))
+      (replay! run)
+      (finally (e/stop-run run)))))
+
 (deftest impossible-recommends-nobody
   (let [run (start-with (with-judge cw/scenario (fn [_] {:tool :tradesperson :args {:impossible "There are no telephones here yet."}}))
                         {"hale" {"20:00" [[:travel {:to "post-office"}]]

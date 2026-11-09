@@ -1,8 +1,11 @@
 (ns manor.tools.scene-ruleset
   "Pure operator overlays for the ruleset's scenarios (manor.ruleset):
-  household funds, plans and works. No changes to the world or its events."
+  household funds, plans, the architect's building works and works
+  (manor.mechanics.works: things installed, moved or removed). No changes
+  to the world or its events."
   (:require [manor.clock :as clock]
-            [manor.mechanics.money :as money]))
+            [manor.mechanics.money :as money]
+            [manor.mechanics.works :as works]))
 
 (defn- display-size [size]
   ;; Custom architect price lists may use names with no geometric meaning.
@@ -38,13 +41,53 @@
         acc))
     {:plans {} :rooms {} :annotations {}} (map-indexed vector events))))
 
+(defn- work-details
+  "One work, as a collapsible entry: its summary and status, then the rest."
+  [{:keys [id kind status summary] :as e}]
+  [:details.scene-work
+   [:summary id " · " kind " · " status " · " summary]
+   (for [[k label] [[:where "Where"] [:planner "Planned by"] [:who "Who should do it"] [:trade "Trade"]
+                    [:ordered-by "Ordered by"] [:worker "Worker"] [:estimate "Estimate"] [:materials "Materials"]
+                    [:price "Price"] [:priced-by "Price set by"] [:paid-from "Paid from"] [:phase "Phase"]
+                    [:progress "Progress"] [:under-way "Under way"] [:result "Result"]]
+         :when (some? (get e k))]
+     [:p [:b label ": "] (str (get e k))])])
+
+(defn- works-panel
+  "Every work in the run: open ones listed, finished and cancelled ones folded
+  away. Nil when there are none."
+  [world]
+  (let [entries (works/operator-entries world)
+        open? #(contains? works/open-statuses (keyword (:status %)))
+        [open closed] [(filter open? entries) (remove open? entries)]]
+    (when (seq entries)
+      [:div.scene-works
+       [:b "Works: "] (count open) " open, " (count closed) " finished or cancelled"
+       (map work-details open)
+       (when (seq closed)
+         [:details [:summary "Finished and cancelled"] (map work-details closed)])])))
+
 (defn toolbar [world]
-  (when-let [funds (get-in world [:state :accounts "household"])]
-    [:div.scene-household [:b "Household funds: "] (money/display (money/spec world) funds)]))
+  (let [funds (get-in world [:state :accounts "household"])
+        panel (works-panel world)]
+    (when (or funds panel)
+      [:div
+       (when funds [:div.scene-household [:b "Household funds: "] (money/display (money/spec world) funds)])
+       panel])))
+
+(defn- works-at
+  "The open works whose place is `loc-id`."
+  [world loc-id]
+  (filter #(and (= loc-id (:place %)) (contains? works/open-statuses (keyword (:status %))))
+          (works/operator-entries world)))
 
 (defn badges [world loc-id]
-  (when (some #(some #{loc-id} (:connects-to %)) (get-in world [:state :works]))
-    ["adjoining works"]))
+  (let [building? (some #(some #{loc-id} (:connects-to %)) (get-in world [:state :works]))
+        open (works-at world loc-id)]
+    (cond-> []
+      building? (conj "adjoining works")
+      (seq open) (conj (str (count open) (if (= 1 (count open)) " work" " works")
+                            (when (some :under-way open) ", under way"))))))
 
 (defn- due [world round]
   (when (number? round)
@@ -66,9 +109,26 @@
             [:p (cond (some #(= (:id plan) (:plan-id %)) (get-in world [:state :works])) "Being built"
                       (:built? plan) "Built" :else "Drawn")]])]))
     "place"
-    (when-let [work (first (filter #(= id (:room %)) (get-in world [:state :works])))]
-      [:section.scene-extra [:h3 "Under construction: " (:name work)]
-       [:p "Completion: " (due world (:due work))]])
+    (let [work (first (filter #(= id (:room %)) (get-in world [:state :works])))
+          here (filter #(= id (:place %)) (works/operator-entries world))]
+      (when (or work (seq here))
+        [:section.scene-extra
+         (when work [:div [:h3 "Under construction: " (:name work)] [:p "Completion: " (due world (:due work))]])
+         (when (seq here) [:div [:h3 "Works here"] (map work-details here)])]))
     nil))
 
-(def hooks {:history history :toolbar toolbar :badges badges :inspect inspect})
+(defn- agent-works
+  "The works `id` planned, ordered or works on, as the inspector's section."
+  [world id]
+  (let [mine (filter #(contains? (:people %) id) (works/operator-entries world))]
+    (when (seq mine)
+      [:section.scene-extra [:h3 "Works"] (map work-details mine)])))
+
+(defn- inspect-all
+  "The place and agent inspectors, with an agent's works after the rest."
+  [world kind id]
+  (let [base (inspect world kind id)
+        extra (when (= "agent" kind) (agent-works world id))]
+    (cond (and base extra) [:div base extra] :else (or base extra))))
+
+(def hooks {:history history :toolbar toolbar :badges badges :inspect inspect-all})

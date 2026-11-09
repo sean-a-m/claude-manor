@@ -9,6 +9,7 @@
   in the drawing room, Hale's notebook in his pocket)."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
+            [hiccup2.core :as hiccup]
             [jsonista.core :as json]
             [manor.actions :as a]
             [manor.engine :as e]
@@ -97,7 +98,8 @@
           (is (= #{"hale"} (:visible-to ev)))
           (is (str/includes? (first (replies-to run "hale" "plan-work")) "order-work with id \"work-1\"")))
         (testing "it's under works in his view, not in the earl's"
-          (is (= [{:id "work-1" :kind "move" :summary (:summary plan) :who (:who plan) :status "planned"}]
+          (is (= [{:id "work-1" :kind "move" :summary (:summary plan) :who (:who plan) :status "planned"
+                   :where "From the Drawing room (drawing-room) to the Dining room (dining-room)."}]
                  (:works (prompt/agent-view (:scenario run) world "hale"))))
           (is (nil? (:works (prompt/agent-view (:scenario run) world "lord-claudeworth"))))))
       (replay! run)
@@ -916,10 +918,34 @@
   "The test household with Nellie and a calendar."
   (ruleset/scenario {:name :household :defaults {:world-file household/world-file :leave-out []}}))
 
+(defn- html [x] (str (hiccup/html x)))
+
 (deftest a-scripted-day-moves-the-cabinet
   (let [run (start-with move-household move-day)]
     (try
+      (until! run 5)
+      (testing "the scene view shows the work under way: listed, a badge on its room, in the inspectors"
+        (let [world (e/world run)
+              hooks (:scene (:scenario run))
+              toolbar (html ((:toolbar hooks) world))]
+          (is (str/includes? toolbar "Works: "))
+          (is (str/includes? toolbar "1 open"))
+          (is (str/includes? toolbar "work-1"))
+          (is (str/includes? toolbar "Nellie"))
+          (is (some #(str/starts-with? % "1 work") ((:badges hooks) world "drawing-room")))
+          (is (empty? ((:badges hooks) world "dining-room")) "the badge is on the room the work is done in")
+          (is (str/includes? (html ((:inspect hooks) world "place" "drawing-room")) "Works here"))
+          (is (str/includes? (html ((:inspect hooks) world "agent" "nellie")) "work-1"))
+          (is (str/includes? (html ((:inspect hooks) world "agent" "lady-claudeworth")) "work-1"))
+          (is (nil? ((:inspect hooks) world "agent" "hale")) "nobody else's works")))
       (until! run 9)
+      (testing "once it's done, the scene view folds it away with its result"
+        (let [world (e/world run)
+              hooks (:scene (:scenario run))
+              toolbar (html ((:toolbar hooks) world))]
+          (is (str/includes? toolbar "0 open, 1 finished or cancelled"))
+          (is (str/includes? toolbar "done as planned"))
+          (is (empty? ((:badges hooks) world "drawing-room")))))
       (let [world (e/world run)
             calls (store/read-llm (:dir run))
             reminders (for [c calls :when (= "nellie" (:agent c)) r (:replies c)
@@ -970,6 +996,13 @@
         (is (= "gas fitter" (:trade (view-work run world "hale")))))
       (testing "household work has no hint"
         (is (nil? (works/trade-hint {:id "work-1"}))))
+      (testing "the plan says where it goes, that a price agreed in talk must be given, and how to re-plan"
+        (let [text (works/describe-plan wo (narrate/names world))
+              place (:place wo)]
+          (is (str/includes? text (str "(" place "), where it was planned")))
+          (is (str/includes? text "give that"))
+          (is (str/includes? text "cancel-work it and plan it again"))
+          (is (= (works/where-text wo (narrate/names world)) (:where (view-work run world "hale"))))))
       (testing "only structure is checked"
         (is (str/includes? (:error (c (dissoc ok :household))) "household"))
         (is (str/includes? (:error (c (dissoc ok :trade))) "trade"))

@@ -1,6 +1,6 @@
 # Sending for people: one path for staff and tradespeople
 
-**Status:** phases 0–3 done and mock-tested (the speaking-turn tools; contacts, settling at arrival, the pool gone; lodging; belongings; prompts and docs). Phase 4, one short real run, waits for the user's go-ahead. Written 2026-11-08 from the user's brief and two rounds of
+**Status:** phases 0–3 done and mock-tested (the speaking-turn tools; contacts, settling at arrival, the pool gone; lodging; belongings; prompts and docs). Phase 4: a first real run is reviewed in `docs/sending-for-run-review-2026-11-09.md`; the checks it hasn't seen yet are its section B4. Written 2026-11-08 from the user's brief and two rounds of
 answers the same day (section 2). Section 9 lists what is still open.
 
 Read `AGENTS.md` first, then `docs/works-run-review-2026-11-08.md` (items 11, 12 and 14),
@@ -477,7 +477,9 @@ Each phase ends with `clojure -M:test` passing and a mock run of `claudeworth-sm
    Lodge, the palace).
 4. **One short real run** of `claudeworth-small` (8–12 rounds, `:max-cost` 0.20) starting with a
    need for both a servant and a job, to see whether the judge's choices and the settling at arrival
-   hold up. The user's go-ahead first.
+   hold up. The user's go-ahead first. **First run done** (the user's,
+   `runs/claudeworth-small-20261109-064910`, 21 rounds): reviewed in
+   `docs/sending-for-run-review-2026-11-09.md`.
 
 ## 8. Tests
 

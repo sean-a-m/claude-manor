@@ -826,8 +826,12 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   `:contact-id`, the mock polish varies with the line (mock-tested). Phase 3
   done: one rules section (`rules/sections/sending-for.md`, `contacts/rules`) in every ruleset world,
   the docs, worlds' comments and GM texts, `scenario-authoring.md` ("Sending for people") and
-  `prompts.md` brought into line (mock-tested). Phase 4, one short real run of
-  `claudeworth-small`, waits for the user's go-ahead.
+  `prompts.md` brought into line (mock-tested). Merged to master 2026-11-09.
+- **First real run (2026-11-09):** the path worked end to end (four recommendations, two hired, a
+  tradesperson came and left by himself). Problems found, with the user's first thoughts, are in
+  [sending-for-run-review-2026-11-09.md](sending-for-run-review-2026-11-09.md).
+- **Next:** a design for an informal `pay` and for confirming automatic payments the same way;
+  moving things across rooms; goods taken or made off the map (to discuss with the user).
 
 ## C. Known issues and small fixes
 

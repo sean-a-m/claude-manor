@@ -26,8 +26,8 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/relations-design.md` | per-person relations: a capped queue of judged feelings toward each other person, the user's decisions of 2026-10-29; built and mock-tested |
 | `docs/events-design.md` | in-world calendar contract and outcome: private/public entries and pre-turn GM review |
 | `docs/visits-design.md` | guests and visits (invitations by post, messenger or in person, GM visits, guests from the village or elsewhere, authored visits in world files); phases 1–3 implemented |
-| `docs/sending-for-design.md` | one `recommend {wanted}` and `send-for` for staff and tradespeople, a judge for who is meant, settled at arrival by `engage` or `order-work`; replaced the candidate/contact split; phases 0 and 1 done |
-| `docs/trades-design.md` | tradespeople and merchants found through `recommend` with a `trade`, contacts and `send-for`; phases 1–2 implemented and mock-tested |
+| `docs/sending-for-design.md` | one `recommend {wanted}` and `send-for` for staff and tradespeople, a judge for who is meant, settled at arrival by `engage` or `order-work`; replaced the candidate/contact split; phases 0–3 implemented and mock-tested, a real-model check pending |
+| `docs/trades-design.md` | tradespeople and merchants found through `recommend` with a `trade`, contacts and `send-for`; phases 1–2 implemented, superseded in part by sending-for-design.md (one `recommend {wanted}`, `:caller`, no idle departure) |
 | `docs/physical-status-design.md` | physical status (bound, gagged, blind, deaf, unconscious, dead), impediments, the immediate `act-on`; built and mock/offline-tested, ordinary real-model compatibility smoke checked |
 | `docs/settings-design.md` | one ruleset for many settings: setting packs, prompt templates, money specs and private accounts, `manor.ruleset`, a palace skeleton; progress in its section 8 |
 | `docs/fixtures-design.md` | design: work plans (`plan-work`, then `order-work` to anyone) to install, move, remove (and perhaps alter) things, fixed ones included; the outcome judged with luck by the scene judge; phases 1 and 2 (money and trades) done and mock-tested (roadmap B20), a real-model check next |
@@ -130,7 +130,7 @@ src/manor/
     positions.clj  positions (a shared catalogue plus the world's :roles), posts, capabilities, forms of
                    address, bedroom and routine events
     hiring.clj     what finding and placing people share: making people, reputations, arrival, first-arrival
-                   belongings, place offers and posts, return times
+                   belongings, place offers and posts, return times, a contact's character (spend-time)
     inner.clj      inner state: private keyed phrases judges change (checks, judge view, :person/inner-changed)
     relations.clj  relations: per person, a capped queue of judged feelings toward each other person (checks,
                    views, :person/relations-changed)
@@ -140,7 +140,8 @@ src/manor/
                    guests from elsewhere (away agents, arrival at the meeting place, take-leave, you.visit)
     contacts.clj   contacts: `recommend {wanted for}` makes a contact (contacts/judge.clj: the recommendation judge),
                    `send-for` with a contact (and `about`) is a visit by :sent-for; engage, accept-place,
-                   decline-place and send-away for someone sent for
+                   decline-place and send-away for someone sent for; its arrival situation and the rules section
+                   (rules/sections/sending-for.md)
     find_person.clj find-person: a judge picks whom a seeker means among the people in walking distance, the engine
                    rolls, and the reply says where they are
     following.clj  follow and follow-stop: followers go along on the walks and journeys of the person they follow

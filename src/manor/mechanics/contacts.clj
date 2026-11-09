@@ -365,8 +365,11 @@
                                    (sent-for-visit world (:agent-id c)) (assoc :sent-for true)))
                                known)))))
 
-(defn rules [world]
-  (prompts/render world "rules/sections/contacts.md" {:lead-hours lead-hours}))
+(defn rules
+  "The rules section on finding people and sending for them: `recommend`,
+  `send-for`, settling it at arrival, papers and belongings, leaving."
+  [world]
+  (prompts/render world "rules/sections/sending-for.md" {:lead-hours lead-hours}))
 
 ;; ---------------------------------------------------------------------------
 ;; Actions

@@ -2,7 +2,7 @@
 ;; A template: nothing writes to it. Runs keep a copy (world-start.edn) and
 ;; export their live map (map.edn) in this format. See docs/claudeworth-design.md.
 {:meta {:name "Claudeworth Manor"
-        :meeting-place "carriage-sweep" ; where candidates, guests and deliveries arrive
+        :meeting-place "carriage-sweep" ; where people sent for, guests and deliveries arrive
         :start "1904-12-21T08:00"
         :minutes-per-round 30
         :starting-funds 2900 ; whole pounds here; runtime money is old pence

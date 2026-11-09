@@ -811,6 +811,14 @@ An engine-level status alongside `:active` and `:retired`:
 
 ### 6.6 Phase 4 as built
 
+> **Superseded** by [sending-for-design.md](sending-for-design.md) (2026-11-08/09) for finding and
+> bringing people: the candidate pool (`[:state :pool]`, `recommend {position}`, reuse by exact
+> position and walking area, arrival next round, the 24-hour departure, hiring's own `take-leave`
+> and return entries) is gone. Everyone is a contact from `recommend {wanted for}`, comes by
+> `send-for` (a visit), and is settled at arrival with `engage` or `order-work`; `engage` takes only
+> someone sent for who holds no post. Making people, reputations, arrival, offers and posts below
+> still stand. Current contract: `docs/scenario-authoring.md`, "Sending for people".
+
 Implemented in `manor.mechanics.hiring`, shared by Claudeworth and Lodge. Only mock/offline
 validation was run; the user will do real runs. No generated cast files were re-polished.
 

@@ -509,7 +509,7 @@ butcher and draper deliver; the general store uses `:courier :carrier`, while th
 draper use the default errand boy.
 
 Each delivering shop has one **courier**, under `[:state :couriers shop-id]` (`{:person
-:position :agent-id :arrived}`; not in hiring's pool), using the location's `:courier` position
+:position :agent-id :arrived}`; not a contact), using the location's `:courier` position
 (default `:errand-boy`; the scenario checks it's in the positions table). The system's
 `:compose` names every delivering shop's courier in round 1 with `hiring/person-record` (the
 people server only, no model call), so the shop can say who sends orders up: each entry in
@@ -2275,11 +2275,11 @@ data, so there's one source and no call.
   `test-runs/roll-cast-<time>/`; preserve paid records under `old-test-runs/`.
 - Loading, branching and replay never read world files: the starting map is recorded as events.
 
-#### Hiring: new people, offers and posts
+#### Hiring: making people, arrivals, offers and posts
 
 Every ruleset scenario includes `manor.mechanics.hiring`, the parts that finding and placing
-people share; finding someone, sending for them, `engage` and the answers are contacts' (see
-Contacts below). `(hiring/install scenario)` adds the initial state's agent cap
+people share; finding someone, sending for them, `engage` and the answers are contacts' (the
+whole path is under "Sending for people" below; this section is its shared machinery). `(hiring/install scenario)` adds the initial state's agent cap
 (`[:state :hiring-max-agents]`), whether people new from elsewhere bring first-arrival belongings
 (`[:state :hiring-belongings?]`, true in a scenario with `:items`, even with no starting objects)
 and the writing-job extension. People from elsewhere arrive at the meeting place, which the
@@ -2288,7 +2288,7 @@ scenario's `:init` keeps at `[:state :meeting-place]` (the ruleset reads it from
 `hiring/adjudicators`, `hiring/bridges`, `hiring/offline-stubs`, `people/mcp-servers`,
 `positions/starting-events` as `:on-spawn`, and project `hiring/observe` into its own observation
 (the ruleset uses `:hiring`). Its positions must include `:none` and `:caller`; its meeting place
-must exist. Include `hiring/rules` (`rules/hiring.md`) in character briefs.
+must exist. Include `contacts/rules` (`rules/sections/sending-for.md`) in character briefs.
 
 - **Making a person.** `hiring/person-record` asks the people server for a record
   (`{:name :record :lives}`; `:sex` and `:ages` replace the position's), and
@@ -2936,12 +2936,32 @@ invitation judge, which matches someone in the world or writes someone new.
   all the while it's `:here`. Claudeworth's `hibernate` returns nil while it's true, so the
   ordinary `b/free` wakes them. Once the visit ends or lapses, hibernation resumes as usual.
 
-### Contacts: finding people and sending for them (`manor.mechanics.contacts`)
+### Sending for people (`manor.mechanics.contacts`)
 
-[sending-for-design.md](sending-for-design.md) phase 1 (from [trades-design.md](trades-design.md)):
-staff, tradespeople, craftsmen, merchants and anyone else are found through `recommend` with
-`wanted`, brought with `send-for`, and settled when they come: a place with `engage`, a work with
-`order-work`, or neither. Built on hiring and visits: sending for someone is a visit.
+[sending-for-design.md](sending-for-design.md) (it replaced the candidate pool of
+[people-and-hiring-design.md](people-and-hiring-design.md) and the separate trades path of
+[trades-design.md](trades-design.md)). There is one path for staff, tradespeople, craftsmen,
+merchants and anyone else who isn't already in play:
+
+1. **Asking.** Someone asks someone who might know, and they call `recommend {wanted for}`, with
+   who or what is wanted in their own words. The **recommendation judge** says whom it means:
+   someone on the map, a contact made before, or someone new from elsewhere (written by hiring's
+   people writer, with first-arrival belongings in a scenario with items). Both learn a
+   **contact**; nothing fixes whether it's for a place or a job.
+2. **Sending for them.** `send-for {id about?}` (free, also on speaking turns) is a visit by
+   `:sent-for` (Visits, above) expected `lead-hours` (2) later. Someone on the map is told and
+   comes if willing; someone from elsewhere arrives at the meeting place through `hiring/arrival`,
+   with the arrival situation `situations/sent-for.md` and, the first time, their belongings (a
+   written character carries the reference marker `:contact-id`: see Hiring).
+3. **Settling it** when they're here, whatever was first asked: a place with `engage`
+   (`accept-place`, `decline-place`), a work with `order-work` (Works, below), a small job with
+   `spend-time`, or nothing (`send-away`).
+4. **Leaving.** The visitor decides, with visits' `take-leave` (optionally with a return time).
+   Nothing sends them home by itself; someone staying the night may sleep at the world's lodging
+   (`:lodging true` locations; see Positions, posts and situations). Taking a place ends the visit.
+
+The rules section is `contacts/rules` (`rules/sections/sending-for.md`, with `lead-hours`), one
+section in every ruleset world, covering all four steps, papers and belongings.
 
 - **Install** with `(contacts/install scenario)` after `hiring/install` and `visits/install`. It
   adds `recommend`, `send-for`, `engage`, `accept-place`, `decline-place` and `send-away`
@@ -2949,8 +2969,7 @@ staff, tradespeople, craftsmen, merchants and anyone else are found through `rec
   idempotent. The world's positions need a `:caller` (both setting
   packs' catalogues have one; hiring refuses it as a post). Its `:observe` should call
   `(contacts/add-to-view view world id)`. Every ruleset scenario installs it, and the ruleset's
-  `rules` add the Tradespeople section (`contacts/rules`, `rules/sections/contacts.md`) where
-  visits are installed.
+  `rules` add its section (`contacts/rules`).
 - **The record** in `[:state :contacts]`, by id (`"contact-1"`, …, numbered by
   `[:state :contact-count]`): `:agent-id`, `:name`, `:line` (what they do or seek, plainly: the
   judge's, or the position title, lower-cased, for someone on the map), `:known-to`, `:wanted`
@@ -3028,7 +3047,16 @@ staff, tradespeople, craftsmen, merchants and anyone else are found through `rec
   return does, reason "sent away", closing any offer; refused while they're held in place.
   Someone sent for may as well be given a work with `order-work`, whatever they were wanted for.
 - **Going home.** The visitor decides: someone from elsewhere goes with visits' `take-leave`
-  (`visits/leave-events`). Nothing sends them home by itself.
+  (`visits/leave-events`), optionally with a return time (a visit `:by :returning`, after which
+  they still count as sent for). Nothing sends them home by itself, and nothing rules out two
+  people for the same thing: duplicates are allowed by design. A visitor with no bed of their own
+  sleeps at the world's lodging, if any; a world without lodging refuses their `sleep` as usual.
+- **Papers and belongings.** Someone new from elsewhere is written, at `recommend`, with what
+  they'll bring (Hiring's first-arrival belongings: from `:line` and `:wanted`, a box and a
+  written character for someone seeking a place, a tradesperson's tools, little for others). They
+  are made at the first arrival only; a paper marked `:reference?` gets the contact's id as
+  `:contact-id` (`items/identity-bound?`). A character written in play is `spend-time` with
+  `contact`.
 - **Views:** `contacts`, the contacts `id` knows: id, name, line, then `works-at` and
   `on-the-map` or `based`, `wanted` (what `id` last asked for them for, if they asked), and
   `sent-for` while a visit for them is expected or under way.

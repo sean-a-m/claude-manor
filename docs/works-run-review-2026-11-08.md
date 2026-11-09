@@ -73,9 +73,12 @@ Items 11–14 are taken up by [sending-for-design.md](sending-for-design.md) (ro
     tradesperson (`trade`). The candidates were announced as seeking a post, arrived "to talk
     about a place" carrying written characters, and were hired: Stanley Rudd and Horace Barker
     as estate carpenter, and Levi Moss as odd man. Gilbert Thorne, found with `trade`, arrived
-    correctly as a visitor with no reference and no post.
+    correctly as a visitor with no reference and no post. Addressed: one `recommend {wanted}`,
+    and whatever was asked, the person sent for is settled at arrival with `engage` or
+    `order-work`; see roadmap B21.
 12. **The same post filled twice by different employers.** The earl hired Rudd and the
-    countess hired Barker, both as estate carpenter, within two hours of each other.
+    countess hired Barker, both as estate carpenter, within two hours of each other. By design:
+    duplicates are allowed (sending-for-design decision 3); see roadmap B21.
 13. **Visitors who stay overnight have nowhere to sleep.** Open work keeps a tradesperson from
     elsewhere from going home, so Thorne stayed. His `sleep` was refused three times ("go to a
     bedroom first"). He used `spend-time` for "sleeping in the lumber room" (a room assigned to

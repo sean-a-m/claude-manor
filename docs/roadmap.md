@@ -823,8 +823,11 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   the rules; the Crown's back chamber in the three Claudeworth worlds (mock-tested). Phase 2
   done: the writer decides belongings from line and wanted (a box and marked character for
   someone seeking a place, tools for a tradesperson), the marker is `:reference?` and the item key
-  `:contact-id`, the mock polish varies with the line (mock-tested). Phase 3 (prompts and docs)
-  next.
+  `:contact-id`, the mock polish varies with the line (mock-tested). Phase 3
+  done: one rules section (`rules/sections/sending-for.md`, `contacts/rules`) in every ruleset world,
+  the docs, worlds' comments and GM texts, `scenario-authoring.md` ("Sending for people") and
+  `prompts.md` brought into line (mock-tested). Phase 4, one short real run of
+  `claudeworth-small`, waits for the user's go-ahead.
 
 ## C. Known issues and small fixes
 

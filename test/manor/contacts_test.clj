@@ -210,8 +210,23 @@
                          "lord-claudeworth" :send-for {:id "contact-1"}))
             "about defaults to what was wanted")
         (is (some? (check run known "lord-claudeworth" :send-for {:id "contact-1" :about (apply str (repeat 301 "x"))}))))
-      (is (str/includes? (rules/rules world) "### Tradespeople"))
       (finally (e/stop-run run)))))
+
+(deftest one-rules-section-on-sending-for-in-every-household-world
+  (doseq [scenario [:claudeworth-small :lodge :palace]]
+    (let [run (e/start-run scenario {:llm :mock :offline? true :test? true :gm :off
+                                     :run-id (str (gensym (str "sending-for-rules-" (name scenario) "-")))})]
+      (try
+        (let [text (rules/rules (e/world run))
+              [section & more] (filter #(str/starts-with? % "Finding people") (str/split text #"\n### "))]
+          (testing (name scenario)
+            (is (some? section))
+            (is (empty? more))
+            (is (str/includes? section "`recommend`"))
+            (is (str/includes? section "`send-for`"))
+            (is (str/includes? section (str contacts/lead-hours " hours")))
+            (is (not (str/includes? text "{{")))))
+        (finally (e/stop-run run))))))
 
 (deftest a-line-offers-the-turns-recommend-and-send-for
   (let [run (start-with cw/scenario {})

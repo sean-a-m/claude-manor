@@ -10,7 +10,6 @@
             [manor.mechanics.contacts :as contacts]
             [manor.mechanics.conversation :as conversation]
             [manor.mechanics.deliveries :as deliveries]
-            [manor.mechanics.hiring :as hiring]
             [manor.mechanics.items :as items]
             [manor.mechanics.physical :as physical]
             [manor.mechanics.positions :as positions]
@@ -105,9 +104,8 @@
                   (section world "building" {:sizes (str/join ", " (map :size (get-in world [:state :architect-prices :sizes])))
                                              :fee-percent building/fee-percent}))
                 (when (appointers? world) (section world "posts"))
-                (section world "hiring" {:hiring (hiring/rules world)})
-                (when visits? (section world "invitations" {:visits (visits/rules world)}))
-                (when visits? (contacts/rules world))]))})))
+                (contacts/rules world)
+                (when visits? (section world "invitations" {:visits (visits/rules world)}))]))})))
 
 (defn- setting [world] (get-in world [:state :setting]))
 

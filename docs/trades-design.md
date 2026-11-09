@@ -1,5 +1,14 @@
 # Tradespeople and merchants: design
 
+> **Superseded in part** by [sending-for-design.md](sending-for-design.md) (2026-11-08/09):
+> `recommend` takes one free-text `wanted` (no `trade` argument, no `position` alternative); the
+> trade judge became the recommendation judge (`manor.mechanics.contacts.judge`); `trades.clj` was
+> folded into `manor.mechanics.contacts`, one contact record for staff and tradespeople alike; the
+> `:tradesman` role became `:caller`; the lead time is 2 hours; there is no idle departure (the
+> visitor leaves with `take-leave`); the Tradespeople rules section merged into
+> `rules/sections/sending-for.md`. What follows is the history; the current contract is
+> `docs/scenario-authoring.md`, "Sending for people".
+
 **Status:** phases 1 and 2 implemented and mock/offline-tested (`test/manor/trades_test.clj`);
 no real-model check yet. Phases 3 and 4 not started. Written 2026-10-31 from the user's brief and
 their answers the same day (section 2); section 7 records how the build differs from section 4.

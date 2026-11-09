@@ -1,6 +1,6 @@
 # Sending for people: one path for staff and tradespeople
 
-**Status:** draft design; phases 0 (the speaking-turn tools) and 1 (contacts, settling at arrival, the pool gone) done and mock-tested, the rest not started. Written 2026-11-08 from the user's brief and two rounds of
+**Status:** phases 0–3 done and mock-tested (the speaking-turn tools; contacts, settling at arrival, the pool gone; lodging; belongings; prompts and docs). Phase 4, one short real run, waits for the user's go-ahead. Written 2026-11-08 from the user's brief and two rounds of
 answers the same day (section 2). Section 9 lists what is still open.
 
 Read `AGENTS.md` first, then `docs/works-run-review-2026-11-08.md` (items 11, 12 and 14),
@@ -459,6 +459,22 @@ Each phase ends with `clojure -M:test` passing and a mock run of `claudeworth-sm
    and no reference).
 3. **Prompts and docs:** the merged rules section, the docs of section 6, `works`' plan text, worlds'
    GM texts, `scenario-authoring.md`, `prompts.md`.
+   **Done:** `rules/hiring.md`, `rules/sections/hiring.md` and `rules/sections/contacts.md` became
+   one section, `rules/sections/sending-for.md` ("Finding people and sending for them", rendered by
+   `contacts/rules` with `lead-hours`; `hiring/rules` went), in every ruleset world, with or without
+   visits: finding someone, sending for them, settling it when they come, papers and belongings,
+   leaving. It points to the sleep section for lodging rather than naming it twice. The section 6
+   docs, `situations/sent-for.md`, the judge, the writer, both packs' `:caller`/`:guest`/`:none`,
+   `works`' plan text and `docs/works/plan-work.md` already matched the flow and were left alone;
+   `rules/sections/posts.md` no longer says "hiring". The worlds' and fixtures' `:meeting-place`
+   comments say "people sent for", and Lodge's Ashby no longer sends for "the candidate".
+   `scenario-authoring.md`'s contacts section is now "Sending for people", opening with the whole
+   path, and hiring's is its shared machinery; `prompts.md` lists the one section; superseding
+   notes head `trades-design.md` and `people-and-hiring-design.md` 6.6; works review items 11 and
+   12 are marked. Differences from the plan: the people server keeps its unused `candidate` flag
+   (its own test covers it). Test:
+   `contacts_test/one-rules-section-on-sending-for-in-every-household-world` (claudeworth-small,
+   Lodge, the palace).
 4. **One short real run** of `claudeworth-small` (8–12 rounds, `:max-cost` 0.20) starting with a
    need for both a servant and a job, to see whether the judge's choices and the settling at arrival
    hold up. The user's go-ahead first.

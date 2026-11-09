@@ -8,7 +8,7 @@
 ;; servants) is still to get. The village and the abbey are the same places
 ;; and people as in the :claudeworth-medium world.
 {:meta {:name "Claudeworth Manor"
-        :meeting-place "front-yard" ; where candidates, guests, tradespeople and deliveries arrive
+        :meeting-place "front-yard" ; where people sent for, guests and deliveries arrive
         :start "1904-10-18T08:00"
         :minutes-per-round 30
         :starting-funds 30000 ; whole pounds here; runtime money is old pence

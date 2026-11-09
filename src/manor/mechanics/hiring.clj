@@ -399,8 +399,3 @@
           (update :actions (fn [actions]
                              (conj (vec (remove #(= :spend-time (:name %)) actions))
                                    (reference-activity (first (filter #(= :spend-time (:name %)) (item-actions/actions)))))))))))
-
-(defn rules
-  "Hiring's rules: finding someone, settling a place, papers and belongings."
-  [world]
-  (prompts/render world "rules/hiring.md" {}))

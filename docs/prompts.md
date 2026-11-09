@@ -66,12 +66,10 @@ the rules of individual mechanics that it joins in.
 | `rules/sections/shopping.md` | Money and shopping | ″ | `paid` (`shopping-paid[-commissions].md`), `spending-tools` (`shopping-spending-tools[-commissions].md`), `money` (the pack's `money.md`), `order-book` (`shopping-order-book.md` where the world has shops, else empty) |
 | `rules/sections/shopping-order-book.md` | The order books: what `household.orders` and `shop-orders` show | `ruleset.rules/order-book` | |
 | `rules/sections/building.md` | Building, only with an architect | ″ | `sizes`, `fee-percent` |
-| `rules/sections/posts.md` | A post already held changes only by appointment (hiring still takes on newcomers), and whom to ask; only when some position in the run has `:appoints` | ″ | |
-| `rules/sections/hiring.md` | Hiring | ″ | `hiring` (`rules/hiring.md`) |
+| `rules/sections/posts.md` | A post already held changes only by appointment (newcomers sent for are taken on with `engage`), and whom to ask; only when some position in the run has `:appoints` | ″ | |
+| `rules/sections/sending-for.md` | Finding people and sending for them: `recommend` with `wanted`, `send-for`, settling it at arrival (`engage`, `order-work`, `spend-time`), papers and belongings, leaving | `contacts/rules` | `lead-hours` |
 | `rules/sections/invitations.md` | Invitations, only with visits | ″ | `visits` (`rules/visits.md`) |
-| `rules/sections/contacts.md` | Tradespeople (contacts, `recommend` with `wanted`), only with visits | `contacts/rules` | `lead-hours` |
 | `rules/physical.md` | Physical status: hindered faculties, impediments | `physical/rules` | |
-| `rules/hiring.md` | How hiring works: staff found with `recommend`, sent for, settled at arrival with `engage`; papers, belongings, leaving | `hiring/rules` | |
 | `rules/visits.md` | How invitations and guests work | `visits/rules` | `post` (`rules/visits-post.md` or `""`), `calendar` (`rules/visits-calendar.md` or `""`) |
 
 ## Tool descriptions (`docs/`)

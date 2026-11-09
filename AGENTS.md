@@ -82,7 +82,7 @@ These came from the design conversation; respect them unless told otherwise.
   list). Shape behaviour with instructions, and review generated content at the point it's made
   (`git diff` after `roll-cast!`). Regexes on identifiers and formats are fine.
 - **Item identity only where a mechanic needs it.** Code depends on a particular item only for
-  written characters (`:candidate-id`, which holds the contact id of the person it's for), goods sent up by a shop (`:order-id`) and goods waiting at
+  written characters (`:contact-id`, which holds the contact id of the person it's for), goods sent up by a shop (`:order-id`) and goods waiting at
   a shop (`:waiting`): shortcuts that remind agents of timelines and ownership, so they don't
   spin out over people they can't meet or things they can't find (`items/identity-bound?`).
   Don't add mechanics that depend on a particular item's identity unless there's no other way.

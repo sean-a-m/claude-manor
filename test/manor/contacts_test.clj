@@ -16,6 +16,7 @@
             [manor.mechanics.calendar :as calendar]
             [manor.mechanics.contacts :as contacts]
             [manor.mechanics.contacts.judge :as judge]
+            [manor.mechanics.items :as items]
             [manor.mechanics.physical :as physical]
             [manor.mechanics.space :as space]
             [manor.mechanics.visits :as visits]
@@ -127,6 +128,12 @@
             (is (str/includes? situation "about this: a piano tuner for the drawing-room piano"))
             (is (str/includes? situation ", of Ely."))
             (is (str/includes? situation "`take-leave`"))))
+        (testing "the mock writer gave him his tools, with no paper marked as his reference"
+          (let [things (items/all world)]
+            (is (= #{"Tool bag" "Spanner" "Hammer"} (set (map :name things))))
+            (is (every? #(= id (:owner %)) things))
+            (is (not-any? :contact-id things))
+            (is (not (contains? (contacts/contact world "contact-1") :pending-belongings)))))
         (testing "the arrival, seen by the earl, says what he came about"
           (let [arrived (first (filter #(= id (get-in % [:data :guest])) (of-type run :visits/arrived)))]
             (is (contains? (:visible-to arrived) "lord-claudeworth"))

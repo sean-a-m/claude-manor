@@ -227,12 +227,12 @@
   "The things contact `c`'s person `id` brings the first time they come, from
   the descriptions written with them (:pending-belongings), carried and
   seen only by them; a paper marked as their reference carries the
-  contact's id as its :candidate-id. Then the descriptions are gone, so
+  contact's id as its :contact-id. Then the descriptions are gone, so
   coming again brings nothing more. `world` has them arrived. Nil if there
   are none waiting."
   [world id c]
   (when (contains? c :pending-belongings)
-    (conj (belongings/arrival-events world id (:pending-belongings c) {:candidate-id (:id c)})
+    (conj (belongings/arrival-events world id (:pending-belongings c) {:contact-id (:id c)})
           {:type :people/belongings-brought :visible-to :system :data {:contact (:id c)}})))
 
 (defn held-reason
@@ -357,7 +357,7 @@
   "An ordinary writing job may name a contact the writer knows of (a
   character for someone sent for a place). Snapshot only the writer's
   knowledge, never the contact's record, for the scene judge; what's made
-  carries the contact's id as its :candidate-id. Contacts live in
+  carries the contact's id as its :contact-id. Contacts live in
   [:state :contacts] (manor.mechanics.contacts, which requires this)."
   [spec]
   (let [contact (fn [world args] (when-let [id (not-empty (:contact args))] (get-in world [:state :contacts id])))]
@@ -374,7 +374,7 @@
                                  "you must know of that contact through a recommendation before writing their character"))))
                :effect (fn [world actor args]
                          (let [c (contact world args)
-                               reference (when c {:candidate-id (:id c) :name (:name c) :line (:line c)
+                               reference (when c {:contact-id (:id c) :name (:name c) :line (:line c)
                                                   :reputation (get-in world [:state :reputations actor (:id c)])})]
                            (mapv #(if (and reference (= :item/work-begun (:type %)))
                                     (-> % (assoc :visible-to :system) (assoc-in [:data :reference] reference)) %)

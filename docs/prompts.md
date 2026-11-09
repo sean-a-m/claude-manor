@@ -173,8 +173,8 @@ The engine's replacement for someone's `:situation` when their post changes, or 
 | Template | Used for | Rendered by | Parameters |
 |---|---|---|---|
 | `writers/persona.md` | The polish: circumstances, persona, manner and appearance from a person's traits, optional starting goals/aspects, and explicitly enabled first-arrival belongings | `people/instructions` | `max-circumstance`, `advised-persona`, `max-persona`, `max-manner`, `advised-appearance`, `max-appearance`, `max-goals`, `goal-limit`, `max-aspects`, `advised-aspect`, `belongings` |
-| `writers/belongings.md` | Conditional first-arrival object contract, rendered inside the private persona writer, not another model call | `people/instructions` | `max-roots`, `max-objects`, `max-name`, `max-desc`, `max-item-aspects`, `max-aspect`, `setting-guidance` |
-| `writers/belongings-setting.md` | Setting-specific recommendations inside that contract; shared modest-effects guidance, overridden by England for a servant's box and appropriate written character | `people/instructions` | |
+| `writers/belongings.md` | Conditional first-arrival object contract, rendered inside the private persona writer, not another model call: what someone sent for brings, decided from the arrival context's line and wanted (a box and character for a place-seeker, tools for a tradesperson), and `reference?` for at most one paper on character or credentials | `people/instructions` | `max-roots`, `max-objects`, `max-name`, `max-desc`, `max-item-aspects`, `max-aspect`, `setting-guidance` |
+| `writers/belongings-setting.md` | Setting-specific recommendations inside that contract; shared modest-effects guidance, overridden by England for a servant's box and appropriate written character, and a tradesman's tools | `people/instructions` | |
 | `writers/appearance.md` | A runtime person's appearance | `people/appearance-request` | `advised-appearance`, `max-appearance` |
 
 ## The GM (`gm/`)

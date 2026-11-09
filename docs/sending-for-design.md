@@ -440,6 +440,23 @@ Each phase ends with `clojure -M:test` passing and a mock run of `claudeworth-sm
    Tests in `claudeworth_test.clj` (`lodging`, `claudeworth-worlds-have-lodging-at-the-crown`, and
    the no-lodging refusal in `sleeping-pastimes-and-rousing`).
 2. **Belongings** for everyone written, the reference marker renamed, the mock polish varied.
+   **Done:** the answer field `:candidate-reference?` is `:reference?` and the item key
+   `:candidate-id` is `:contact-id` (items schema, `identity-bound?`, views, `work`'s reference
+   job, `hiring/first-arrival-events` and `reference-activity`, tests, `AGENTS.md`,
+   `scenario-authoring.md`). `writers/belongings.md` assumes no interview: from line and wanted the
+   writer decides (a box and character for someone seeking a place, the tools of the trade and
+   perhaps a card for a tradesperson, little for others), with `reference?` for at most one paper
+   on character or credentials, used only when fitting, and a paragraph telling a tradesperson's
+   own tools from the forbidden stock. The England fragment adds the tradesman's tools.
+   `people/mock-polish` gives a box with a character (marked when sent for) when the line contains
+   "seeking a place" or is blank, otherwise a tool bag with a spanner and hammer. Differences from
+   the plan: `belongings/problem` still allows `reference?` only with a `:sent-for` arrival
+   context, which is now every first-arrival writing, so "anyone written this way" holds; no
+   `:candidate` arrival kind remained to remove; `writers/persona.md` needed no change (its
+   belongings mention is generic); made-review's `candidate-ids` (review candidates) kept its name.
+   Tests: `arrival_belongings_test` (renames, `the-mock-writer-varies-with-the-line`, the
+   character's `:contact-id` is the contact's), `contacts_test` (the piano tuner arrives with tools
+   and no reference).
 3. **Prompts and docs:** the merged rules section, the docs of section 6, `works`' plan text, worlds'
    GM texts, `scenario-authoring.md`, `prompts.md`.
 4. **One short real run** of `claudeworth-small` (8–12 rounds, `:max-cost` 0.20) starting with a

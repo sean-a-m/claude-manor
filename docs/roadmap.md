@@ -821,7 +821,10 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   only, contacts own all six tools, new contacts bring first-arrival belongings (mock-tested).
   Phase 1b done: locations with `:lodging true` where anyone may `sleep`, named in the refusal and
   the rules; the Crown's back chamber in the three Claudeworth worlds (mock-tested). Phase 2
-  (belongings for everyone) next.
+  done: the writer decides belongings from line and wanted (a box and marked character for
+  someone seeking a place, tools for a tradesperson), the marker is `:reference?` and the item key
+  `:contact-id`, the mock polish varies with the line (mock-tested). Phase 3 (prompts and docs)
+  next.
 
 ## C. Known issues and small fixes
 

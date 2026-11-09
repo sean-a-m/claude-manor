@@ -29,7 +29,7 @@
 (def kit
   [{:name "Servant's box" :desc "A worn wooden box." :container :closed
     :aspects {:contents "Spare linen and mending things."}
-    :contents [{:name "Written character" :desc letter-text :candidate-reference? true}]}
+    :contents [{:name "Written character" :desc letter-text :reference? true}]}
    {:name "Keepsake" :desc "A small wooden keepsake."}])
 
 (def arrival-options
@@ -60,9 +60,9 @@
                     [(assoc (first kit) :container :locked)]
                     [(assoc-in (first kit) [:contents 0 :container] :closed)]
                     [(assoc-in (first kit) [:contents 0 :contents] [])]
-                    [(assoc-in (first kit) [:contents 0 :candidate-reference?] "not-a-boolean")]
-                    [(assoc-in (first kit) [:contents 0 :candidate-reference?] true)
-                     {:name "Other paper" :desc "Another document." :candidate-reference? true}]
+                    [(assoc-in (first kit) [:contents 0 :reference?] "not-a-boolean")]
+                    [(assoc-in (first kit) [:contents 0 :reference?] true)
+                     {:name "Other paper" :desc "Another document." :reference? true}]
                     [{:name " " :desc "An object."}]
                     [{:name "Thing" :desc " "}]
                     [{:name (apply str (repeat 61 "x")) :desc "An object."}]
@@ -75,14 +75,14 @@
       (is (:error (check-answer (assoc writer-args :belongings objects))) (pr-str objects))))
   (testing "unknown state keys are dropped and nested argument spellings normalised"
     (let [objects [{:name " Box " :desc " A box. " :container "closed" :owner "employer" :id "stolen-id"
-                    :contents [{:name "Paper" :desc " A letter. " :candidate_reference? true :holder "employer"}]}]
+                    :contents [{:name "Paper" :desc " A letter. " :reference? true :holder "employer"}]}]
           answer (get-in (check-answer (assoc writer-args :belongings objects)) [:verdict :belongings])]
       (is (= [{:name "Box" :desc "A box." :container :closed
-               :contents [{:name "Paper" :desc "A letter." :candidate-reference? true}]}] answer))))
+               :contents [{:name "Paper" :desc "A letter." :reference? true}]}] answer))))
   (testing "reference markers require someone sent for, including false flags"
     (doseq [flag [true false]]
       (is (:error (check-answer (assoc arrival-options :arrival-context {:kind :guest})
-                               (assoc writer-args :belongings [{:name "Paper" :desc "A paper." :candidate-reference? flag}]))))))
+                               (assoc writer-args :belongings [{:name "Paper" :desc "A paper." :reference? flag}]))))))
   (testing "default callers neither require nor consume unsolicited belongings"
     (let [result (check-answer {} (assoc writer-args :belongings kit))
           request (people/polish-request {:record {}})
@@ -164,7 +164,7 @@
           (is (= {:contents "Spare linen and mending things."} (:aspects box)))
           (is (some #(= (:id box) (:id %)) (get-in (prompt/agent-view (:scenario run) world id) [:you :carrying]))))
         (testing "the written character carries the contact's id"
-          (is (= "contact-1" (:candidate-id letter)))
+          (is (= "contact-1" (:contact-id letter)))
           (is (items/identity-bound? letter))
           (is (not (items/identity-bound? box))))
         (doseq [viewer [earl "hale"]]
@@ -210,7 +210,7 @@
         (hiring-test/until! run 7)
         (is (not (contains? (hiring-test/the-contact (e/world run)) :pending-belongings)))
         (is (= (count objects) (count (items/all (e/world run)))))
-        (is (not-any? :candidate-id (items/all (e/world run))))
+        (is (not-any? :contact-id (items/all (e/world run))))
         (hiring-test/replay! run)
         (finally (e/stop-run run))))))
 
@@ -229,10 +229,26 @@
         (let [world (e/world run)
               id (hiring-test/maid world)]
           (is (seq (items/held-by world id)))
-          (is (= ["contact-1"] (mapv :candidate-id (filter :candidate-id (items/all world)))))
+          (is (= ["contact-1"] (mapv :contact-id (filter :contact-id (items/all world)))))
+          (is (= (:id (hiring-test/the-contact world)) (:contact-id (item-by-name world "Written character")))
+              "the place-seeker's marked character is tied to her contact")
           (is (not-any? #(= :adjudication/failed (:type %)) (e/events run))))
         (hiring-test/replay! run)
         (finally (e/stop-run run))))))
+
+(deftest the-mock-writer-varies-with-the-line
+  (let [things (fn [line] (:belongings (:args (people/mock-polish {:record {} :belongings-mode :first-arrival
+                                                                    :arrival-context {:kind :sent-for :line line :wanted line}}))))
+        all (fn [objects] (mapcat #(cons % (:contents %)) objects))]
+    (testing "someone seeking a place, or a line it can't tell, brings a box and a marked character"
+      (doseq [line ["housemaid seeking a place" nil]]
+        (is (= ["Written character"] (map :name (filter :reference? (all (things line))))))))
+    (testing "a tradesperson brings tools and no reference"
+      (let [objects (things "gas fitter")]
+        (is (= "Tool bag" (:name (first objects))))
+        (is (= 2 (count (:contents (first objects)))))
+        (is (not-any? :reference? (all objects)))
+        (is (nil? (belongings/problem objects true)))))))
 
 (deftest other-writer-callers-do-not-consume-unsolicited-items
   (let [calls (atom [])

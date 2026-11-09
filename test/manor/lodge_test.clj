@@ -76,7 +76,7 @@
           (testing "the housemaid was recommended for a place, sent for, came with her things and was engaged"
             (is (= "housemaid seeking a place" (:line p)))
             (is (seq (items/held-by world id)) "she brought her box")
-            (is (some #(= (:id p) (:candidate-id %)) (items/all world)) "and a written character")
+            (is (some #(= (:id p) (:contact-id %)) (items/all world)) "and a written character")
             (is (not (visits/from-elsewhere? world id)) "taking the place ended her visit"))
           (is (= :housemaid (:role (w/agent world id))))
           (is (= "maids-room" (get-in world [:state :bedrooms id])))

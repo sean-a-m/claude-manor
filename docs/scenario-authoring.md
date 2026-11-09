@@ -996,7 +996,7 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
   not fixed, not a store, and either `:consumable?` or `:drawn-from` (`items/absorbable?`).
   A watch or the family's silver cannot be absorbed or used up.
 - **Identity.** An item's identity matters to code only where a mechanic needs it:
-  `:candidate-id` (a written character, holding the contact id of the person it's for), `:order-id` (goods sent up) and `:waiting` (goods kept
+  `:contact-id` (a written character, holding the contact id of the person it's for), `:order-id` (goods sent up) and `:waiting` (goods kept
   at a shop), checked by `items/identity-bound?`. These are shortcuts that remind agents of
   timelines and ownership. Such items are never turned into aspects. Everything else may
   become an aspect of something and be made again from one, and two similar things getting
@@ -2308,17 +2308,23 @@ must exist. Include `hiring/rules` (`rules/hiring.md`) in character briefs.
   :line :wanted}` from the recommendation. There is no extra model call. The answer must include
   `:belongings`, even `[]`; writers not asked ignore unsolicited belongings. `writers/persona.md`
   includes the conditional `writers/belongings.md` contract and pack `writers/belongings-setting.md`
-  guidance (England strongly prefers a written character for appropriate previous service, usually a
-  separate letter inside an ordinary servant's box). This is prompt guidance, not a compulsory kit.
+  guidance. No interview is assumed: from the line and wanted the writer decides what they'd bring
+  (someone seeking a place in service a box and perhaps a written character, a tradesperson the tools
+  of the trade they'd carry and perhaps a card, others little; tools are belongings, not the
+  forbidden stock). England strongly prefers a written character for appropriate previous service,
+  usually a separate letter inside an ordinary servant's box. This is prompt guidance, not a
+  compulsory kit. The mock polish (`people/mock-polish`) gives a box with a marked character when
+  the line says "seeking a place" (or is blank), otherwise a tool bag with two tools and no reference.
   Each description has `:name` (1–60 characters) and `:desc` (1–400), optionally `:container`
   (`:open`/`:closed`), `:contents`, `:aspects`, `:consumable` (boolean), and
-  `:candidate-reference?` (boolean, only with a `:sent-for` arrival context, at most one true).
+  `:reference?` (boolean, only with a `:sent-for` arrival context, at most one true: the one paper
+  speaking to this person's character or credentials, used only when it fits).
   At most four roots and six total objects; contents require a container, and child
   containers/contents are forbidden. Only structure is checked. The checked descriptions are kept
   on the contact as `:pending-belongings`, never in views, recommendations or reputation requests.
   No item exists until the person first arrives: then `hiring/first-arrival-events` (called by
   visits' arrival) makes ordinary owner-only `:item/added` events (roots carried by them, children
-  inside their parent), a flagged paper gets the contact's id as `:candidate-id`, and
+  inside their parent), a flagged paper gets the contact's id as `:contact-id`, and
   `:people/belongings-brought` removes the descriptions. A cap-blocked or physically blocked
   arrival consumes nothing; returning, replay, loading and branching make nothing more.
 - **Offers and posts.** `:people/offered` keeps an offer in `[:state :place-offers]`;
@@ -2341,9 +2347,9 @@ must exist. Include `hiring/rules` (`rules/hiring.md`) in character briefs.
   only with a clock) and `hiring/take-leave-doc`.
 - **A written character** is ordinary work: `spend-time {doing hours? contact?}` may name a contact
   the writer knows of (`:known-to`); omit `contact` (or give an empty string) for other activities.
-  Its job snapshots only the writer's knowledge (contact id as `:candidate-id`, name, line, their
+  Its job snapshots only the writer's knowledge (contact id as `:contact-id`, name, line, their
   reputation) into `:reference`, which reaches the scene judge. Everything made by that job carries
-  `:candidate-id` (the contact id), shown in detailed item views. Give the paper with `give`.
+  `:contact-id` (the contact id), shown in detailed item views. Give the paper with `give`.
 
 #### Setting packs and prompt templates
 

@@ -325,11 +325,11 @@
                 (is (nil? (a/check spec world "hale" args)))
                 (is (= expected ((:effect spec) world "hale" args)))))
             (is (a/check spec world "hale" (assoc ordinary :contact "none")))))
-        (is (= {:candidate-id "contact-1" :name (:name c) :line "housemaid seeking a place"
+        (is (= {:contact-id "contact-1" :name (:name c) :line "housemaid seeking a place"
                 :reputation (get-in world [:state :reputations "hale" "contact-1"])}
                (:reference job)))
         (is (not (str/includes? (pr-str (:messages request)) (first (get-in c [:record :circumstances])))))
-        (is (= "contact-1" (get-in done [:data :made 0 :candidate-id])))
+        (is (= "contact-1" (get-in done [:data :made 0 :contact-id])))
         (is (= "hale" (get-in done [:data :made 0 :holder]))))
       (finally (e/stop-run run)))))
 

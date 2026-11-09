@@ -331,7 +331,26 @@ Each phase ends with `clojure -M:test` passing and a mock run of `claudeworth-sm
    docs no longer say it ends the turn. Tests in `trades_test.clj`.
 1. **Contacts.** The one record, the judge, `recommend {wanted for}`, the view; the pool goes.
    `send-for` and arrival for everyone through visits, the `:caller` role, the arrival situation and
-   event, `engage` on contacts, one `take-leave`, no idle departures.
+   event, `engage` on contacts, one `take-leave`, no idle departures. In three parts, each passing
+   the suite and committed on its own; the old candidate path keeps working until 1.3:
+   - **1.1 The record and the judge, beside the old path.** `trades.clj` becomes
+     `manor.mechanics.contacts` (with `contacts/judge.clj`), the trade judge the recommendation judge
+     (4.2: `line` for `trade`, the place-or-job rule for people on the map, placed contacts left out
+     of its list). `recommend` takes `wanted` in place of `trade`, and still `position` for the old
+     candidate path until 1.3. Contacts keep `:wanted` per knower (4.1, decision 11). `send-for` takes
+     `about`, defaulting to `wanted`; the lead time is 2 hours. `:tradesman` becomes `:caller` in both
+     packs and everywhere it's named. The view's `contacts` show line and wanted (4.9).
+   - **1.2 Settling at arrival.** The arrival situation from a template (`situations/sent-for.md`),
+     the arrival event saying what they came about (4.5), the `:caller` text, `engage`, `send-away`
+     and `accept-place` on contacts here by `:sent-for` with no post, refusing established agents
+     (4.7), and accepting ends the visit. The trades idle departure goes: contacts leave with visits'
+     `take-leave` (4.8).
+   - **1.3 The pool goes.** `recommend {wanted for}` only. The pool, its events and statuses,
+     `recommend!`, `reusable`, hiring's arrival, tick, `sent-for`, its own `take-leave` and return
+     calendar entries go (section 5); the view drops `hiring.candidates`; visits, `visits/judge` and
+     appointments read contacts. The mock policy and mock days use `wanted`. To keep belongings
+     working, new contacts are written with first-arrival belongings using the existing writer
+     prompt, and the reference marker points at the contact id (phase 2 does the rest).
 1b. **Lodging** (4.11): the `:lodging` flag, `sleep`, the refusal, the three Claudeworth world files.
    Independent of the rest; can go before or after.
 2. **Belongings** for everyone written, the reference marker renamed, the mock polish varied.

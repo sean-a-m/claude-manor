@@ -26,6 +26,7 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/relations-design.md` | per-person relations: a capped queue of judged feelings toward each other person, the user's decisions of 2026-10-29; built and mock-tested |
 | `docs/events-design.md` | in-world calendar contract and outcome: private/public entries and pre-turn GM review |
 | `docs/visits-design.md` | guests and visits (invitations by post, messenger or in person, GM visits, guests from the village or elsewhere, authored visits in world files); phases 1–3 implemented |
+| `docs/sending-for-design.md` | draft: one `recommend {wanted}` and `send-for` for staff and tradespeople, a judge for who is meant, settled at arrival by `engage` or `order-work`; replaces the candidate/contact split |
 | `docs/trades-design.md` | tradespeople and merchants found through `recommend` with a `trade`, contacts and `send-for`; phases 1–2 implemented and mock-tested |
 | `docs/physical-status-design.md` | physical status (bound, gagged, blind, deaf, unconscious, dead), impediments, the immediate `act-on`; built and mock/offline-tested, ordinary real-model compatibility smoke checked |
 | `docs/settings-design.md` | one ruleset for many settings: setting packs, prompt templates, money specs and private accounts, `manor.ruleset`, a palace skeleton; progress in its section 8 |

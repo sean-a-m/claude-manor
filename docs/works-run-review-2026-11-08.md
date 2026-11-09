@@ -59,6 +59,8 @@ Design: `docs/fixtures-design.md`. Roadmap: B20.
 
 ## C. Neighbouring mechanics that works brought up
 
+Items 11–14 are taken up by [sending-for-design.md](sending-for-design.md) (roadmap B21).
+
 11. **`recommend` with `position` used when a job was wanted.** Three times, someone asked for
     a joiner to mend the split stair tread, and the person asked recommended an
     estate-carpenter *candidate* (`recommend {position: "estate-carpenter"}`) rather than a

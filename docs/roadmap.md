@@ -799,6 +799,18 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   [works-run-review-2026-11-08.md](works-run-review-2026-11-08.md), for planning fixes.
 - **Next:** fixes chosen from that list; phase 4 (several phases and workers, lead times) later.
 
+### B21. Sending for people: one path for staff and tradespeople
+
+- **Why:** `recommend` with `position` and with `trade` made two kinds of record that arrived and
+  were dealt with differently, so one wrong choice in a conversation sent everything after it down
+  the wrong path (works review items 11 and 14). Visitors staying the night had nowhere to sleep
+  (item 13).
+- **Design:** [sending-for-design.md](sending-for-design.md), with the user's decisions of
+  2026-11-08: `recommend {wanted for}` and a judge for who is meant, one contact record, `send-for`
+  for everyone (2 hours, not turn-ending, offered on speaking turns), arrival as a `:caller`
+  settled by `engage` or `order-work`, belongings that suit the person, visitors who decide when
+  to go, and lodging marked in world files. Not started; phase 0 (the speaking-turn tools) first.
+
 ## C. Known issues and small fixes
 
 1. **Act bridges aren't re-checked when executed.** `:valid?` runs when the request is made; the

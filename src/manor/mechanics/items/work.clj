@@ -164,7 +164,7 @@
                      it (items/new-item world
                                         (cond-> (assoc (select-keys m [:name :desc :aspects]) :consumable? consumable)
                                           (:owner first-used) (assoc :owner (:owner first-used))
-                                          (:reference job) (assoc :candidate-id (get-in job [:reference :candidate-id]))
+                                          (:reference job) (assoc :contact-id (get-in job [:reference :contact-id]))
                                           (and from (not consumable)) (assoc :drawn-from from)
                                           in (assoc :in in)
                                           (and (not in) held?) (assoc :holder actor)

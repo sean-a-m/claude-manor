@@ -28,6 +28,12 @@ Design: `docs/fixtures-design.md`. Roadmap: B20.
    gave it himself.
 3. **The operator couldn't see works.** The scene view now has a works panel in the toolbar,
    badges on rooms with open works, and works in the place and person inspectors.
+4. **Speaking turns offered hiring's own `recommend` and no `send-for`** (items 11 and 14).
+   A line's `recommend` only took `position`, so every wrong `recommend {position:
+   "estate-carpenter"}` in the run was made on a speaking turn. Speaking turns now take
+   `recommend`, `send-for` and the place tools from the scenario's installed actions (trades'
+   `recommend` with `trade`), and `send-for` is free, so it's offered there too (sending-for
+   phase 0).
 
 ## B. Works
 
@@ -59,22 +65,29 @@ Design: `docs/fixtures-design.md`. Roadmap: B20.
 
 ## C. Neighbouring mechanics that works brought up
 
+Items 11–14 are taken up by [sending-for-design.md](sending-for-design.md) (roadmap B21).
+
 11. **`recommend` with `position` used when a job was wanted.** Three times, someone asked for
     a joiner to mend the split stair tread, and the person asked recommended an
     estate-carpenter *candidate* (`recommend {position: "estate-carpenter"}`) rather than a
     tradesperson (`trade`). The candidates were announced as seeking a post, arrived "to talk
     about a place" carrying written characters, and were hired: Stanley Rudd and Horace Barker
     as estate carpenter, and Levi Moss as odd man. Gilbert Thorne, found with `trade`, arrived
-    correctly as a visitor with no reference and no post.
+    correctly as a visitor with no reference and no post. Addressed: one `recommend {wanted}`,
+    and whatever was asked, the person sent for is settled at arrival with `engage` or
+    `order-work`; see roadmap B21.
 12. **The same post filled twice by different employers.** The earl hired Rudd and the
-    countess hired Barker, both as estate carpenter, within two hours of each other.
+    countess hired Barker, both as estate carpenter, within two hours of each other. By design:
+    duplicates are allowed (sending-for-design decision 3); see roadmap B21.
 13. **Visitors who stay overnight have nowhere to sleep.** Open work keeps a tradesperson from
     elsewhere from going home, so Thorne stayed. His `sleep` was refused three times ("go to a
     bedroom first"). He used `spend-time` for "sleeping in the lumber room" (a room assigned to
-    the cook and the maids) and asked the butler to "put it in the house's book".
+    the cook and the maids) and asked the butler to "put it in the house's book". Fixed: lodging
+    (`:lodging true`, the Crown's back chamber), named in `sleep`'s refusal and the rules; see
+    roadmap B21.
 14. **`send-for` isn't offered on speaking turns.** Pugh and the earl both noted in their
     thoughts that they couldn't send for Thorne during the conversation that settled it, and
-    did it on their next turn. It cost only a short delay.
+    did it on their next turn. It cost only a short delay. Fixed: see A4.
 15. **What someone is given in a conversation may not show in their view until later
     (unconfirmed).** The earl was handed Rudd's written character during a conversation and
     thought "my carrying list isn't refreshed"; he also had no way to read it.

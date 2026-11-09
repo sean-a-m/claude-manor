@@ -57,7 +57,10 @@
 (defn- ordered-ids [world] (sort-by judge/visit-number (keys (visits world))))
 
 (defn- meeting-place [world] (get-in world [:state :meeting-place]))
-(defn- house [world] (:house (config world) "the house"))
+(defn house
+  "The house's name, from the visits config."
+  [world]
+  (:house (config world) "the house"))
 
 (defn house-area
   "The meeting place's walking area: the carriage sweep and every room."
@@ -216,7 +219,7 @@
   now: the host's at once, and the guest's if they're told now (`:deliver`
   is this round)."
   [world {:keys [guest at deliver known-to by via] :as spec}]
-  (let [v (cond-> (merge (select-keys spec [:guest :host :by :via :stay :reason :bedroom :returning?])
+  (let [v (cond-> (merge (select-keys spec [:guest :host :by :via :stay :reason :bedroom :returning? :situation])
                          {:id (str "visit-" (inc (count (visits world))))
                           :at (str at) :arrive (round-of (:clock world) at) :deliver deliver
                           :wake (wake-round world guest at) :status :scheduled
@@ -276,10 +279,11 @@
          :else (if (= :authored (:by data)) ", from the world file" (str ", arranged by the " (name (:by data)))))
        ": " (:stay data) "."))
 (defmethod n/describe :visits/arrived [{:keys [data]} names]
-  (let [{:keys [guest at known-as visitor?]} data]
+  (let [{:keys [guest at known-as visitor? about]} data]
     (cond (nil? at) (str "The guest of " (:visit data) " has come.")
           visitor? (str "A visitor arrives at the " (n/place names at) ": " (n/who names guest) " (" guest ")"
-                        (when known-as (str ", " known-as)) ".")
+                        (when known-as (str ", " known-as))
+                        (when about (str ", sent for by " (n/who names (:host data)) " about this: " about)) ".")
           :else (str (n/who names guest) " (" guest ") arrives at the " (n/place names at) "."))))
 (defmethod n/describe :visits/ended [{:keys [data]} _] (str (:visit data) " has ended: the guest has gone."))
 (defmethod n/describe :visits/lapsed [{:keys [data]} _] (str (:visit data) " has lapsed: the guest didn't come."))
@@ -347,37 +351,45 @@
   (str/lower-case (get-in world [:state :positions position :title] (name position))))
 
 (defn- returning-situation
-  "A short situation, from their record, for a former candidate or courier
-  arriving as a guest, in place of the one hiring or deliveries gave them
-  (\"You have come about the cook place…\"). A candidate whose pool record
-  was evicted (role :none, no record left) gets a plain one. Nil for anyone
-  else, who keeps their own."
+  "A short situation for someone sent for once, or a courier, arriving as
+  a guest, in place of the one they came with before (\"…sent for you to
+  come about…\"). Someone once of a household and dismissed (role :none)
+  gets a plain one. Nil for anyone else, who keeps their own."
   [world guest]
-  (let [p (hiring/for-agent world guest)
-        [shop c] (first (filter #(= guest (:agent-id (val %))) (sort-by key (get-in world [:state :couriers]))))
-        lives (or (:candidate-home p) (:lives p) (get-in c [:person :lives]) (:lives (w/agent world guest)))
+  (let [c (hiring/contact-of world guest)
+        [shop courier] (first (filter #(= guest (:agent-id (val %))) (sort-by key (get-in world [:state :couriers]))))
+        lives (or (:lives (w/agent world guest)) (:based c) (get-in courier [:person :lives]))
         you (str "You are " (agent-name world guest) (when lives (str ", of " lives)))]
-    (cond p (str you ". You came to " (house world) " once before, about the "
-                 (str/join ", " (map #(position-title world %) (:seeks p))) " place.")
-          c (str you "; you carry for the " (:name (space/location world shop) shop) ".")
+    (cond (and c (not (:local? c))) (str you ", " (:line c) ". You have been to " (house world) " before.")
+          courier (str you "; you carry for the " (:name (space/location world shop) shop) ".")
           (= :none (:role (w/agent world guest))) (str you ". You have been to " (house world) " before."))))
 
 (defn- coming
   "An away guest, once the visit is due, arrives at the meeting place, if
   there's room for another active person (else they wait): seen by those
-  there, the host wherever they are, and themselves. The named bedroom is theirs."
+  there, the host wherever they are, and themselves, and for a visit by
+  :sent-for with what about. Their situation is the visit's own, if it has
+  one (contacts gives it), else `returning-situation`; coming back when they
+  said they would, they keep their own. Someone sent for who
+  comes for the first time brings what was written for them
+  (hiring/first-arrival-events). The named bedroom is theirs."
   [scenario world v]
   (let [guest (:guest v)
         at (meeting-place world)]
     (when (and (= :scheduled (:status v)) (>= (:round world) (:arrive v)) (hiring/can-arrive? world guest)
                (space/location world at) (hiring/room-for-arrival? world))
       (let [{:keys [events]} (hiring/arrival scenario world at {:id guest :visible-to :system
-                                                               :situation (returning-situation world guest)})]
+                                                               :situation (or (:situation v)
+                                                                              (when-not (= :returning (:by v))
+                                                                                (returning-situation world guest)))})
+            events (into events (when-let [c (hiring/contact-of world guest)]
+                                  (hiring/first-arrival-events (apply-all world events) guest c)))]
         (cond-> (conj events {:type :visits/arrived
                               :visible-to (into (conj (space/present world at) guest) (remove nil?) [(:host v)])
                               :data (cond-> {:visit (:id v) :guest guest :at at
                                              :visitor? (not (positions/household-member? world guest))}
-                                      (:known-as (w/agent world guest)) (assoc :known-as (:known-as (w/agent world guest))))})
+                                      (:known-as (w/agent world guest)) (assoc :known-as (:known-as (w/agent world guest)))
+                                      (sent-for? v) (assoc :host (:host v) :about (:stay v)))})
           (:bedroom v) (conj (positions/bedroom-assigned guest (:bedroom v))))))))
 
 (defn- ending
@@ -584,12 +596,14 @@
       (into [(channel-event world actor (:data (first scheduled)))] scheduled))))
 
 (defn sent-for-events
-  "`actor` sends for `guest` (manor.mechanics.trades) to do `job`, expected
-  at the meeting place `at`: a visit by :sent-for with the job as its stay.
-  Someone about is told now and makes their own way, as an invited guest
-  does; someone away arrives at the meeting place then."
-  [world actor {:keys [guest job at]}]
-  (scheduled-events world {:guest guest :host actor :by :sent-for :at at :deliver (:round world) :stay job}))
+  "`actor` sends for `guest` (manor.mechanics.contacts) `about` something,
+  expected at the meeting place `at`: a visit by :sent-for with `about` as
+  its stay. Someone about is told now and makes their own way, as an invited
+  guest does; someone away arrives at the meeting place then, with
+  `situation` (if given) as theirs."
+  [world actor {:keys [guest about at situation]}]
+  (scheduled-events world (cond-> {:guest guest :host actor :by :sent-for :at at :deliver (:round world) :stay about}
+                            situation (assoc :situation situation))))
 
 (defn arranged-events
   "A visit the GM or operator (`source`) arranges for an existing person: if
@@ -712,6 +726,14 @@
                                        :reason "Coming back, as they said when they left."}
                                 (:known-to v) (assoc :known-to (:known-to v)))))))
 
+(defn ended-events
+  "Events ending `guest`'s visits that are :here: they're no longer a
+  visitor (they've gone, or taken a place, manor.mechanics.contacts)."
+  [world guest]
+  (for [v (map #(visit world %) (ordered-ids world))
+        :when (and (= guest (:guest v)) (= :here (:status v)))]
+    (status-event :visits/ended v)))
+
 (defn leave-events
   "A guest from elsewhere goes home, towards where they live, and their
   visits here end; with a return time, a visit for their return begins."
@@ -721,16 +743,13 @@
           (cons {:type :people/departed :visible-to (space/here world actor)
                  :data (cond-> {:id actor :reason "takes leave"
                                 :towards (or (:lives (w/agent world actor))
-                                             (:candidate-home (hiring/for-agent world actor))
-                                             (:lives (hiring/for-agent world actor)) "elsewhere")}
+                                             (:based (hiring/contact-of world actor)) "elsewhere")}
                          at (assoc :returns {:at (meeting-place world) :when (clock/when-label world at)}))}
-                (for [v (map #(visit world %) (ordered-ids world))
-                      :when (and (= actor (:guest v)) (= :here (:status v)))]
-                  (status-event :visits/ended v))))))
+                (ended-events world actor)))))
 
 (defn dismissed?
   "Was `id` dismissed (manor.mechanics.appointments): no post, but an
-  :employer who ended it? Someone who never held one, a candidate, wasn't."
+  :employer who ended it? Someone who never held one wasn't."
   [world id]
   (let [p (positions/post world id)]
     (boolean (and (= :none (:position p)) (:employer p)))))
@@ -743,33 +762,27 @@
 (defn dismissed-leave-events
   "Someone dismissed goes, from wherever they are, out of the mapped area
   towards their home, with no return; any visit of theirs here ends. A
-  hired candidate's record is away again, so they can be sent for."
+  contact's person can be sent for again."
   [world actor]
-  (let [p (hiring/for-agent world actor)]
-    (cond-> (mapv #(cond-> % (= :people/departed (:type %)) (assoc-in [:data :off-map?] true))
-                  (leave-events world actor {}))
-      p (conj {:type :people/candidate-updated :visible-to :system
-               :data {:id (:id p) :changes {:status :away :seen? true}}}))))
+  (mapv #(cond-> % (= :people/departed (:type %)) (assoc-in [:data :off-map?] true))
+        (leave-events world actor {})))
 
-(defn take-leave
-  "One `take-leave` for whatever brought someone: hiring's own for a
-  candidate here (`candidate-leave`, unchanged); for someone dismissed,
-  from anywhere and with no return; and for a guest from elsewhere
-  anywhere in the house's area, going home."
-  [candidate-leave]
-  (let [candidate? (fn [world actor] (boolean (and candidate-leave ((:available? candidate-leave) world actor))))]
-    {:name :take-leave :kind :final :roles :all
-     :available? (fn [world actor] (or (candidate? world actor) (dismissed? world actor) (from-elsewhere? world actor)))
-     :doc hiring/take-leave-doc
-     :args hiring/return-args
-     :valid? (fn [world actor args]
-               (cond (candidate? world actor) ((:valid? candidate-leave) world actor args)
-                     (dismissed? world actor) (dismissed-leave-reason world actor args)
-                     :else (or (leave-reason world actor) (hiring/return-reason world args))))
-     :effect (fn [world actor args]
-               (cond (candidate? world actor) ((:effect candidate-leave) world actor args)
-                     (dismissed? world actor) (dismissed-leave-events world actor)
-                     :else (leave-events world actor args)))}))
+(def take-leave
+  "One `take-leave` for whoever came from elsewhere: someone dismissed, from
+  anywhere and with no return; a guest or someone sent for, anywhere in the
+  house's area, going home."
+  {:name :take-leave :kind :final :roles :all
+   :available? (fn [world actor] (or (dismissed? world actor) (from-elsewhere? world actor)))
+   :doc hiring/take-leave-doc
+   :args hiring/return-args
+   :valid? (fn [world actor args]
+             (if (dismissed? world actor)
+               (dismissed-leave-reason world actor args)
+               (or (leave-reason world actor) (hiring/return-reason world args))))
+   :effect (fn [world actor args]
+             (if (dismissed? world actor)
+               (dismissed-leave-events world actor)
+               (leave-events world actor args)))})
 
 ;; ---------------------------------------------------------------------------
 ;; Views
@@ -784,7 +797,7 @@
         acquaintances (space/away-acquaintances world id)]
     (cond-> view
       v (assoc-in [:you :visit]
-                  (cond-> {(if (sent-for? v) :job :invited-for) (:stay v)
+                  (cond-> {(if (sent-for? v) :about :invited-for) (:stay v)
                            :arrived (clock/short-label (:clock world) (:arrived v) (:round world))}
                     (:host v) (assoc (if (sent-for? v) :sent-for-by :host) (agent-name world (:host v)))
                     (:reason v) (assoc :reason (:reason v))
@@ -905,7 +918,7 @@
 (defn actions
   "`invite`, the shared `take-leave` and the GM's tools, for `scenario`."
   [scenario]
-  (into [(invite-action scenario) (take-leave (first (filter #(= :take-leave (:name %)) hiring/actions)))] (gm-actions scenario)))
+  (into [(invite-action scenario) take-leave] (gm-actions scenario)))
 
 (defn rules
   "The rules paragraph, from the design's section 9: with the post only
@@ -928,8 +941,8 @@
   {:id-prefix "visit-" :hint "use cancel-visit"})
 
 (defn install
-  "Add visits to a scenario: `invite`, `take-leave` for candidates and guests
-  from elsewhere alike (in place of hiring's), the GM's `schedule-visit` and
+  "Add visits to a scenario: `invite`, `take-leave` for anyone from
+  elsewhere, the GM's `schedule-visit` and
   `cancel-visit`, the invitation judge (`:visits/invitee` in :adjudicators;
   it needs hiring's people writer), the tick, and the config in [:state :visit-config]: the
   defaults, the house's name from the world file's :meta :name, the

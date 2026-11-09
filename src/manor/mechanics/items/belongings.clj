@@ -15,7 +15,7 @@
    ;; Keep values through decoding so the ordinary aspect checks see bad lengths.
    [:aspects {:optional true} [:map-of {:max items/max-aspects} :keyword :any]]
    [:consumable {:optional true} :boolean]
-   [:candidate-reference? {:optional true} :boolean]
+   [:reference? {:optional true} :boolean]
    [:container {:optional true} [:enum :open :closed]]])
 
 (def schema
@@ -47,10 +47,10 @@
 (defn problem
   "Why decoded descriptions are invalid, or nil. Only structure is checked;
   the writer, not code, judges the plausibility of the possessions."
-  [objects candidate?]
+  [objects sent-for?]
   (let [all (all-objects objects)
         children (mapcat :contents objects)
-        references (filter :candidate-reference? all)
+        references (filter :reference? all)
         aspect-problem (some #(when (:aspects %) (items/aspects-problem (:aspects %))) all)]
     (cond
       (> (count all) max-objects) (str "at most " max-objects " belongings in total")
@@ -58,9 +58,9 @@
       "belongings may have only one level of contents, without child containers"
       (some #(and (contains? % :contents) (not (:container %))) objects)
       "contents require a container"
-      (and (not candidate?) (some #(contains? % :candidate-reference?) all))
-      "candidate-reference? is only available for hiring candidates"
-      (> (count references) 1) "at most one candidate reference"
+      (and (not sent-for?) (some #(contains? % :reference?) all))
+      "reference? is only available for someone sent for"
+      (> (count references) 1) "at most one object may be marked reference?"
       (some #(str/blank? %) (mapcat (juxt :name :desc) all)) "belonging names and descriptions must not be blank"
       aspect-problem aspect-problem
       (some #(some str/blank? (vals (:aspects %))) all) "belonging aspects must not be blank")))
@@ -79,13 +79,13 @@
   Roots are carried and owned by `id`; children belong inside their new parent.
   Every allocation sees prior additions, including ids retained in items-gone.
   Only the owner sees these events; normal item views govern later discovery."
-  [world id objects {:keys [candidate-id]}]
+  [world id objects {:keys [contact-id]}]
   (letfn [(add-object [[world events] object parent]
             (let [fields (cond-> (assoc (select-keys object [:name :desc :aspects :container]) :owner id)
                            parent (assoc :in parent)
                            (nil? parent) (assoc :holder id)
                            (contains? object :consumable) (assoc :consumable? (:consumable object))
-                           (and candidate-id (:candidate-reference? object)) (assoc :candidate-id candidate-id))
+                           (and contact-id (:reference? object)) (assoc :contact-id contact-id))
                   event (items/added world fields #{id})
                   item-id (get-in event [:data :item :id])]
               (reduce #(add-object %1 %2 item-id)

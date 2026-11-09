@@ -33,7 +33,7 @@ Mechanics switch themselves off by the world, not by lists: with no location off
 nothing of building; without a post office `invite` has no post. `:calendar? false` leaves the
 calendar out (and so the setting pack's holidays): Lodge does this. The world file must name its
 `:meta :meeting-place` (see World files). The scripted mock policy is
-`manor.ruleset.mock/scripted-policy`: Lodge's `mock-policy` wraps it to fill in its candidate.
+`manor.ruleset.mock/scripted-policy`: Lodge's `mock-policy` wraps it to fill in its first contact (`"@contact"`, `"@caller"`).
 `src/manor/scenarios/lodge.clj` is the small example: its own world (`resources/worlds/lodge.edn`)
 and mock day (`lodge-day.edn`). Its missing maid is each character's `:situation`, not starting
 notes. The shared catalogue includes `:mistress` (of a small house) and `:cook-general` for this
@@ -331,7 +331,7 @@ entries with the same key.
 The engine uses `:judge-model` (falling back to `:model`), with the run's reasoning, token and
 tool-choice options. An adjudicator marked `:writer? true` writes people rather than judging
 (hiring's `:people/appearance` and `:people/polish`) and uses the run's `:model` instead, so
-candidate generation doesn't inherit a judge's model. A checked call allows four total attempts (`engine.judges/max-attempts`):
+writing people doesn't inherit a judge's model. A checked call allows four total attempts (`engine.judges/max-attempts`):
 the initial answer plus up to three corrections, each retaining the prior answers and the checker's
 replies. Success stops immediately; exceptions and the existing budget checks can stop it sooner.
 `manor.mechanics.adjudication/answer` implements first-tool-call selection and replies; domain code
@@ -376,7 +376,7 @@ compare what was quoted with what was asked. At an open counter, Claudeworth off
 a customer can `converse`, the clerk checks the list then replies with prices, and the customer
 gets the quote ids and can `buy` on their next line, before speaking (a speaking-turn tool for a
 customer with unspent quotes at that shop), or later in that same turn. Anyone's speaking
-turn also offers `recommend`, to someone in that conversation, so whoever is asked for a candidate
+turn also offers `recommend`, to someone in that conversation, so whoever is asked for someone
 can answer with a real one on their line instead of making up a name.
 `buy {quote-ids hand-over from?}` is free (it doesn't end the turn) and separately debits money for up to 10 quotes at once, checked as a
 whole, and creates for each counter quote one portable item owned by the paying account
@@ -509,7 +509,7 @@ butcher and draper deliver; the general store uses `:courier :carrier`, while th
 draper use the default errand boy.
 
 Each delivering shop has one **courier**, under `[:state :couriers shop-id]` (`{:person
-:position :agent-id :arrived}`; not in hiring's pool), using the location's `:courier` position
+:position :agent-id :arrived}`; not a contact), using the location's `:courier` position
 (default `:errand-boy`; the scenario checks it's in the positions table). The system's
 `:compose` names every delivering shop's courier in round 1 with `hiring/person-record` (the
 people server only, no model call), so the shop can say who sends orders up: each entry in
@@ -996,7 +996,7 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
   not fixed, not a store, and either `:consumable?` or `:drawn-from` (`items/absorbable?`).
   A watch or the family's silver cannot be absorbed or used up.
 - **Identity.** An item's identity matters to code only where a mechanic needs it:
-  `:candidate-id` (a hiring reference), `:order-id` (goods sent up) and `:waiting` (goods kept
+  `:contact-id` (a written character, holding the contact id of the person it's for), `:order-id` (goods sent up) and `:waiting` (goods kept
   at a shop), checked by `items/identity-bound?`. These are shortcuts that remind agents of
   timelines and ownership. Such items are never turned into aspects. Everything else may
   become an aspect of something and be made again from one, and two similar things getting
@@ -1126,7 +1126,7 @@ things in it as habits ("usually in a print frock and apron").
 - **Where they come from:** a world-file agent or an `:init` agent spec may give `:aspects`
   (`worldfile/problems` and the engine check them), and the exported `map.edn` writes the live
   ones back to the file's agents. People made during a run start with none, unless the people
-  writer gave them some (hired candidates, couriers and guests from elsewhere, see People and
+  writer gave them some (people sent for, couriers and guests from elsewhere, see People and
   traits), and routines don't change them. Only work changes them (see Work and
   the judge).
 - **Who sees them:** everyone present, every turn: `:aspects` beside `:appearance` on each of
@@ -2033,6 +2033,7 @@ in `:init`:
               :detail "Coats on pegs and a worn rug."  ; optional, shown only by look (see Items)
               :aspects {:cleanliness "muddy"}         ; optional (see Locations)
               :connects-to ["bedroom" "porch"]      ; next door (:travel 0); either side is enough
+              :lodging true                         ; optional, ruleset worlds: anyone may sleep here (see Positions, posts and situations)
               :domain :house :kind :hall}           ; other keys are kept on the location
              ...]
  :routes [["porch" "green" 1]]                     ; journeys, as in :space
@@ -2116,7 +2117,7 @@ in `:init`:
   comment-preserving cast editor.
 
 A ruleset world (`manor.ruleset`) names its **meeting place** in `:meta :meeting-place`, a
-location id: where candidates, guests from elsewhere and deliveries arrive (`problems` refuses a
+location id: where people sent for, guests from elsewhere and deliveries arrive (`problems` refuses a
 world without one, or with an unknown id). Its **home area** is the meeting place's `:domain`
 (Claudeworth's `:house`), or `:meta :home-domain` (a keyword, which must be some location's
 `:domain`) when the meeting place stands outside it. The home area's bedrooms are the household's
@@ -2214,12 +2215,9 @@ data, so there's one source and no call.
   There are **no behavioural descriptors or circumstance templates**. Levels, sizes and
   faculty-selection distributions are unchanged; removing descriptor draws changes exact
   readings for old seeds. The engine passes age/sex defaults from the position catalogue.
-  The optional JSON/MCP `candidate` boolean opts potential hires into a separate
-  `:candidate-home` string **instead of** `:lives`: a dwelling and nearby off-map neighbourhood
-  from the server's data, never the internal `area` id. `:origin` retains its existing meaning
-  and generation. Other visitors, couriers and cast rolls do not opt in; their home handling
-  is unchanged. The candidate's home is generated once, retained in their base/pool record,
-  and passed to the private writer for consistency. It is background, not a new map location.
+  The optional JSON/MCP `candidate` boolean opts into a separate `:candidate-home` string
+  **instead of** `:lives`: a dwelling and nearby off-map neighbourhood from the server's data.
+  The engine no longer asks for it (contacts are based where the recommendation judge says).
 - The **character writer**, still called the **polish** (`manor.mechanics.people/polish!`), returns
   `{circumstances persona manner appearance}` in one checked model call, and optionally `goals`
   (at most 3, the aims the person starts with) and `aspects` (at most 2, how they look just now,
@@ -2277,152 +2275,81 @@ data, so there's one source and no call.
   `test-runs/roll-cast-<time>/`; preserve paid records under `old-test-runs/`.
 - Loading, branching and replay never read world files: the starting map is recorded as events.
 
-#### Runtime candidates and hiring
+#### Hiring: making people, arrivals, offers and posts
 
-Every ruleset scenario includes `manor.mechanics.hiring`. `(hiring/install scenario)` adds the
-initial state's agent cap, the visit system and the writing-job extension; candidates arrive at
-the meeting place, which the scenario's `:init` keeps at `[:state :meeting-place]` (the ruleset
-reads it from the world file's `:meta :meeting-place`). A scenario not on the ruleset
-must also include `hiring/actions`, `hiring/adjudicators`, `hiring/bridges`,
-`hiring/offline-stubs`, `people/mcp-servers`, `positions/starting-events` as `:on-spawn`,
-and project `hiring/observe` into its own observation (Claudeworth uses `:hiring`).
-Its positions must include `:none`; its meeting place must exist. Include `hiring/rules` in
-character briefs (Claudeworth and Lodge already do, for turns and conversations). These rules
-exclude recruiting established characters already living or working in the same village until
-profession changes and filling their vacated village jobs are supported. This is prompt guidance,
-not a prose validator. A new candidate may still live locally: characters may describe local
-acquaintances, but `recommend` supplies the candidate's name and details before anyone is named
-or promised. It does not select an existing villager.
+Every ruleset scenario includes `manor.mechanics.hiring`, the parts that finding and placing
+people share; finding someone, sending for them, `engage` and the answers are contacts' (the
+whole path is under "Sending for people" below; this section is its shared machinery). `(hiring/install scenario)` adds the initial state's agent cap
+(`[:state :hiring-max-agents]`), whether people new from elsewhere bring first-arrival belongings
+(`[:state :hiring-belongings?]`, true in a scenario with `:items`, even with no starting objects)
+and the writing-job extension. People from elsewhere arrive at the meeting place, which the
+scenario's `:init` keeps at `[:state :meeting-place]` (the ruleset reads it from the world file's
+`:meta :meeting-place`). A scenario not on the ruleset must also include contacts and visits,
+`hiring/adjudicators`, `hiring/bridges`, `hiring/offline-stubs`, `people/mcp-servers`,
+`positions/starting-events` as `:on-spawn`, and project `hiring/observe` into its own observation
+(the ruleset uses `:hiring`). Its positions must include `:none` and `:caller`; its meeting place
+must exist. Include `contacts/rules` (`rules/sections/sending-for.md`) in character briefs.
 
-- `recommend {position for}`: one query, one candidate. Both parties must be present
-  and distinct; self-recommendation is rejected with directions to ask someone else.
-  Claudeworth also offers it on a speaking turn, where `for` must be in the conversation.
-  Reuse a pooled/away person seeking that position in the same walking area, else generate
-  one through the people server. The raw record is kept in `[:state :pool]`, never in a
-  character's observation. The pool limit is 40, FIFO among pooled/away records not owned
-  by active agents; sent-for/here/engaged records cannot be evicted. A fully protected pool
-  refuses new recommendations. Known names, candidate ids, positions and `send-for`
-  instructions go only to the two parties. The sampled reputation belongs only to the
-  recommender, who then chooses what to say. `:none`, `:gm` and `:guest` (a visitor, see Visits)
-  aren't posts: `recommend` and `engage` refuse them ("guest is not a post"), and
-  `hiring/reference` doesn't list them.
-- **First-arrival belongings (candidates only):** `hiring/install` snapshots the scenario's
-  `:items` opt-in as `[:state :hiring-belongings?]`, including an items scenario with no
-  starting objects. Only a new hiring candidate in such a scenario opts the existing private
-  polish into `:belongings-mode :first-arrival`, with `:arrival-context` naming candidate,
-  post and interview occasion. There is no extra model call. The answer must include
-  `:belongings`, even `[]`; default/disabled writers ignore unsolicited belongings.
-  `writers/persona.md` includes the conditional `writers/belongings.md` contract and pack
-  `writers/belongings-setting.md` guidance. England strongly prefers a written character for
-  appropriate previous service, usually as a separate letter inside an ordinary servant's
-  box; ordinary remaining contents are summarised in a contents aspect, not a wardrobe list.
-  This is prompt guidance, not a compulsory kit selected or semantically checked by code.
-- Each description has `:name` (1–60 characters) and `:desc` (1–400), optionally `:container`
-  (`:open`/`:closed`), `:contents`, `:aspects` (the normal four keyed phrases, at most 200
-  characters each), `:consumable` (boolean), and `:candidate-reference?` (boolean, candidate
-  context only, at most one true). At most four roots and six total objects; contents require
-  a container, and child containers/contents are forbidden. Blank strings, bad aspects and
-  malformed structure receive the usual checked-answer correction. Argument-name
-  normalisation and unknown-key dropping apply; no model ids, holders, ownership, places,
-  order/waiting markers or arbitrary effects are accepted. No prose phrase checks are used.
-- `hiring/write-person`'s fourth argument supplies those explicit options; its existing
-  two-/three-argument callers remain disabled. Checked descriptions are kept separately in
-  private pool `:pending-belongings`, never as traits/circumstances or in recommendations,
-  reputation requests or `hiring/observe`. The public appearance writer sees no belongings.
-  Pooled reuse keeps the same descriptions. No item exists until a successful first arrival.
-  After spawning, `items.belongings/arrival-events` allocates ordinary `:item/added` events
-  against sequential temporary worlds. Roots have the new agent as holder/owner, children
-  have `:in` pointing to their new parent (and the same owner); a flagged paper gets the
-  existing pool `:candidate-id`. These events are owner-only, including child descriptions;
-  the public arrival event carries no manifest. Normal carried-root and open/look views
-  handle discovery; the owner can open their own closed box and take/give the letter.
-  No new item identity protection is introduced.
-- The same private candidate-update batch clears pending descriptions to nil, including an
-  empty kit. A cap-blocked or physically blocked arrival consumes nothing. Repeat ticks,
-  replay, loading, branching and returning do not generate items: the paper given away stays
-  with its recipient, a box left on-map stays there, and actual carried items stay carried.
-  `take-leave` schedules return only, never retrieval. Applicants are told to use their real
-  items and say when no reference is available, not invent one at inaccessible lodgings.
-  Off-map homes remain background. Guests, tradespeople, couriers, authored spawns,
-  world-file inventories and `roll-cast!` do not opt in; no-items scenarios remain unchanged.
-- A written person's polish `goals` and `aspects` go with them when they're spawned
-  (`hiring/spawn-spec`: hires, couriers and guests from elsewhere).
-- Runtime appearance uses `people/appearance-request`: **only** age, sex, position and small
-  sense names reach it, including mock context. It never sees private readings, circumstances or prose.
-  The private polish sees the approved appearance for consistency; its own appearance output
-  is discarded. These calls use the run's default model and normal cost budget, with checked
-  lengths/blanks and one correction, never lexical prose checks. Offline bridge fixtures and
-  mock adjudicators keep `--mock --offline` entirely free.
-- `send-for {id}` (a candidate id) is final. Everyone is offered it, so that a character who
-  hasn't been recommended anyone learns why from the refusal ("nobody of that id has been
-  recommended to you; ask someone who might know to `recommend` …"). Only someone who knows the
-  current pool record may use it.
-  Arrival is next round at the meeting place, before turns, if the active-agent cap has room
-  (otherwise it waits). The visitor is spawned through the scenario hook with role `:none`,
-  own traits and a private situation naming their summoner. Their model inherits `:model`.
-  Private spawn data is operator-only; a separate arrival event goes to those at the entrance
-  and the summoner. No GM-spawnable positions are added. Their situation tells them to remain
-  locally available while a decision is pending, agree a waiting place, and distinguish
-  walking to the village/pub from abandoning the application with `take-leave`.
-  `hiring/observe` includes `:candidate-home` only for known candidates; the applicant's own
-  situation names their home and explicitly says it is off-map, not a walking destination.
-- `engage {who position terms? bedroom?}` is free (it doesn't end the turn) and replaces any previous offer. Anyone
-  may offer a present candidate any position that is a post; no authority, sex or vacancy restriction.
-  `who` is the arrived agent id, not the pool id. Walking to the candidate and interviewing
-  with `converse` makes `engage` available on the next model step of the same turn.
-  `accept-place {conditions?}` and `decline-place {reason?}` are free too. Discuss a new offer to haggle.
-  Claudeworth also offers all three on speaking turns (`engage` only to someone in the
-  conversation), so the offer and the answer can be made as the bargain is agreed; the hiring
-  rules tell characters that saying they'll take someone on engages nobody. Acceptance changes role/post,
-  marks the pool entry engaged, records employer, terms and conditions, and optionally assigns
-  the named bedroom. The offerer must be present for either answer: replies, narration and
-  prompts tell them to stay until the candidate answers, preferably within their conversation.
-  If apart, a rejection names the offerer (name and id) and directs the candidate to
-  `find-person` and walk to them, or ask them to come, then accept or decline together.
-  An assigned bedroom may be any existing location in the household's home area
-  (`space/home-domain`), regardless of its `:kind`; off-home and unknown locations are refused.
-  Occupancy and the need for a bed are not enforced. No wages or conditions are mechanically enforced. Both parties can
-  see the agreed post later; a candidate's temporary situation becomes their appointment.
-- `send-away {who}` and the candidate's `take-leave` are final and end an unengaged visit.
-  `take-leave {return-date? return-time?}` may say when the candidate will be back, both or
-  neither, later than now and within `hiring/max-return-days` (7), and only in a world with a
-  clock. They go home off-map as usual, and the pool entry becomes `:returning` with its
-  `:arrival` round and `:return-at`; the tick brings them to the meeting place then, through the
-  same arrival as `send-for` (their situation says they've come back as they said), and the
-  24-hour wait starts again. The departure narration says when they mean to be back. With a
-  `:calendar`, hiring adds managed entries (owner `:hiring`, ids `hiring-<candidate>-return-…`):
-  one for the candidate and one for everyone who knows them and their summoner. `send-for` still
-  works on a returning candidate, bringing them next round and cancelling those entries.
-  Otherwise, automatic departure is after **24 in-world hours** since arrival or the last
-  conversation the candidate participated in, whichever is later. `candidate-wait-rounds`
-  rounds this up using the world's clock, so it never cuts the day short. Clockless worlds
-  use 24 rounds. Crossing midnight does not itself cause departure. Walking around, waiting
-  or working locally does not change their pool status from `:here`; they can be interviewed
-  and hired wherever they are present. Engaged staff are not timed out.
-  A candidate departs towards their `:candidate-home`, with `:off-map? true` making the narration
-  explicit about leaving the map. For legacy records without that field, it says "home"
-  off-map, not the old ungrounded `:lives` address. Recorded events are not rewritten.
-  `:people/departed {id reason towards off-map?}` makes them `:away`,
-  clears location/travel/occupation and stops turns/calls; their notes and history survive,
-  and everyone in the place they left remembers parting there (`:seen`).
-  The offer closes and the pool entry becomes `:away`. Another `send-for` uses
-  `:people/returned {id at}` to restore the same agent, not a duplicate. Retired agents never
-  return. Engaged staff have no visitor timeout; dismissal and outdoor lodging are deferred.
-- **Shared with deliveries and visits.** `hiring/arrival scenario world at {:id | :spawn,
+- **Making a person.** `hiring/person-record` asks the people server for a record
+  (`{:name :record :lives}`; `:sex` and `:ages` replace the position's), and
+  `(hiring/write-person services p notes options)` writes the public appearance and the private
+  polish (notes go to the polish; `options` may be `{:belongings-mode :first-arrival
+  :arrival-context {...}}`). `hiring/spawn-spec` is what an agent spawned from them is made of,
+  their polish `goals` and `aspects` included. Runtime appearance uses
+  `people/appearance-request`: **only** age, sex, position and small sense names reach it. The
+  private polish sees the approved appearance for consistency; its own appearance output is
+  discarded. These calls use the run's default model and normal cost budget, with checked
+  lengths/blanks and one correction, never lexical prose checks. Offline bridge fixtures and mock
+  adjudicators keep `--mock --offline` free.
+- **Reputations.** `:people/reputation-known` (the knower only) keeps what someone knows of a
+  person, from the people server's `reputation`; `hiring/observe` shows the viewer's own.
+- **First-arrival belongings** (someone new from elsewhere, recommended by contacts, in a scenario
+  with items): the polish is asked for `:belongings`, with `:arrival-context {:kind :sent-for
+  :line :wanted}` from the recommendation. There is no extra model call. The answer must include
+  `:belongings`, even `[]`; writers not asked ignore unsolicited belongings. `writers/persona.md`
+  includes the conditional `writers/belongings.md` contract and pack `writers/belongings-setting.md`
+  guidance. No interview is assumed: from the line and wanted the writer decides what they'd bring
+  (someone seeking a place in service a box and perhaps a written character, a tradesperson the tools
+  of the trade they'd carry and perhaps a card, others little; tools are belongings, not the
+  forbidden stock). England strongly prefers a written character for appropriate previous service,
+  usually a separate letter inside an ordinary servant's box. This is prompt guidance, not a
+  compulsory kit. The mock polish (`people/mock-polish`) gives a box with a marked character when
+  the line says "seeking a place" (or is blank), otherwise a tool bag with two tools and no reference.
+  Each description has `:name` (1–60 characters) and `:desc` (1–400), optionally `:container`
+  (`:open`/`:closed`), `:contents`, `:aspects`, `:consumable` (boolean), and
+  `:reference?` (boolean, only with a `:sent-for` arrival context, at most one true: the one paper
+  speaking to this person's character or credentials, used only when it fits).
+  At most four roots and six total objects; contents require a container, and child
+  containers/contents are forbidden. Only structure is checked. The checked descriptions are kept
+  on the contact as `:pending-belongings`, never in views, recommendations or reputation requests.
+  No item exists until the person first arrives: then `hiring/first-arrival-events` (called by
+  visits' arrival) makes ordinary owner-only `:item/added` events (roots carried by them, children
+  inside their parent), a flagged paper gets the contact's id as `:contact-id`, and
+  `:people/belongings-brought` removes the descriptions. A cap-blocked or physically blocked
+  arrival consumes nothing; returning, replay, loading and branching make nothing more.
+- **Offers and posts.** `:people/offered` keeps an offer in `[:state :place-offers]`;
+  `hiring/offer-terms-reason` checks its terms (not oneself, a catalogue position that is a post,
+  a bedroom in the household's home area, whatever its `:kind`); `hiring/answer-reason` checks an
+  answer (an offer, the offerer present, else a reply naming them and pointing to `find-person`);
+  `hiring/place-taken` gives the post (role, employer, terms, conditions, situation, bedroom),
+  seen by the two of them. `:none`, `:gm`, `:guest` and `:caller` aren't posts ("guest is not a
+  post"), and `hiring/reference` doesn't list them.
+- **Arrival, shared with deliveries and visits.** `hiring/arrival scenario world at {:id | :spawn,
   :situation?, :also?, :visible-to?}` is the one arrival at the meeting place: an away agent
   returns there (`:people/returned`, seen by those there, themselves and the ids in `:also`, or by
   `:visible-to`), with their situation replaced if given; with no `:id`, a new agent is spawned
-  there from `:spawn`, its events `:system`. It returns `{:id :events}`; `hiring/room-for-arrival?`
-  is the agent cap it waits on. The people writer takes options for people made to order:
-  `person-record`'s `:sex` and `:ages` replace the position's, and `(write-person services p
-  notes)` passes `notes` to the polish (visits' new guests). `send-for` refuses someone who is
-  about already (a former candidate visiting as a guest).
-- A written reference is ordinary work: `spend-time {doing hours? candidate?}` may name a known
-  candidate. Omit `candidate` for other activities; an empty string is treated as absent.
-  Its job snapshots only the writer's known identity/reputation into `:reference`,
-  which reaches the scene judge. All items made by that job carry `:candidate-id`, shown in
-  detailed item views and preserved in export/replay. Give the paper with the ordinary `give`
-  action. The link does not grant its reader a recommendation or verify the prose.
+  there from `:spawn`, its events `:system`. `hiring/room-for-arrival?` is the agent cap it waits
+  on, and `hiring/can-arrive?` refuses someone held in place or dead.
+  `:people/departed {id reason towards off-map?}` makes someone `:away`, clears
+  location/travel/occupation and stops turns; their notes and history survive.
+- **Leaving with a return time** (visits' `take-leave`): `hiring/return-args`,
+  `hiring/return-reason` (both or neither, later than now, within `hiring/max-return-days` (7),
+  only with a clock) and `hiring/take-leave-doc`.
+- **A written character** is ordinary work: `spend-time {doing hours? contact?}` may name a contact
+  the writer knows of (`:known-to`); omit `contact` (or give an empty string) for other activities.
+  Its job snapshots only the writer's knowledge (contact id as `:contact-id`, name, line, their
+  reputation) into `:reference`, which reaches the scene judge. Everything made by that job carries
+  `:contact-id` (the contact id), shown in detailed item views. Give the paper with `give`.
 
 #### Setting packs and prompt templates
 
@@ -2511,7 +2438,7 @@ to touch every mechanic in a setting that isn't England. A new setting takes the
    and the pack's `:courier-position`), `calendar.edn` (`[]` is fine), and the three fragments
    `prompts/money.md`, `prompts/money-pricing.md` and `prompts/invitation-examples.md`.
 2. **A people data set** in `mcp-servers/people/settings/<dataset>/names.edn` for new people
-   (candidates, couriers, guests written to order and `roll-cast!`).
+   (contacts, couriers, guests written to order and `roll-cast!`).
 3. **A world file** naming the pack (`:meta :setting-pack "settings/<id>"`), the meeting place,
    and `:meta :home-domain` when the meeting place stands outside the home area (the palace gate
    is in `:outside`; the home is `:inner-court`). Starting funds and purses are in the pack's
@@ -2642,13 +2569,13 @@ three tools, each `:final` and usable from anywhere, with nobody needing to be p
   `post-changed` with `:employer` the appointer and the household of `who`'s present post (or
   the appointer's), and their `:situation` replaced (`situations/appointed.md`). Refused for
   yourself, the GM, someone not active, a position not in the run, `:gm`, `:guest`,
-  `:tradesman` or `:none`, and the post they already hold. The bedroom is unchanged.
+  `:caller` or `:none`, and the post they already hold. The bedroom is unchanged.
 - `dismiss {who reason?}` ends `who`'s post: position `:none`, household nil, `:employer` the
   dismisser, their bedroom cleared, and their situation replaced (`situations/dismissed.md`).
   They stay as an ordinary agent until they `take-leave`, which someone dismissed (post `:none`
   with an `:employer`) may use from anywhere their movement allows, without a return time: they
-  leave the map towards their `:lives` (or a hired candidate's home), else "elsewhere", and
-  become away. A candidate, `:none` with no employer, isn't caught by this.
+  leave the map towards their `:lives` (or their contact's `:based`), else "elsewhere", and
+  become away. Someone who never held a post (`:none` with no employer) isn't caught by this.
 - `assign-bedroom {who bedroom}` gives someone of the household, or a guest from elsewhere
   staying with it, any home-area room (yourself included); sharing is allowed. No judge.
 
@@ -2678,7 +2605,14 @@ and other locations assigned to active sleepers, with who sleeps in each, under
 `household.bedrooms` in their view. The home area is `space/home-domain` (not a hard-coded
 `:house`). Hiring and guest invitations may assign any existing home-area location, so a box
 room need not change its kind to become someone's bedroom. `sleep` permits any `:bedroom`-kind
-location or the actor's own assigned sleeping room; an unassigned ordinary room is still refused.
+location, the actor's own assigned sleeping room, or the world's **lodging**: any location with
+`:lodging true` (a boolean, checked by `problems`), where anyone may sleep with or without a bed of
+their own, and which nobody is assigned, so it holds any number of people. An unassigned ordinary
+room is still refused, and where the world has lodging the refusal names it ("go to a bedroom first;
+yours is …; anyone without a bed of their own may sleep at Crown's back chamber (crown-chamber)"),
+as the rules' sleep section does (`rules/sections/sleep-lodging.md`), so visitors staying the night
+know without being told. Lodging is free for now. Claudeworth's three worlds have one, the Crown's
+back chamber off the public house.
 Starting world-file assignments accept any home-area location too, or a `:bedroom`-kind location
 elsewhere (for residents who live out, such as shopkeepers); unknown locations and ordinary
 off-home locations are refused. Routines and bedtime already follow the assigned id, not its kind.
@@ -2778,8 +2712,7 @@ through `worldfile/load-world`'s `:calendar` from a world file:
   `command-events` refuses it as an argument). They're **never queued for GM review**, and the
   GM's and operator's update/cancel refuse them ("that entry is managed by visits", followed by
   the owner's hint). Characters see them like any entry; the GM sees the marker. World-file export
-  leaves them out, as their owner's records aren't exported. Visits (below) and hiring (a
-  candidate's return, see Hiring) are the owners.
+  leaves them out, as their owner's records aren't exported. Visits (below) are the owner.
 - **Owners name themselves** in the scenario's `:calendar` config, under `:managed`:
   `{:visits {:id-prefix "visit-" :hint "use cancel-visit"}}` (`visits/install` adds its own, and
   `hiring/install` adds `:hiring` with the prefix `hiring-`). It's
@@ -2804,16 +2737,16 @@ not an exhaustive almanac; it has no recurrence and must be extended by hand bey
 ### Visits (`manor.mechanics.visits`)
 
 [visits-design.md](visits-design.md), phases 1 to 3: guests **in the world**
-(villagers, a candidate still about) invited to the house for a date and time, who make their own
+(villagers, someone sent for still about) invited to the house for a date and time, who make their own
 way, and guests **from elsewhere** (away agents), who arrive at the meeting place at the time and
 go with `take-leave`. Which kind a guest is, is decided when the visit falls due: are they active
 or away? An inviter who describes someone (`invite`'s `person`) has them settled by the
 invitation judge, which matches someone in the world or writes someone new.
 
 - **Install** with `(visits/install scenario)` after `hiring/install` (it needs the meeting
-  place). It adds `invite`, one `take-leave` for candidates and guests from elsewhere (in place of
-  hiring's), the GM's `schedule-visit` and `cancel-visit`, the invitation judge (`:visits/invitee`
-  in `:adjudicators`, with its mock), the `:visits/tick` system (after hiring's and deliveries'),
+  place). It adds `invite`, one `take-leave` for anyone from elsewhere (guests and people sent for),
+  the GM's `schedule-visit` and `cancel-visit`, the invitation judge (`:visits/invitee`
+  in `:adjudicators`, with its mock), the `:visits/tick` system (after deliveries'),
   and the config in `[:state :visit-config]`. It's idempotent. The scenario needs a clock, a `:guest`
   position for people made new (the catalogue has one), and `:calendar` for the guests' and hosts'
   entries (without it, visits still run but nobody's calendar shows them). Its `:observe` should
@@ -2834,9 +2767,10 @@ invitation judge, which matches someone in the world or writes someone new.
   ```
 - **The record** in `[:state :visits]`, by id (`"visit-1"`, …): `:guest` (an agent id), `:host`
   (nil when arranged by the GM or operator, or authored), `:by` (`:in-person`, `:post`, `:messenger`, `:gm`,
-  `:operator`, `:authored`, or `:sent-for` for a tradesperson, below), `:via`, `:at` (the ISO time given), `:arrive` (its round), `:deliver` (the round the
+  `:operator`, `:authored`, or `:sent-for` for a contact sent for, below), `:via`, `:at` (the ISO time given), `:arrive` (its round), `:deliver` (the round the
   guest is told), `:wake` (the round from which they're kept in play), `:stay`, `:reason`,
-  `:bedroom`, `:known-to` (arranged visits), `:told?`, `:reminded?`, `:arrived` (the round it
+  `:bedroom`, `:known-to` (arranged visits), `:situation` (a visit by `:sent-for` of someone
+  from elsewhere: theirs on arriving, in place of `returning-situation`), `:told?`, `:reminded?`, `:arrived` (the round it
   became `:here`), `:from-away?` (they arrived at the meeting place) and `:status`: `:scheduled` →
   `:here` → `:ended`, or `:lapsed` / `:cancelled`. The GM sees it in the world state.
 - **`invite {by, who | person, date time stay reason? via? bedroom?}`** is once a turn. With `who`
@@ -2871,8 +2805,8 @@ invitation judge, which matches someone in the world or writes someone new.
   situation; last 15 notes; and their last ten narrated lines from the `recent` service), the
   description and `reason`, and `people` (`judge/people`), each person once: `your-guests` (the
   inviter's own guests, with situation and `known-as`), `known` (everyone active, the inviter's
-  household away members, the away people they've met and the candidates recommended to them who
-  have come: id, name, position title, where they live) and `others` (everyone else not retired:
+  household away members, the away people they've met and the contacts recommended to them:
+  id, name, position title, where they live) and `others` (everyone else not retired:
   only id, name, `from` and public `known-as` (plus `dead: true` when applicable), so another inviter's guest is matched without
   anything of who invited them, when or why). It answers `{existing id}` (a listed id), `{new
   {name sex age from known-as situation}}` (`judge/new-person-fields`' limits; a listed person's
@@ -2916,12 +2850,14 @@ invitation judge, which matches someone in the world or writes someone new.
   Carriage sweep: Mr Arden (mr-arden), a curate from Ely." (with their public `:known-as`), or for
   someone of the household "Master Claudeworth (master-claudeworth) arrives at the Carriage
   sweep." There's no house-wide bell. A named `bedroom` is theirs (`positions/bedroom-assigned`). A
-  former candidate or courier (known by `hiring/for-agent` or `[:state :couriers]`) gets a short
-  situation from their record in place of hiring's or deliveries' ("You are Pat Ellis, of a
-  cottage in Ely. You came to Claudeworth Manor once before, about the cook place." or "…; you
-  carry for the General store."). A former candidate whose pool record was evicted (role `:none`,
-  no record) gets "You are Pat Ellis. You have been to Claudeworth Manor before."; anyone else
-  keeps theirs. A courier staying as a guest isn't given deliveries' courier situation when a
+  contact from elsewhere sent for before, or a courier (known by `hiring/contact-of` or
+  `[:state :couriers]`), invited as a guest gets a short situation from their record in place of
+  the one they came with before ("You are Pat Ellis, of Ely, cook seeking a place. You have been to
+  Claudeworth Manor before." or "…; you carry for the General store."). Someone dismissed (role
+  `:none`) gets "You are Pat Ellis. You have been to Claudeworth Manor before."; anyone else keeps
+  theirs, as does someone coming back when they said they would (`:by :returning`). A visit by
+  `:sent-for` brings its own situation (contacts'), and someone sent for who comes for the first
+  time brings their first-arrival belongings (`hiring/first-arrival-events`). A courier staying as a guest isn't given deliveries' courier situation when a
   delivery comes. A guest in the world who goes away
   before the time arrives this way too. Another visit of theirs falling due while they're here
   from elsewhere (two due in the same round, say) is `:here` at once, with no arrival and no
@@ -2929,8 +2865,7 @@ invitation judge, which matches someone in the world or writes someone new.
   Death ends a stay and lapses scheduled visits; it never permits another arrival. Arrival and
   departure audiences are sight-filtered (the arriving/leaving person still knows), and departure
   sightings never add memories for blind or unconscious witnesses. `take-leave` also refuses
-  disabled movement or unconsciousness. Hiring and couriers share these movement constraints;
-  hiring keeps its full-day grace and off-map `candidate-home`. Starting dead overrides `:away?`.
+  disabled movement or unconsciousness. Couriers share these movement constraints. Starting dead overrides `:away?`.
 - **Views** (`add-to-view`): while a guest's visit is `:here`, `you.visit` shows their newest
   one, to them alone: `{:host "Lord Claudeworth" :invited-for "a week" :reason … :arrived "Fri
   19:00" :bedroom "blue-room"}` (no `:host` for an arranged visit). A guest from elsewhere who is
@@ -2938,15 +2873,16 @@ invitation judge, which matches someone in the world or writes someone new.
   does; all active assigned sleepers are listed, including guests. These lists may reveal even
   secret visitors; invitation and calendar privacy is otherwise unchanged. `away-acquaintances`
   lists the people the viewer has met who are away now, with where they parted (`space/away-acquaintances`), so they can be invited by `who`.
-- **`take-leave`** (final) is shared: for a candidate here it is hiring's, unchanged; for a guest
-  from elsewhere, anywhere in the house's area, it emits `:people/departed` towards where they
-  live (their `:lives`) and ends their `:here` visits. They're away again and can be invited
+- **`take-leave`** (final) is the one for everyone: for someone dismissed, from anywhere with no
+  return (`dismissed-leave-events`); for a guest or someone sent for from elsewhere, anywhere in the house's area, it emits `:people/departed` towards where they
+  live (their `:lives`, else their contact's `:based`) and ends their `:here` visits. They're away again and can be invited
   again, coming back as the same agent with their memories. With `return-date` and
   `return-time` (checked by `hiring/return-reason`), a new visit is scheduled from their newest
   one here: same host, `:by :returning`, `:returning? true`, told at once, with calendar entries
-  for both sides; they arrive at the meeting place then like any away guest. There's no
-  `send-away` for guests; hiring's stays candidates-only.
-- **Away agents** come from two places, and only pool records are ever evicted, so neither is:
+  for both sides; they arrive at the meeting place then like any away guest, keeping their own
+  situation. There's no `send-away` for guests; contacts' is for people sent for.
+- **Away agents** come from three places (contacts make the third), and only contact records are
+  ever evicted, never agents:
   world-file characters with `:away? true` (see World files), and **someone new**, made from the
   fields `visits/new-person-keys` (`name sex age from known-as situation`). `(write-new-person world
   services fields)` is the I/O, for a `:query-fn` or a system's `:compose`: the people server's
@@ -3000,67 +2936,130 @@ invitation judge, which matches someone in the world or writes someone new.
   all the while it's `:here`. Claudeworth's `hibernate` returns nil while it's true, so the
   ordinary `b/free` wakes them. Once the visit ends or lapses, hibernation resumes as usual.
 
-### Tradespeople (`manor.mechanics.trades`)
+### Sending for people (`manor.mechanics.contacts`)
 
-[trades-design.md](trades-design.md), phases 1 and 2: tradespeople, craftsmen and merchants,
-found through `recommend` with a `trade` and brought with `send-for`. Built on hiring and visits:
-a contact is a record like a candidate, and sending for one is a visit.
+[sending-for-design.md](sending-for-design.md) (it replaced the candidate pool of
+[people-and-hiring-design.md](people-and-hiring-design.md) and the separate trades path of
+[trades-design.md](trades-design.md)). There is one path for staff, tradespeople, craftsmen,
+merchants and anyone else who isn't already in play:
 
-- **Install** with `(trades/install scenario)` after `hiring/install` and `visits/install`. It
-  replaces their `recommend` and `send-for` with ones that also take a trade and a contact, adds
-  the trade judge (`:trades/tradesperson` in `:adjudicators`, with its mock) and the
-  `:trades/tick` system. It's idempotent. The world's positions need a `:tradesman` (both setting
+1. **Asking.** Someone asks someone who might know, and they call `recommend {wanted for}`, with
+   who or what is wanted in their own words. The **recommendation judge** says whom it means:
+   someone on the map, a contact made before, or someone new from elsewhere (written by hiring's
+   people writer, with first-arrival belongings in a scenario with items). Both learn a
+   **contact**; nothing fixes whether it's for a place or a job.
+2. **Sending for them.** `send-for {id about?}` (free, also on speaking turns) is a visit by
+   `:sent-for` (Visits, above) expected `lead-hours` (2) later. Someone on the map is told and
+   comes if willing; someone from elsewhere arrives at the meeting place through `hiring/arrival`,
+   with the arrival situation `situations/sent-for.md` and, the first time, their belongings (a
+   written character carries the reference marker `:contact-id`: see Hiring).
+3. **Settling it** when they're here, whatever was first asked: a place with `engage`
+   (`accept-place`, `decline-place`), a work with `order-work` (Works, below), a small job with
+   `spend-time`, or nothing (`send-away`).
+4. **Leaving.** The visitor decides, with visits' `take-leave` (optionally with a return time).
+   Nothing sends them home by itself; someone staying the night may sleep at the world's lodging
+   (`:lodging true` locations; see Positions, posts and situations). Taking a place ends the visit.
+
+The rules section is `contacts/rules` (`rules/sections/sending-for.md`, with `lead-hours`), one
+section in every ruleset world, covering all four steps, papers and belongings.
+
+- **Install** with `(contacts/install scenario)` after `hiring/install` and `visits/install`. It
+  adds `recommend`, `send-for`, `engage`, `accept-place`, `decline-place` and `send-away`
+  (`contacts/actions`, in place of any of the same names) and the recommendation judge (`:contacts/recommendation` in `:adjudicators`, with its mock). It's
+  idempotent. The world's positions need a `:caller` (both setting
   packs' catalogues have one; hiring refuses it as a post). Its `:observe` should call
-  `(trades/add-to-view view world id)`. Every ruleset scenario installs it, and the ruleset's
-  `rules` add the Tradespeople section (`trades/rules`) where visits are installed.
+  `(contacts/add-to-view view world id)`. Every ruleset scenario installs it, and the ruleset's
+  `rules` add its section (`contacts/rules`).
 - **The record** in `[:state :contacts]`, by id (`"contact-1"`, …, numbered by
-  `[:state :contact-count]`): `:agent-id`, `:name`, `:trade`, `:known-to`, `:created`, and either
-  `:local? true` with `:works-at` (the name of their position's first `:workplace`) for someone on
-  the map, or `:based`, `:known-as` and the people server's `:record` for someone from elsewhere.
-  At most `contacts-limit` (40); a new one evicts the oldest from elsewhere who isn't about or
-  expected (`:contacts/evicted`; their away agent stays), and with none to evict a trade
-  recommendation is refused.
-- **`recommend {position | trade, for}`**: exactly one of `position` and `trade` (1-80
-  characters, the trade or service in the recommender's words). With `position` it is hiring's.
-  With `trade`, the same presence checks (`hiring/recipient-reason`), then a query: the trade
-  judge, then for someone new `hiring/person-record` (position = the trade, the judge's sex and
-  age, living where they're based) and `hiring/write-person` (the judge's situation as notes), and
-  for anyone from elsewhere the people server's reputation (`acquaintance`, cached per
-  recommender). Events, on the world when the query's done: for someone new, their away agent
-  (`:agent/spawned` with role `:tradesman`, `:agent/updated` with `:lives`, `:known-as` and
-  `:age`, `:people/departed`, all `:system`); `:contacts/made` (`:system`) for someone new or
-  someone on the map the first time; `:people/reputation-known` (the recommender only, not for
-  someone on the map); and `:contacts/recommended` (both), whose narration gives the contact id
-  and how to send for them. `impossible` replies with the reason and makes nothing.
-- **The trade judge** (`manor.mechanics.trades.judge`, tool `tradesperson`) is one checked narrow
-  call built like the invitation judge. Its request holds the recommender (`visits.judge/inviter`),
-  the trade, `local` (active people not of the household whose role isn't `:none`, `:gm`,
-  `:guest` or `:tradesman`: id, name, position title, `works-at`) and `contacts` (contacts from
-  elsewhere whose person isn't dead or retired: id, name, trade, based, known-as only, never who
-  knows them). It answers `{existing id}` (an id from either list), `{new {trade sex age based
-  known-as situation}}` (`judge/new-fields`; the people server names them) or `{impossible
-  reason}`. Code checks only the shape; a bad answer is sent back once, then the query fails
-  neutrally. `judge/mock-judge`: a contact whose trade, or a local person whose position, the
-  trade contains is them; anyone else is new, from Ely.
-- **`send-for {id, job?}`** is final; trades' version takes a candidate's or a contact's id (they
-  never collide) in the one field. For a candidate it is hiring's, and `job` is ignored. For a
-  contact, the actor must know it and give `job` (1-300 characters); refused for themselves, a
-  dead or retired person, someone with a `:sent-for` visit expected or under way, someone from
-  elsewhere who is about ("speak to them"), and someone on the map `visits/guest-reason` refuses
-  (the household at home). There is no date or time, as for candidates: the effect is
-  `visits/sent-for-events`, a visit by `:sent-for` with `:host` the sender, the job as `:stay`,
-  expected `lead-hours` (3) on, plus `:trades/sent-for` seen by the sender and the contact if
-  they're about. Someone on the map is told at once, gets the guest calendar entry ("You are
-  wanted at …, sent for by …: the job.") and is kept awake and reminded as an invited guest is; if
-  they don't come within `:lapse-hours` the visit lapses. Someone away arrives at the meeting
-  place at the time, as an away guest does. `you.visit` shows `job` and `sent-for-by` for such a
-  visit.
-- **Going home.** A tradesperson from elsewhere uses visits' `take-leave`. The tick also sends
-  one home (`visits/leave-events`) once their `:sent-for` visit is `:here`, they're active, not
-  occupied (`w/busy`), not held in place, and `idle-hours` (2) have passed since they arrived or
-  last conversed (`hiring/idle-rounds`).
-- **Views:** `contacts`, the contacts `id` knows: id, name, trade, then `works-at` and
-  `on-the-map` or `based`, and `sent-for` while a visit for them is expected or under way.
+  `[:state :contact-count]`): `:agent-id`, `:name`, `:line` (what they do or seek, plainly: the
+  judge's, or the position title, lower-cased, for someone on the map), `:known-to`, `:wanted`
+  (knower id → the latest `wanted` they were recommended this contact for; a later
+  recommendation to the same asker replaces it), `:created`, and either `:local? true` with
+  `:works-at` (the name of their position's first `:workplace`) for someone on the map, or
+  `:based`, `:known-as` and the people server's `:record` for someone from elsewhere (with
+  `:pending-belongings` until they first come, in a scenario with items: see Hiring). At most
+  `contacts-limit` (40); a new one evicts the oldest from elsewhere who isn't about or expected
+  (`:contacts/evicted`; their away agent stays), and with none to evict a recommendation with
+  `wanted` is refused.
+- **`recommend {wanted for}`**: `wanted` is 1-120 characters, who or what is wanted in the
+  recommender's words ("a housemaid wanting a place", "a joiner to mend the stair tread"). The
+  person asking (`for`) must be someone else, present (`hiring/recipient-reason`); then a query:
+  the recommendation judge, then for someone new `hiring/person-record` (position = the judge's
+  line, the judge's sex and age, living where they're based) and `hiring/write-person` (the
+  judge's situation as notes, and in a scenario with items first-arrival belongings with
+  `:arrival-context {:kind :sent-for :line :wanted}`), and for anyone from
+  elsewhere the people server's reputation (`acquaintance`, cached per recommender). Events, on
+  the world when the query's done: for someone new, their away agent (`:agent/spawned` with role
+  `:caller`, `:agent/updated` with `:lives`, `:known-as` and `:age`, `:people/departed`, all
+  `:system`); `:contacts/made` (`:system`) for someone new or someone on the map the first time;
+  `:people/reputation-known` (the recommender only, not for someone on the map); and
+  `:contacts/recommended` (both; `:asker` the `for` and `:wanted`, which the reducer records),
+  whose narration gives the contact id and how to send for them. `impossible` replies with the
+  reason and makes nothing.
+- **The recommendation judge** (`manor.mechanics.contacts.judge`, template
+  `judges/recommendation.md`, tool `recommendation`) is one checked narrow call built like the
+  invitation judge. Its request holds the recommender (`visits.judge/inviter`), `wanted`, `local`
+  (active people not of the household whose role isn't `:none`, `:gm`, `:guest` or `:caller`: id,
+  name, position title, `works-at`) and `contacts` (contacts from elsewhere whose person isn't
+  dead or retired and holds no post other than `:none` or `:caller`: id, name, line, based,
+  known-as only, never who knows them). It answers `{existing id}` (an id from either list),
+  `{new {line sex age based known-as situation}}` (`judge/new-fields`; the people server names
+  them) or `{impossible reason}`. Its instructions, not code, read whether `wanted` is a place in
+  service or a job: for a place it never picks someone in `local`; it decides who is meant, never
+  whether it'll happen. Code checks only the shape; a bad answer is sent back once, then the
+  query fails neutrally. `judge/mock-judge`, a stand-in and no reader of prose: a contact whose
+  line, or a local person whose position, `wanted` contains is them; if `wanted` contains a
+  catalogue position's title, a listed contact with the line "<title> seeking a place", else
+  someone new from Ely of that position's sex and youngest age with that line; anyone else is
+  new, from Ely, with `wanted` (less an article) as their line.
+- **`send-for {id, about?}`** is free (also on speaking turns): `id` is a contact's. The actor
+  must know it; `about` (1-300
+  characters) defaults to the actor's `:wanted` for that contact, and one of them must be there.
+  Refused for themselves, a dead or retired person, someone with a `:sent-for` visit expected or
+  under way, someone from elsewhere who is about ("speak to them"), and someone on the map
+  `visits/guest-reason` refuses (the household at home). There is no date or time: the effect is `visits/sent-for-events`, a visit by `:sent-for` with `:host` the
+  sender, the about as `:stay`, expected `lead-hours` (2) on (for someone from elsewhere, with
+  `:situation`, their arrival situation, below), plus `:contacts/sent-for` (with
+  `:about`) seen by the sender and the contact if they're about. Someone on the map is told at
+  once, gets the guest calendar entry ("You are wanted at …, sent for by …: the about.") and is
+  kept awake and reminded as an invited guest is; if they don't come within `:lapse-hours` the
+  visit lapses. Someone away arrives at the meeting place at the time, as an away guest does.
+  `you.visit` shows `about` and `sent-for-by` for such a visit.
+- **Arrival.** Someone from elsewhere arrives with the situation `contacts/arrival-situation`
+  renders at `send-for` (`situations/sent-for.md`: who sent for them, what about, their home,
+  that they may be offered work with `order-work` or a place with `engage`, or neither, and may
+  refuse, and to `take-leave` when done), kept on the visit and given by `visits/coming`. Someone
+  on the map keeps their own. The `:visits/arrived` event of a visit by `:sent-for` carries
+  `:host` and `:about` (the stay), and its narration says who sent for them and what about, so
+  the sender (who sees it wherever they are) and those at the meeting place learn it.
+- **Engaging.** `engage {who position terms? bedroom?}`, `accept-place {conditions?}` and
+  `decline-place {reason?}` are free (and on speaking turns, `engage` only to someone in the
+  conversation); `send-away {who}` is final. `engage` takes only someone sent for
+  (`contacts/sent-for-here?`: a contact whose visit by `:sent-for`, or their return by
+  `:returning` after `take-leave` with a time, is `:here`, holding no post, `:none` or `:caller`): anyone else, villagers, the household and invited guests among them, is
+  refused "only someone sent for, who holds no post, can be offered a place or sent away". The
+  other checks are hiring's (`hiring/offer-terms-reason`: not oneself, a post from the catalogue,
+  a bedroom in the home area), and they must be present. `accept-place` gives the post as
+  hiring's does (`hiring/place-taken`: post, role, situation, bedroom, offer closed) and ends the
+  visit (`visits/ended-events`), so they are one of the household: no visitor's `take-leave`, not
+  kept awake as a guest, no `you.visit`. `decline-place` closes the offer; they stay on their
+  visit; a new offer replaces any earlier one. `send-away {who}` sends someone sent for and unplaced home as `take-leave` without a
+  return does, reason "sent away", closing any offer; refused while they're held in place.
+  Someone sent for may as well be given a work with `order-work`, whatever they were wanted for.
+- **Going home.** The visitor decides: someone from elsewhere goes with visits' `take-leave`
+  (`visits/leave-events`), optionally with a return time (a visit `:by :returning`, after which
+  they still count as sent for). Nothing sends them home by itself, and nothing rules out two
+  people for the same thing: duplicates are allowed by design. A visitor with no bed of their own
+  sleeps at the world's lodging, if any; a world without lodging refuses their `sleep` as usual.
+- **Papers and belongings.** Someone new from elsewhere is written, at `recommend`, with what
+  they'll bring (Hiring's first-arrival belongings: from `:line` and `:wanted`, a box and a
+  written character for someone seeking a place, a tradesperson's tools, little for others). They
+  are made at the first arrival only; a paper marked `:reference?` gets the contact's id as
+  `:contact-id` (`items/identity-bound?`). A character written in play is `spend-time` with
+  `contact`.
+- **Views:** `contacts`, the contacts `id` knows: id, name, line, then `works-at` and
+  `on-the-map` or `based`, `wanted` (what `id` last asked for them for, if they asked), and
+  `sent-for` while a visit for them is expected or under way.
 
 ### Works (`manor.mechanics.works`)
 
@@ -3102,9 +3101,9 @@ acceptance (phase 2a).
     target, a move or removal a thing here (not carried, not inside something, not a store, not
     identity-bound); only a move takes `to`, another place in the home; at most 3 plans not yet
     given out. `:works/planned`, seen by the planner only. When the plan names a trade, its
-    narration (`works/trade-hint`) says how to find one: someone `recommend`s with that `trade`,
-    the planner `send-for`s the contact with the work's id in the job, and `order-work`s it to
-    them when they come. Nothing in trades knows of works: a tradesperson sent for is an ordinary
+    narration (`works/trade-hint`) says how to find one: someone `recommend`s with that trade as
+    `wanted`, the planner `send-for`s the contact with the work's id in `about`, and `order-work`s
+    it to them when they come. Nothing in contacts knows of works: a tradesperson sent for is an ordinary
     contact, and anyone may still be given the plan.
   - `order-work {id worker price? from?}`, free: a plan the actor knows, still planned; the
     worker someone here (any living participant, never checked for fitness) or the actor; `price`
@@ -3153,8 +3152,7 @@ acceptance (phase 2a).
   added to the early turn reminder by `engine.seat`): one `agent/reminder-work.md` sentence per
   accepted work the agent isn't carrying out now. On acceptance the worker gets an all-day
   calendar entry `works-<id>` for today. `works/open-work?` (accepted or finishing) keeps the
-  worker out of hibernation; `works/engaged?` (that, or a work on offer to them) keeps a
-  tradesperson from elsewhere from going home idle while the terms are settled and the work done.
+  worker out of hibernation.
 - **`:items :fixed-hint`** ends `take`'s and `put-in`'s refusal of a fixed thing; works set it to
   "to move it, plan a work with plan-work".
 - **Views:** `works`, the plans `id` knows except cancelled ones: id, kind, summary, who, trade
@@ -3282,6 +3280,8 @@ on with it. It uses nobody else's turn either.
   who gets them. The engine accepts only `:free` and `:query`, applies their `:available?` checks,
   and drops names reserved for the speaking tools or `note`. Normal argument decoding and
   `:valid?` still apply. Turn-ending actions (including `buy`) and nested `converse` aren't allowed.
+  To offer one of the scenario's own actions on a line, build the hook from the installed
+  `:actions` (as `ruleset/scenario` does, last), so the line's spec is the turn's.
   A speaking turn may use each query tool offered once (it gets `:per-turn 1` unless it has a
   limit of its own), so it has one query slot per query tool and 3 model calls plus one per
   slot: a keeper of a delivering shop can quote and send goods up on one line, and a clerk can

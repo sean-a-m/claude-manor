@@ -188,7 +188,7 @@
               raw)
         {:keys [args error]} (a/decode-args {:args (answer-schema belongings-mode)} raw)
         belongings-problem (when (and enabled? (not error))
-                             (belongings/problem (:belongings args) (= :candidate (:kind arrival-context))))
+                             (belongings/problem (:belongings args) (= :sent-for (:kind arrival-context))))
         {:keys [persona manner appearance circumstances goals aspects] :as answer}
         (when-not error
           (cond-> (-> (select-keys args [:persona :manner :appearance])
@@ -238,6 +238,22 @@
             (= :first-arrival belongings-mode) (assoc :belongings-mode belongings-mode :arrival-context arrival-context))
      :check #(check-polish record {:belongings-mode belongings-mode :arrival-context arrival-context} %)})))
 
+(defn- mock-belongings
+  "The mock's first-arrival things, by the arrival context's line: someone
+  seeking a place (or a line the mock can't place) brings a box with a
+  written character, marked as their reference when sent for; anyone else, a
+  bag of tools. A substring rule is fine here: it's a mock, not a judge."
+  [{:keys [kind line]}]
+  (if (or (str/blank? line) (str/includes? (str/lower-case line) "seeking a place"))
+    [{:name "Travelling box" :desc "A small worn wooden box." :container :closed
+      :aspects {:contents "Spare linen and a few mending things."}
+      :contents [(cond-> {:name "Written character" :desc "A signed character from a former employer."}
+                   (= :sent-for kind) (assoc :reference? true))]}]
+    [{:name "Tool bag" :desc "A stout canvas bag with leather handles." :container :closed
+      :aspects {:contents "Rags, a tin of grease and a few small fittings."}
+      :contents [{:name "Spanner" :desc "A heavy adjustable spanner."}
+                 {:name "Hammer" :desc "A small hammer with a worn ash handle."}]}]))
+
 (defn mock-polish
   "A free deterministic fixture for tests and --mock, not a production writer.
   It reads basic levels, never stock descriptors. Circumstances and visible prose
@@ -251,10 +267,7 @@
                     :manner "You seem civil and plain to strangers."
                     :appearance "A slight figure in plain, well-worn clothes, standing with shoulders drawn back."}
              (= :first-arrival belongings-mode)
-             (assoc :belongings [{:name "Travelling box" :desc "A small worn wooden box." :container :closed
-                                  :aspects {:contents "Spare linen and a few mending things."}
-                                  :contents [(cond-> {:name "Written character" :desc "A signed character from a former employer."}
-                                               (= :candidate (:kind arrival-context)) (assoc :candidate-reference? true))]}]))}))
+             (assoc :belongings (mock-belongings arrival-context)))}))
 
 (defn visible-record
   "The only input allowed to the runtime appearance writer. Small senses
@@ -268,7 +281,7 @@
 (def appearance-schema [:map [:appearance [:string {:min 1 :max max-appearance}]]])
 
 (defn appearance-request
-  "Write a runtime candidate's public appearance from a whitelisted record."
+  "Write a runtime person's public appearance from a whitelisted record."
   ([record] (appearance-request {} record))
   ([world record]
   (let [visible (visible-record record)]

@@ -17,6 +17,8 @@
             [manor.io.worldfile :as worldfile]
             [manor.mechanics.builtins :as b]
             [manor.mechanics.calendar :as calendar]
+            [manor.mechanics.contacts :as contacts]
+            [manor.mechanics.contacts.judge :as contacts-judge]
             [manor.mechanics.hiring :as hiring]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
@@ -287,8 +289,8 @@
   (doseq [scenario [cw/scenario medium/scenario]]
     (is (= 1 (count (filter #(= :invite (:name %)) (:actions scenario)))))
     (is (= 1 (count (filter #(= :visits/tick (:name %)) (:systems scenario)))))
-    (is (= [:visits/tick :trades/tick] (map :name (take-last 2 (:systems scenario))))
-        "after hiring's and deliveries' systems, with trades' after it")))
+    (is (= :visits/tick (:name (last (:systems scenario))))
+        "after hiring's and deliveries' systems")))
 
 (deftest visit-calendar-ids-are-reserved
   (let [run (start {} {:gm :llm})]
@@ -471,7 +473,7 @@
       (finally (e/stop-run run)))))
 
 (deftest away-guests-wait-for-room-and-never-lapse
-  (let [scenario (-> cw/scenario (assoc-in [:limits :max-agents] 4) hiring/install)
+  (let [scenario (-> cw/scenario (assoc-in [:limits :max-agents] 4) hiring/install contacts/install)
         run (start-with scenario {} {})]
     (try
       (testing "the world file's away friend is in the run, away, from the start"
@@ -529,120 +531,87 @@
       (replay! run)
       (finally (e/stop-run run)))))
 
-(deftest returning-candidate-and-courier-get-a-guest-situation
+(deftest someone-sent-for-once-and-a-courier-get-a-guest-situation
   (let [run (start {} {})
         scenario (:scenario run)
         world (e/world run)
         person (fn [n] {:name n :persona "p" :appearance "a" :lives "a cottage in Ely"
                         :record {:name n :age 30 :sex "female" :temperament [] :faculties [] :circumstances []}})
-        spawn (fn [world n situation]
+        spawn (fn [world n role situation]
                 (let [evs (b/spawn-events scenario world (merge (hiring/spawn-spec (person n))
-                                                                {:role :none :location "carriage-sweep" :situation situation}))]
+                                                                {:role role :location "carriage-sweep" :situation situation}))]
                   [(get-in (first evs) [:data :agent :id]) (reduce w/apply-event world evs)]))
-        [cand world] (spawn world "Pat Ellis" "You have come about the cook place, sent for by Lord Claudeworth.")
-        [courier world] (spawn world "Stephen Dobbs" "You carry for the Post office. You have brought up a parcel.")
-        [evicted world] (spawn world "Ann Moss" "You have come about the housemaid place, sent for by Lord Claudeworth.")
+        [cook world] (spawn world "Pat Ellis" :caller "Lord Claudeworth has sent for you to come about this: a cook.")
+        [courier world] (spawn world "Stephen Dobbs" :none "You carry for the Post office. You have brought up a parcel.")
+        [dismissed world] (spawn world "Ann Moss" :none "You have taken the housemaid place.")
         world (reduce w/apply-event world
-                      [{:type :people/pooled :data {:id "candidate-1" :agent-id cand :seeks [:cook] :status :away
-                                                    :lives "a cottage in Ely" :known-to #{}}}
+                      [{:type :contacts/made :data {:id "contact-1" :created 1 :agent-id cook :name "Pat Ellis"
+                                                    :line "cook seeking a place" :based "Ely" :known-to #{}}}
                        {:type :deliveries/courier-updated :data {:shop "post-office" :changes {:agent-id courier :person (person "Stephen Dobbs")}}}
-                       {:type :people/departed :data {:id cand :reason "takes leave" :towards "Ely"}}
+                       {:type :people/departed :data {:id cook :reason "takes leave" :towards "Ely"}}
                        {:type :people/departed :data {:id courier :reason "the delivery is made" :towards "the shop"}}
-                       {:type :people/departed :data {:id evicted :reason "takes leave" :towards "Ely"}}])
-        world (reduce w/apply-event world (concat (visits/operator-events world {:who cand :date "1904-10-15" :time "21:00" :stay "to tea"})
-                                                  ))
-        world (reduce w/apply-event world (visits/operator-events world {:who courier :date "1904-10-15" :time "21:00" :stay "to tea"}))
-        world (reduce w/apply-event world (visits/operator-events world {:who evicted :date "1904-10-15" :time "21:00" :stay "to tea"}))
+                       {:type :people/departed :data {:id dismissed :reason "takes leave" :towards "Ely"}}])
+        world (reduce (fn [world who] (reduce w/apply-event world (visits/operator-events world {:who who :date "1904-10-15" :time "21:00" :stay "to tea"})))
+                      world [cook courier dismissed])
         world (assoc world :round 3)
-        events (visits/tick scenario world)
-        after (reduce w/apply-event world events)]
+        after (reduce w/apply-event world (visits/tick scenario world))]
     (try
       (is (= :here (:status (visits/visit after "visit-1"))))
-      (is (= "You are Pat Ellis, of a cottage in Ely. You came to Claudeworth Manor once before, about the cook place."
-             (:situation (w/agent after cand))))
+      (is (= "You are Pat Ellis, of Ely, cook seeking a place. You have been to Claudeworth Manor before."
+             (:situation (w/agent after cook)))
+          "someone sent for once comes as a guest, not with their sent-for situation")
       (is (= "You are Stephen Dobbs, of a cottage in Ely; you carry for the Post office."
              (:situation (w/agent after courier))))
       (is (= "You are Ann Moss. You have been to Claudeworth Manor before."
-             (:situation (w/agent after evicted)))
-          "a candidate whose pool record was evicted gets a plain situation, not hiring's")
+             (:situation (w/agent after dismissed))))
       (finally (e/stop-run run)))))
 
-(deftest a-former-candidate-who-dies-as-a-guest-is-not-recommended-again
+(deftest a-contact-who-dies-is-not-recommended-again
   (let [run (start {} {})
         recommend! #(resolve/run-query! run "hale" (action run :recommend)
-                                        {:position "cook" :for "lord-claudeworth"})
-        generated #(count (filter (fn [event] (= :people/generate (get-in event [:data :bridge])))
-                                  (e/events run)))]
+                                        {:wanted "a cook wanting a place" :for "lord-claudeworth"})]
     (try
       @(e/place! run "hale" "carriage-sweep")
       @(e/place! run "lord-claudeworth" "carriage-sweep")
       (is (nil? (:error (recommend!))))
-      (let [p (first (vals (hiring/pool (e/world run))))
-            candidate-id (:id p)]
-        (is (nil? (:rejected (resolve/resolve! run "lord-claudeworth" (action run :send-for)
-                                             {:id candidate-id}))))
-        (until! run 1)
-        (let [id (:agent-id (hiring/candidate (e/world run) candidate-id))]
-          (is (w/active? (e/world run) id))
-          (is (nil? (:rejected (resolve/resolve! run "lord-claudeworth" (action run :send-away) {:who id}))))
-          (testing "an ordinary away former candidate is still reused"
-            (is (= :away (:status (w/agent (e/world run) id))))
-            (let [result (recommend!)]
-              (is (false? (get-in result [:result :new?])))
-              (is (= candidate-id (get-in result [:result :candidate :id]))))
-            (is (= 1 (generated))))
-          @(e/schedule-visit! run {:who id :date "1904-10-15" :time "20:30" :stay "to call"})
-          (until! run 2)
-          (is (= :here (status (e/world run) "visit-1")))
-          (is (w/active? (e/world run) id))
-          (is (= :away (:status (hiring/candidate (e/world run) candidate-id))))
-          @(e/afflict! run id {:died "a sudden illness"})
-          (until! run 3)
-          (let [world (e/world run)
-                old (hiring/candidate world candidate-id)]
-            (is (= :dead (:status (w/agent world id))))
-            (is (= :ended (status world "visit-1")))
-            (is (= :away (:status old)))
-            (is (= "that person cannot return"
-                   (hiring/send-for-reason world "lord-claudeworth" {:id candidate-id})))
-            (let [result (recommend!)
-                  replacement (get-in result [:result :candidate])
-                  recommended (last (of-type run :people/recommended))]
-              (is (nil? (:error result)))
-              (is (true? (get-in result [:result :new?])))
-              (is (not= candidate-id (:id replacement)))
-              (is (not= candidate-id (get-in recommended [:data :id])))
-              (is (= 2 (generated)))
-              (is (= old (hiring/candidate (e/world run) candidate-id)) "the dead pool record is not cleared or rewritten")
-              (is (nil? (:rejected (resolve/resolve! run "lord-claudeworth" (action run :send-for)
-                                                   {:id (get-in recommended [:data :id])}))))
-              (until! run 4)
-              (let [living (hiring/candidate (e/world run) (get-in recommended [:data :id]))]
-                (is (= :here (:status living)))
-                (is (w/active? (e/world run) (:agent-id living)))
-                (is (not= id (:agent-id living))))))))
+      (let [c (first (vals (contacts/contacts (e/world run))))
+            id (:agent-id c)]
+        (testing "recommended again, the same contact is meant while they live"
+          (is (nil? (:error (recommend!))))
+          (is (= 1 (count (contacts/contacts (e/world run))))))
+        @(e/schedule-visit! run {:who id :date "1904-10-15" :time "20:30" :stay "to call"})
+        (until! run 2)
+        (is (= :here (status (e/world run) "visit-1")))
+        @(e/afflict! run id {:died "a sudden illness"})
+        (until! run 3)
+        (let [world (e/world run)]
+          (is (= :dead (:status (w/agent world id))))
+          (is (= :ended (status world "visit-1")))
+          (is (str/ends-with? (check run world "lord-claudeworth" :send-for {:id (:id c)}) "cannot come"))
+          (is (empty? (contacts-judge/contacts-listed world)) "the judge isn't offered them")
+          (is (nil? (:error (recommend!))))
+          (let [[old fresh] (sort-by :created (vals (contacts/contacts (e/world run))))]
+            (is (= (dissoc c :pending-belongings) old) "the dead person's contact is kept, her things brought when she came")
+            (is (not= id (:agent-id fresh)))
+            (is (nil? (check run (e/world run) "lord-claudeworth" :send-for {:id (:id fresh)}))))))
       (replay! run)
       (finally (e/stop-run run)))))
 
-(deftest pool-eviction-leaves-away-agents-and-visits
+(deftest contact-eviction-leaves-agents-and-visits
   (let [run (start {} {})
         base (-> (e/world run) (assoc-in [:agents "hale" :location] "post-office"))
-        pooled (for [i (range hiring/pool-limit)]
-                 {:type :people/pooled :data {:id (str "candidate-" i) :created i :area "post-office" :seeks [:cook]
-                                              :known-to #{} :status :pooled :name (str "Pooled " i)}})
-        world (reduce w/apply-event base pooled)
+        made (for [i (range contacts/contacts-limit)]
+               {:type :contacts/made :data {:id (str "contact-" (inc i)) :created (inc i) :agent-id (str "nobody-" i)
+                                            :line "cook" :based "Ely" :known-to #{} :name (str "Made " i)}})
+        world (reduce w/apply-event base made)
         world (reduce w/apply-event world (visits/operator-events world {:who "captain-hart" :date "1904-10-16" :time "10:00" :stay "a week"}))
-        agents (:agents world)
-        fresh {:id "candidate-new" :created 99 :area "post-office" :seeks [:cook] :known-to #{} :status :pooled
-               :name "New One" :record {:name "New One"}}
-        events (hiring/recommendation-events world "lord-claudeworth" {:position "cook" :for "hale"}
-                                             {:candidate fresh :new? true :reputation {:acquaintance "x" :knows {}}})
+        events (contacts/wanted-recommendation-events (:scenario run) world "lord-claudeworth" {:wanted "a blacksmith" :for "hale"}
+                                                      {:verdict {:existing "carter"}})
         after (reduce w/apply-event world events)]
     (try
-      (is (= [{:id "candidate-0"}] (map :data (filter #(= :people/evicted (:type %)) events))))
-      (is (= hiring/pool-limit (count (hiring/pool after))))
-      (is (= agents (:agents after)) "no agent is evicted, away ones included")
-      (is (= :away (:status (w/agent after "captain-hart"))))
+      (is (= [{:id "contact-1"}] (map :data (filter #(= :contacts/evicted (:type %)) events))))
+      (is (= contacts/contacts-limit (count (contacts/contacts after))))
+      (is (= (:agents world) (:agents after)) "no agent is evicted, away ones included")
       (is (= (visits/visits world) (visits/visits after)))
       (finally (e/stop-run run)))))
 
@@ -752,16 +721,12 @@
 
 (deftest guest-is-not-a-post
   (let [run (start {} {})
-        world (assoc-in (e/world run) [:agents "hale" :location] "post-office")
-        world (assoc-in world [:agents "lord-claudeworth" :location] "post-office")]
+        world (e/world run)]
     (try
       (is (contains? (get-in world [:state :positions]) :guest) "the catalogue has it")
       (is (= "guest is not a post; use the id of a position to fill"
-             (hiring/recommend-reason world "lord-claudeworth" {:position "guest" :for "hale"})))
-      (is (= "guest is not a post; use the id of a position to fill"
-             (hiring/engage-reason (assoc-in world [:state :pool "c"] {:agent-id "hale" :status :here})
-                                   "lord-claudeworth" {:who "hale" :position "guest"})))
-      (is (not-any? #{:guest :none :gm} (map :id (:positions (hiring/reference world)))))
+             (hiring/offer-terms-reason world "lord-claudeworth" {:who "hale" :position "guest"})))
+      (is (not-any? #{:guest :none :gm :caller} (map :id (:positions (hiring/reference world)))))
       (finally (e/stop-run run)))))
 
 ;; ---------------------------------------------------------------------------
@@ -789,9 +754,8 @@
       (is (str/includes? (get-in (a/->tool invite) [:function :description]) "my father, Sir Henry Vane"))
       (is (str/includes? (visits/rules {}) "my father, Sir Henry Vane"))
       (let [world (e/world run)]
-        (testing "hiring's rules limit only candidates to send-for, as guests arrive by invitation"
-          (is (str/includes? (rules/rules world) "No candidate arrives except through send-for."))
-          (is (not (str/includes? (rules/rules world) "Nobody new arrives"))))
+        (testing "hiring's rules say new staff come only when sent for"
+          (is (str/includes? (rules/rules world) "come only when sent for")))
         (is (= "give who (their id) or person (who they are, in your words), not both"
                (check run world "lord-claudeworth" :invite {:by "post" :who "mrs-bell" :person "Mrs Bell"
                                                             :date "1904-10-16" :time "10:00" :stay "x"})))

@@ -12,7 +12,7 @@
   (or (:name (w/agent world owner)) owner))
 
 (defn- look-item [world it]
-  (cond-> (select-keys it [:id :name :desc :aspects :candidate-id])
+  (cond-> (select-keys it [:id :name :desc :aspects :contact-id])
     (:owner it) (assoc :owner (owner-name world (:owner it)))
     (:fixed? it) (assoc :fixed? true)
     (items/store? it) (assoc :keeps (get-in it [:store :keeps]))))
@@ -52,7 +52,7 @@
         carried (items/by-name (items/held-by world id))]
     (cond-> (physical/with-status (select-keys a [:name :appearance :aspects]) a)
       (:busy a) (assoc :doing (get-in a [:busy :activity]))
-      (seq carried) (assoc :carrying (mapv #(select-keys % [:id :name :desc :aspects :candidate-id]) carried)))))
+      (seq carried) (assoc :carrying (mapv #(select-keys % [:id :name :desc :aspects :contact-id]) carried)))))
 
 (defn look
   "What `actor` sees on looking around: the place (with its :aspects and

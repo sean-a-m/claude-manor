@@ -6,7 +6,7 @@
 ;; under-gardener is tied up in the potting shed, away from his routine.
 ;; Test-owned: don't sync it with any bundled scenario.
 {:meta {:name "Hollin Grange"
-        :meeting-place "carriage-sweep" ; where candidates, guests and deliveries arrive
+        :meeting-place "carriage-sweep" ; where people sent for, guests and deliveries arrive
         :start "1904-10-16T01:00"
         :minutes-per-round 30
         :starting-funds 0

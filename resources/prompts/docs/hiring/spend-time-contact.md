@@ -1,0 +1,1 @@
+When writing a character (a reference) for someone recommended to you, set `contact` to their contact id, not their agent id. You must know of them through a recommendation. Any reference paper produced is linked to them. Omit `contact` for other activities.

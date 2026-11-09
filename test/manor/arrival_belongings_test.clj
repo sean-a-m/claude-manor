@@ -1,6 +1,11 @@
 (ns manor.arrival-belongings-test
+  "First-arrival belongings (docs/arrival-belongings-design.md), for someone
+  sent for from elsewhere (docs/sending-for-design.md 4.6): written with
+  the contact, brought the first time they come, a written character marked
+  with the contact's id."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
+            [clojure.walk :as walk]
             [jsonista.core :as json]
             [manor.engine :as e]
             [manor.hiring-test :as hiring-test]
@@ -10,7 +15,10 @@
             [manor.mechanics.items.belongings :as belongings]
             [manor.mechanics.items.views :as item-views]
             [manor.mechanics.people :as people]
+            [manor.mechanics.visits :as visits]
             [manor.prompt :as prompt]
+            [manor.ruleset.mock :as mock]
+            [manor.scenarios.claudeworth :as cw]
             [manor.settings :as settings]
             [manor.test-support :as support]
             [manor.world :as w]))
@@ -21,12 +29,12 @@
 (def kit
   [{:name "Servant's box" :desc "A worn wooden box." :container :closed
     :aspects {:contents "Spare linen and mending things."}
-    :contents [{:name "Written character" :desc letter-text :candidate-reference? true}]}
+    :contents [{:name "Written character" :desc letter-text :reference? true}]}
    {:name "Keepsake" :desc "A small wooden keepsake."}])
 
 (def arrival-options
   {:belongings-mode :first-arrival
-   :arrival-context {:kind :candidate :position :housemaid :occasion "coming for interview"}})
+   :arrival-context {:kind :sent-for :line "housemaid seeking a place" :wanted "a housemaid wanting a place"}})
 
 (def writer-args
   {:circumstances ["You were in service before the household reduced its staff."]
@@ -52,9 +60,9 @@
                     [(assoc (first kit) :container :locked)]
                     [(assoc-in (first kit) [:contents 0 :container] :closed)]
                     [(assoc-in (first kit) [:contents 0 :contents] [])]
-                    [(assoc-in (first kit) [:contents 0 :candidate-reference?] "not-a-boolean")]
-                    [(assoc-in (first kit) [:contents 0 :candidate-reference?] true)
-                     {:name "Other paper" :desc "Another document." :candidate-reference? true}]
+                    [(assoc-in (first kit) [:contents 0 :reference?] "not-a-boolean")]
+                    [(assoc-in (first kit) [:contents 0 :reference?] true)
+                     {:name "Other paper" :desc "Another document." :reference? true}]
                     [{:name " " :desc "An object."}]
                     [{:name "Thing" :desc " "}]
                     [{:name (apply str (repeat 61 "x")) :desc "An object."}]
@@ -67,14 +75,14 @@
       (is (:error (check-answer (assoc writer-args :belongings objects))) (pr-str objects))))
   (testing "unknown state keys are dropped and nested argument spellings normalised"
     (let [objects [{:name " Box " :desc " A box. " :container "closed" :owner "employer" :id "stolen-id"
-                    :contents [{:name "Paper" :desc " A letter. " :candidate_reference? true :holder "employer"}]}]
+                    :contents [{:name "Paper" :desc " A letter. " :reference? true :holder "employer"}]}]
           answer (get-in (check-answer (assoc writer-args :belongings objects)) [:verdict :belongings])]
       (is (= [{:name "Box" :desc "A box." :container :closed
-               :contents [{:name "Paper" :desc "A letter." :candidate-reference? true}]}] answer))))
-  (testing "reference markers require candidate context, including false flags"
+               :contents [{:name "Paper" :desc "A letter." :reference? true}]}] answer))))
+  (testing "reference markers require someone sent for, including false flags"
     (doseq [flag [true false]]
       (is (:error (check-answer (assoc arrival-options :arrival-context {:kind :guest})
-                               (assoc writer-args :belongings [{:name "Paper" :desc "A paper." :candidate-reference? flag}]))))))
+                               (assoc writer-args :belongings [{:name "Paper" :desc "A paper." :reference? flag}]))))))
   (testing "default callers neither require nor consume unsolicited belongings"
     (let [result (check-answer {} (assoc writer-args :belongings kit))
           request (people/polish-request {:record {}})
@@ -97,114 +105,90 @@
     (is (not (str/includes? (people/instructions {:state {:setting-pack (settings/load-pack "settings/qing-palace")}} :first-arrival)
                            "servant's box")))))
 
-(defn items-start [changes]
-  (let [init (:init (hiring-test/scenario))]
-    (hiring-test/start
-     (hiring/install (merge (hiring-test/scenario) {:items {}
-             :init (fn [opts] (assoc (init opts) :clock {:start "1904-10-15T08:00" :minutes-per-round 30}))
-             :adjudicators (assoc-in hiring/adjudicators [:people/polish :mock]
-                                     (constantly {:tool :polish :args (assoc writer-args :belongings kit)}))}
-                            changes))
-     {})))
+(defn- with-polish [mock]
+  {:adjudicators (assoc-in (:adjudicators cw/scenario) [:people/polish :mock] mock)})
+
+(defn- start-kit
+  ([] (start-kit hiring-test/housemaid-day (constantly {:tool :polish :args (assoc writer-args :belongings kit)})))
+  ([day polish] (hiring-test/start day (with-polish polish) {})))
 
 (defn item-by-name [world name]
   (first (filter #(= name (:name %)) (items/all world))))
 
-(deftest candidate-first-arrival-private-once-and-return-persistence
-  (let [policy (fn [{:keys [world agent-id used] :as ctx}]
-                 (let [id (:agent-id (hiring-test/first-person world))
-                       box (:id (item-by-name world "Servant's box"))
-                       letter (:id (item-by-name world "Written character"))]
-                   (cond
-                     (and (= id agent-id) (= 4 (:round world)))
-                     (cond
-                       (not (some #{"open"} used)) {:tool :open :args {:container box}}
-                       (not (some #{"take"} used)) {:tool :take :args {:item letter}}
-                       (not (some #{"give"} used)) {:tool :give :args {:item letter :to "employer"}}
-                       (not (some #{"put-down"} used)) {:tool :put-down :args {:item box}}
-                       :else {:tool :pass})
-                     (and (= id agent-id) (= 5 (:round world)))
-                     {:tool :take-leave :args {:return-date "1904-10-15" :return-time "11:00"}}
-                     :else (hiring-test/policy ctx))))
-        run (items-start {:mock-policy policy})]
+(def earl hiring-test/earl)
+
+(deftest first-arrival-private-once-and-return-persistence
+  (let [day (-> hiring-test/housemaid-day
+                (assoc "@maid" {"23:30" [[:open {:container "@box"}] [:take {:item "@letter"}]
+                                         [:give {:item "@letter" :to earl}] [:put-down {:item "@box"}] [:pass {}]]
+                                "00:00" [[:take-leave {:return-date "1904-10-16" :return-time "01:00"}]]}))
+        policy (fn [{:keys [world] :as ctx}]
+                 (let [id (hiring-test/maid world)
+                       ids {"@box" (:id (item-by-name world "Servant's box")) "@letter" (:id (item-by-name world "Written character"))}
+                       day (-> day (assoc id (get day "@maid")) (dissoc "@maid"))]
+                   (mock/scripted-policy (walk/postwalk #(get ids % %) day) ctx)))
+        run (hiring-test/start day (merge (with-polish (constantly {:tool :polish :args (assoc writer-args :belongings kit)}))
+                                          {:mock-policy policy}) {})]
     (try
-      (hiring-test/rounds! run 1)
-      (let [world (e/world run) p (hiring-test/first-person world)
+      (hiring-test/until! run 2)
+      (let [world (e/world run) c (hiring-test/the-contact world)
             calls (store/read-llm (:dir run))]
-        (is (= kit (:pending-belongings p)))
-        (is (not (contains? (:record p) :belongings)))
-        (is (empty? (items/all world)))
-        (is (= 2 (count (filter #(str/starts-with? (:agent %) "adjudicator/people") calls))))
-        (doseq [id ["employer" "recommender" "bystander"]]
+        (testing "written with the contact, kept privately until she comes"
+          (is (= kit (:pending-belongings c)))
+          (is (not (contains? (:record c) :belongings)))
+          (is (empty? (items/all world)))
+          (is (= 2 (count (filter #(str/starts-with? (:agent %) "adjudicator/people") calls))))
+          (let [polish (first (filter #(= "adjudicator/people/polish" (:agent %)) calls))]
+            (is (= {:kind "sent-for" :line "housemaid seeking a place" :wanted "a housemaid wanting a place"}
+                   (:arrival-context (json/read-value (get-in polish [:messages 1 :content]) json/keyword-keys-object-mapper))))))
+        (doseq [id [earl "hale" "carter"]]
           (is (not (str/includes? (pr-str (prompt/agent-view (:scenario run) world id)) letter-text)))
-          (is (not (str/includes? (pr-str (filter #(w/visible-to? % id) (e/events run))) letter-text))))
-        (let [result (hiring/recommend! world "recommender" {:position "housemaid"}
-                                       {:bridge (fn [& _] (throw (ex-info "must reuse" {})))
-                                        :adjudicate (fn [& _] (throw (ex-info "must not rewrite" {})))})]
-          (is (= kit (get-in result [:candidate :pending-belongings])))))
-      (hiring-test/rounds! run 1)
-      (let [world (assoc (e/world run) :round 3)
-            capped (assoc-in world [:state :hiring-max-agents] 3)]
-        (is (empty? (hiring/tick (:scenario run) capped)))
-        (is (= kit (:pending-belongings (hiring-test/first-person capped))))
-        (is (empty? (items/all capped))))
-      (hiring-test/rounds! run 1)
-      (let [world (e/world run) p (hiring-test/first-person world) id (:agent-id p)
+          (is (not (str/includes? (pr-str (filter #(w/visible-to? % id) (e/events run))) letter-text)))))
+      (testing "while there's no room, she waits, and nothing is made"
+        (let [world (assoc (e/world run) :round 7)
+              capped (assoc-in world [:state :hiring-max-agents] (count (w/active-agents world)))]
+          (is (empty? (visits/tick (:scenario run) capped)))
+          (is (empty? (items/all capped)))))
+      (hiring-test/until! run 7)
+      (let [world (e/world run) c (hiring-test/the-contact world) id (:agent-id c)
             box (item-by-name world "Servant's box")
             letter (item-by-name world "Written character")
             additions (filter #(= :item/added (:type %)) (e/events run))]
-        (is (= 3 (count additions)))
-        (is (every? #(= #{id} (:visible-to %)) additions))
-        (is (nil? (:pending-belongings p)))
-        (is (= #{id} (set (map :owner (items/all world)))))
-        (is (= id (:holder box)))
-        (is (= (:id box) (:in letter)))
-        (is (= (:id p) (:candidate-id letter)))
-        (is (items/identity-bound? letter))
-        (is (not (items/identity-bound? box)))
-        (is (= {:contents "Spare linen and mending things."} (:aspects box)))
-        (is (= 1 (count (items/contents world (:id box)))))
-        (is (some #(= (:id box) (:id %)) (get-in (prompt/agent-view (:scenario run) world id) [:you :carrying])))
-        (doseq [viewer ["employer" "recommender" "bystander"]]
-          (is (str/includes? (pr-str (prompt/agent-view (:scenario run) world viewer)) (:name box)))
+        (testing "she arrives carrying them, seen only by her"
+          (is (= 3 (count additions)))
+          (is (every? #(= #{id} (:visible-to %)) additions))
+          (is (not (contains? c :pending-belongings)))
+          (is (= #{id} (set (map :owner (items/all world)))))
+          (is (= id (:holder box)))
+          (is (= (:id box) (:in letter)))
+          (is (= {:contents "Spare linen and mending things."} (:aspects box)))
+          (is (some #(= (:id box) (:id %)) (get-in (prompt/agent-view (:scenario run) world id) [:you :carrying]))))
+        (testing "the written character carries the contact's id"
+          (is (= "contact-1" (:contact-id letter)))
+          (is (items/identity-bound? letter))
+          (is (not (items/identity-bound? box))))
+        (doseq [viewer [earl "hale"]]
           (is (not (str/includes? (pr-str (prompt/agent-view (:scenario run) world viewer)) letter-text)))
           (is (not (str/includes? (pr-str (item-views/look world viewer)) letter-text)))
-          (is (not (str/includes? (pr-str (filter #(w/visible-to? % viewer) (e/events run))) letter-text))))
-        (is (= kit (get-in (first (filter #(= :people/pooled (:type %)) (e/events run))) [:data :pending-belongings])))
-        (is (empty? (hiring/tick (:scenario run) world))))
-      (hiring-test/rounds! run 1)
+          (is (not (str/includes? (pr-str (filter #(w/visible-to? % viewer) (e/events run))) letter-text)))))
+      (hiring-test/until! run 8)
       (let [world (e/world run)
-            letter (item-by-name world "Written character")
-            box (item-by-name world "Servant's box")
-            id (:agent-id (hiring-test/first-person world))
-            candidate-calls (filter #(and (= id (:agent %)) (= 4 (:round %))) (store/read-llm (:dir run)))]
-        (is (= "employer" (:holder letter)))
-        (is (= "gate" (:place box)))
-        (is (str/includes? (get-in (first candidate-calls) [:replies 0 :content]) letter-text))
-        (is (not-any? #(str/starts-with? (:content %) "error:") (mapcat :replies candidate-calls))))
-      (hiring-test/rounds! run 2)
-      (let [world (e/world run)
-            id (:agent-id (hiring-test/first-person world))]
-        (is (= :away (:status (w/agent world id))))
-        (is (= id (:holder (item-by-name world "Keepsake"))))
-        (doseq [faculty [:movement :consciousness]]
-          (let [blocked (-> world (assoc :round 7)
-                            (assoc-in [:agents id :physical faculty] {:level :disabled}))]
-            (is (empty? (hiring/tick (:scenario run) blocked)))
-            (is (= (items/all world) (items/all blocked)))
-            (is (nil? (:pending-belongings (hiring-test/first-person blocked)))))))
-      (hiring-test/rounds! run 1)
-      (let [world (e/world run) p (hiring-test/first-person world) id (:agent-id p)
-            spawned (filter #(and (= :agent/spawned (:type %)) (= id (get-in % [:data :agent :id]))) (e/events run))]
-        (is (= :active (:status (w/agent world id))))
-        (is (= :here (:status p)))
-        (is (nil? (:pending-belongings p)))
-        (is (= 1 (count spawned)))
-        (is (= 3 (count (items/all world))))
-        (is (= 3 (count (filter #(= :item/added (:type %)) (e/events run)))))
-        (is (= "employer" (:holder (item-by-name world "Written character"))))
-        (is (= "gate" (:place (item-by-name world "Servant's box"))))
-        (is (= id (:holder (item-by-name world "Keepsake"))))
+            id (hiring-test/maid world)
+            calls (filter #(and (= id (:agent %)) (= 8 (:round %))) (store/read-llm (:dir run)))]
+        (testing "she shows and gives her character with ordinary item actions"
+          (is (= earl (:holder (item-by-name world "Written character"))))
+          (is (= "carriage-sweep" (:place (item-by-name world "Servant's box"))))
+          (is (some #(str/includes? (:content %) letter-text) (mapcat :replies calls)))
+          (is (not-any? #(str/starts-with? (:content %) "error:") (mapcat :replies calls)))))
+      (hiring-test/until! run 11)
+      (let [world (e/world run) id (hiring-test/maid world)]
+        (testing "coming back, she brings nothing more: what she left stays where it is"
+          (is (= :active (:status (w/agent world id))))
+          (is (= 3 (count (items/all world))))
+          (is (= 3 (count (filter #(= :item/added (:type %)) (e/events run)))))
+          (is (= earl (:holder (item-by-name world "Written character"))))
+          (is (= "carriage-sweep" (:place (item-by-name world "Servant's box"))))
+          (is (= id (:holder (item-by-name world "Keepsake")))))
         (is (= 2 (count (filter #(str/starts-with? (:agent %) "adjudicator/people") (store/read-llm (:dir run))))))
         (is (not-any? #(#{:action/forfeited :adjudication/failed} (:type %)) (e/events run)))
         (hiring-test/replay! run)
@@ -215,42 +199,18 @@
                   branch (e/branch-run run 7)]
               (try
                 (is (= world (e/world loaded)))
-                (is (= world (e/world branch)))
-                (hiring-test/rounds! loaded 1)
-                (is (= (items/all world) (items/all (e/world loaded))))
-                (is (nil? (:pending-belongings (hiring-test/first-person (e/world loaded)))))
+                (is (= 3 (count (items/all (e/world branch)))))
                 (finally (e/stop-run loaded) (e/stop-run branch)))))))
-      (finally (e/stop-run run)))))
-
-(deftest pooled-descriptions-survive-load-and-branch-without-regeneration
-  (let [run (items-start {})]
-    (try
-      (hiring-test/rounds! run 1)
-      (with-redefs [e/load-scenario (constantly (:scenario run))
-                    people/polish-request (fn [& _] (throw (ex-info "no rewriting pooled candidates" {})))]
-        (let [loaded (e/load-run (:id run) {:test? true :llm :mock :offline? true})
-              branch (e/branch-run run 1)]
-          (try
-            (doseq [copy [loaded branch]]
-              (is (= (e/world run) (e/world copy)))
-              (is (= kit (:pending-belongings (hiring-test/first-person (e/world copy)))))
-              (is (empty? (items/all (e/world copy)))))
-            (hiring-test/rounds! branch 2)
-            (is (= 3 (count (items/all (e/world branch)))))
-            (is (nil? (:pending-belongings (hiring-test/first-person (e/world branch)))))
-            (hiring-test/replay! branch)
-            (finally (e/stop-run loaded) (e/stop-run branch)))))
       (finally (e/stop-run run)))))
 
 (deftest empty-and-reference-free-kits-are-consumed
   (doseq [objects [[] [{:name "Bundle" :desc "A plain bundle." :aspects {:contents "Ordinary personal things."}}]]]
-    (let [run (items-start {:adjudicators (assoc-in hiring/adjudicators [:people/polish :mock]
-                                                  (constantly {:tool :polish :args (assoc writer-args :belongings objects)}))})]
+    (let [run (start-kit hiring-test/housemaid-day (constantly {:tool :polish :args (assoc writer-args :belongings objects)}))]
       (try
-        (hiring-test/rounds! run 3)
-        (is (nil? (:pending-belongings (hiring-test/first-person (e/world run)))))
+        (hiring-test/until! run 7)
+        (is (not (contains? (hiring-test/the-contact (e/world run)) :pending-belongings)))
         (is (= (count objects) (count (items/all (e/world run)))))
-        (is (not-any? :candidate-id (items/all (e/world run))))
+        (is (not-any? :contact-id (items/all (e/world run))))
         (hiring-test/replay! run)
         (finally (e/stop-run run))))))
 
@@ -259,25 +219,36 @@
           [[people/mock-polish 1]
            [(fn [{:keys [step]}]
               {:tool :polish :args (cond-> writer-args (pos? step) (assoc :belongings kit))}) 2]]]
-    (let [run (items-start {:adjudicators (assoc-in hiring/adjudicators [:people/polish :mock] mock)})]
+    (let [run (start-kit hiring-test/housemaid-day mock)]
       (try
-        (hiring-test/rounds! run 1)
+        (hiring-test/until! run 2)
+        (let [calls (filter #(= "adjudicator/people/polish" (:agent %)) (store/read-llm (:dir run)))]
+          (is (seq (:pending-belongings (hiring-test/the-contact (e/world run)))))
+          (is (= expected-polish-calls (count calls))))
+        (hiring-test/until! run 7)
         (let [world (e/world run)
-              p (hiring-test/first-person world)
-              calls (filter #(= "adjudicator/people/polish" (:agent %)) (store/read-llm (:dir run)))]
-          (is (seq (:pending-belongings p)))
-          (is (= expected-polish-calls (count calls)))
-          (is (empty? (items/all world))))
-        (hiring-test/rounds! run 2)
-        (let [world (e/world run)
-              p (hiring-test/first-person world)
-              references (filter :candidate-id (items/all world))]
-          (is (seq (items/held-by world (:agent-id p))))
-          (is (= [(:id p)] (mapv :candidate-id references)))
-          (is (nil? (:pending-belongings p)))
+              id (hiring-test/maid world)]
+          (is (seq (items/held-by world id)))
+          (is (= ["contact-1"] (mapv :contact-id (filter :contact-id (items/all world)))))
+          (is (= (:id (hiring-test/the-contact world)) (:contact-id (item-by-name world "Written character")))
+              "the place-seeker's marked character is tied to her contact")
           (is (not-any? #(= :adjudication/failed (:type %)) (e/events run))))
         (hiring-test/replay! run)
         (finally (e/stop-run run))))))
+
+(deftest the-mock-writer-varies-with-the-line
+  (let [things (fn [line] (:belongings (:args (people/mock-polish {:record {} :belongings-mode :first-arrival
+                                                                    :arrival-context {:kind :sent-for :line line :wanted line}}))))
+        all (fn [objects] (mapcat #(cons % (:contents %)) objects))]
+    (testing "someone seeking a place, or a line it can't tell, brings a box and a marked character"
+      (doseq [line ["housemaid seeking a place" nil]]
+        (is (= ["Written character"] (map :name (filter :reference? (all (things line))))))))
+    (testing "a tradesperson brings tools and no reference"
+      (let [objects (things "gas fitter")]
+        (is (= "Tool bag" (:name (first objects))))
+        (is (= 2 (count (:contents (first objects)))))
+        (is (not-any? :reference? (all objects)))
+        (is (nil? (belongings/problem objects true)))))))
 
 (deftest other-writer-callers-do-not-consume-unsolicited-items
   (let [calls (atom [])
@@ -286,22 +257,14 @@
                                (if (= :people/appearance task)
                                  {:appearance "Public appearance."}
                                  (assoc writer-args :belongings kit)))}
-        ;; Guests/tradespeople pass notes, couriers use the two-argument arity.
+        ;; Guests pass notes, couriers use the two-argument arity.
         p {:record {:position "visitor"}}]
-    (doseq [notes [nil "An authored guest or tradesperson."]]
+    (doseq [notes [nil "An authored guest."]]
       (let [written (hiring/write-person services p notes)]
         (is (not (contains? written :pending-belongings)))
         (is (not (contains? written :belongings)))
         (is (not (contains? (hiring/spawn-spec written) :belongings)))))
-    (is (every? #(not (contains? (second %) :belongings-mode)) @calls)))
-  (let [run (hiring-test/start {:adjudicators (assoc-in hiring/adjudicators [:people/polish :mock]
-                                                        (constantly {:tool :polish :args (assoc writer-args :belongings kit)}))} {})]
-    (try
-      (hiring-test/rounds! run 3)
-      (is (not (items/enabled? (e/world run))))
-      (is (not (contains? (hiring-test/first-person (e/world run)) :pending-belongings)))
-      (hiring-test/replay! run)
-      (finally (e/stop-run run)))))
+    (is (every? #(not (contains? (second %) :belongings-mode)) @calls))))
 
 (deftest materialisation-allocates-against-prior-and-gone-items
   (let [world {:round 2 :agents {"person" {:id "person"}}

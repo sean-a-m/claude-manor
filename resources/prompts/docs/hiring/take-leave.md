@@ -1,4 +1,4 @@
-Leave the mapped area, ending your visit as an unengaged candidate or a guest from elsewhere. This ends your turn; you receive no further turns while away. A candidate's departure closes any outstanding job offer.
+Leave the mapped area, ending your visit as a guest or as someone sent for, and go home. This ends your turn; you receive no further turns while away. Leaving closes any place offered to you.
 
 If you have been dismissed from your post, you can leave from anywhere, but with no return time.
 

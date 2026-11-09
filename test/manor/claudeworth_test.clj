@@ -23,6 +23,7 @@
             [manor.ruleset.actions :as ruleset-actions]
             [manor.ruleset.hibernation :as hibernation]
             [manor.ruleset.init :as ruleset-init]
+            [manor.ruleset.places :as places]
             [manor.ruleset.rules :as rules]
             [manor.ruleset.views :as views]
             [manor.mechanics.building :as building]
@@ -497,6 +498,11 @@
       (let [[in-study] (perform run world "hale" :walk {:to "study"})]
         (is (= "go to a bedroom first; yours is Secretary's room (secretarys-room)"
                (a/check (action run :sleep) in-study "hale" {:until "22:00"})))))
+    (testing "without lodging in the world, neither the refusal nor the rules mention it"
+      (is (= "go to a bedroom first"
+             (a/check (action run :sleep) (-> (at world "pugh" "general-store") (update-in [:state :bedrooms] dissoc "pugh"))
+                      "pugh" {:until "22:00"})))
+      (is (not (str/includes? (rules/rules world) "without a bed of their own"))))
     (testing "sleep at most 12 hours"
       (is (re-find #"more than 12 hours" (a/check (action run :sleep) world "hale" {:until "07:00"})))
       (is (re-find #"time of day" (a/check (action run :sleep) world "hale" {:until "seven"})))
@@ -526,6 +532,47 @@
 (defn- moves-to [run id loc] (filter #(= loc (get-in % [:data :to])) (by id (of-type run :agent/moved))))
 
 (defn- sleeps [run id] (filter #(= "asleep" (get-in % [:data :activity])) (by id (of-type run :agent/occupied))))
+
+(deftest lodging
+  (let [run (start)
+        world (-> (e/world run)
+                  (assoc :round 1)
+                  ;; not a bedroom, so only :lodging lets anyone sleep there
+                  (update-in [:space :locations "architects-lodgings"] assoc :lodging true :kind :inn)
+                  (update-in [:state :bedrooms] dissoc "pugh"))
+        sleep (action run :sleep)]
+    (testing "anyone may sleep at lodging, with no bedroom of their own"
+      (is (nil? (places/bedroom-of world "pugh")))
+      (is (nil? (a/check sleep (at world "pugh" "architects-lodgings") "pugh" {:until "12:00"}))))
+    (testing "elsewhere the refusal names the lodging, beside your own bedroom if you have one"
+      (is (= "go to a bedroom first; anyone without a bed of their own may sleep at Architect's lodgings (architects-lodgings)"
+             (a/check sleep (at world "pugh" "general-store") "pugh" {:until "22:00"})))
+      (is (= (str "go to a bedroom first; yours is Secretary's room (secretarys-room); "
+                  "anyone without a bed of their own may sleep at Architect's lodgings (architects-lodgings)")
+             (a/check sleep (at world "hale" "study") "hale" {:until "22:00"}))))
+    (testing "the rules name it"
+      (is (str/includes? (rules/rules world)
+                         "Anyone without a bed of their own, such as someone come from elsewhere and staying the night, may sleep at Architect's lodgings (architects-lodgings).")))
+    (testing "the world-file check: :lodging is a boolean"
+      (let [{wf :world-file} (wf/load-world fixture/world-file)
+            with (fn [v] (update wf :locations update-entry :id "architects-lodgings" #(assoc % :lodging v)))]
+        (is (empty? (ruleset-init/problems (with true))))
+        (is (empty? (ruleset-init/problems (with false))))
+        (is (some #{"location \"architects-lodgings\": :lodging must be true or false, not \"yes\""}
+                  (ruleset-init/problems (with "yes"))))))
+    (e/stop-run run)))
+
+(deftest claudeworth-worlds-have-lodging-at-the-crown
+  (doseq [k [:claudeworth :claudeworth-medium :claudeworth-small]]
+    (testing (name k)
+      (let [run (e/start-run k {:llm :mock :offline? true :test? true :run-id (str (gensym (str "lodging-" (name k) "-")))})
+            world (e/world run)]
+        (try
+          (is (= ["crown-chamber"] (places/lodgings world)))
+          (is (contains? (space/area world "public-house") "crown-chamber"))
+          (is (not-any? #{"crown-chamber"} (vals (get-in world [:state :bedrooms]))))
+          (is (str/includes? (rules/rules world) "may sleep at Crown's back chamber (crown-chamber)"))
+          (finally (e/stop-run run)))))))
 
 (deftest the-mock-day
   (let [run (rounds! (start) 47)

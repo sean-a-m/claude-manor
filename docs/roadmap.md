@@ -799,6 +799,40 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   [works-run-review-2026-11-08.md](works-run-review-2026-11-08.md), for planning fixes.
 - **Next:** fixes chosen from that list; phase 4 (several phases and workers, lead times) later.
 
+### B21. Sending for people: one path for staff and tradespeople
+
+- **Why:** `recommend` with `position` and with `trade` made two kinds of record that arrived and
+  were dealt with differently, so one wrong choice in a conversation sent everything after it down
+  the wrong path (works review items 11 and 14). Visitors staying the night had nowhere to sleep
+  (item 13).
+- **Design:** [sending-for-design.md](sending-for-design.md), with the user's decisions of
+  2026-11-08: `recommend {wanted for}` and a judge for who is meant, one contact record, `send-for`
+  for everyone (2 hours, not turn-ending, offered on speaking turns), arrival as a `:caller`
+  settled by `engage` or `order-work`, belongings that suit the person, visitors who decide when
+  to go, and lodging marked in world files. Phase 0 done: speaking turns take `recommend`,
+  `send-for` and the place tools from the scenario's installed actions, and `send-for` is free
+  (mock-tested). Phase 1.1 done: `manor.mechanics.contacts`, the recommendation judge,
+  `recommend {wanted}` beside `position`, `:wanted` per knower, `send-for {id about?}` (2 hours),
+  the `:caller` role (mock-tested). Phase 1.2a done: the arrival situation from
+  `situations/sent-for.md`, the arrival event and `you.visit` saying what about, the `:caller`
+  text, no idle departure (mock-tested). Phase 1.2b done: `engage`, `accept-place`, `decline-place`
+  and `send-away` take contacts here by `:sent-for` with no post, refusing everyone else; accepting
+  ends the visit (mock-tested). Phase 1.3 done: the candidate pool is gone; `recommend {wanted for}`
+  only, contacts own all six tools, new contacts bring first-arrival belongings (mock-tested).
+  Phase 1b done: locations with `:lodging true` where anyone may `sleep`, named in the refusal and
+  the rules; the Crown's back chamber in the three Claudeworth worlds (mock-tested). Phase 2
+  done: the writer decides belongings from line and wanted (a box and marked character for
+  someone seeking a place, tools for a tradesperson), the marker is `:reference?` and the item key
+  `:contact-id`, the mock polish varies with the line (mock-tested). Phase 3
+  done: one rules section (`rules/sections/sending-for.md`, `contacts/rules`) in every ruleset world,
+  the docs, worlds' comments and GM texts, `scenario-authoring.md` ("Sending for people") and
+  `prompts.md` brought into line (mock-tested). Merged to master 2026-11-09.
+- **First real run (2026-11-09):** the path worked end to end (four recommendations, two hired, a
+  tradesperson came and left by himself). Problems found, with the user's first thoughts, are in
+  [sending-for-run-review-2026-11-09.md](sending-for-run-review-2026-11-09.md).
+- **Next:** a design for an informal `pay` and for confirming automatic payments the same way;
+  moving things across rooms; goods taken or made off the map (to discuss with the user).
+
 ## C. Known issues and small fixes
 
 1. **Act bridges aren't re-checked when executed.** `:valid?` runs when the request is made; the

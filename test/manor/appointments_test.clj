@@ -230,38 +230,36 @@
       (is (replayed? run))
       (finally (e/stop-run run)))))
 
-(deftest a-dismissed-hired-candidate-can-be-sent-for-again
+(deftest a-dismissed-contact-goes-home-and-can-be-sent-for-again
   (let [run (start)]
     (try
       (is (:ok (act! run "mrs-finch" :dismiss {:who "daisy"})))
-      (let [world (w/apply-event (e/world run) {:type :people/pooled
-                                                :data {:id "candidate-1" :agent-id "daisy" :seeks [:scullery-maid]
-                                                       :status :engaged :candidate-home "a cottage at Ely" :known-to #{"mrs-finch"}}})
+      (let [world (w/apply-event (e/world run) {:type :contacts/made
+                                                :data {:id "contact-1" :created 1 :agent-id "daisy" :line "scullery maid seeking a place"
+                                                       :based "a cottage at Ely" :known-to #{"mrs-finch"}}})
             events (visits/dismissed-leave-events world "daisy")
             after (reduce w/apply-event world events)]
         (is (= "a cottage at Ely" (get-in (first (filter #(= :people/departed (:type %)) events)) [:data :towards])))
-        (is (= :away (get-in after [:state :pool "candidate-1" :status])))
-        (is (= :away (:status (w/agent after "daisy")))))
+        (is (= :away (:status (w/agent after "daisy"))))
+        (is (some? (get-in after [:state :contacts "contact-1"])) "the contact remains, to send for again"))
       (finally (e/stop-run run)))))
 
-(deftest a-candidate-with-no-post-was-not-dismissed
+(deftest someone-with-no-post-was-not-dismissed
   (let [world (e/world (doto (start) e/stop-run))
-        candidate (w/apply-event world (positions/post-changed world "hale" :none {:household nil}))]
-    (is (not (visits/dismissed? candidate "hale")))
+        unplaced (w/apply-event world (positions/post-changed world "hale" :none {:household nil}))]
+    (is (not (visits/dismissed? unplaced "hale")))
     (is (not (visits/dismissed? world "nellie")))))
 
-(deftest visitors-and-candidates-are-not-appointed-or-dismissed
+(deftest visitors-and-callers-are-not-appointed-or-dismissed
   (let [calls (atom 0)
         run (start (constantly {:allowed true}) calls)]
     (try
       (let [world (e/world run)
-            candidate (w/apply-event world {:type :people/pooled
-                                            :data {:id "candidate-1" :agent-id "nellie" :seeks [:housemaid]
-                                                   :status :here :known-to #{"mrs-finch"}}})
+            caller (w/apply-event world (positions/post-changed world "nellie" :caller {:household nil}))
             guest (w/apply-event world (positions/post-changed world "nellie" :guest {:household nil}))]
-        (testing "an unengaged candidate is engaged, not appointed"
-          (is (str/includes? (appointments/appoint-reason candidate "mrs-finch" {:who "nellie" :position "cook"}) "use engage"))
-          (is (str/includes? (appointments/dismiss-reason candidate "mrs-finch" {:who "nellie"}) "candidate")))
+        (testing "someone sent for is engaged, not appointed"
+          (is (str/includes? (appointments/appoint-reason caller "mrs-finch" {:who "nellie" :position "cook"}) "use engage"))
+          (is (str/includes? (appointments/dismiss-reason caller "mrs-finch" {:who "nellie"}) "visitor")))
         (testing "a guest's visit isn't a post"
           (is (str/includes? (appointments/appoint-reason guest "mrs-finch" {:who "nellie" :position "cook"}) "visitor"))
           (is (str/includes? (appointments/dismiss-reason guest "mrs-finch" {:who "nellie"}) "visitor"))))

@@ -39,9 +39,9 @@
  {:title "Stall keeper" :standing :merchant :sleeps :out :capabilities #{:shop-clerk} :addressed-as "Master {surname}" :ages [25 65]
   :about "You keep a stall beyond the palace gate, selling silk, thread, tea and small sundries over the counter to the palace's eunuchs and maids."}
 
- :tradesman
- {:title "Tradesman" :standing :merchant :sleeps :out :ages [16 70]
-  :about "You work at a trade from your home elsewhere, and you have come because you were sent for: `visit` under `you` in your view says who sent for you and the job. Talk it over with them; do the work with `spend-time` on the real things, or, if they give you a work plan with `order-work`, settle its price with `accept-work` or `revise-work` and do it with `carry-out`; or refuse it if you will not or cannot do it. When it is done, or there is nothing for you to do, use `take-leave` to go home."}
+ :caller
+ {:title "Caller" :standing :merchant :sleeps :out :ages [16 70]
+  :about "You live elsewhere, and you have come because you were sent for: `visit` under `you` in your view says who sent for you and what about. Talk it over with them, or whoever is here for them. You may be offered work (`order-work`: settle it with `accept-work`, `revise-work` or `decline-work`, then do it with `carry-out`), or a place (`engage`: `accept-place` or `decline-place`), or neither; you may refuse either. When you're done, nothing more is wanted of you, or you've been turned away, use `take-leave` to go home."}
 
  :guest
  {:title "Guest" :standing :visitor :ages [15 80]

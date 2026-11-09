@@ -2,7 +2,7 @@
 ;; A template: nothing writes to it. Runs keep a copy (world-start.edn) and
 ;; export their live map (map.edn) in this format. See docs/claudeworth-design.md.
 {:meta {:name "Claudeworth Manor"
-        :meeting-place "carriage-sweep" ; where candidates, guests and deliveries arrive
+        :meeting-place "carriage-sweep" ; where people sent for, guests and deliveries arrive
         :start "1904-12-21T08:00"
         :minutes-per-round 30
         :starting-funds 2900 ; whole pounds here; runtime money is old pence
@@ -113,12 +113,14 @@
    :desc "A neat bedroom above the drapery, with a patchwork coverlet and a window looking across the green."}
   {:id "public-house" :name "The Crown public house" :domain :village :kind :public-house :hours ["11:00" "22:00"]
    :services #{:general-store}
-   :store-profile "A small fully licensed village public house in rural England, 1904. Beer, ale, porter, cider and modest measures of spirits, with bread and cheese or other simple cold refreshments. These examples describe its scope, not an exhaustive menu. Only portable food and drink handed over the bar; not a grocer, hotel or restaurant. No room bookings, rounds on credit or paid hospitality services."
-   :connects-to ["publicans-room" "barmaids-room"]
-   :desc "The Crown: a low, whitewashed public house, with a taproom opening from the green and a private stair behind the bar. The publican keeps it with a barmaid who lives in; there is no guest accommodation."
+   :store-profile "A small fully licensed village public house in rural England, 1904. Beer, ale, porter, cider and modest measures of spirits, with bread and cheese or other simple cold refreshments. These examples describe its scope, not an exhaustive menu. Only portable food and drink handed over the bar; not a grocer, hotel or restaurant. A bed for the night in the back chamber is arranged with the publican himself, not bought over the bar; no rounds on credit or paid hospitality services."
+   :connects-to ["publicans-room" "barmaids-room" "crown-chamber"]
+   :desc "The Crown: a low, whitewashed public house, with a taproom opening from the green and a private stair behind the bar. The publican keeps it with a barmaid who lives in, and lets a back chamber to travellers and workmen who need a bed for the night."
    :detail "Dark settles stand against the walls, the floor is flagged, and a small serving hatch opens towards the cellar stair. A painted crown hangs above the door; frosted lower panes screen the taproom from the green."}
   {:id "publicans-room" :name "Publican's room" :domain :village :kind :bedroom
-   :desc "A plain bedroom above the Crown, with a washstand and a heavy woollen blanket on the bed. There are no guest rooms."}
+   :desc "A plain bedroom above the Crown, with a washstand and a heavy woollen blanket on the bed."}
+  {:id "crown-chamber" :name "Crown's back chamber" :domain :village :kind :bedroom :lodging true
+   :desc "A plain back room behind the Crown's taproom, which the publican lets to travellers and workmen for the night: two narrow iron beds with straw mattresses and grey blankets, a washstand with a chipped jug, and pegs on the wall for coats."}
   {:id "barmaids-room" :name "Barmaid's room" :domain :village :kind :bedroom
    :desc "A narrow attic room under the Crown's eaves, with an iron bedstead, a chest of drawers and a small square window over the yard."}
   {:id "post-office" :name "Post office" :domain :village :kind :office :hours ["08:00" "18:00"]
@@ -334,7 +336,7 @@
              {:from "18:00" :at "drapers-lodgings" :doing "having supper above the shop"}
              {:from "22:00" :at "drapers-lodgings" :doing "asleep"}]}
   {:name "Turner" :sex :male :role :publican :location "public-house" :bedroom "publicans-room"
-   :situation "You are the licensee of the Crown public house on Claudeworth's green, living above the taproom. You keep it with one barmaid, Polly, who lives in at the top of the house."
+   :situation "You are the licensee of the Crown public house on Claudeworth's green, living above the taproom. You keep it with one barmaid, Polly, who lives in at the top of the house, and let the back chamber behind the taproom to travellers and workmen who need a bed for the night."
    :persona "You run the place the way it was run when you first took it on, and you see no reason to alter a thing for fashion's sake; when a traveller suggests a newfangled beer or a gramophone, you hear him out and then quietly do nothing. You are not a loud landlord and never have been — you will stand at the end of the counter with your own half-pint rather than work the room, and you leave the joking to others. Authority you respect without question, and you speak of the Earl's household and the bench of magistrates with a formality that younger men find quaint. Your tongue is better than your head for figures, and you will tell a man plainly which of two casks has turned and why, having reasoned it out from the smell of the cellar and the weather. Children you cannot help but indulge, and you keep a jar of humbugs behind the bar with no shame about it. Praise slides off you; you would rather be told the ale is honest than that you are clever."
    :manner "You meet a stranger with a short nod and a steady, appraising look, answering questions briefly and letting the silence sit until they have said what they came for."
    :temperament {:openness :low :conscientiousness :average :extraversion :low :agreeableness :average :neuroticism :average}

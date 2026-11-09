@@ -5,7 +5,7 @@
 ;; have lately come into ironstone royalties and mean to enlarge the house.
 ;; The village and the abbey are the same places as in the :claudeworth world.
 {:meta {:name "Claudeworth Manor"
-        :meeting-place "carriage-sweep" ; where candidates, guests and deliveries arrive
+        :meeting-place "carriage-sweep" ; where people sent for, guests and deliveries arrive
         :start "1904-12-19T08:00"
         :minutes-per-round 30
         :starting-funds 2900 ; whole pounds here; runtime money is old pence
@@ -183,12 +183,14 @@
    :desc "A neat bedroom above the drapery, with a patchwork coverlet and a window looking across the green."}
   {:id "public-house" :name "The Crown public house" :domain :village :kind :public-house :hours ["11:00" "22:00"]
    :services #{:general-store}
-   :store-profile "A small fully licensed village public house in rural England, 1904. Beer, ale, porter, cider and modest measures of spirits, with bread and cheese or other simple cold refreshments. These examples describe its scope, not an exhaustive menu. Only portable food and drink handed over the bar; not a grocer, hotel or restaurant. No room bookings, rounds on credit or paid hospitality services."
-   :connects-to ["publicans-room" "barmaids-room"]
-   :desc "The Crown: a low, whitewashed public house, with a taproom opening from the green and a private stair behind the bar. The publican keeps it with a barmaid who lives in; there is no guest accommodation."
+   :store-profile "A small fully licensed village public house in rural England, 1904. Beer, ale, porter, cider and modest measures of spirits, with bread and cheese or other simple cold refreshments. These examples describe its scope, not an exhaustive menu. Only portable food and drink handed over the bar; not a grocer, hotel or restaurant. A bed for the night in the back chamber is arranged with the publican himself, not bought over the bar; no rounds on credit or paid hospitality services."
+   :connects-to ["publicans-room" "barmaids-room" "crown-chamber"]
+   :desc "The Crown: a low, whitewashed public house, with a taproom opening from the green and a private stair behind the bar. The publican keeps it with a barmaid who lives in, and lets a back chamber to travellers and workmen who need a bed for the night."
    :detail "Dark settles stand against the walls, the floor is flagged, and a small serving hatch opens towards the cellar stair. A painted crown hangs above the door; frosted lower panes screen the taproom from the green."}
   {:id "publicans-room" :name "Publican's room" :domain :village :kind :bedroom
-   :desc "A plain bedroom above the Crown, with a washstand and a heavy woollen blanket on the bed. There are no guest rooms."}
+   :desc "A plain bedroom above the Crown, with a washstand and a heavy woollen blanket on the bed."}
+  {:id "crown-chamber" :name "Crown's back chamber" :domain :village :kind :bedroom :lodging true
+   :desc "A plain back room behind the Crown's taproom, which the publican lets to travellers and workmen for the night: two narrow iron beds with straw mattresses and grey blankets, a washstand with a chipped jug, and pegs on the wall for coats."}
   {:id "barmaids-room" :name "Barmaid's room" :domain :village :kind :bedroom
    :desc "A narrow attic room under the Crown's eaves, with an iron bedstead, a chest of drawers and a small square window over the yard."}
   {:id "post-office" :name "Post office" :domain :village :kind :office :hours ["08:00" "18:00"]
@@ -328,7 +330,7 @@
   :garden-lad
   {:title "Garden lad" :standing :outdoor :sleeps :out :addressed-as "{first-name}" :ages [14 17] :sex :male
    :about "You are the gardener's boy, and the first of the household to be up. You come in at six to clean the boots, the knives and the lamps and to carry coals and water, and then you work in the garden under the head gardener: digging, weeding, carrying and whatever he sets you. You live at home in the village with your mother and sisters, and you take your dinner in the kitchen."}
-  :gm {:about "A country house and its village in 1904: a peer's family newly come into money, their servants, the village tradespeople going about their days, and a house that means to grow. Household purchases are paid from the household account; there are no rents or other income yet, and no gains beyond it. Candidates and tradespeople arrive only through send-for after a recommendation; never invent or spawn new people."}
+  :gm {:about "A country house and its village in 1904: a peer's family newly come into money, their servants, the village tradespeople going about their days, and a house that means to grow. Household purchases are paid from the household account; there are no rents or other income yet, and no gains beyond it. People wanted for a place or a job arrive only through send-for after a recommendation; never invent or spawn new people."}
   :architect {:workplace ["architects-office"]}
   :shopkeeper {:workplace ["general-store"]}
   :butcher {:workplace ["butchers-shop"]}
@@ -841,7 +843,7 @@
              {:from "18:00" :at "drapers-lodgings" :doing "having supper above the shop"}
              {:from "22:00" :at "drapers-lodgings" :doing "asleep"}]}
   {:name "Turner" :sex :male :role :publican :location "public-house" :bedroom "publicans-room"
-   :situation "You are the licensee of the Crown public house on Claudeworth's green, living above the taproom. You keep it with one barmaid, Polly, who lives in at the top of the house."
+   :situation "You are the licensee of the Crown public house on Claudeworth's green, living above the taproom. You keep it with one barmaid, Polly, who lives in at the top of the house, and let the back chamber behind the taproom to travellers and workmen who need a bed for the night."
    :persona "You have little patience for company and less for being contradicted, and a quiet taproom suits you better than a full one; when trade is good you suspect the till and when it is bad you suspect everyone else. You count what is yours obsessively — bottles, coppers, candles, the wear on a chair — yet you let the cellar go slack and the slate go unwiped, trusting that tomorrow will somehow settle it. Praise does not move you, since you do not think much of the people who might offer it, and you take small setbacks hard, brooding for days over a broken glass or a villager who drank elsewhere. You have no great faith that things will come right, but you still keep turning matters over in your head, worrying at the same knot as though one more pull might loosen it."
    :aspects {:cuffs "One shirt-cuff frayed through and ink-stained from the ledger." :boots "Boots dull with cellar dust and a little spilled beer."}
    :goals ["Get the Crown's slate cleared and the cellar properly stocked before quarter day." "Find out which of the villagers is drinking at the Fox and Hounds, and make them regret it." "Put by enough that nobody can ever turn me out of my own house again."]

@@ -29,7 +29,7 @@
             [manor.io.llm :as llm]
             [manor.io.store :as store]
             [manor.mechanics.find-person :as find-person]
-            [manor.mechanics.hiring :as hiring]
+            [manor.mechanics.contacts :as contacts]
             [manor.mechanics.people :as people]
             [manor.mechanics.physical :as physical]
             [manor.mechanics.visits :as visits]
@@ -157,8 +157,7 @@
      "physical-rules.md" (physical/rules world)
      "find-person-instructions.md" (find-person/instructions world)
      "find-person-request.md" (request-text "find-person" (find-person/seek-request world "hale" {:who "the housemaid" :recent []}))
-     "hiring-rules.md" (hiring/rules world)
-     "hiring-rules-beside-visits.md" (hiring/rules-beside-visits world)
+     "sending-for-rules.md" (contacts/rules world)
      "visits-rules.md" (visits/rules world)
      "invitation-judge-instructions.md" (visits-judge/instructions world)
      "invitation-request.md" (request-text "invitee" (visits-judge/invitation-request
@@ -191,8 +190,7 @@
      "judge-brief.md" (judge-brief world)
      "physical-rules.md" (physical/rules world)
      "find-person-request.md" (request-text "find-person" (find-person/seek-request world "sumuru-wanxia" {:who "the maid" :recent []}))
-     "hiring-rules.md" (hiring/rules world)
-     "hiring-rules-beside-visits.md" (hiring/rules-beside-visits world)
+     "sending-for-rules.md" (contacts/rules world)
      "visits-rules.md" (visits/rules world)
      "invitation-request.md" (request-text "invitee" (visits-judge/invitation-request
                                                       world "sumuru-wanxia"

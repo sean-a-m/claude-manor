@@ -1,6 +1,6 @@
 Appoint someone to a different post. It takes effect at once, wherever they are; they are told, and nobody else.
 
-- `who`: their agent id. Not yourself, a visitor or a candidate (use `engage` for a candidate).
+- `who`: their agent id. Not yourself or a visitor (someone sent for is offered a place with `engage`).
 - `position`: a position id from the catalogue, other than the one they hold. To end someone's post, use `dismiss`.
 - `terms` (optional): the terms of the new post, in free text.
 - `reason` (optional): why, in your own words.

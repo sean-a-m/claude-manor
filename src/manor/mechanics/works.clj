@@ -16,8 +16,7 @@
   which can be stopped and resumed. The scene judge's `work` entry on the
   last phase decides the outcome (:works/done or :works/failed), which
   applies the install, move or removal. Accepted work keeps its worker on
-  task: a calendar entry, the early reminder, no idle departure or
-  hibernation. Money is kept in the setting's smallest unit; tools take
+  task: a calendar entry, the early reminder, no hibernation. Money is kept in the setting's smallest unit; tools take
   prices as money text (\"£15 10s\"), read by `money/parse`. Works paid
   from the household's account are in its order book
   (manor.mechanics.purchases, :kind :work records)."
@@ -98,8 +97,8 @@
   hint only: the plan may still be given to anyone."
   [{:keys [id trade]}]
   (when trade
-    (str " It wants a " trade ": to find one, ask someone who might know to recommend with trade \"" trade
-         "\", then send-for them with the contact's id and a job naming " id
+    (str " It wants a " trade ": to find one, ask someone who might know to recommend with wanted \"" trade
+         "\", then send-for them with the contact's id and an about naming " id
          ", and give them the plan with order-work when they come.")))
 
 (defn describe-plan
@@ -687,12 +686,11 @@
 
 (defn- worker-fitness
   "What the worker is, for weighing them against the work: their contact's
-  trade if they're a tradesperson known as a contact, else their position's
-  title."
+  line if they're known as a contact, else their position's title."
   [world worker]
   (let [contact (first (filter #(= worker (:agent-id %)) (vals (get-in world [:state :contacts]))))
         title (get-in world [:state :positions (:role (w/agent world worker)) :title])]
-    (cond contact (str "a " (:trade contact) " (by trade)")
+    (cond contact (str "a " (:line contact) " (by trade)")
           title title
           :else "no particular position or trade")))
 
@@ -953,18 +951,10 @@
   (filter #(and (= id (:worker %)) (#{:accepted :finishing} (:status %))) (ordered world)))
 
 (defn open-work?
-  "Has `id` accepted work not yet finished? It keeps a tradesperson from
-  elsewhere from going home idle, and keeps them out of hibernation."
+  "Has `id` accepted work not yet finished? It keeps them out of
+  hibernation."
   [world id]
   (boolean (seq (open-works world id))))
-
-(defn engaged?
-  "Is `id` the worker of a work on offer to them, or one they've accepted
-  and not finished? A tradesperson from elsewhere doesn't go home idle while
-  the terms are still being settled, nor with the work to do."
-  [world id]
-  (boolean (or (open-work? world id)
-               (some #(and (= id (:worker %)) (= :offered (:status %))) (vals (work-orders world))))))
 
 (defn early-reminder
   "A scenario :early-reminder: for each work `id` has accepted and isn't

@@ -36,7 +36,7 @@
   (is (= [0 2] (map first (review/fresh verdict))) "drawn from a store or taken from an aspect: not reviewed")
   (is (review/needed? job verdict))
   (is (not (review/needed? (assoc job :act? true) verdict)))
-  (is (not (review/needed? (assoc job :reference {:candidate-id "p"}) verdict)) "a hiring reference is new by definition")
+  (is (not (review/needed? (assoc job :reference {:contact-id "p"}) verdict)) "a hiring reference is new by definition")
   (is (not (review/needed? job (update verdict :made #(filterv :from %))))))
 
 (deftest review-checks-and-outcomes

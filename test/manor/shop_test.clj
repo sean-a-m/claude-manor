@@ -729,11 +729,11 @@
       (let [calls (filter #(and (= "clerk" (:agent %)) (:conversation %)) (store/read-llm (:dir run)))
             prompt (:content (second (:messages (first calls))))]
         (is (= 4 (count calls)) "an invalid action, query, rejected second use of the same query, then reply")
-        (is (= ["reply" "stay-silent" "leave" "note" "check-counter" "recommend" "quote-goods"] (:tools (first calls))))
+        (is (= ["reply" "stay-silent" "leave" "note" "check-counter" "recommend" "send-for" "quote-goods"] (:tools (first calls))))
         (is (= "error: there is no tool called close-shop" (get-in (first calls) [:replies 0 :content])))
         (is (str/starts-with? (get-in (nth calls 2) [:replies 0 :content]) "rejected: you can use quote-goods only once"))
         (is (nil? (get-in (nth calls 2) [:replies 1])) "two query tools give the line five calls, so no last-call reminder yet")
-        (is (str/includes? prompt "You may first use `check-counter`, `recommend`, `quote-goods` before your line."))
+        (is (str/includes? prompt "You may first use `check-counter`, `recommend`, `send-for`, `quote-goods` before your line."))
         (is (str/includes? prompt "Then finish this speaking turn with exactly ONE"))
         (is (= 1 (count (filter #(= "adjudicator/shop/appraise" (:agent %)) (store/read-llm (:dir run))))))
         (is (= 1 (count (filter #(= :shop/bought (:type %)) (e/events run))))))

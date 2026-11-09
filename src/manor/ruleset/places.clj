@@ -16,6 +16,17 @@
 
 (defn bedroom-of [world id] (get-in world [:state :bedrooms id]))
 
+(defn lodgings
+  "The ids of the world's lodging, sorted: locations marked `:lodging true`,
+  where anyone may sleep, with or without a bedroom of their own."
+  [world]
+  (sort (for [[id l] (get-in world [:space :locations]) :when (true? (:lodging l))] id)))
+
+(defn named
+  "\"Crown's back chamber (crown-chamber)\" for each id, joined with \" or \"."
+  [world ids]
+  (str/join " or " (for [id ids] (str (loc-name world id) " (" id ")"))))
+
 (defn examples
   "Up to six ids, comma-separated."
   [ids]

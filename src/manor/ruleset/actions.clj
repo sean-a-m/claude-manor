@@ -147,11 +147,15 @@
               (let [c (:clock world)
                     round (:round world)
                     bed (places/bedroom-of world actor)
-                    here (space/location-of world actor)]
+                    here (space/location-of world actor)
+                    lodgings (places/lodgings world)]
                 (cond (not (or (= :bedroom (:kind (space/location world here)))
-                               (and bed (= bed here))))
+                               (and bed (= bed here))
+                               (some #{here} lodgings)))
                       (str "go to a bedroom first"
-                           (when bed (str "; yours is " (places/loc-name world bed) " (" bed ")")))
+                           (when bed (str "; yours is " (places/loc-name world bed) " (" bed ")"))
+                           (when (seq lodgings)
+                             (str "; anyone without a bed of their own may sleep at " (places/named world lodgings))))
                       (not (clock/hh-mm? until)) "until must be a time of day like \"07:00\""
                       (> (- (clock/round-at c round until) round) (clock/rounds-for c (* max-sleep-hours 60)))
                       (str until " is more than " max-sleep-hours " hours away; sleep until an earlier time"))))

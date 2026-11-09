@@ -28,6 +28,7 @@
   starting state, holidays) and mock (the scripted mock policy)."
   (:require [manor.mechanics.appointments :as appointments]
             [manor.mechanics.building :as building]
+            [manor.mechanics.contacts :as contacts]
             [manor.mechanics.deliveries :as deliveries]
             [manor.mechanics.find-person :as find-person]
             [manor.mechanics.following :as following]
@@ -35,7 +36,6 @@
             [manor.mechanics.people :as people]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.shop :as shop]
-            [manor.mechanics.trades :as trades]
             [manor.mechanics.visits :as visits]
             [manor.mechanics.works :as works]
             [manor.ruleset.actions :as actions]
@@ -46,45 +46,53 @@
             [manor.ruleset.views :as views]
             [manor.tools.scene-ruleset :as scene]))
 
-(defn- hiring-action [action-name] (first (filter #(= action-name (:name %)) hiring/actions)))
+(defn- named [actions action-name] (first (filter #(= action-name (:name %)) actions)))
 
 (defn- to-a-member
-  "Hiring's `action-name` for a line in a conversation, with the person its
-  argument `k` names limited to the conversation's `members`: `refusal` otherwise."
-  [action-name k refusal members]
-  (update (hiring-action action-name) :valid?
+  "The `action-name` of `actions` for a line in a conversation, with the
+  person its argument `k` names limited to the conversation's `members`:
+  `refusal` otherwise."
+  [actions action-name k refusal members]
+  (update (named actions action-name) :valid?
           (fn [valid?]
             (fn [world actor args]
               (or (when-not (some #{(get args k)} members) refusal)
                   (valid? world actor args))))))
 
 (defn speaking-actions
-  "Tools for a line, before speaking: anyone can recommend a candidate to
-  someone in the conversation, offer a candidate in it a place, or accept or
-  decline a place offered; an open counter's clerk can check goods; the
-  keeper of a shop that sends goods out can send goods up from it, open or
-  not; a customer with
-  quotes made for them at this shop can buy; anyone can order a work to
-  someone in it, or accept or decline one offered."
-  [world speaker {:keys [members] :as conv}]
-  (cond-> (into [(to-a-member :recommend :for "recommend to someone in this conversation" members)
-                 (to-a-member :engage :who "offer a place to someone in this conversation" members)
-                 (hiring-action :accept-place)
-                 (hiring-action :decline-place)]
-                (works/speaking-actions world speaker conv))
-    (not (shop/service-reason world speaker))
-    (into (filter #(= :quote-goods (:name %)) shop/actions))
-    (nil? (shop/sending-reason world speaker))
-    (into (filter #(= :send-up (:name %)) shop/actions))
-    (seq (shop/quotes-here world speaker))
-    (into (filter #(= :buy (:name %)) shop/actions))))
+  "Tools for a line, before speaking: anyone can recommend someone to
+  someone in the conversation, send for someone recommended to them, offer
+  someone sent for in it a place, or accept or decline a place offered; an open
+  counter's clerk can check goods; the keeper of a shop that sends goods out
+  can send goods up from it, open or not; a customer with quotes made for
+  them at this shop can buy; anyone can order a work to someone in it, or
+  accept or decline one offered. The contacts tools are taken from `actions`,
+  the scenario's installed actions (so `recommend` and `send-for` are the
+  ones its turns offer); without it, contacts' own, as a scenario with no
+  roles of its own would have them."
+  ([world speaker conv] (speaking-actions (contacts/actions {}) world speaker conv))
+  ([actions world speaker {:keys [members] :as conv}]
+   (cond-> (into [(to-a-member actions :recommend :for "recommend to someone in this conversation" members)
+                  (named actions :send-for)
+                  (to-a-member actions :engage :who "offer a place to someone in this conversation" members)
+                  (named actions :accept-place)
+                  (named actions :decline-place)]
+                 (works/speaking-actions world speaker conv))
+     (not (shop/service-reason world speaker))
+     (into (filter #(= :quote-goods (:name %)) shop/actions))
+     (nil? (shop/sending-reason world speaker))
+     (into (filter #(= :send-up (:name %)) shop/actions))
+     (seq (shop/quotes-here world speaker))
+     (into (filter #(= :buy (:name %)) shop/actions)))))
 
 (defn- speaking-actions-and-following
-  "`speaking-actions`, after `follow` and `follow-stop`: anyone can start or
+  "The scenario's :speaking-actions hook, over its installed `actions`:
+  `speaking-actions` after `follow` and `follow-stop`, as anyone can start or
   stop following someone while they talk, so agreeing to come along takes
   them along."
-  [world speaker conv]
-  (into following/actions (speaking-actions world speaker conv)))
+  [actions]
+  (fn [world speaker conv]
+    (into following/actions (speaking-actions actions world speaker conv))))
 
 (def items
   "The items mechanic's settings: the nightly steward, `find`'s limits, the
@@ -117,7 +125,7 @@
 (defn scenario
   "A full scenario on the ruleset: every action, judge, bridge and system,
   appointments among them (manor.mechanics.appointments), with hiring,
-  deliveries, visits, trades and works installed, in that order. `opts`:
+  deliveries, visits, contacts and works installed, in that order. `opts`:
   - :name, :doc, :defaults (its :world-file names the world)
   - :mock-day, a day for the scripted mock policy (a map, or a classpath EDN
     file such as \"worlds/claudeworth-day.edn\"); or :mock-policy, a policy
@@ -139,7 +147,7 @@
        :agent-brief rules/agent-brief
        :on-spawn positions/starting-events
        :actions (vec (concat actions/actions [find-person/action] following/actions building/actions
-                             shop/actions hiring/actions appointments/actions))
+                             shop/actions appointments/actions))
        :adjudicators (merge shop/adjudicators hiring/adjudicators find-person/adjudicators appointments/adjudicators)
        :bridges (merge building/bridges hiring/bridges)
        :offline-stubs (merge building/offline-stubs hiring/offline-stubs)
@@ -149,7 +157,6 @@
        :inner inner
        :relations {:keep 20}
        :exclude-actions #{:move :work-on}
-       :speaking-actions speaking-actions-and-following
        :hibernate hibernation/hibernate
        :reference views/reference
        :observe views/observe
@@ -159,5 +166,7 @@
       hiring/install
       deliveries/install
       visits/install
-      trades/install
-      works/install))
+      contacts/install
+      works/install
+      ;; after every install, so a line's tools are the turns' own
+      (as-> s (assoc s :speaking-actions (speaking-actions-and-following (:actions s))))))

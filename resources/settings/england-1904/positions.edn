@@ -249,9 +249,9 @@
  ;; ------------------------------------------------ visitors
  ;; Someone from elsewhere, invited to the house (manor.mechanics.visits). No
  ;; household and no :sleeps: they live elsewhere and stay as long as they like.
- :tradesman
- {:title "Tradesman" :standing :tradesman :sleeps :out :ages [18 70]
-  :about "You work at a trade from your home elsewhere, and you have come because you were sent for: `visit` under `you` in your view says who sent for you and the job. Talk it over with them; do the work with `spend-time` on the real things, or, if they give you a work plan with `order-work`, settle its price with `accept-work` or `revise-work` and do it with `carry-out`; or refuse it if you will not or cannot do it. When it is done, or there is nothing for you to do, use `take-leave` to go home."}
+ :caller
+ {:title "Caller" :standing :tradesman :sleeps :out :ages [18 70]
+  :about "You live elsewhere, and you have come because you were sent for: `visit` under `you` in your view says who sent for you and what about. Talk it over with them, or whoever is here for them. You may be offered work (`order-work`: settle it with `accept-work`, `revise-work` or `decline-work`, then do it with `carry-out`), or a place (`engage`: `accept-place` or `decline-place`), or neither; you may refuse either. When you're done, nothing more is wanted of you, or you've been turned away, use `take-leave` to go home."}
 
  :guest
  {:title "Guest" :standing :visitor :ages [18 80]

@@ -75,7 +75,7 @@
                                  :request "the piano moved to the dining room"}]
                     [:pass {}]]}})
 
-(deftest a-plan-is-made-and-seen-only-by-the-planner
+(deftest a-plan-is-made-and-shown-in-the-home
   (let [run (start-with household/scenario piano-day)]
     (try
       (until! run 1)
@@ -89,19 +89,26 @@
           (is (= "Piano" (get-in input [:target :name])))
           (is (= "Drawing room" (get-in input [:place :name])))
           (is (= "Hale" (get-in input [:planner :name]))))
-        (testing "the record holds the plan, one phase of two hours"
+        (testing "the record holds the plan, one phase of the judge's length (the mock's two hours)"
           (is (= {:id "work-1" :planner "hale" :kind :move :place "drawing-room" :target "piano" :to "dining-room"
                   :status :planned :known-to #{"hale"} :estimate 0 :materials 0}
                  (select-keys plan [:id :planner :kind :place :target :to :status :known-to :estimate :materials])))
           (is (= [{:minutes 120 :done 0}] (map #(select-keys % [:minutes :done]) (:phases plan)))))
-        (testing "only the planner sees it, and the reply says to use order-work"
+        (testing "only the planner sees the event, and the reply says to use order-work"
           (is (= #{"hale"} (:visible-to ev)))
           (is (str/includes? (first (replies-to run "hale" "plan-work")) "order-work with id \"work-1\"")))
-        (testing "it's under works in his view, not in the earl's"
+        (testing "it's under works in his view, and as an open work of the home in the earl's"
           (is (= [{:id "work-1" :kind "move" :summary (:summary plan) :who (:who plan) :status "planned"
                    :where "From the Drawing room (drawing-room) to the Dining room (dining-room)."}]
                  (:works (prompt/agent-view (:scenario run) world "hale"))))
-          (is (nil? (:works (prompt/agent-view (:scenario run) world "lord-claudeworth"))))))
+          (is (= [{:id "work-1" :kind "move" :summary (:summary plan) :who (:who plan) :status "planned"
+                   :where "From the Drawing room (drawing-room) to the Dining room (dining-room)."
+                   :planned-by "Hale"
+                   :next "anyone may give it to someone here, or to themselves, with order-work id \"work-1\""}]
+                 (:works (prompt/agent-view (:scenario run) world "lord-claudeworth")))))
+        (testing "nobody away from the home sees it"
+          (is (nil? (:works (prompt/agent-view (:scenario run) (assoc-in world [:agents "lord-claudeworth" :location] "village-green")
+                                               "lord-claudeworth"))))))
       (replay! run)
       (finally (e/stop-run run)))))
 
@@ -153,6 +160,15 @@
       (is (str/includes? (check run (assoc-in world [:items "piano" :store] {:keeps "music"}) "hale" :plan-work
                                 {:kind "remove" :target "piano" :request "x"})
                          "stands for supplies"))
+      (testing "one open work per thing: a second plan names the first"
+        (let [one (w/apply-event world (works/planned world "lord-claudeworth" {:kind "move" :target "piano" :to "dining-room" :request "x"}
+                                                      (:args (judge/mock-judge {:input {:kind "move" :request "x" :target {:name "Piano"} :to "dining-room"}}))))]
+          (is (= "work work-1 is already open for the Piano (planned, planned by Lord Claudeworth); see it under works in your view, and give it to someone, or yourself, with order-work id \"work-1\""
+                 (check run one "hale" :plan-work {:kind "remove" :target "piano" :request "y"})))
+          (is (nil? (check run (assoc-in one [:state :work-orders "work-1" :status] :done) "hale" :plan-work
+                           {:kind "remove" :target "piano" :request "y"})))
+          (is (nil? (check run (assoc-in one [:state :work-orders "work-1" :status] :cancelled) "hale" :plan-work
+                           {:kind "remove" :target "piano" :request "y"})))))
       (testing "the cap on open plans"
         (let [full (reduce (fn [wd i] (w/apply-event wd (works/planned wd "hale" {:kind "install" :request (str "thing " i)}
                                                                          (:args (judge/mock-judge {:input {:kind "install" :request "x"}})))))
@@ -175,6 +191,11 @@
       (is (some? (:error (verdict "install" (assoc ok :materials 999)))))
       (is (some? (:error (verdict "install" (assoc ok :estimate 99999999 :materials 0)))))
       (is (some? (:error (verdict "install" (update ok :phases conj (first (:phases ok)))))))
+      (testing "a phase is half an hour to two hours, in half hours"
+        (doseq [m [30 60 90 120]]
+          (is (= m (get-in (verdict "install" (assoc-in ok [:phases 0 :minutes] m)) [:plan :phases 0 :minutes]))))
+        (doseq [m [0 15 45 150 240]]
+          (is (some? (:error (verdict "install" (assoc-in ok [:phases 0 :minutes] m)))) (str m))))
       (is (some? (:error (verdict "install" (assoc-in ok [:item :aspects] {:state (apply str (repeat 300 "x"))})))))
       (finally (e/stop-run run)))))
 
@@ -211,13 +232,15 @@
             (is (str/includes? text (:who wo)))
             (is (str/includes? text "0d"))
             (is (str/includes? text "accept-work"))))
-        (testing "both see it in their views, the earl doesn't"
+        (testing "both see it in their views; the earl sees it open, without its money"
           (is (= {:id "work-1" :status "accepted" :ordered-by "Hale" :worker "you" :price "0d"}
                  (select-keys (first (:works (prompt/agent-view (:scenario run) world "lady-claudeworth")))
                               [:id :status :ordered-by :worker :price])))
           (is (= {:status "accepted" :worker "Lady Claudeworth"}
                  (select-keys (first (:works (prompt/agent-view (:scenario run) world "hale"))) [:status :worker :ordered-by])))
-          (is (nil? (:works (prompt/agent-view (:scenario run) world "lord-claudeworth")))))
+          (is (= {:id "work-1" :status "accepted" :planned-by "Hale" :worker "Lady Claudeworth"}
+                 (first (map #(select-keys % [:id :status :planned-by :worker :price :ordered-by])
+                             (:works (prompt/agent-view (:scenario run) world "lord-claudeworth")))))))
         (is (= ["You have accepted work work-1 at 0d: it is yours to carry out."] (replies-to run "lady-claudeworth" "accept-work"))))
       (replay! run)
       (finally (e/stop-run run)))))
@@ -290,9 +313,18 @@
         c #(check run %1 %2 %3 %4)]
     (try
       (is (nil? (c world "hale" :order-work {:id "work-1" :worker "lady-claudeworth"})))
-      (testing "an unknown plan, or one the actor doesn't know"
+      (testing "an unknown plan, or one away from where the actor is"
         (is (str/includes? (c world "hale" :order-work {:id "work-9" :worker "lady-claudeworth"}) "you know of no work work-9"))
-        (is (str/includes? (c world "lady-claudeworth" :order-work {:id "work-1" :worker "hale"}) "you know of no work")))
+        (is (str/includes? (c (assoc-in world [:agents "lady-claudeworth" :location] "village-green") "lady-claudeworth"
+                              :order-work {:id "work-1" :worker "lady-claudeworth"})
+                           "you know of no work")))
+      (testing "anyone in the home may give a plan nobody has taken yet"
+        (is (nil? (c world "lady-claudeworth" :order-work {:id "work-1" :worker "hale"})))
+        (let [given (act run world "lady-claudeworth" :order-work {:id "work-1" :worker "lord-claudeworth"})]
+          (is (= {:orderer "lady-claudeworth" :worker "lord-claudeworth" :known-to #{"hale" "lady-claudeworth" "lord-claudeworth"}}
+                 (select-keys (works/work-order given "work-1") [:orderer :worker :known-to])))
+          (is (str/includes? (c given "lady-claudeworth" :cancel-work {:id "work-1"}) "only the person who planned"))
+          (is (nil? (c given "hale" :cancel-work {:id "work-1"})))))
       (testing "the worker must be here, or the actor"
         (is (str/includes? (c (assoc-in world [:agents "lady-claudeworth" :location] "kitchen") "hale" :order-work {:id "work-1" :worker "lady-claudeworth"})
                            "is here with you"))
@@ -303,7 +335,7 @@
       (testing "only the worker accepts an order, with the orderer present"
         (let [offered (act run world "hale" :order-work {:id "work-1" :worker "lady-claudeworth"})]
           (is (str/includes? (c offered "hale" :accept-work {:id "work-1"}) "you set the price"))
-          (is (str/includes? (c offered "lord-claudeworth" :accept-work {:id "work-1"}) "you know of no work"))
+          (is (str/includes? (c offered "lord-claudeworth" :accept-work {:id "work-1"}) "only they can accept it"))
           (is (str/includes? (c (assoc-in offered [:agents "hale" :location] "kitchen") "lady-claudeworth" :accept-work {:id "work-1"})
                              "must be here with you to settle"))
           (is (nil? (c (assoc-in offered [:agents "hale" :location] "kitchen") "lady-claudeworth" :decline-work {:id "work-1"})))
@@ -376,7 +408,7 @@
         (is (str/includes? (c ordered "lady-claudeworth" :revise-work {:id "work-1" :price "8s 4d"}) "must cover the materials"))
         (is (str/includes? (c ordered "hale" :revise-work {:id "work-1" :price (money/display (money/spec world) (inc (judge/max-estimate world)))}) "at most")))
       (testing "only the two sides, together, while it's offered"
-        (is (str/includes? (c ordered "lord-claudeworth" :revise-work {:id "work-1" :price "£2 10s"}) "you know of no work"))
+        (is (str/includes? (c ordered "lord-claudeworth" :revise-work {:id "work-1" :price "£2 10s"}) "only they can revise it"))
         (is (str/includes? (c (assoc-in ordered [:agents "hale" :location] "kitchen") "lady-claudeworth" :revise-work {:id "work-1" :price "£2 10s"})
                            "must be here with you"))
         (is (str/includes? (c world "hale" :revise-work {:id "work-1" :price "£2 10s"}) "isn't on offer")))
@@ -857,12 +889,26 @@
   (let [run (start-with household/scenario {})
         world (reduce #(assoc-in %1 [:agents %2 :location] "drawing-room") (e/world run) ["hale"])]
     (try
-      (is (= "the Piano is fixed in place; to move it, plan a work with plan-work"
+      (is (= (str "the Piano is fixed in place; to move it, plan a work here with plan-work {kind \"move\", target \"piano\", to, request}, "
+                  "then give the plan with order-work to someone here or to yourself; whoever has it moves it with carry-out")
              (check run world "hale" :take {:item "piano"})))
+      (testing "with a work open on it, take points to that work"
+        (let [planned (w/apply-event world (works/planned world "hale" {:kind "move" :target "piano" :to "dining-room" :request "x"}
+                                                          (:args (judge/mock-judge {:input {:kind "move" :request "x" :target {:name "Piano"} :to "dining-room"}}))))]
+          (is (= (str "the Piano is fixed in place; work work-1 is already open for the Piano (planned, planned by Hale); "
+                      "see it under works in your view, and give it to someone, or yourself, with order-work id \"work-1\"")
+                 (check run planned "hale" :take {:item "piano"})))))
+      (testing "the view marks fixed things"
+        (is (= {:id "piano" :name "Piano" :fixed true}
+               (first (filter #(= "piano" (:id %)) (get-in (prompt/agent-view (:scenario run) world "hale") [:location :here :items])))))
+        (is (= {:id "silver-candlesticks" :name "Silver candlesticks"}
+               (first (filter #(= "silver-candlesticks" (:id %))
+                              (get-in (prompt/agent-view (:scenario run) (assoc-in world [:agents "hale" :location] "dining-room") "hale")
+                                      [:location :here :items]))))))
       (testing "the rules say so"
         (let [text (rules/rules world)]
           (is (str/includes? text "### Works"))
-          (is (str/includes? text "`plan-work` first, then `order-work`"))))
+          (is (str/includes? text "`plan-work {kind \"move\", target, to, request}`, then `order-work`"))))
       (finally (e/stop-run run)))))
 
 (def tuner-day
@@ -967,6 +1013,50 @@
         (testing "Nellie's calendar entry was made and is cancelled now"
           (is (= #{"nellie"} (:visible-to entry)))
           (is (= :cancelled (get-in entry [:lifecycle :status])))))
+      (replay! run)
+      (finally (e/stop-run run)))))
+
+(def shared-move-day
+  "The chairs case of docs/sending-for-run-review-2026-11-09.md B3, with the
+  cabinet: Hale tries to take it and is told the way; he plans the move and
+  goes about his business. Nellie comes in, tries to take it and is pointed
+  to Hale's open plan; her own plan of it is refused; she gives Hale's plan
+  to herself and carries it out."
+  {"hale" {"08:00" [[:walk {:to "drawing-room"}]
+                    [:take {:item "china-cabinet"}]
+                    [:plan-work {:kind "move" :target "china-cabinet" :to "dining-room"
+                                 :request "the china cabinet carried through to the dining room"}]
+                    [:walk {:to "study"}]
+                    [:pass {}]]}
+   "nellie" {"08:30" [[:walk {:to "drawing-room"}]
+                      [:take {:item "china-cabinet"}]
+                      [:plan-work {:kind "move" :target "china-cabinet" :to "dining-room" :request "the cabinet moved"}]
+                      [:order-work {:id "work-1" :worker "nellie"}]
+                      [:carry-out {:id "work-1"}]]}})
+
+(deftest an-open-plan-is-found-and-taken-on-by-someone-else
+  (let [run (start-with move-household shared-move-day)]
+    (try
+      (until! run 7)
+      (let [world (e/world run)
+            [hale-take] (replies-to run "hale" "take")
+            [nellie-take] (replies-to run "nellie" "take")
+            nellie-plans (replies-to run "nellie" "plan-work")]
+        (testing "take tells Hale the whole way, and Nellie the open work"
+          (is (str/includes? hale-take "plan-work {kind \"move\", target \"china-cabinet\""))
+          (is (str/includes? hale-take "order-work to someone here or to yourself"))
+          (is (str/includes? nellie-take "work work-1 is already open for the China cabinet (planned, planned by Hale)")))
+        (testing "Nellie's second plan is refused, naming Hale's"
+          (is (str/includes? (first nellie-plans) "work work-1 is already open"))
+          (is (= ["work-1"] (keys (works/work-orders world)))))
+        (testing "Nellie gave herself Hale's plan and moved the cabinet"
+          (is (= {:status :done :planner "hale" :orderer "nellie" :worker "nellie"}
+                 (select-keys (works/work-order world "work-1") [:status :planner :orderer :worker])))
+          (is (= "dining-room" (:place (items/item world "china-cabinet")))))
+        (testing "once done, it's shown only to those involved"
+          (is (seq (:works (prompt/agent-view (:scenario run) world "hale"))))
+          (is (seq (:works (prompt/agent-view (:scenario run) world "nellie"))))
+          (is (nil? (:works (prompt/agent-view (:scenario run) world "lord-claudeworth"))))))
       (replay! run)
       (finally (e/stop-run run)))))
 

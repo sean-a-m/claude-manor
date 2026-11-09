@@ -61,16 +61,32 @@ another room, alters what it is (`:desc` never changes) or takes one away.
    and gets a barely playable one.
 7. **Work is a list of phases**, each with a time. Later, a long project may take many phases,
    and a phase that goes wrong may need more work than planned. **For now the judge plans
-   exactly one phase of 2 hours,** with one worker. The judge is told one worker is always
+   exactly one phase,** with one worker: of 2 hours at first; since 2026-11-09 (decision 13)
+   of half an hour to 2 hours, as the judge thinks the work needs. The judge is told one worker is always
    enough. Several workers on one work come later, since they need coordination.
 8. **Kinds: `install`, `move` and `remove`, and `alter` if it stays simple** (section 4).
    `remove` makes something vanish; moving something elsewhere is a `move`. No `supply`:
    small things come from shops.
 9. **Plans are private** to whoever planned them, until offered with `order-work`.
+   *Superseded 2026-11-09 by decision 13:* open works are shown to everyone in the home.
 10. **`spend-time` keeps making temporary changes:** aspects, as now. Lasting changes to what a
     thing is, or where a fixed thing stands, are works.
 11. **A cap on open plans** per person, like the other caps on records.
 12. **Lapsing and refunds** for work that's never finished: not dealt with yet.
+13. **Moving a fixed thing must be findable (the user, 2026-11-09,** after the chairs of
+    `docs/sending-for-run-review-2026-11-09.md` B3). Furniture stays fixed and moves only by a
+    work; the way to it is made plain instead of adding a separate move action:
+    - fixed things are marked `fixed` in the view's `items`; `take`'s refusal gives the steps
+      (`plan-work` move, `order-work` to someone here or yourself, `carry-out`); the rules,
+      `plan-work`, `order-work`, `take` and `spend-time` docs say the same;
+    - **open works are public** to everyone in the home (visitors too), without their money;
+      settled ones stay with the people involved, whose results show anyway;
+    - **anyone who sees a plan nobody has taken may `order-work` it**; only its planner may
+      cancel it;
+    - **one open work per thing:** `plan-work` on a thing with an open work is refused, naming it;
+    - the judge sets the one phase's length, **30 to 120 minutes** in half hours (kept short for
+      testing).
+    A separate judged move action, and unfixing small furniture, were set aside for now.
 
 ## 3. For the characters
 
@@ -163,7 +179,7 @@ untrusted data.
 It answers `{refused: reason}` (an anachronism, the impossible, or upkeep that should be
 `spend-time`), or a plan: `summary`, `who` (a recommendation, including what goes wrong with
 the wrong hands), `item?`, `fate?`, `estimate`, `materials`, `phases [{doing, minutes}]`. The
-template says: exactly one phase of 120 minutes, for one worker. For household work, the
+template says: exactly one phase of 30 to 120 minutes (decision 13), for one worker. For household work, the
 estimate is the materials alone.
 
 Code checks `materials ≤ estimate`, money within a bound, the item's lengths against
@@ -175,12 +191,12 @@ the reason.
 
 | Action | Who | Kind | Code checks | Effect |
 |---|---|---|---|---|
-| `plan-work {kind request target? to?}` | anyone | query | at the place; target here, and fit for the kind (4); `to` a home location; cap on open plans | judge; `:works/planned`, seen by the planner only |
-| `order-work {id worker price?}` | anyone who knows the plan | free | planned; worker present (or themselves); `price` ≥ materials, defaults to the estimate | `:works/offered`: the worker learns the plan and the price |
+| `plan-work {kind request target? to?}` | anyone | query | at the place; target here, and fit for the kind (4); `to` a home location; no other open work on the target (13); cap on open plans | judge; `:works/planned`, seen by the planner only |
+| `order-work {id worker price?}` | anyone who knows the plan, or sees it open in the home (13) | free | planned; worker present (or themselves); `price` ≥ materials, defaults to the estimate | `:works/offered`: the worker learns the plan and the price |
 | `revise-work {id price}` | orderer or worker | free | offered; `materials ≤ price ≤` a bound | `:works/revised`, seen by both |
 | `accept-work {id from?}` | whoever didn't set the current price | free | offered; together; `money/spend-reason` on the orderer's account | `:works/accepted`: the price paid, the labour (price − materials) to the worker's purse, the materials supplied |
 | `decline-work {id}` | the worker | free | offered | back to planned; the orderer can offer it to someone else |
-| `cancel-work {id}` | planner or orderer | free | not yet accepted | `:works/cancelled` |
+| `cancel-work {id}` | the planner (13) | free | not yet accepted | `:works/cancelled` |
 | `carry-out {id}` | the worker | timed | accepted; at the work's place (where the target is); the target still there | the next phase's job |
 
 Ordering is never refused for the wrong worker (decision 5). The plan's `who` is in the
@@ -238,7 +254,8 @@ All of this uses what the engine already has:
 
 ### 5.6 Views and records
 
-- `works` in the views of the planner, the orderer and the worker.
+- `works` in the views of the planner, the orderer and the worker, and while open, of everyone
+  in the home (13).
 - The household's order book (`purchases`) gets an entry for each work paid from the household
   account, so the housekeeper sees where the £15 10s went.
 - The panel's scene view and inspector list works. GM and operator tools for placing and

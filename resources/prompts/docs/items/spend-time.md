@@ -1,6 +1,6 @@
 {{alias}}Spend time on work or a pastime entirely at your current location. This ends your turn and occupies you until the activity finishes or is interrupted.
 
-**Do not use this for travel or activities that require visiting another room or area.** You stay where you are throughout. A round trip is still travel: “go to the shop, collect the goods and return” cannot be done with `spend-time`. Use movement actions to reach each location, then do the local activity there. Collect existing goods with the item actions; describing an errand does not fetch them.
+**Do not use this for travel or activities that require visiting another room or area.** You stay where you are throughout. A round trip is still travel: “go to the shop, collect the goods and return” cannot be done with `spend-time`. Use movement actions to reach each location, then do the local activity there. Carry loose things with `take` and `walk`; describing an errand does not fetch them. A thing marked `fixed` is moved only by a work (`plan-work`).
 
 - `doing`: the activity, phrased to follow “is”, such as “resting in the garden”. Use at most {{advised-doing}} characters.
 - `hours`: half an hour to {{max-work-hours}} hours; default half an hour.

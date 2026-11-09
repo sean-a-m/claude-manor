@@ -1,4 +1,4 @@
-Give a work plan you know of to someone to carry out: someone here with you, or yourself.
+Give a work plan to someone to carry out: someone here with you, or yourself. Any plan under `works` in your view that nobody has taken yet may be given, whoever planned it.
 
 - `id`: the plan's id under `works` in your view (a plan, not yet given to anyone).
 - `worker`: the agent id of the person to do it, here with you, or your own id to take it on yourself.

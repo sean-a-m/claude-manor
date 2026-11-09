@@ -131,9 +131,9 @@
   (let [run (start)
         world (assoc (e/world run) :round 1)]          ; Ada and Ben in the hall
     (testing "the view: open containers with their contents nested, closed ones marked"
-      (is (= [{:id "cupboard" :name "Cupboard" :closed true}
-              {:id "clock" :name "Grandfather clock"}
-              {:id "shelf" :name "Shelf"
+      (is (= [{:id "cupboard" :name "Cupboard" :fixed true :closed true}
+              {:id "clock" :name "Grandfather clock" :fixed true}
+              {:id "shelf" :name "Shelf" :fixed true
                :contents [{:id "cup" :name "Cup"}
                           {:id "tray" :name "Tray" :contents [{:id "spoon" :name "Spoon"}]}]}
               {:id "umbrella" :name "Umbrella"}]
@@ -141,7 +141,7 @@
     (testing "an empty open container shows empty contents"
       (let [[taken] (perform run world "ada" :take {:item "cup"})
             [emptied] (perform run taken "ada" :take {:item "tray"})]
-        (is (= {:id "shelf" :name "Shelf" :contents []}
+        (is (= {:id "shelf" :name "Shelf" :fixed true :contents []}
                (nth (get-in (prompt/agent-view (:scenario run) emptied "ada") [:location :here :items]) 2)))))
     (testing "look: the same, in detail"
       (let [seen (:items (item-views/look world "ada"))]

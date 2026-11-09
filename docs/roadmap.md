@@ -830,8 +830,12 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
 - **First real run (2026-11-09):** the path worked end to end (four recommendations, two hired, a
   tradesperson came and left by himself). Problems found, with the user's first thoughts, are in
   [sending-for-run-review-2026-11-09.md](sending-for-run-review-2026-11-09.md).
+- **Moving fixed things (review B3):** done and mock-tested on branch `moving-across-rooms`
+  (fixtures-design decision 13): `fixed` in the view, `take`'s refusal giving the steps, open
+  works public in the home and given by anyone, one open work per thing, the judge setting a
+  work's length (30–120 minutes). A real-model check is next.
 - **Next:** a design for an informal `pay` and for confirming automatic payments the same way;
-  moving things across rooms; goods taken or made off the map (to discuss with the user).
+  goods taken or made off the map (to discuss with the user).
 
 ## C. Known issues and small fixes
 

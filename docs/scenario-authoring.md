@@ -1067,7 +1067,8 @@ names old lines, and `fresh-id` never gives an old id out again. Old runs are no
     records nothing. Empty parts are left out, as are `:aspects`, `:detail`, `:owner`, `:fixed?`
     and `:doing` when absent; agent owners show as names. Refused while travelling. The aspects,
     descriptions and owners of items here come **only** from `look`: the view lists items here by
-    name (the place's and stores' aspects are in the view too). Say in the brief that it is for examining
+    name, a fixed one marked `:fixed true` so nobody tries to `take` it (the place's and stores'
+    aspects are in the view too). Say in the brief that it is for examining
     something closely, not a routine arrival action (Claudeworth's `rules` does).
 
     ```clojure
@@ -1233,8 +1234,9 @@ Without the hook, finding is allowed. Claudeworth allows it everywhere by defaul
 publican can find the house's lantern to lend; its rules tell customers to ask and `buy` goods
 for sale, never `find` them. With the option `:find-everywhere? false` it refuses at places with
 `:services` (shops, the public house, the trades, the architect's office), keepers included.
-`:items {:fixed-hint "..."}` ends `take`'s (and `put-in`'s) refusal of a fixed thing; works set
-it to "to move it, plan a work with plan-work".
+`:items {:fixed-hint ...}` ends `take`'s (and `put-in`'s) refusal of a fixed thing: a string,
+or `(fn [world item])` returning one; works set it to `works/fixed-hint`, which names the open
+work on the thing or gives the steps to move it.
 
 Every find asks the oracle; there is no deterministic name match. (One existed until
 2026-10-30: in all real runs it answered 9 of 321 finds, models paraphrase what they look for,
@@ -3094,18 +3096,22 @@ acceptance (phase 2a).
   estimate materials phases`). Code checks only structure: `household` a boolean and, when it's
   false, a `trade` of at most 80 characters; materials ≤ estimate ≤ £500 (authored
   units), the item's lengths, an item for an install and a fate for a removal, exactly one phase
-  of 120 minutes. A bad answer gets one retry. `judge/mock-judge` plans a move or removal as
+  of 30 to 120 minutes in half hours, as long as the judge thinks one worker needs
+  (`judge/min-phase-minutes`, `max-phase-minutes`, `phase-step`). A bad answer gets one retry. `judge/mock-judge` plans a move or removal as
   household work and an install as a gas fitter's, at no cost but an install's materials, and refuses a request starting with "refuse".
 - **Actions** (tool docs in `docs/works/`):
   - `plan-work {kind request target? to?}`, a query, anyone: at the place; an install takes no
     target, a move or removal a thing here (not carried, not inside something, not a store, not
     identity-bound); only a move takes `to`, another place in the home; at most 3 plans not yet
-    given out. `:works/planned`, seen by the planner only. When the plan names a trade, its
+    given out; no other open work on the target (`works/open-work-on`: one open work per thing,
+    the refusal naming it, its status and who has it, so the planner uses it instead).
+    `:works/planned`, seen by the planner only (but see Views: open works are shown in the home). When the plan names a trade, its
     narration (`works/trade-hint`) says how to find one: someone `recommend`s with that trade as
     `wanted`, the planner `send-for`s the contact with the work's id in `about`, and `order-work`s
     it to them when they come. Nothing in contacts knows of works: a tradesperson sent for is an ordinary
     contact, and anyone may still be given the plan.
-  - `order-work {id worker price? from?}`, free: a plan the actor knows, still planned; the
+  - `order-work {id worker price? from?}`, free: a plan the actor knows (`works/knows?`: one of
+    its people, or anyone in the home while it's an open work of the home), still planned; the
     worker someone here (any living participant, never checked for fitness) or the actor; `price`
     money text in the setting's money as people write it (`"£15 10s"`, `"3 taels 250 cash"`,
     read by `money/parse` against the pack's `:units`; a bare number or anything else is refused
@@ -3113,6 +3119,7 @@ acceptance (phase 2a).
     default; `from` `"household"` (default) or
     `"own"` (`money/account`; "own" needs a purse). `:works/offered` (both), or to oneself
     `:works/accepted` at once at the materials' price, paid then (the account must cover them).
+    The orderer and the worker join its `:known-to`.
   - `revise-work {id price}`, free, the orderer or the worker while offered, the two together;
     `price` money text as for `order-work`, materials ≤ price ≤ the bound. `:works/revised` (both) sets `:price` and `:priced-by`.
   - `accept-work {id}`, free, whoever didn't set the current price (`works/answerer`: the worker
@@ -3125,8 +3132,8 @@ acceptance (phase 2a).
     Paid from the household, the work enters its order book (above), settled by its outcome.
   - `decline-work {id}`, free, the worker only, needing no one present: `:works/declined`
     (both), back to planned.
-  - `cancel-work {id}`, free, the planner or orderer, before acceptance: `:works/cancelled`, seen
-    by everyone who knows the plan.
+  - `cancel-work {id}`, free, the planner only, before acceptance (someone who offers another's
+    plan can't cancel it; the worker can decline it): `:works/cancelled`, seen by its `:known-to`.
   - `carry-out {id}`, final, the worker, at the work's place (an install's place, else where the
     target lies), the target still there and not carried, no job for the work already going:
     an `:item/work-begun` with `:work-order {:id :phase}`, `:doing` the phase's text, due after
@@ -3154,8 +3161,16 @@ acceptance (phase 2a).
   calendar entry `works-<id>` for today. `works/open-work?` (accepted or finishing) keeps the
   worker out of hibernation.
 - **`:items :fixed-hint`** ends `take`'s and `put-in`'s refusal of a fixed thing; works set it to
-  "to move it, plan a work with plan-work".
-- **Views:** `works`, the plans `id` knows except cancelled ones: id, kind, summary, who, trade
+  `works/fixed-hint`, a function of the world and the thing: the open work on it if there is
+  one (as `plan-work`'s refusal says it), otherwise the steps (`plan-work {kind "move", target,
+  to, request}`, `order-work` to someone here or yourself, `carry-out`).
+- **Open works are public in the home.** Someone at a home location sees every open work
+  (planned, offered, accepted or finishing) whose place is in the home (`works/public?`): under
+  `works`, with id, kind, summary, who, trade, status, where, `planned-by`, `worker` once given,
+  and for a plan nobody has taken `next` saying anyone may `order-work` it. No money. Settled
+  and cancelled works stay with their `:known-to`. The events stay private as before; only the
+  view and `order-work` change.
+- **Views:** `works`, the plans `id` is one of the people of except cancelled ones: id, kind, summary, who, trade
   (when wanted), status,
   `ordered-by`, `worker` ("you" for the worker), `price` (in the setting's money), `priced-by`,
   `paid-from` ("household", "your purse" or "<name>'s purse"); while offered `next`, saying

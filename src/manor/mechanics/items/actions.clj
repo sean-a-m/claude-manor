@@ -56,7 +56,8 @@
   Something inside what anyone else keeps hold of is just \"not here\", so
   nothing hidden leaks. With their grasp disabled, they can't take anything.
   `fixed-hint` (the scenario's :items :fixed-hint), if given, ends the
-  refusal of a fixed thing, saying how it could be moved."
+  refusal of a fixed thing, saying how it could be moved: a string, or
+  (fn [world item]) => string."
   ([world actor args] (take-reason nil world actor args))
   ([fixed-hint world actor {id :item}]
   (let [it (items/item world id)
@@ -69,7 +70,8 @@
       (and holder (space/together? world actor holder))
       (str (:name (w/agent world holder)) " is holding the " (:name it))
       (not (and it (items/reachable? world actor it))) (str id " is not here; " (here-list world actor))
-      (:fixed? it) (str "the " (:name it) " is fixed in place" (when fixed-hint (str "; " fixed-hint)))))))
+      (:fixed? it) (str "the " (:name it) " is fixed in place"
+                        (when fixed-hint (str "; " (if (fn? fixed-hint) (fixed-hint world it) fixed-hint))))))))
 
 (defn- container-reason
   "Why `actor` can't get at the container `id`, or nil."

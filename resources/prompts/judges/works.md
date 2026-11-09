@@ -11,6 +11,6 @@ You plan works for a household in a simulation set in {{era}}: lasting changes t
   - `fate` (remove only): what becomes of the thing, briefly ("broken up and carted away").
   - `estimate`: what the work would cost if a tradesman were paid for it, materials included, in whole units of the smallest coin. For household work, the estimate is the materials alone. At most {{max-estimate}}. {{money}}
   - `materials`: what the materials cost, included in the estimate; 0 if none are needed.
-  - `phases`: exactly {{max-phases}} phase, of exactly {{phase-minutes}} minutes, with `doing`, what the worker does in it in a short phrase ("carrying the piano through to the morning room").
+  - `phases`: exactly {{max-phases}} phase, with `doing`, what the worker does in it in a short phrase ("carrying the piano through to the morning room"), and `minutes`, how long one worker would take: from {{min-phase-minutes}} to {{max-phase-minutes}}, in steps of {{phase-step}}. Shifting a light piece of furniture to the next room is the shortest; a heavy, awkward or fragile thing, stairs or a long way take longer; work beyond {{max-phase-minutes}} minutes still takes {{max-phase-minutes}}.
 - One worker is always enough for the work: plan it for one, never for a gang.
 - Decide what the work is, not whether it is wise or affordable, nor who will do it.

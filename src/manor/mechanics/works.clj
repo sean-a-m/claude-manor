@@ -3,7 +3,7 @@
   place, planned, given to someone and carried out. A work is an
   engine-owned record in [:state :work-orders], keyed by its id (\"work-N\").
   `plan-work`, a query, asks the works judge (manor.mechanics.works.judge)
-  for a private plan, `install`, `move` or `remove`. `order-work` offers a
+  for a plan, `install`, `move` or `remove`. `order-work` offers a
   plan someone knows to a worker with them at a price, paid from the
   household or the orderer's own purse, or takes it on oneself (paying the
   materials at once); the two haggle with `revise-work` until whoever
@@ -11,7 +11,9 @@
   price and puts the labour (price less materials) in the worker's purse;
   the worker may `decline-work`; `cancel-work` drops a plan not yet
   accepted. Planner, orderer and worker
-  see it under `works` in their views. The worker does it with `carry-out`:
+  see it under `works` in their views, and while it's open so does
+  everyone in the home, who may give a plan nobody has taken
+  (docs/fixtures-design.md decision 13); a thing has one open work at a time. The worker does it with `carry-out`:
   each phase an ordinary timed item job with a :work-order reference,
   which can be stopped and resumed. The scene judge's `work` entry on the
   last phase decides the outcome (:works/done or :works/failed), which
@@ -49,6 +51,37 @@
 
 (defn- next-n [world] (inc (get-in world [:state :work-order-count] 0)))
 
+(def open-statuses #{:planned :offered :accepted :finishing})
+
+(declare work-place)
+
+(defn- home-work?
+  "Is work `wo` done in the home: its place (an install's, or where its
+  target lies now) a home location?"
+  [world wo]
+  (boolean (some->> (work-place world wo) (space/home-location? world))))
+
+(defn public?
+  "Can `actor` see work `wo` without being one of its people: it's open
+  (not yet done, failed or cancelled), it's in the home, and so are they.
+  Open works are public so nobody plans the same work twice; settled ones
+  stay with the people involved."
+  [world actor wo]
+  (and (contains? open-statuses (:status wo))
+       (home-work? world wo)
+       (some->> (space/location-of world actor) (space/home-location? world))))
+
+(defn knows?
+  "Does `actor` know of work `wo`: one of its people, or able to see it as
+  an open work of the home?"
+  [world actor wo]
+  (boolean (and wo (or (contains? (:known-to wo) actor) (public? world actor wo)))))
+
+(defn open-work-on
+  "The open work on the thing `target`, or nil: one at a time per thing."
+  [world target]
+  (first (filter #(and (some? target) (= target (:target %)) (contains? open-statuses (:status %))) (ordered world))))
+
 ;; ---------------------------------------------------------------------------
 ;; The record
 
@@ -81,13 +114,22 @@
     :remove (str "From the " (n/place names place) " (" place ").")
     nil))
 
+(defn duration
+  "\"half an hour\", \"an hour\", \"an hour and a half\", \"2 hours\", or minutes."
+  [minutes]
+  (cond (= 30 minutes) "half an hour"
+        (= 60 minutes) "an hour"
+        (= 90 minutes) "an hour and a half"
+        (zero? (mod minutes 60)) (str (quot minutes 60) " hours")
+        :else (str minutes " minutes")))
+
 (defn- plan-text
   "What a plan says: the work and where, who should do it, its stages,
   what it makes or what becomes of the old thing, and its money."
   [{:keys [id summary who phases item fate] :as data} names]
   (str "Work plan " id ": " summary " " (where-text data names) " Who should do it: " who
        " " (count phases) (if (= 1 (count phases)) " stage, " " stages, ")
-       (str/join "; " (map #(str (quot (:minutes %) 60) " hours: \"" (:doing %) "\"") phases)) ". "
+       (str/join "; " (map #(str (duration (:minutes %)) ": \"" (:doing %) "\"") phases)) ". "
        (when item (str "It makes: " (:name item) ", " (:desc item) " "))
        (when fate (str "The old thing: " fate ". "))
        (materials-text names data)))
@@ -129,6 +171,17 @@
           (items/store? it) (str "the " (:name it) " stands for supplies and can't be worked on")
           (items/identity-bound? it) (str "the " (:name it) " can't be worked on now"))))
 
+(defn open-work-reason
+  "Why no new work may be planned on the thing of open work `wo`: it names
+  the work, what it does and who has it, so the planner can use it."
+  [world {:keys [id status worker planner target]}]
+  (let [who #(n/who (n/names world) %)
+        it-name (:name (items/item world target))]
+    (str "work " id " is already open for the " it-name " (" (name status)
+         (if worker (str ", " (who worker) " to do it") (str ", planned by " (who planner)))
+         "); see it under works in your view"
+         (when (= :planned status) (str ", and give it to someone, or yourself, with order-work id \"" id "\"")))))
+
 (defn plan-reason
   "Why `actor` can't plan this work, or nil."
   [world actor {:keys [kind target to request]}]
@@ -142,7 +195,8 @@
           (and (not= "move" kind) to) "only a move takes to"
           (and to (not (space/home-location? world to))) (str to " is not a place in the home; to must be one")
           (and to (= to here)) "it is here already; to must be another place"
-          target (target-reason world actor target)
+          (and target (target-reason world actor target)) (target-reason world actor target)
+          (and target (open-work-on world target)) (open-work-reason world (open-work-on world target))
           (>= (count (open-plans world actor)) max-open-plans)
           (str "you have " max-open-plans " plans not yet given to anyone; give them out or let them go first"))))
 
@@ -192,7 +246,7 @@
   "Why `actor` can't name work `id`, or nil. A plan they don't know of is
   as unknown as one that doesn't exist."
   [world actor id]
-  (when-not (contains? (:known-to (work-order world id)) actor)
+  (when-not (knows? world actor (work-order world id))
     (str "you know of no work " id "; use the id of a plan under works in your view")))
 
 (defn- status-reason
@@ -357,12 +411,13 @@
       :data (select-keys wo [:id :orderer :worker])}]))
 
 (defn cancel-reason
-  "Why `actor` can't cancel work `id`, or nil: only its planner or orderer,
-  and only before it's accepted."
+  "Why `actor` can't cancel work `id`, or nil: only its planner, and only
+  before it's accepted. Plans are open to everyone in the home, so whoever
+  offers someone else's plan can't cancel it; the worker can decline it."
   [world actor {:keys [id]}]
-  (let [{:keys [planner orderer status]} (work-order world id)]
+  (let [{:keys [planner status]} (work-order world id)]
     (or (known-reason world actor id)
-        (when-not (some #{actor} [planner orderer]) "only the person who planned or ordered a work can cancel it")
+        (when-not (= actor planner) "only the person who planned a work can cancel it")
         (when-not (#{:planned :offered} status)
           (str "work " id " is " (name status) "; only a work not yet accepted can be cancelled")))))
 
@@ -375,7 +430,7 @@
   "Work `id` with the terms in `data`, at `status`, known to the worker."
   [world data status]
   (update-in world [:state :work-orders (:id data)]
-             #(-> (merge % (select-keys data terms)) (assoc :status status) (update :known-to conj (:worker data)))))
+             #(-> (merge % (select-keys data terms)) (assoc :status status) (update :known-to into (remove nil? [(:orderer data) (:worker data)])))))
 
 (defmethod w/apply-event :works/offered [world {:keys [data]}] (given world data :offered))
 
@@ -449,7 +504,7 @@
     (update ev :data assoc :summary (:summary wo)
             :plan (select-keys wo [:summary :who :phases :item :fate :estimate :materials :kind :place :to]))))
 
-(declare work-place place-name)
+(declare place-name)
 
 (def calendar-owner
   "How works own their calendar entries (see manor.mechanics.calendar): ids
@@ -499,7 +554,7 @@
    :doc (money-doc "docs/works/order-work.md")
    :roles :all
    :kind :free
-   :available? (fn [world actor] (boolean (some #(and (= :planned (:status %)) (contains? (:known-to %) actor))
+   :available? (fn [world actor] (boolean (some #(and (= :planned (:status %)) (knows? world actor %))
                                                 (vals (work-orders world)))))
    :args [:map [:id :string] [:worker :string] [:price {:optional true} :string]
           [:from {:optional true} [:enum "household" "own"]]]
@@ -566,7 +621,7 @@
    :doc (prompts/doc "docs/works/cancel-work.md")
    :roles :all
    :kind :free
-   :available? (fn [world actor] (boolean (some #(and (#{:planned :offered} (:status %)) (some #{actor} [(:planner %) (:orderer %)]))
+   :available? (fn [world actor] (boolean (some #(and (#{:planned :offered} (:status %)) (= actor (:planner %)))
                                                 (vals (work-orders world)))))
    :args [:map [:id :string]]
    :valid? cancel-reason
@@ -902,17 +957,29 @@
       (assoc :next (str "use carry-out with id \"" (:id wo) "\""
                         (when place (str " in the " (place-name world place) " (" place ")")))))))
 
+(defn- public-entry
+  "An open work of the home as someone not among its people sees it: what
+  it is, where, who planned it and who has it, but not its money; a plan
+  not yet given says it may be given with order-work."
+  [world {:keys [planner worker status] :as wo}]
+  (let [who #(n/who (n/names world) %)]
+    (cond-> (-> (select-keys wo [:id :kind :summary :who :trade :status])
+                (update :kind name) (update :status name)
+                (assoc :where (where-text wo (n/names world)) :planned-by (who planner)))
+      worker (assoc :worker (who worker))
+      (= :planned status) (assoc :next (str "anyone may give it to someone here, or to themselves, with order-work id \"" (:id wo) "\"")))))
+
 (defn add-to-view
-  "`view` with `works`: the plans `id` knows of, except cancelled ones."
+  "`view` with `works`: the works `id` is one of the people of, except
+  cancelled ones, and the other open works of the home while they're in it."
   [view world id]
-  (let [known (filter #(and (contains? (:known-to %) id) (not= :cancelled (:status %))) (ordered world))]
+  (let [shown (filter #(and (not= :cancelled (:status %)) (knows? world id %)) (ordered world))]
     (cond-> view
-      (seq known) (assoc :works (mapv #(view-entry world id %) known)))))
+      (seq shown) (assoc :works (mapv #(if (contains? (:known-to %) id) (view-entry world id %) (public-entry world %))
+                                      shown)))))
 
 ;; ---------------------------------------------------------------------------
 ;; For the operator (the panel's scene view): every work, omniscient
-
-(def open-statuses #{:planned :offered :accepted :finishing})
 
 (defn operator-entry
   "Work `wo` as the operator sees it: everything, in plain fields. Never
@@ -969,9 +1036,16 @@
                                  :where (if place (str "the " (place-name world place) " (" place ")") "where its thing is")}))]
     (when (seq lines) (str/join " " lines))))
 
-(def fixed-hint
-  "The end of `take`'s refusal of a fixed thing (the scenario's :items :fixed-hint)."
-  "to move it, plan a work with plan-work")
+(defn fixed-hint
+  "The end of `take`'s refusal of the fixed thing `it` (the scenario's
+  :items :fixed-hint): the open work on it if there is one, otherwise the
+  whole way to move it, step by step."
+  [world it]
+  (if-let [wo (open-work-on world (:id it))]
+    (open-work-reason world wo)
+    (str "to move it, plan a work here with plan-work {kind \"move\", target \"" (:id it) "\", to, request}, "
+         "then give the plan with order-work to someone here or to yourself; "
+         "whoever has it moves it with carry-out")))
 
 (defn install
   "Add works to a scenario: its actions, the works judge, the hook that

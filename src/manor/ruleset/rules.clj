@@ -100,6 +100,7 @@
                                            :spending-tools (section world (if architect? "shopping-spending-tools-commissions" "shopping-spending-tools"))
                                            :money (prompts/render world "money.md" {})
                                            :order-book (order-book world)})
+                (section world "paying")
                 (when architect?
                   (section world "building" {:sizes (str/join ", " (map :size (get-in world [:state :architect-prices :sizes])))
                                              :fee-percent building/fee-percent}))

@@ -11,6 +11,7 @@
             [manor.prompts :as prompts]
             [manor.settings :as settings]
             [manor.mechanics.money :as money]
+            [manor.mechanics.payments :as payments]
             [manor.world :as w])
   (:import (java.time LocalTime)))
 
@@ -114,7 +115,10 @@
   (str (n/who names actor) " spreads out the plans for " (:plan-id data) " for the room to see."))
 (defmethod n/describe :building/commissioned [{:keys [data]} names]
   (str (n/who names (:by data)) " commissions the " (:name data) ", beside "
-       (beside names (:connects-to data)) "; completion " (n/at names (:due data)) "."))
+       (beside names (:connects-to data)) "; completion " (n/at names (:due data)) ". "
+       ;; everyone sees it; the architect's fee stays private (his purse)
+       (payments/paid-line names {:amount (:price data) :account (:account data) :to "the architect's firm"
+                                  :owed " for this room"})))
 (defmethod n/describe :building/works-completed [{:keys [data]} names]
   (str "Builders finish the " (:name data) ", beside " (beside names (:connects-to data)) "."))
 

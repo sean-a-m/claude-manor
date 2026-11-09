@@ -64,10 +64,11 @@ the rules of individual mechanics that it joins in.
 | `rules/sections/works.md` | Fixed things change only through works: `plan-work`, then `order-work`; `spend-time` makes only passing changes | ″ | |
 | `rules/sections/people.md` | Aspects of people, inner state, feelings toward others, the body | ″ | `physical` (`rules/physical.md`) |
 | `rules/sections/shopping.md` | Money and shopping | ″ | `paid` (`shopping-paid[-commissions].md`), `spending-tools` (`shopping-spending-tools[-commissions].md`), `money` (the pack's `money.md`), `order-book` (`shopping-order-book.md` where the world has shops, else empty) |
+| `rules/sections/paying.md` | Paying people: only `pay` moves money between people; agreed wages and prices are paid only with it; what pays for itself and needs no `pay` | ″ | (`household-name`, from the pack) |
 | `rules/sections/shopping-order-book.md` | The order books: what `household.orders` and `shop-orders` show | `ruleset.rules/order-book` | |
 | `rules/sections/building.md` | Building, only with an architect | ″ | `sizes`, `fee-percent` |
 | `rules/sections/posts.md` | A post already held changes only by appointment (newcomers sent for are taken on with `engage`), and whom to ask; only when some position in the run has `:appoints` | ″ | |
-| `rules/sections/sending-for.md` | Finding people and sending for them: `recommend` with `wanted`, `send-for`, settling it at arrival (`engage`, `order-work`, `spend-time`), papers and belongings, leaving | `contacts/rules` | `lead-hours` |
+| `rules/sections/sending-for.md` | Finding people and sending for them: `recommend` with `wanted`, `send-for`, settling it at arrival (`engage`, `order-work`, `spend-time` paid with `pay`), papers and belongings, leaving | `contacts/rules` | `lead-hours` |
 | `rules/sections/invitations.md` | Invitations, only with visits | ″ | `visits` (`rules/visits.md`) |
 | `rules/physical.md` | Physical status: hindered faculties, impediments | `physical/rules` | |
 | `rules/visits.md` | How invitations and guests work | `visits/rules` | `post` (`rules/visits-post.md` or `""`), `calendar` (`rules/visits-calendar.md` or `""`) |
@@ -108,6 +109,7 @@ for the action's kind and its per-turn limit (`docs/hints/`).
 | `docs/works/order-work.md` | `order-work`: offering a plan to someone here, or taking it on oneself, at a price, paid from the household or one's own purse | `works` | `money-example` (`money/example`: a price in the setting's money) |
 | `docs/works/revise-work.md` | `revise-work`: asking another price for a work on offer (haggling) | `works` | `money-example` (`money/example`: a price in the setting's money) |
 | `docs/works/accept-work.md` | `accept-work`: accepting the price the other side set; pays it, labour to the worker | `works` | |
+| `docs/money/pay.md` | `pay {to amount for from?}`: handing money to someone, here or not; buys nothing; what pays for itself | `payments` | `money-example`, `max-for` |
 | `docs/works/decline-work.md` | `decline-work`: refusing a work offered | `works` | |
 | `docs/works/cancel-work.md` | `cancel-work`: dropping a plan not yet accepted | `works` | |
 | `docs/works/carry-out.md` | `carry-out`: doing an accepted work's current stage as a timed job, resumable | `works` | |
@@ -123,7 +125,7 @@ must call.
 
 | Template | Used for | Rendered by | Parameters |
 |---|---|---|---|
-| `judges/activity-check.md` | Small pre-start activity admission check; currently forbids travel, without predicting work results | `items.activity-check/request` | |
+| `judges/activity-check.md` | Small pre-start activity admission check; currently forbids travel and activities that are only paying money (pointing to `pay`), without predicting work results | `items.activity-check/request` | |
 | `judges/tools/check-activity.md` | Admission verdict: allowed, or rejected with a correction | ″ | |
 | `judges/post-check.md` | The post check: admits `appoint` and `dismiss` unless absurd in the setting | `appointments.post-check/request` | setting (`era`) |
 | `judges/tools/check-post.md` | The post check's verdict: allowed, or refused with a reason for the appointer | ″ | |
@@ -164,7 +166,7 @@ The engine's replacement for someone's `:situation` when their post changes, or 
 | `situations/appointed.md` | Someone appointed to a post | `appointments/appointed` | `by`, `post`, `terms` (`appointed-terms.md` or `""`) |
 | `situations/appointed-terms.md` | Fragment: the terms of the appointment | ″ | `terms` |
 | `situations/dismissed.md` | Someone dismissed: no household, no bed, `take-leave` when they go | `appointments/dismissed` | `by`, `post` |
-| `situations/sent-for.md` | A contact from elsewhere arriving sent for: who sent for them, what about, their home; work (`order-work`) or a place (`engage`) or neither, `take-leave` when done | `contacts/arrival-situation` (at `send-for`; kept on the visit as `:situation`, given at arrival by `visits/coming`) | `name`, `home`, `by`, `house`, `about` |
+| `situations/sent-for.md` | A contact from elsewhere arriving sent for: who sent for them, what about, their home; work (`order-work`) or a place (`engage`) or neither, money for anything else paid with `pay`, `take-leave` when done | `contacts/arrival-situation` (at `send-for`; kept on the visit as `:situation`, given at arrival by `visits/coming`) | `name`, `home`, `by`, `house`, `about` |
 
 ## Writers (`writers/`)
 

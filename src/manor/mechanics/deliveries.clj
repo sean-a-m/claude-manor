@@ -23,6 +23,7 @@
             [manor.settings :as settings]
             [manor.mechanics.building :as building]
             [manor.mechanics.money :as money]
+            [manor.mechanics.payments :as payments]
             [manor.world :as w]))
 
 (def max-lead-hours 120)
@@ -88,7 +89,9 @@
 (defmethod n/describe :deliveries/ordered [{:keys [actor data]} names]
   (str (n/who names actor) " orders " (:item data) " (" (amount (:qty data) (:unit data)) ") for "
        (money/display (get names [:money]) (:price data)) " at the " (n/place names (:location data)) ", to be delivered at the "
-       (n/place names (:to data)) " by " (:due-label data) "."))
+       (n/place names (:to data)) " by " (:due-label data) ". "
+       (payments/paid-line names {:amount (:price data) :account (:account data)
+                                  :to (str "the " (n/place names (:location data))) :owed " on delivery"})))
 
 (defn in-hand
   "The clerk's own line about the `ordered` events just bought: the order
@@ -178,7 +181,9 @@
        (str/join "; " (for [o (:orders data)]
                         (str (goods-label o) " for " (money/display (get names [:money]) (:price o)) " by " (:due-label o))))
        " for " (n/who names (:buyer data)) " from the " (n/place names (:location data))
-       ", charged to the household account, to be delivered at the " (n/place names (:to data)) "."))
+       ", charged to the household account, to be delivered at the " (n/place names (:to data)) ". "
+       (payments/paid-line names {:amount (reduce + (map :price (:orders data))) :account (:account data)
+                                  :to (str "the " (n/place names (:location data))) :owed " on delivery"})))
 
 (defn hearers
   "Everyone within walking distance of `place`: the whole house hears the bell."

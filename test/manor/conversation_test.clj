@@ -102,9 +102,9 @@
       (let [calls (filter :conversation (store/read-llm (:dir run)))]
         (is (= 6 (count calls)))
         (is (= {:pass :last-word} (select-keys (:conversation (last calls)) [:pass])))
-        (is (= #{"reply" "end-conversation" "note" "follow" "recommend" "send-for" "give"} (set (:tools (last calls))))
+        (is (= #{"reply" "end-conversation" "note" "follow" "recommend" "send-for" "give" "pay"} (set (:tools (last calls))))
             "the earl carries his watch, so his line can give it")
-        (is (= #{"reply" "stay-silent" "leave" "note" "follow" "recommend" "send-for"} (set (:tools (first calls))))
+        (is (= #{"reply" "stay-silent" "leave" "note" "follow" "recommend" "send-for" "pay"} (set (:tools (first calls))))
             "the countess carries nothing, so hers can't"))
       (let [text (transcript/render (:dir run))]
         (is (re-find #"\*\*hale\*\* _\(conv-\d+, pass 2\)_ reply" text))

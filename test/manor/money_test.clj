@@ -48,7 +48,7 @@
                 "The result is private and remembered next turn.")
            (actions/description (first (filter #(= :price-list (:name %)) building/actions)) world)))
     (is (.contains (shop/instructions world) "Price in integer cash."))
-    (is (= "buyer buys tea (1 tin) for 1 tael 1 cash at the counter, and takes the goods away."
+    (is (= "buyer buys tea (1 tin) for 1 tael 1 cash at the counter, and takes the goods away. Paid: 1 tael 1 cash to the counter. Nothing more is owed."
            (narrate/describe {:type :shop/bought :actor "buyer"
                               :data {:item "tea" :qty 1 :unit "1 tin" :price 1001 :location "counter"}}
                              (narrate/names world))))))

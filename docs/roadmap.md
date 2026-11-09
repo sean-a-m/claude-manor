@@ -830,8 +830,11 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
 - **First real run (2026-11-09):** the path worked end to end (four recommendations, two hired, a
   tradesperson came and left by himself). Problems found, with the user's first thoughts, are in
   [sending-for-run-review-2026-11-09.md](sending-for-run-review-2026-11-09.md).
-- **Next:** a design for an informal `pay` and for confirming automatic payments the same way;
-  moving things across rooms; goods taken or made off the map (to discuss with the user).
+- **Paying people:** [payments-design.md](payments-design.md), with the user's decisions of
+  2026-11-09: `pay {to amount for from?}` to anyone, here or not, also on lines; every payment,
+  `pay` or automatic, narrated with one `Paid:` line; household payments in its book; shop money
+  still vanishes; no double-payment guard. Phases 1 and 2 done (mock-tested); a short real run next.
+- **Next:** moving things across rooms; goods taken or made off the map (to discuss with the user).
 
 ## C. Known issues and small fixes
 

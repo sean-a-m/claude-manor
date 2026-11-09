@@ -363,7 +363,11 @@
           (is (= :accepted (:status (works/work-order done "work-1"))))
           (is (= (- before 720) (funds done "household")))
           (is (= 240 (funds done "lady-claudeworth")))
-          (is (str/includes? (narrate/describe (first acc-evs) (narrate/names down)) "£1 of it to Lady Claudeworth"))))
+          (is (str/includes? (narrate/describe (first acc-evs) (narrate/names down))
+                             "Paid: £3 from the household account, for work work-1, £1 of it to Lady Claudeworth for the labour; the materials are there. Nothing more is owed for this work."))
+          (is (= "in full when accepted; nothing more is owed for it" (:paid (view-work run done "hale")))))
+        (testing "an offer isn't paid yet"
+          (is (nil? (:paid (view-work run ordered "hale"))))))
       (finally (e/stop-run run)))))
 
 (deftest checks-on-prices

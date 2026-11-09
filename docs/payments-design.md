@@ -1,6 +1,6 @@
 # Paying people: an informal `pay`, and automatic payments confirmed the same way
 
-**Status:** proposal, for the user's decisions. Nothing built. Source: item B1 of
+**Status:** decided (the user, 2026-11-09; section 8). Phases 1 and 2 done, mock-tested; phase 5 (a short real run) next. Phases 3 and 4 dropped. Source: item B1 of
 [sending-for-run-review-2026-11-09.md](sending-for-run-review-2026-11-09.md); roadmap B21 "Next".
 
 ## 1. The problem
@@ -36,8 +36,8 @@ goods.
 
 ## 2. Proposal in brief
 
-1. **A `pay {to amount for from?}` action:** free, also offered on speaking turns, with the
-   payee present. It moves money from the household account or the payer's own purse to the
+1. **A `pay {to amount for from?}` action:** free, also offered on speaking turns, to anyone
+   in the world, here or not (decision 6). It moves money from the household account or the payer's own purse to the
    payee's purse (opening one if they have none) and emits one new event, `:money/paid`.
 2. **One form of confirmation:** every payment, made with `pay` or automatically, ends its
    narration with the same `Paid:` line, built by one function. The existing events keep their
@@ -61,7 +61,7 @@ pay {to, amount, for, from?}
 
 | Argument | Check (structural only) |
 |---|---|
-| `to` | an active non-GM agent here with you (`space/together?`), not yourself |
+| `to` | any non-GM person, active or away, not dead or retired, not yourself; here or not (decision 6) |
 | `amount` | money text read by `money/parse` ("£8 2s"), positive; `money/parse-reason` otherwise |
 | `for` | required free text, 1–200 characters: what it's for, as the record will say it |
 | `from` | `"household"` (default) or `"own"`, as `buy`, `commission` and `order-work` take it; `money/spend-reason` checks the balance |
@@ -70,8 +70,9 @@ pay {to, amount, for, from?}
   offered on speaking turns (`ruleset/speaking-actions`), to someone in the conversation, as
   `buy` and `order-work` are. That way "here's your money" and the paying happen on one line.
 - **Event:**
-  `{:type :money/paid :visible-to (space/here payer) :data {:payer :payee :account :amount :for}}`.
-  Coin handed over is seen by everyone present, as with `give`.
+  `{:type :money/paid :visible-to (space/here payer) + payee :data {:payer :payee :account :amount :for}}`,
+  with `:sent? true` when the payee wasn't there (the narration then says it reaches them).
+  Coin handed over is seen by everyone present, as with `give`, and the payee always learns of it.
 - **Reducer:** `[:state :accounts account]` minus `amount`, `[:state :accounts payee]` `fnil +`
   `amount`, and, when `account` is `"household"`, a `:payment` record in the household book. It
   is pure, and replay reproduces it.
@@ -79,7 +80,7 @@ pay {to, amount, for, from?}
   table. The household has £29,980 left."
 - **Payee's view:** `you.purse` appears once they have an account, as it does for a worker paid
   labour today (`building/observe`). They can then `pay` or `buy` with `from: "own"`.
-- **Not in it:** paying someone who isn't there (by post or messenger), asking for or demanding
+- **Not in it:** asking for or demanding
   money (that's talk), taking money from someone, credit and settling later. **Who may spend the
   household's money is left open** (the user, 2026-11-09).
 
@@ -111,8 +112,9 @@ would. B can come later if code ever needs one event for all money.
 - `buy` with a delivery, and `send-up`: the same line, plus "Nothing more is owed on delivery."
 - `works/accepted`: "**Paid:** £3 10s from the household account for work-2: £1 10s to Mr Carter
   for the labour, £2 for the materials, which are there. Nothing more is owed for this work."
-- `commission`: "**Paid:** £650 from the household account to the architect's firm, £65 of it
-  to Mr Pugh as his fee. Nothing more is owed for this room."
+- `commission`: "**Paid:** £650 from the household account to the architect's firm. Nothing more
+  is owed for this room." (Everyone sees a commission, so the architect's fee, which is private,
+  isn't in the line.)
 
 "Nothing more is owed" is the part that heads off paying twice. It's said where the payment
 happens, to both sides, in the same words a `pay` would use.
@@ -190,8 +192,8 @@ proposed.
    `:deliveries/ordered`, `:deliveries/sent-out`, `:works/accepted` and `:building/commissioned`;
    the `paid` field on accepted works; the `order-work`/`accept-work` doc sentences; the scene
    judge's activity-check sentence.
-3. **(If wanted) shop tills** (4.3, option 1).
-4. **(If a run shows it) the `extra` guard** (5.3).
+3. ~~Shop tills~~ (dropped: decision 2).
+4. ~~The `extra` guard~~ (dropped: decision 4).
 5. **A short real run** (about 8 rounds, `:max-cost` 0.20) of `claudeworth-small`, starting where
    a tradesperson has been sent for. Check that `pay` is used, that nobody pays twice for a work,
    and that nobody `pay`s at a counter.
@@ -200,11 +202,15 @@ Phases 1 and 2 are each small. Phase 2 edits narration in `shop.clj`, `deliverie
 `works.clj` and `building.clj`. Other branches (moving things, goods off the map) may touch those
 files, so phase 2 should be merged promptly or rebased onto theirs.
 
-## 8. Decisions for the user
+## 8. The user's decisions (2026-11-09)
 
-1. Shared narration (4.1 A) rather than one shared event: agreed?
-2. Shop money: a till (4.3.1), the keeper's purse (4.3.2), or leave it vanishing for now (4.3.3)?
-3. Should `pay` from the household account go in the household book as a `:payment` entry (5.2)?
-4. The `extra` guard (5.3): now, or only if a run shows double payment?
-5. `pay` on speaking turns: yes (recommended), so payment can happen on a line?
-6. Payee must be present: yes for now (no payment by post or messenger)?
+1. **Shared narration** (4.1 A), not one shared event: agreed.
+2. **Shop money keeps disappearing** for now, until a more sophisticated system is developed. The
+   `Paid:` line names the shop as payee all the same (4.3.3). Phase 3 (tills) is dropped for now.
+3. **A household `pay` goes in the household book** as a `:payment` entry: yes.
+4. **No double-payment guard** (5.3): too many edge cases. Phase 4 is dropped.
+5. **`pay` on speaking turns:** yes.
+6. **The payee needn't be present:** payment can be made whenever, to anyone in the world (here,
+   elsewhere or away), but not the GM, the dead or the retired. If that causes problems it can be
+   changed. So the check on `to` in section 3 is "a non-GM person in the world, not yourself",
+   and the event is seen by those with the payer and by the payee.

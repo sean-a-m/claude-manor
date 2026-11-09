@@ -1,6 +1,6 @@
 # Sending for people: one path for staff and tradespeople
 
-**Status:** draft design; phase 0 (the speaking-turn tools) done and mock-tested, the rest not started. Written 2026-11-08 from the user's brief and two rounds of
+**Status:** draft design; phase 0 (the speaking-turn tools) and phase 1.1 (the contact record and the judge) done and mock-tested, the rest not started. Written 2026-11-08 from the user's brief and two rounds of
 answers the same day (section 2). Section 9 lists what is still open.
 
 Read `AGENTS.md` first, then `docs/works-run-review-2026-11-08.md` (items 11, 12 and 14),
@@ -340,6 +340,18 @@ Each phase ends with `clojure -M:test` passing and a mock run of `claudeworth-sm
      candidate path until 1.3. Contacts keep `:wanted` per knower (4.1, decision 11). `send-for` takes
      `about`, defaulting to `wanted`; the lead time is 2 hours. `:tradesman` becomes `:caller` in both
      packs and everywhere it's named. The view's `contacts` show line and wanted (4.9).
+     **Done:** `manor.mechanics.contacts` and `contacts/judge.clj` (adjudicator
+     `:contacts/recommendation`, tool `recommendation`, `judges/recommendation.md`); `recommend`
+     takes `wanted` (1-120) or `position`, exactly one; `:contacts/recommended` carries `:asker` and
+     `:wanted`, kept per knower in the contact's `:wanted`; `send-for {id about?}` for a contact
+     (1-300), `:contacts/sent-for` for `:trades/sent-for`, lead 2 hours; `:caller` in both packs;
+     the view's `contacts` add `line` and the viewer's `wanted`. Differences from the plan: only the
+     asker (`for`) gets `wanted` recorded, not the recommender, since it's what they asked for;
+     "holds no post" for the judge's list means a post other than `:none` or `:caller`; the idle
+     departure and its rules text (`rules/sections/contacts.md`, still headed "Tradespeople") stay
+     until 1.2; `you.visit` still says `job` for a visit by `:sent-for` (1.2's arrival work); the
+     doc fragments are `docs/contacts/recommend.md` (appended to hiring's `recommend` doc, for
+     now) and `docs/contacts/send-for.md`. Tests in `contacts_test.clj`.
    - **1.2 Settling at arrival.** The arrival situation from a template (`situations/sent-for.md`),
      the arrival event saying what they came about (4.5), the `:caller` text, `engage`, `send-away`
      and `accept-place` on contacts here by `:sent-for` with no post, refusing established agents

@@ -111,10 +111,10 @@
 
 (def ^:private not-posts
   "Catalogue positions nobody is hired for: no post at all, the GM, a
-  visitor (manor.mechanics.visits) and a tradesman sent for
-  (manor.mechanics.trades). Recommend and engage refuse them, and
+  visitor (manor.mechanics.visits) and a caller sent for
+  (manor.mechanics.contacts). Recommend and engage refuse them, and
   `reference` doesn't list them."
-  #{:none :gm :guest :tradesman})
+  #{:none :gm :guest :caller})
 
 (defn not-a-post-reason
   "Why `position` can't be filled by hiring, or nil."
@@ -126,7 +126,7 @@
 
 (defn recipient-reason
   "Why `actor` can't recommend anyone to `for`, or nil: they must be someone
-  else, here. Shared with trades (manor.mechanics.trades)."
+  else, here. Shared with contacts (manor.mechanics.contacts)."
   [world actor for]
   (cond
     (= actor for) "ask someone else here to recommend to you, not yourself"

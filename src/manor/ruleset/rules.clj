@@ -7,6 +7,7 @@
   (:require [clojure.string :as str]
             [manor.mechanics.builtins :as b]
             [manor.mechanics.building :as building]
+            [manor.mechanics.contacts :as contacts]
             [manor.mechanics.conversation :as conversation]
             [manor.mechanics.deliveries :as deliveries]
             [manor.mechanics.hiring :as hiring]
@@ -14,7 +15,6 @@
             [manor.mechanics.physical :as physical]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.space :as space]
-            [manor.mechanics.trades :as trades]
             [manor.mechanics.visits :as visits]
             [manor.prompts :as prompts]
             [manor.ruleset.places :as places]))
@@ -99,7 +99,7 @@
                 (when (appointers? world) (section world "posts"))
                 (section world "hiring" {:hiring ((if visits? hiring/rules-beside-visits hiring/rules) world)})
                 (when visits? (section world "invitations" {:visits (visits/rules world)}))
-                (when visits? (trades/rules world))]))})))
+                (when visits? (contacts/rules world))]))})))
 
 (defn- setting [world] (get-in world [:state :setting]))
 

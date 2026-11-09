@@ -28,6 +28,7 @@
   starting state, holidays) and mock (the scripted mock policy)."
   (:require [manor.mechanics.appointments :as appointments]
             [manor.mechanics.building :as building]
+            [manor.mechanics.contacts :as contacts]
             [manor.mechanics.deliveries :as deliveries]
             [manor.mechanics.find-person :as find-person]
             [manor.mechanics.following :as following]
@@ -35,7 +36,6 @@
             [manor.mechanics.people :as people]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.shop :as shop]
-            [manor.mechanics.trades :as trades]
             [manor.mechanics.visits :as visits]
             [manor.mechanics.works :as works]
             [manor.ruleset.actions :as actions]
@@ -68,7 +68,7 @@
   them at this shop can buy; anyone can order a work to someone in it, or
   accept or decline one offered. The hiring tools are taken from `actions`,
   the scenario's installed actions (so `recommend` and `send-for` are the
-  ones its turns offer, trades' among them); hiring's own without it."
+  ones its turns offer, contacts' among them); hiring's own without it."
   ([world speaker conv] (speaking-actions hiring/actions world speaker conv))
   ([actions world speaker {:keys [members] :as conv}]
    (cond-> (into [(to-a-member actions :recommend :for "recommend to someone in this conversation" members)
@@ -124,7 +124,7 @@
 (defn scenario
   "A full scenario on the ruleset: every action, judge, bridge and system,
   appointments among them (manor.mechanics.appointments), with hiring,
-  deliveries, visits, trades and works installed, in that order. `opts`:
+  deliveries, visits, contacts and works installed, in that order. `opts`:
   - :name, :doc, :defaults (its :world-file names the world)
   - :mock-day, a day for the scripted mock policy (a map, or a classpath EDN
     file such as \"worlds/claudeworth-day.edn\"); or :mock-policy, a policy
@@ -165,7 +165,7 @@
       hiring/install
       deliveries/install
       visits/install
-      trades/install
+      contacts/install
       works/install
       ;; after every install, so a line's tools are the turns' own
       (as-> s (assoc s :speaking-actions (speaking-actions-and-following (:actions s))))))

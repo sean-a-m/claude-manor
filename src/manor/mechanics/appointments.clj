@@ -31,12 +31,12 @@
 
 (def visitor-roles
   "The positions of people here on a visit (manor.mechanics.visits and
-  trades), who hold no post to change: their visit decides when they go."
-  #{:guest :tradesman})
+  contacts), who hold no post to change: their visit decides when they go."
+  #{:guest :caller})
 
 (defn- visitor-reason
   "Why `who` is here on a visit or for a place rather than in a post, or nil:
-  a guest or tradesperson, or a candidate who hasn't been engaged (hiring's
+  a guest or caller, or a candidate who hasn't been engaged (hiring's
   `engage` takes them on)."
   [world who]
   (cond (visitor-roles (:role (w/agent world who)))

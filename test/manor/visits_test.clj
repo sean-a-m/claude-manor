@@ -287,8 +287,8 @@
   (doseq [scenario [cw/scenario medium/scenario]]
     (is (= 1 (count (filter #(= :invite (:name %)) (:actions scenario)))))
     (is (= 1 (count (filter #(= :visits/tick (:name %)) (:systems scenario)))))
-    (is (= [:visits/tick :trades/tick] (map :name (take-last 2 (:systems scenario))))
-        "after hiring's and deliveries' systems, with trades' after it")))
+    (is (= [:visits/tick :contacts/tick] (map :name (take-last 2 (:systems scenario))))
+        "after hiring's and deliveries' systems, with contacts' after it")))
 
 (deftest visit-calendar-ids-are-reserved
   (let [run (start {} {:gm :llm})]

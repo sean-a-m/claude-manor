@@ -21,7 +21,7 @@
             [manor.mechanics.money :as money]
             [manor.mechanics.purchases :as purchases]
             [manor.mechanics.space :as space]
-            [manor.mechanics.trades :as trades]
+            [manor.mechanics.contacts :as contacts]
             [manor.mechanics.visits :as visits]
             [manor.mechanics.works :as works]
             [manor.mechanics.works.judge :as judge]
@@ -868,10 +868,10 @@
 (def tuner-day
   "Hale recommends a piano tuner from elsewhere to the earl, who sends for him."
   {"hale" {"20:00" [[:travel {:to "post-office"}]]
-           "20:30" [[:recommend {:trade "a piano tuner" :for "lord-claudeworth"}] [:pass {}]]}
+           "20:30" [[:recommend {:wanted "a piano tuner" :for "lord-claudeworth"}] [:pass {}]]}
    "lord-claudeworth" {"20:00" [[:pass {}]]
                        "20:30" [[:pass {}]]
-                       "21:00" [[:send-for {:id "contact-1" :job "tune the drawing-room piano"}]]}})
+                       "21:00" [[:send-for {:id "contact-1" :about "tune the drawing-room piano"}]]}})
 
 (defn- start-trades
   "The trades test world (test/fixtures/visits.edn), Claudeworth's scenario, `day` scripted."
@@ -885,10 +885,10 @@
     (try
       (until! run 9)
       (let [world (e/world run)
-            tuner (:agent-id (trades/contact world "contact-1"))
+            tuner (:agent-id (contacts/contact world "contact-1"))
             idle (assoc world :round 20)
             given #(assoc-in idle [:state :work-orders "work-1"] {:id "work-1" :n 1 :worker tuner :status %})
-            leaves? #(some (fn [ev] (= tuner (get-in ev [:data :id]))) (trades/tick %))]
+            leaves? #(some (fn [ev] (= tuner (get-in ev [:data :id]))) (contacts/tick %))]
         (is (= "carriage-sweep" (space/location-of world tuner)) "he has arrived")
         (is (leaves? idle) "idle long enough, he would go home")
         (is (not (leaves? (given :accepted))) "not with accepted work unfinished")
@@ -991,7 +991,7 @@
         (is (true? (get-in (judge/mock-judge {:input {:kind "move" :request "x"}}) [:args :household]))))
       (testing "the plan says how to find one, and the view names the trade"
         (let [text (works/describe-plan wo (narrate/names world))]
-          (is (str/includes? text "recommend with trade \"gas fitter\""))
+          (is (str/includes? text "recommend with wanted \"gas fitter\""))
           (is (str/includes? text "send-for them")))
         (is (= "gas fitter" (:trade (view-work run world "hale")))))
       (testing "household work has no hint"
@@ -1013,18 +1013,18 @@
 (def gas-fitter-day
   "On the trades test world from 08:00: Hale plans a gasolier for the
   drawing room (the mock judge wants a gas fitter); the earl comes home and
-  recommends one, from Ely; Hale sends for him with the work's id in the
-  job. He arrives at the carriage sweep at noon and walks in; Hale orders
+  recommends one, from Ely; Hale sends for him at 10:00 with the work's id
+  in about. He arrives at the carriage sweep at noon and walks in; Hale orders
   him the work at the estimate (£2, all materials), he asks £3 10s, Hale
   accepts, and he carries it out: two hours from 14:30. \"@tradesman\" in a
   script is the gas fitter's id, and \"tradesman\" his script."
   {"hale" {"08:00" [[:plan-work {:kind "install" :request "a three-light gas chandelier over the drawing-room fireplace"}]
                     [:pass {}]]
-           "09:00" [[:send-for {:id "contact-1" :job "work-1: fit the gasolier in the drawing room"}]]
+           "10:00" [[:send-for {:id "contact-1" :about "work-1: fit the gasolier in the drawing room"}]]
            "13:00" [[:order-work {:id "work-1" :worker "@tradesman"}] [:pass {}]]
            "14:00" [[:accept-work {:id "work-1"}] [:pass {}]]}
    "lord-claudeworth" {"08:00" [[:travel {:to "drawing-room"}]]
-                       "08:30" [[:recommend {:trade "a gas fitter" :for "hale"}] [:pass {}]]}
+                       "08:30" [[:recommend {:wanted "a gas fitter" :for "hale"}] [:pass {}]]}
    "tradesman" {"12:30" [[:walk {:to "drawing-room"}] [:pass {}]]
                 "13:30" [[:revise-work {:id "work-1" :price "£3 10s"}] [:pass {}]]
                 "14:30" [[:carry-out {:id "work-1"}]]}})
@@ -1034,7 +1034,7 @@
   following the \"tradesman\" script and \"@tradesman\" in any args his id."
   [day]
   (fn [{:keys [world agent-id] :as ctx}]
-    (let [fitter (:agent-id (trades/contact world "contact-1"))
+    (let [fitter (:agent-id (contacts/contact world "contact-1"))
           day (cond-> day (= fitter agent-id) (assoc agent-id (get day "tradesman")))
           answer (mock/scripted-policy day ctx)]
       (update answer :args #(update-vals (or % {}) (fn [v] (if (= "@tradesman" v) fitter v)))))))
@@ -1045,20 +1045,20 @@
               (e/start-run :claudeworth {:test? true :llm :mock :offline? true :gm :off :max-cost 0.20 :start "1904-10-15T08:00"
                                          :world-file "test/fixtures/visits.edn" :run-id (str (gensym "works-gas-"))}))]
     (try
-      (until! run 3)
+      (until! run 5)
       (let [world (e/world run)
-            fitter (:agent-id (trades/contact world "contact-1"))]
+            fitter (:agent-id (contacts/contact world "contact-1"))]
         (testing "the plan named the trade and how to find one"
           (is (= "gas fitter" (:trade (works/work-order world "work-1"))))
-          (is (str/includes? (first (replies-to run "hale" "plan-work")) "recommend with trade \"gas fitter\"")))
+          (is (str/includes? (first (replies-to run "hale" "plan-work")) "recommend with wanted \"gas fitter\"")))
         (testing "the gas fitter is recommended and sent for with the work's id"
-          (is (= {:trade "gas fitter" :known-to #{"hale" "lord-claudeworth"}}
-                 (select-keys (trades/contact world "contact-1") [:trade :known-to])))
+          (is (= {:line "gas fitter" :known-to #{"hale" "lord-claudeworth"}}
+                 (select-keys (contacts/contact world "contact-1") [:line :known-to])))
           (is (= "work-1: fit the gasolier in the drawing room" (:stay (visits/visit world "visit-1"))))
           (is (= :away (:status (w/agent world fitter))))))
       (until! run 18)
       (let [world (e/world run)
-            fitter (:agent-id (trades/contact world "contact-1"))
+            fitter (:agent-id (contacts/contact world "contact-1"))
             wo (works/work-order world "work-1")
             it (items/item world (:made wo))
             start (* 100 240)]

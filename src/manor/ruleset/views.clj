@@ -7,12 +7,12 @@
   (:require [clojure.string :as str]
             [manor.clock :as clock]
             [manor.mechanics.building :as building]
+            [manor.mechanics.contacts :as contacts]
             [manor.mechanics.following :as following]
             [manor.mechanics.hiring :as hiring]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.shop :as shop]
             [manor.mechanics.space :as space]
-            [manor.mechanics.trades :as trades]
             [manor.mechanics.works :as works]
             [manor.mechanics.visits :as visits]
             [manor.ruleset.places :as places]
@@ -76,7 +76,7 @@
                 (update :you assoc :bedroom (places/bedroom-of world id))
                 (assoc :hiring (hiring/observe world id))
                 (visits/add-to-view world id)
-                (trades/add-to-view world id)
+                (contacts/add-to-view world id)
                 (works/add-to-view world id)
                 (following/add-to-view world id))
       (or (positions/household-member? world id) (visits/from-elsewhere? world id))

@@ -22,8 +22,8 @@
 (def max-summary 300)
 (def max-who 300)
 (def max-doing 200)
-;; The trade a plan names when it wants a tradesperson, as `recommend` takes it
-;; (manor.mechanics.trades.judge/max-trade).
+;; The trade a plan names when it wants a tradesperson, a short description to
+;; pass to `recommend`'s `wanted` (manor.mechanics.contacts.judge/max-wanted).
 (def max-trade 80)
 ;; For now a work has exactly one phase of two hours (decision 7).
 (def max-phases 1)

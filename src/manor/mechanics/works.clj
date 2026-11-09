@@ -98,8 +98,8 @@
   hint only: the plan may still be given to anyone."
   [{:keys [id trade]}]
   (when trade
-    (str " It wants a " trade ": to find one, ask someone who might know to recommend with trade \"" trade
-         "\", then send-for them with the contact's id and a job naming " id
+    (str " It wants a " trade ": to find one, ask someone who might know to recommend with wanted \"" trade
+         "\", then send-for them with the contact's id and an about naming " id
          ", and give them the plan with order-work when they come.")))
 
 (defn describe-plan
@@ -687,12 +687,11 @@
 
 (defn- worker-fitness
   "What the worker is, for weighing them against the work: their contact's
-  trade if they're a tradesperson known as a contact, else their position's
-  title."
+  line if they're known as a contact, else their position's title."
   [world worker]
   (let [contact (first (filter #(= worker (:agent-id %)) (vals (get-in world [:state :contacts]))))
         title (get-in world [:state :positions (:role (w/agent world worker)) :title])]
-    (cond contact (str "a " (:trade contact) " (by trade)")
+    (cond contact (str "a " (:line contact) " (by trade)")
           title title
           :else "no particular position or trade")))
 

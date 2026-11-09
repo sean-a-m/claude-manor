@@ -584,12 +584,12 @@
       (into [(channel-event world actor (:data (first scheduled)))] scheduled))))
 
 (defn sent-for-events
-  "`actor` sends for `guest` (manor.mechanics.trades) to do `job`, expected
-  at the meeting place `at`: a visit by :sent-for with the job as its stay.
-  Someone about is told now and makes their own way, as an invited guest
-  does; someone away arrives at the meeting place then."
-  [world actor {:keys [guest job at]}]
-  (scheduled-events world {:guest guest :host actor :by :sent-for :at at :deliver (:round world) :stay job}))
+  "`actor` sends for `guest` (manor.mechanics.contacts) `about` something,
+  expected at the meeting place `at`: a visit by :sent-for with `about` as
+  its stay. Someone about is told now and makes their own way, as an invited
+  guest does; someone away arrives at the meeting place then."
+  [world actor {:keys [guest about at]}]
+  (scheduled-events world {:guest guest :host actor :by :sent-for :at at :deliver (:round world) :stay about}))
 
 (defn arranged-events
   "A visit the GM or operator (`source`) arranges for an existing person: if

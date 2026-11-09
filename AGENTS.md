@@ -137,8 +137,8 @@ src/manor/
                    filter emit! applies; physical/changes.clj makes its events and the interrupts they cause
     visits.clj     visits: invite, GM/operator visits, the tick, calendar entries it manages, keeps-awake?,
                    guests from elsewhere (away agents, arrival at the meeting place, take-leave, you.visit)
-    trades.clj     tradespeople: `recommend` with a `trade` makes a contact (trades/judge.clj: the trade judge), `send-for`
-                   with a contact and a job is a visit by :sent-for
+    contacts.clj   contacts: `recommend` with `wanted` makes a contact (contacts/judge.clj: the recommendation judge),
+                   `send-for` with a contact (and `about`) is a visit by :sent-for
     find_person.clj find-person: a judge picks whom a seeker means among the people in walking distance, the engine
                    rolls, and the reply says where they are
     following.clj  follow and follow-stop: followers go along on the walks and journeys of the person they follow

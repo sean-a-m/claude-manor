@@ -68,7 +68,7 @@ the rules of individual mechanics that it joins in.
 | `rules/sections/posts.md` | A post already held changes only by appointment (hiring still takes on newcomers), and whom to ask; only when some position in the run has `:appoints` | ″ | |
 | `rules/sections/hiring.md` | Hiring | ″ | `hiring` (`rules/hiring.md`) |
 | `rules/sections/invitations.md` | Invitations, only with visits | ″ | `visits` (`rules/visits.md`) |
-| `rules/sections/trades.md` | Tradespeople, only with visits | `trades/rules` | `lead-hours`, `idle-hours` |
+| `rules/sections/contacts.md` | Tradespeople (contacts, `recommend` with `wanted`), only with visits | `contacts/rules` | `lead-hours`, `idle-hours` |
 | `rules/physical.md` | Physical status: hindered faculties, impediments | `physical/rules` | |
 | `rules/hiring.md` | How hiring works | `hiring/rules`, `hiring/rules-beside-visits` | `arrivals` (`rules/hiring-arrivals.md` or `rules/hiring-arrivals-beside-visits.md`) |
 | `rules/visits.md` | How invitations and guests work | `visits/rules` | `post` (`rules/visits-post.md` or `""`), `calendar` (`rules/visits-calendar.md` or `""`) |
@@ -103,8 +103,8 @@ for the action's kind and its per-turn limit (`docs/hints/`).
 | `docs/hiring/spend-time-candidate.md` | Appended to `spend-time` when a reference can be written for a candidate | `hiring/reference-activity` | |
 | `docs/visits/invite.md`, `schedule-visit.md`, `cancel-visit.md` | Invitations; the GM's visits | `visits` | `invite`: `max-person`, `example-date`, `post` (`docs/visits/post.md` or `""`) |
 | `docs/visits/time-format.md` | Fragment: the date format for visits | `visits` | `example-date` |
-| `docs/trades/recommend-trade.md` | Appended to `recommend`: the `trade` argument | `trades` | `max-trade` |
-| `docs/trades/send-for.md` | `send-for` for candidates and contacts, in place of hiring's | `trades` | `lead-hours` |
+| `docs/contacts/recommend.md` | Appended to `recommend`: the `wanted` argument | `contacts` | `max-wanted` |
+| `docs/contacts/send-for.md` | `send-for` for candidates and contacts (`about`), in place of hiring's | `contacts` | `lead-hours` |
 | `docs/works/plan-work.md` | `plan-work`: planning a work (install, move, remove) | `works` | `max-open-plans` |
 | `docs/works/order-work.md` | `order-work`: offering a plan to someone here, or taking it on oneself, at a price, paid from the household or one's own purse | `works` | `money-example` (`money/example`: a price in the setting's money) |
 | `docs/works/revise-work.md` | `revise-work`: asking another price for a work on offer (haggling) | `works` | `money-example` (`money/example`: a price in the setting's money) |
@@ -143,7 +143,7 @@ must call.
 | `judges/relations.md` | The work and conversation judges' lines on relations, after their other instructions | `relations/instructions` | `max-feeling`, `max-because` |
 | `judges/find-person.md` | Whom a `find-person` seeker means | `find-person/instructions` | |
 | `judges/invitation.md` | Whom an `invite` means | `visits.judge/instructions` | `invitation-examples` (the pack's fragment) |
-| `judges/trade.md` | Whom a `recommend` with `trade` means | `trades.judge/instructions` | |
+| `judges/recommendation.md` | Whom a `recommend` with `wanted` means: for a place or a job | `contacts.judge/instructions` | |
 | `judges/works.md` | The works judge's planning: a `plan-work` request as a work plan (one phase of two hours, one worker, `who` a recommendation only, `household` or the `trade` it wants), or refused | `works.judge/instructions` | `phase-minutes`, `max-phases`, `max-estimate`; the pack's `money-pricing.md` |
 | `judges/tools/work-plan.md` | The works judge's `work_plan` tool | `works.judge/request` | |
 | `judges/shop-appraiser.md` | The shop's appraisal of requested goods | `shop/instructions` | `max-lead-hours`, `max-quantity`; the pack's `money-pricing.md` |
@@ -153,7 +153,7 @@ must call.
 | `judges/tools/relations.md` | Fragment: the `relations` field, for the `judge` and `react` tools | `relations/tool-text` | |
 | `judges/tools/inspect.md` | The `inspect` lookup: a closer look at some candidates before answering (the finder, the made review) | `items.find/inspect-tool` | `max-inspect`, `answer` (the tool to answer with) |
 | `judges/made-review.md`, `judges/tools/review.md` | The work judge's second look at things it made from nothing tracked: new, or the same object as a candidate | `items.made-review/review-request` | |
-| `judges/tools/finder.md`, `seek.md`, `invitee.md`, `tradesperson.md`, `appraise.md` | The finder's, find-person's, invitation judge's, trade judge's and shop's tools | their request functions | |
+| `judges/tools/finder.md`, `seek.md`, `invitee.md`, `recommendation.md`, `appraise.md` | The finder's, find-person's, invitation judge's, recommendation judge's and shop's tools | their request functions | |
 | `judges/tools/polish.md`, `appearance.md` | The persona writers' tools | `people/polish-request`, `people/appearance-request` | `polish.md`: `belongings` (conditional output-field description; no kit recommendations) |
 
 ## Situations (`situations/`)

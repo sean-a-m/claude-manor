@@ -811,7 +811,9 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   settled by `engage` or `order-work`, belongings that suit the person, visitors who decide when
   to go, and lodging marked in world files. Phase 0 done: speaking turns take `recommend`,
   `send-for` and the place tools from the scenario's installed actions, and `send-for` is free
-  (mock-tested). Phase 1 (contacts) next.
+  (mock-tested). Phase 1.1 done: `manor.mechanics.contacts`, the recommendation judge,
+  `recommend {wanted}` beside `position`, `:wanted` per knower, `send-for {id about?}` (2 hours),
+  the `:caller` role (mock-tested). Phase 1.2 (settling at arrival) next.
 
 ## C. Known issues and small fixes
 

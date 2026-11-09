@@ -791,9 +791,13 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   tradespeople: the works judge's `household`/`trade`, the plan's hint to `recommend` that trade
   and `send-for` with the work's id, a tradesperson from elsewhere staying while a work is offered
   to them, mock days with a gas fitter sent for and paid, and a housemaid botching the gasolier.
-- **Next:** a short real run with the user's go-ahead, started with the gas fitter already sent
-  for. Phases 3 (GM/operator tools, the panel)
-  and 4 (several phases and workers, lead times) follow.
+- **Phase 3 is done** as far as the user wants it: works in the panel's scene view (a works
+  panel, room badges, inspectors). GM and operator tools are left out.
+- **First real runs (2026-11-08):** works were planned, tradespeople found and sent for, and a
+  work ordered, haggled and paid; nothing carried out yet. Two guidance fixes followed (where a
+  work goes, prices agreed in talk). The problems found are listed in
+  [works-run-review-2026-11-08.md](works-run-review-2026-11-08.md), for planning fixes.
+- **Next:** fixes chosen from that list; phase 4 (several phases and workers, lead times) later.
 
 ## C. Known issues and small fixes
 

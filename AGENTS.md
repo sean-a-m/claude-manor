@@ -30,6 +30,7 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/physical-status-design.md` | physical status (bound, gagged, blind, deaf, unconscious, dead), impediments, the immediate `act-on`; built and mock/offline-tested, ordinary real-model compatibility smoke checked |
 | `docs/settings-design.md` | one ruleset for many settings: setting packs, prompt templates, money specs and private accounts, `manor.ruleset`, a palace skeleton; progress in its section 8 |
 | `docs/fixtures-design.md` | design: work plans (`plan-work`, then `order-work` to anyone) to install, move, remove (and perhaps alter) things, fixed ones included; the outcome judged with luck by the scene judge; phases 1 and 2 (money and trades) done and mock-tested (roadmap B20), a real-model check next |
+| `docs/works-run-review-2026-11-08.md` | problems found in the first real runs of works (and the hiring, trades and visits around them), for planning fixes; nothing decided |
 | `docs/household-1904-proposal.md` | proposal: a second Claudeworth scenario, a modest household with new ironstone income that means to expand; not started |
 | `docs/agent-models-design.md` | per-agent models: a world-file agent's `:model`, an id or a map of call settings; built (the minimum) |
 | `docs/prompts.md` | catalogue of the prompt templates in `resources/prompts/`: what each is for, who renders it, its parameters; keep it current |

@@ -57,7 +57,10 @@
 (defn- ordered-ids [world] (sort-by judge/visit-number (keys (visits world))))
 
 (defn- meeting-place [world] (get-in world [:state :meeting-place]))
-(defn- house [world] (:house (config world) "the house"))
+(defn house
+  "The house's name, from the visits config."
+  [world]
+  (:house (config world) "the house"))
 
 (defn house-area
   "The meeting place's walking area: the carriage sweep and every room."
@@ -216,7 +219,7 @@
   now: the host's at once, and the guest's if they're told now (`:deliver`
   is this round)."
   [world {:keys [guest at deliver known-to by via] :as spec}]
-  (let [v (cond-> (merge (select-keys spec [:guest :host :by :via :stay :reason :bedroom :returning?])
+  (let [v (cond-> (merge (select-keys spec [:guest :host :by :via :stay :reason :bedroom :returning? :situation])
                          {:id (str "visit-" (inc (count (visits world))))
                           :at (str at) :arrive (round-of (:clock world) at) :deliver deliver
                           :wake (wake-round world guest at) :status :scheduled
@@ -276,10 +279,11 @@
          :else (if (= :authored (:by data)) ", from the world file" (str ", arranged by the " (name (:by data)))))
        ": " (:stay data) "."))
 (defmethod n/describe :visits/arrived [{:keys [data]} names]
-  (let [{:keys [guest at known-as visitor?]} data]
+  (let [{:keys [guest at known-as visitor? about]} data]
     (cond (nil? at) (str "The guest of " (:visit data) " has come.")
           visitor? (str "A visitor arrives at the " (n/place names at) ": " (n/who names guest) " (" guest ")"
-                        (when known-as (str ", " known-as)) ".")
+                        (when known-as (str ", " known-as))
+                        (when about (str ", sent for by " (n/who names (:host data)) " about this: " about)) ".")
           :else (str (n/who names guest) " (" guest ") arrives at the " (n/place names at) "."))))
 (defmethod n/describe :visits/ended [{:keys [data]} _] (str (:visit data) " has ended: the guest has gone."))
 (defmethod n/describe :visits/lapsed [{:keys [data]} _] (str (:visit data) " has lapsed: the guest didn't come."))
@@ -365,19 +369,22 @@
 (defn- coming
   "An away guest, once the visit is due, arrives at the meeting place, if
   there's room for another active person (else they wait): seen by those
-  there, the host wherever they are, and themselves. The named bedroom is theirs."
+  there, the host wherever they are, and themselves, and for a visit by
+  :sent-for with what about. Their situation is the visit's own, if it has
+  one (contacts gives it), else `returning-situation`. The named bedroom is theirs."
   [scenario world v]
   (let [guest (:guest v)
         at (meeting-place world)]
     (when (and (= :scheduled (:status v)) (>= (:round world) (:arrive v)) (hiring/can-arrive? world guest)
                (space/location world at) (hiring/room-for-arrival? world))
       (let [{:keys [events]} (hiring/arrival scenario world at {:id guest :visible-to :system
-                                                               :situation (returning-situation world guest)})]
+                                                               :situation (or (:situation v) (returning-situation world guest))})]
         (cond-> (conj events {:type :visits/arrived
                               :visible-to (into (conj (space/present world at) guest) (remove nil?) [(:host v)])
                               :data (cond-> {:visit (:id v) :guest guest :at at
                                              :visitor? (not (positions/household-member? world guest))}
-                                      (:known-as (w/agent world guest)) (assoc :known-as (:known-as (w/agent world guest))))})
+                                      (:known-as (w/agent world guest)) (assoc :known-as (:known-as (w/agent world guest)))
+                                      (sent-for? v) (assoc :host (:host v) :about (:stay v)))})
           (:bedroom v) (conj (positions/bedroom-assigned guest (:bedroom v))))))))
 
 (defn- ending
@@ -587,9 +594,11 @@
   "`actor` sends for `guest` (manor.mechanics.contacts) `about` something,
   expected at the meeting place `at`: a visit by :sent-for with `about` as
   its stay. Someone about is told now and makes their own way, as an invited
-  guest does; someone away arrives at the meeting place then."
-  [world actor {:keys [guest about at]}]
-  (scheduled-events world {:guest guest :host actor :by :sent-for :at at :deliver (:round world) :stay about}))
+  guest does; someone away arrives at the meeting place then, with
+  `situation` (if given) as theirs."
+  [world actor {:keys [guest about at situation]}]
+  (scheduled-events world (cond-> {:guest guest :host actor :by :sent-for :at at :deliver (:round world) :stay about}
+                            situation (assoc :situation situation))))
 
 (defn arranged-events
   "A visit the GM or operator (`source`) arranges for an existing person: if
@@ -784,7 +793,7 @@
         acquaintances (space/away-acquaintances world id)]
     (cond-> view
       v (assoc-in [:you :visit]
-                  (cond-> {(if (sent-for? v) :job :invited-for) (:stay v)
+                  (cond-> {(if (sent-for? v) :about :invited-for) (:stay v)
                            :arrived (clock/short-label (:clock world) (:arrived v) (:round world))}
                     (:host v) (assoc (if (sent-for? v) :sent-for-by :host) (agent-name world (:host v)))
                     (:reason v) (assoc :reason (:reason v))

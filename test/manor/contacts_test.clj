@@ -18,6 +18,7 @@
             [manor.mechanics.contacts.judge :as judge]
             [manor.mechanics.space :as space]
             [manor.mechanics.visits :as visits]
+            [manor.narrate :as n]
             [manor.prompt :as prompt]
             [manor.ruleset.mock :as mock]
             [manor.ruleset.rules :as rules]
@@ -68,7 +69,7 @@
                        "20:30" [[:pass {}]]
                        "21:00" [[:send-for {:id "contact-1"}]]}})
 
-(deftest a-piano-tuner-from-elsewhere-is-recommended-sent-for-and-goes-home
+(deftest a-piano-tuner-from-elsewhere-is-recommended-sent-for-and-stays-until-he-takes-leave
   (let [run (start-with cw/scenario tuner-day)]
     (try
       (until! run 2)
@@ -115,14 +116,30 @@
             id (:agent-id (contacts/contact world "contact-1"))]
         (testing "he arrives at the meeting place at 23:00, knowing what about and who sent for him"
           (is (= "carriage-sweep" (space/location-of world id)))
-          (is (= {:job "a piano tuner for the drawing-room piano" :sent-for-by "Lord Claudeworth"}
-                 (select-keys (get-in (prompt/agent-view (:scenario run) world id) [:you :visit]) [:job :sent-for-by])))))
-      (until! run 11)
+          (is (= {:about "a piano tuner for the drawing-room piano" :sent-for-by "Lord Claudeworth"}
+                 (select-keys (get-in (prompt/agent-view (:scenario run) world id) [:you :visit]) [:about :sent-for-by]))))
+        (testing "his situation, from situations/sent-for.md, says who sent for him, what about and his home"
+          (let [situation (:situation (w/agent world id))]
+            (is (str/includes? situation "Lord Claudeworth has sent for you"))
+            (is (str/includes? situation "about this: a piano tuner for the drawing-room piano"))
+            (is (str/includes? situation ", of Ely."))
+            (is (str/includes? situation "`take-leave`"))))
+        (testing "the arrival, seen by the earl, says what he came about"
+          (let [arrived (first (filter #(= id (get-in % [:data :guest])) (of-type run :visits/arrived)))]
+            (is (contains? (:visible-to arrived) "lord-claudeworth"))
+            (is (str/includes? (n/describe arrived (n/names world))
+                               "sent for by Lord Claudeworth about this: a piano tuner for the drawing-room piano")))))
+      (until! run 13)
       (let [world (e/world run)
             id (:agent-id (contacts/contact world "contact-1"))]
-        (testing "two hours without a conversation or work, he goes home"
-          (is (= :away (:status (w/agent world id))))
-          (is (= :ended (:status (visits/visit world "visit-1"))))))
+        (testing "hours later with nothing to do, he's still here: nothing sends him home"
+          (is (= :active (:status (w/agent world id))))
+          (is (= :here (:status (visits/visit world "visit-1")))))
+        (testing "take-leave sends him home and ends the visit"
+          (is (nil? (check run world id :take-leave {})))
+          (e/emit! run ((:effect (action run :take-leave)) world id {}))
+          (is (= :away (:status (w/agent (e/world run) id))))
+          (is (= :ended (:status (visits/visit (e/world run) "visit-1"))))))
       (is (empty? (of-type run :action/forfeited)))
       (replay! run)
       (finally (e/stop-run run)))))

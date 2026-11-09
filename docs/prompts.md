@@ -68,7 +68,7 @@ the rules of individual mechanics that it joins in.
 | `rules/sections/posts.md` | A post already held changes only by appointment (hiring still takes on newcomers), and whom to ask; only when some position in the run has `:appoints` | ″ | |
 | `rules/sections/hiring.md` | Hiring | ″ | `hiring` (`rules/hiring.md`) |
 | `rules/sections/invitations.md` | Invitations, only with visits | ″ | `visits` (`rules/visits.md`) |
-| `rules/sections/contacts.md` | Tradespeople (contacts, `recommend` with `wanted`), only with visits | `contacts/rules` | `lead-hours`, `idle-hours` |
+| `rules/sections/contacts.md` | Tradespeople (contacts, `recommend` with `wanted`), only with visits | `contacts/rules` | `lead-hours` |
 | `rules/physical.md` | Physical status: hindered faculties, impediments | `physical/rules` | |
 | `rules/hiring.md` | How hiring works | `hiring/rules`, `hiring/rules-beside-visits` | `arrivals` (`rules/hiring-arrivals.md` or `rules/hiring-arrivals-beside-visits.md`) |
 | `rules/visits.md` | How invitations and guests work | `visits/rules` | `post` (`rules/visits-post.md` or `""`), `calendar` (`rules/visits-calendar.md` or `""`) |
@@ -158,13 +158,14 @@ must call.
 
 ## Situations (`situations/`)
 
-The engine's replacement for someone's `:situation` when their post changes.
+The engine's replacement for someone's `:situation` when their post changes, or when they arrive sent for.
 
 | Template | Used for | Rendered by | Parameters |
 |---|---|---|---|
 | `situations/appointed.md` | Someone appointed to a post | `appointments/appointed` | `by`, `post`, `terms` (`appointed-terms.md` or `""`) |
 | `situations/appointed-terms.md` | Fragment: the terms of the appointment | ″ | `terms` |
 | `situations/dismissed.md` | Someone dismissed: no household, no bed, `take-leave` when they go | `appointments/dismissed` | `by`, `post` |
+| `situations/sent-for.md` | A contact from elsewhere arriving sent for: who sent for them, what about, their home; work (`order-work`) or a place (`engage`) or neither, `take-leave` when done | `contacts/arrival-situation` (at `send-for`; kept on the visit as `:situation`, given at arrival by `visits/coming`) | `name`, `home`, `by`, `house`, `about` |
 
 ## Writers (`writers/`)
 

@@ -880,22 +880,16 @@
     (e/start-run :claudeworth {:test? true :llm :mock :offline? true :gm :off :max-cost 0.20
                                :world-file "test/fixtures/visits.edn" :run-id (str (gensym "works-trades-"))})))
 
-(deftest a-tradesperson-with-open-work-stays
+(deftest a-tradesperson-with-open-work-may-still-take-leave
   (let [run (start-trades tuner-day)]
     (try
       (until! run 9)
       (let [world (e/world run)
             tuner (:agent-id (contacts/contact world "contact-1"))
-            idle (assoc world :round 20)
-            given #(assoc-in idle [:state :work-orders "work-1"] {:id "work-1" :n 1 :worker tuner :status %})
-            leaves? #(some (fn [ev] (= tuner (get-in ev [:data :id]))) (contacts/tick %))]
+            given (assoc-in world [:state :work-orders "work-1"] {:id "work-1" :n 1 :worker tuner :status :accepted})]
         (is (= "carriage-sweep" (space/location-of world tuner)) "he has arrived")
-        (is (leaves? idle) "idle long enough, he would go home")
-        (is (not (leaves? (given :accepted))) "not with accepted work unfinished")
-        (is (not (leaves? (given :offered))) "nor while its terms are being settled")
-        (is (not (leaves? (given :finishing))))
-        (is (leaves? (given :done)) "once it's done, he goes")
-        (is (nil? (check run (given :accepted) tuner :take-leave {})) "take-leave stays allowed"))
+        (is (works/open-work? given tuner))
+        (is (nil? (check run given tuner :take-leave {})) "take-leave stays allowed: he decides when to go"))
       (finally (e/stop-run run)))))
 
 ;; ---------------------------------------------------------------------------

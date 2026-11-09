@@ -357,6 +357,20 @@ Each phase ends with `clojure -M:test` passing and a mock run of `claudeworth-sm
        visits by contacts rather than visits requiring contacts (they require it); the arrival event
        and `you.visit` saying what they came about (`about`, not `job`) (4.5); the `:caller` text; the
        contacts idle departure goes, so contacts leave with visits' `take-leave` (4.8).
+       **Done:** `contacts/arrival-situation` renders `situations/sent-for.md` (`name`, `home`, `by`,
+       `house`, `about`) at `send-for` for a contact from elsewhere; `visits/sent-for-events` keeps it
+       on the visit as `:situation`, and `visits/coming` gives it on arrival (else
+       `returning-situation`, as before). Someone on the map keeps their own situation. The
+       `:visits/arrived` of a visit by `:sent-for` carries `:host` and `:about`, narrated "…, sent for
+       by X about this: …"; `you.visit` says `about`. The calendar entries already said the about.
+       `:caller`'s `:about` in both packs matches the template. `idle-hours`, `idle-departure`,
+       `tick` and the `:contacts/tick` system went, and with them `works/engaged?` (unused
+       elsewhere); `works/open-work?` still keeps a worker out of hibernation and `keeps-awake?`
+       a visitor here. Differences from the plan: the situation is rendered when they're sent for,
+       not at arrival (so it names the sender then); `visits/house` is now public for it. Tests in
+       `contacts_test.clj` (the tuner stays hours later, then `take-leave` sends him home) and
+       `works_test.clj` (the idle-departure test became one that `take-leave` stays allowed with
+       open work).
      - **1.2b Engaging.** `engage`, `accept-place`, `decline-place` and `send-away` on contacts here by
        `:sent-for` with no post, refusing established agents (4.7), and accepting ends the visit.
        `contacts/install` wraps hiring's versions, as it wraps `recommend` and `send-for`, since

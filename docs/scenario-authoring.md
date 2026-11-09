@@ -2840,7 +2840,8 @@ invitation judge, which matches someone in the world or writes someone new.
   (nil when arranged by the GM or operator, or authored), `:by` (`:in-person`, `:post`, `:messenger`, `:gm`,
   `:operator`, `:authored`, or `:sent-for` for a contact sent for, below), `:via`, `:at` (the ISO time given), `:arrive` (its round), `:deliver` (the round the
   guest is told), `:wake` (the round from which they're kept in play), `:stay`, `:reason`,
-  `:bedroom`, `:known-to` (arranged visits), `:told?`, `:reminded?`, `:arrived` (the round it
+  `:bedroom`, `:known-to` (arranged visits), `:situation` (a visit by `:sent-for` of someone
+  from elsewhere: theirs on arriving, in place of `returning-situation`), `:told?`, `:reminded?`, `:arrived` (the round it
   became `:here`), `:from-away?` (they arrived at the meeting place) and `:status`: `:scheduled` →
   `:here` → `:ended`, or `:lapsed` / `:cancelled`. The GM sees it in the world state.
 - **`invite {by, who | person, date time stay reason? via? bedroom?}`** is once a turn. With `who`
@@ -3014,8 +3015,8 @@ candidates (`recommend` with `position`) stay beside it until phase 1.3.
 
 - **Install** with `(contacts/install scenario)` after `hiring/install` and `visits/install`. It
   replaces their `recommend` and `send-for` with ones that also take `wanted` and a contact, adds
-  the recommendation judge (`:contacts/recommendation` in `:adjudicators`, with its mock) and the
-  `:contacts/tick` system. It's idempotent. The world's positions need a `:caller` (both setting
+  the recommendation judge (`:contacts/recommendation` in `:adjudicators`, with its mock). It's
+  idempotent. The world's positions need a `:caller` (both setting
   packs' catalogues have one; hiring refuses it as a post). Its `:observe` should call
   `(contacts/add-to-view view world id)`. Every ruleset scenario installs it, and the ruleset's
   `rules` add the Tradespeople section (`contacts/rules`, `rules/sections/contacts.md`) where
@@ -3066,16 +3067,22 @@ candidates (`recommend` with `position`) stay beside it until phase 1.3.
   under way, someone from elsewhere who is about ("speak to them"), and someone on the map
   `visits/guest-reason` refuses (the household at home). There is no date or time, as for
   candidates: the effect is `visits/sent-for-events`, a visit by `:sent-for` with `:host` the
-  sender, the about as `:stay`, expected `lead-hours` (2) on, plus `:contacts/sent-for` (with
+  sender, the about as `:stay`, expected `lead-hours` (2) on (for someone from elsewhere, with
+  `:situation`, their arrival situation, below), plus `:contacts/sent-for` (with
   `:about`) seen by the sender and the contact if they're about. Someone on the map is told at
   once, gets the guest calendar entry ("You are wanted at …, sent for by …: the about.") and is
   kept awake and reminded as an invited guest is; if they don't come within `:lapse-hours` the
   visit lapses. Someone away arrives at the meeting place at the time, as an away guest does.
-  `you.visit` shows `job` and `sent-for-by` for such a visit.
-- **Going home.** Someone from elsewhere uses visits' `take-leave`. The tick also sends one home
-  (`visits/leave-events`) once their `:sent-for` visit is `:here`, they're active, not occupied
-  (`w/busy`), not held in place, and `idle-hours` (2) have passed since they arrived or last
-  conversed (`hiring/idle-rounds`).
+  `you.visit` shows `about` and `sent-for-by` for such a visit.
+- **Arrival.** Someone from elsewhere arrives with the situation `contacts/arrival-situation`
+  renders at `send-for` (`situations/sent-for.md`: who sent for them, what about, their home,
+  that they may be offered work with `order-work` or a place with `engage`, or neither, and may
+  refuse, and to `take-leave` when done), kept on the visit and given by `visits/coming`. Someone
+  on the map keeps their own. The `:visits/arrived` event of a visit by `:sent-for` carries
+  `:host` and `:about` (the stay), and its narration says who sent for them and what about, so
+  the sender (who sees it wherever they are) and those at the meeting place learn it.
+- **Going home.** The visitor decides: someone from elsewhere goes with visits' `take-leave`
+  (`visits/leave-events`). Nothing sends them home by itself.
 - **Views:** `contacts`, the contacts `id` knows: id, name, line, then `works-at` and
   `on-the-map` or `based`, `wanted` (what `id` last asked for them for, if they asked), and
   `sent-for` while a visit for them is expected or under way.
@@ -3171,8 +3178,7 @@ acceptance (phase 2a).
   added to the early turn reminder by `engine.seat`): one `agent/reminder-work.md` sentence per
   accepted work the agent isn't carrying out now. On acceptance the worker gets an all-day
   calendar entry `works-<id>` for today. `works/open-work?` (accepted or finishing) keeps the
-  worker out of hibernation; `works/engaged?` (that, or a work on offer to them) keeps a
-  tradesperson from elsewhere from going home idle while the terms are settled and the work done.
+  worker out of hibernation.
 - **`:items :fixed-hint`** ends `take`'s and `put-in`'s refusal of a fixed thing; works set it to
   "to move it, plan a work with plan-work".
 - **Views:** `works`, the plans `id` knows except cancelled ones: id, kind, summary, who, trade

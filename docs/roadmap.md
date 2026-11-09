@@ -813,7 +813,9 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   `send-for` and the place tools from the scenario's installed actions, and `send-for` is free
   (mock-tested). Phase 1.1 done: `manor.mechanics.contacts`, the recommendation judge,
   `recommend {wanted}` beside `position`, `:wanted` per knower, `send-for {id about?}` (2 hours),
-  the `:caller` role (mock-tested). Phase 1.2 (settling at arrival) next.
+  the `:caller` role (mock-tested). Phase 1.2a done: the arrival situation from
+  `situations/sent-for.md`, the arrival event and `you.visit` saying what about, the `:caller`
+  text, no idle departure (mock-tested). Phase 1.2b (engaging contacts) next.
 
 ## C. Known issues and small fixes
 

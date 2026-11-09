@@ -10,20 +10,18 @@
   a contact is a visit (manor.mechanics.visits, by :sent-for) expected
   `lead-hours` later, about what was wanted unless `about` says otherwise:
   someone on the map is told at once and makes their own way, someone away
-  arrives at the meeting place. Someone from elsewhere goes home with
-  `take-leave`, or by themselves after `idle-hours` without a conversation
-  or work. Install after hiring and visits; it replaces their `recommend`
+  arrives at the meeting place, told by their situation
+  (situations/sent-for.md) who sent for them and what about. They decide
+  when to go home, with visits' `take-leave`. Install after hiring and visits; it replaces their `recommend`
   and `send-for` with ones that take `wanted` and a contact too (hiring's
   candidates, by `position`, stay beside it for now)."
   (:require [clojure.string :as str]
             [manor.clock :as clock]
             [manor.mechanics.builtins :as b]
             [manor.mechanics.hiring :as hiring]
-            [manor.mechanics.physical :as physical]
             [manor.mechanics.space :as space]
             [manor.mechanics.contacts.judge :as judge]
             [manor.mechanics.visits :as visits]
-            [manor.mechanics.works :as works]
             [manor.narrate :as n]
             [manor.prompts :as prompts]
             [manor.world :as w])
@@ -32,9 +30,6 @@
 (def contacts-limit 40)
 ;; Someone sent for is expected this many hours later.
 (def lead-hours 2)
-;; Someone from elsewhere goes home after this long without a
-;; conversation or work.
-(def idle-hours 2)
 (def max-about 300)
 
 (defn contacts [world] (get-in world [:state :contacts] {}))
@@ -241,10 +236,20 @@
         (contact world id) (contact-reason world actor args)
         :else "nobody of that id has been recommended to you; ask someone who might know to `recommend` someone to you, then use the id it gives"))
 
+(defn arrival-situation
+  "The situation of contact `c`, from elsewhere, on arriving: who sent for
+  them, what about, their home off the map, and what may come of it."
+  [world actor c about]
+  (prompts/render world "situations/sent-for.md"
+                  {:name (:name c) :home (or (:lives (w/agent world (:agent-id c))) (:based c))
+                   :by (agent-name world actor) :house (visits/house world) :about about}))
+
 (defn sent-for
   "`actor` sends for `id`: a candidate (as hiring does) or a contact, by a
   visit by :sent-for expected `lead-hours` on, about `about` or what was
-  wanted, with word of it to `actor` and to the contact if they're about."
+  wanted, with word of it to `actor` and to the contact if they're about.
+  Someone from elsewhere gets their arrival situation with the visit;
+  someone on the map keeps their own."
   [world actor {:keys [id] :as args}]
   (if (hiring/candidate world id)
     (hiring/sent-for world actor args)
@@ -255,35 +260,12 @@
       (into [{:type :contacts/sent-for :visible-to (cond-> #{actor} (w/active? world id) (conj id))
               :data {:id id :by actor :about about :at (meeting-place world)
                      :when (clock/short-label (:clock world) (clock/round-of (:clock world) at) (:round world))}}]
-            (visits/sent-for-events world actor {:guest id :about about :at at})))))
+            (visits/sent-for-events world actor (cond-> {:guest id :about about :at at}
+                                                  (not (:local? c)) (assoc :situation (arrival-situation world actor c about))))))))
 
 (defmethod n/describe :contacts/sent-for [{:keys [data]} names]
   (str (n/who names (:by data)) " sends for " (n/who names (:id data)) " (" (:id data) ") to come to the "
        (n/place names (:at data)) " at " (:when data) ": " (:about data) "."))
-
-;; ---------------------------------------------------------------------------
-;; Going home
-
-(defn- idle-departure
-  "Someone from elsewhere, here on a visit by :sent-for, goes home
-  after `idle-hours` without a conversation or work, but not while a work
-  is on offer to them or accepted and not yet finished (manor.mechanics.works)."
-  [world c]
-  (let [id (:agent-id c)
-        v (sent-for-visit world id)]
-    (when (and (not (:local? c)) v (= :here (:status v)) (:from-away? v) (w/active? world id)
-               (nil? (w/busy world id)) (not (physical/held-in-place? world id))
-               (not (works/engaged? world id))
-               (>= (hiring/idle-rounds world id (:arrived v)) (clock/rounds-for (:clock world) (* 60 idle-hours))))
-      (visits/leave-events world id {}))))
-
-(defn tick
-  "Idle departures before turns; each sees the one before."
-  [world]
-  (second (reduce (fn [[world events] c]
-                    (let [evs (idle-departure world c)]
-                      [(apply-all world evs) (into events evs)]))
-                  [world []] (ordered world))))
 
 ;; ---------------------------------------------------------------------------
 ;; Views and rules
@@ -304,7 +286,7 @@
                                known)))))
 
 (defn rules [world]
-  (prompts/render world "rules/sections/contacts.md" {:lead-hours lead-hours :idle-hours idle-hours}))
+  (prompts/render world "rules/sections/contacts.md" {:lead-hours lead-hours}))
 
 ;; ---------------------------------------------------------------------------
 ;; Actions
@@ -346,8 +328,7 @@
 
 (defn install
   "Add contacts to a scenario on hiring and visits: `recommend` and
-  `send-for` in place of theirs, the recommendation judge, and the tick.
-  Idempotent. The world's positions need a :caller for people from
+  `send-for` in place of theirs, and the recommendation judge. Idempotent. The world's positions need a :caller for people from
   elsewhere."
   [scenario]
   (-> scenario
@@ -357,6 +338,4 @@
                                   :send-for (if (::contacts %) % (assoc (send-for-action %) ::contacts true))
                                   %)
                                actions)))
-      (update :adjudicators merge judge/adjudicators)
-      (update :systems #(conj (vec (remove (fn [s] (= :contacts/tick (:name s))) %))
-                              {:name :contacts/tick :tick (fn [world _] (tick world))}))))
+      (update :adjudicators merge judge/adjudicators)))

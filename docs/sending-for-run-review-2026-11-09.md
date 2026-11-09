@@ -134,7 +134,7 @@ Possible directions, not decided:
 
 - **Phases 0–3 are done** and merged to master with this review.
 - **Phase 4 (the real run):** this run is the first. It found no fault in the new path itself. The
-  checks in A4 are still to be seen.
+  checks in B4 are still to be seen.
 - **Next, by the user's priorities:**
   1. A design for `pay` and for confirming automatic payments the same way (B1).
   2. Moving things across rooms (B3).

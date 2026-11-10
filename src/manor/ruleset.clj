@@ -33,6 +33,7 @@
             [manor.mechanics.find-person :as find-person]
             [manor.mechanics.following :as following]
             [manor.mechanics.hiring :as hiring]
+            [manor.mechanics.payments :as payments]
             [manor.mechanics.people :as people]
             [manor.mechanics.positions :as positions]
             [manor.mechanics.shop :as shop]
@@ -89,10 +90,10 @@
   "The scenario's :speaking-actions hook, over its installed `actions`:
   `speaking-actions` after `follow` and `follow-stop`, as anyone can start or
   stop following someone while they talk, so agreeing to come along takes
-  them along."
+  them along; and `pay`, so money can change hands on a line."
   [actions]
   (fn [world speaker conv]
-    (into following/actions (speaking-actions actions world speaker conv))))
+    (-> following/actions (conj payments/action) (into (speaking-actions actions world speaker conv)))))
 
 (def items
   "The items mechanic's settings: the nightly steward, `find`'s limits, the
@@ -146,7 +147,7 @@
        :roles rules/roles
        :agent-brief rules/agent-brief
        :on-spawn positions/starting-events
-       :actions (vec (concat actions/actions [find-person/action] following/actions building/actions
+       :actions (vec (concat actions/actions [find-person/action payments/action] following/actions building/actions
                              shop/actions appointments/actions))
        :adjudicators (merge shop/adjudicators hiring/adjudicators find-person/adjudicators appointments/adjudicators)
        :bridges (merge building/bridges hiring/bridges)

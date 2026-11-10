@@ -19,6 +19,7 @@
             [manor.mechanics.building :as building]
             [manor.mechanics.deliveries :as deliveries]
             [manor.mechanics.money :as money]
+            [manor.mechanics.payments :as payments]
             [manor.settings :as settings]
             [manor.world :as w]))
 
@@ -169,8 +170,10 @@
   (str (n/who names actor) " buys " (:item data) " (" (amount (:qty data) (:unit data)) ") for "
        (money/display (get names [:money]) (:price data)) " at the " (n/place names (:location data))
        (if (= "leave" (:hand-over data))
-         ", and leaves the goods there to be collected or sent up."
-         ", and takes the goods away.")))
+         ", and leaves the goods there to be collected or sent up. "
+         ", and takes the goods away. ")
+       (payments/paid-line names {:amount (:price data) :account (:account data)
+                                  :to (str "the " (n/place names (:location data))) :owed ""})))
 
 (defn offer-events
   "An offer or a refusal for each requested line. A quote's id is the

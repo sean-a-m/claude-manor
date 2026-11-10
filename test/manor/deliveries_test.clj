@@ -634,7 +634,8 @@
         (testing "the goods are charged to the household at once and ordered for the butler"
           (is (= (- 600 48) (get-in world [:state :accounts "household"])))
           (is (= (str "Clerk sends up sugar (3 × 7 lb) for 4s by 12:00 for Butler from the Counter, "
-                      "charged to the household account, to be delivered at the Front door.")
+                      "charged to the household account, to be delivered at the Front door. "
+                      "Paid: 4s from the household account to the Counter. Nothing more is owed on delivery.")
                  (n/describe sent names)))
           (is (= [{:item "sugar" :amount "3 × 7 lb" :from "counter" :buyer "butler" :to "front-door" :due "12:00"
                    :sent-up-by "Pat Ellis 0, the Counter's errand boy"}]

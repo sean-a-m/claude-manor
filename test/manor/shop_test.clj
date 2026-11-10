@@ -319,7 +319,7 @@
                    :consumable? true}]
                  (map #(dissoc % :touched) (items/held-by after "customer")))))
         (testing "both lines give the amount"
-          (is (= "Customer buys Plain household flour (20 × 1 lb) for 3s 4d at the Counter, and takes the goods away." (n/describe (first evs) names)))
+          (is (= "Customer buys Plain household flour (20 × 1 lb) for 3s 4d at the Counter, and takes the goods away. Paid: 3s 4d from the household account to the Counter. Nothing more is owed." (n/describe (first evs) names)))
           (is (= "Customer now has plain household flour (20 × 1 lb)." (n/describe (second evs) names))))
         (testing "a single unit is just the unit; lasting goods aren't consumable"
           (let [[after] (bought (e/world run) available 1)]
@@ -381,7 +381,7 @@
                  (select-keys it [:name :place :owner :aspects :waiting :holder])))
           (is (= "leave" (get-in bought [:data :hand-over]))))
         (testing "the purchase says the goods are left, and the buyer is told where they are"
-          (is (= "Customer buys packet of needles (2 × a paper packet of ten needles) for 6d at the Counter, and leaves the goods there to be collected or sent up."
+          (is (= "Customer buys packet of needles (2 × a paper packet of ten needles) for 6d at the Counter, and leaves the goods there to be collected or sent up. Paid: 6d from the household account to the Counter. Nothing more is owed."
                  (n/describe bought (n/names world))))
           (is (some #(str/includes? (str %) "waiting-at-shops") replies)))
         (testing "only the buyer sees them under waiting-at-shops, as orders give places"

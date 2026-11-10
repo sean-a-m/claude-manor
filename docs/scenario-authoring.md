@@ -451,7 +451,9 @@ household's account are in its book too: records of `:kind :work` kept by the re
 `:works/accepted` (`purchases/work-accepted`), `:works/done` and `:works/failed`
 (`purchases/work-settled`), each its own entry (`work` "work-1: …", `done-by`, `ordered-by`,
 `agreed`, `price`, `status`: agreed and paid, done (with faults), or came to nothing), always
-shown while accepted. Own-purse works aren't in it.
+shown while accepted. Own-purse works aren't in it. Payments with `pay` from the household's
+account are in it as records of `:kind :payment` (`purchases/paid`, from `:money/paid`'s reducer),
+each its own entry (`payment` "to <name>, for …", `paid-by`, `paid`, `amount`).
 
 `deliveries/install` also sets hooks, so the judges see what was really ordered.
 `:items :orders` (`deliveries/judge-orders`, `(fn [world id] {...})`) gives a map of keys for
@@ -2484,8 +2486,21 @@ of the initial cast. Balances live only in `[:state :accounts {owner amount}]`, 
 shown as `household.funds`; your own account appears as `you.purse`, and nobody else's does.
 The GM/operator can see all balances. Architect fees credit the architect's ordinary account.
 `buy` and `commission` select the account with optional `from` (`"household"` default or
-`"own"`); there is no restriction by role on shared spending and no transfer/`pay` action.
-Purchases belong to the paying owner, whether carried, left, ordered or sent up.
+`"own"`); there is no restriction by role on shared spending.
+Purchases belong to the paying owner, whether carried, left, ordered or sent up. Shop money
+leaves the buyer's account and goes to nobody (for now).
+
+**Paying people** (`manor.mechanics.payments`, docs/payments-design.md): `pay {to amount for
+from?}` is free, for every role, on turns and speaking turns (`ruleset/speaking-actions`). `to` is
+any non-GM person, here, elsewhere or away, but not the dead, the retired or oneself; `amount` is
+money text, more than nothing; `for` 1-200 characters; `from` as `buy` takes it, checked with
+`money/spend-reason`. `:money/paid` (`{:payer :payee :account :amount :for}`, plus `:sent? true`
+when the payee wasn't there) is seen by those with the payer and by the payee; its reducer moves the
+amount from the account to the payee's account (opened if absent), and records a household payment
+in the book. Every payment ends its narration with `payments/paid-line`: "Paid: <amount> from
+<account>, …", and "Nothing more is owed …" where something paid for itself (`:shop/bought`,
+`:deliveries/ordered`, `:deliveries/sent-out`, `:works/accepted`, `:building/commissioned`, whose
+line leaves out the architect's private fee). The rules section is `rules/sections/paying.md`.
 
 The implementation is `manor.mechanics.money`:
 `(money/spec world)`, `(money/display spec n)` and `(money/authored->units spec n)`.
@@ -3173,7 +3188,8 @@ acceptance (phase 2a).
 - **Views:** `works`, the plans `id` is one of the people of except cancelled ones: id, kind, summary, who, trade
   (when wanted), status,
   `ordered-by`, `worker` ("you" for the worker), `price` (in the setting's money), `priced-by`,
-  `paid-from` ("household", "your purse" or "<name>'s purse"); while offered `next`, saying
+  `paid-from` ("household", "your purse" or "<name>'s purse"); once accepted with a price, `paid`
+  ("in full when accepted; nothing more is owed for it"); while offered `next`, saying
   whether to answer (accept-work or revise-work, or decline-work for the worker) or whom
   they're waiting for; while accepted or finishing `phase` and
   `progress`, and for the worker `next` (the carry-out hint with the place); once settled

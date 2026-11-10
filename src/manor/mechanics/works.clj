@@ -28,6 +28,7 @@
             [manor.mechanics.calendar :as calendar]
             [manor.mechanics.items :as items]
             [manor.mechanics.money :as money]
+            [manor.mechanics.payments :as payments]
             [manor.mechanics.purchases :as purchases]
             [manor.mechanics.space :as space]
             [manor.mechanics.works.judge :as judge]
@@ -479,13 +480,18 @@
   (let [{:keys [id orderer worker price summary account paid labour]} data]
     (if (= orderer worker)
       (str (n/who names worker) " takes on work " id " themselves: " summary
-           (when (pos? (or paid 0)) (str " The materials, " (show-money names paid) ", are paid from " (paid-by names account) "."))
+           (when (pos? (or paid 0))
+             (str " " (payments/paid-line names {:amount paid :account account :for (str "for the materials of work " id ", which are there")
+                                                 :owed " for this work"})))
            " It is theirs to carry out.")
       (str "Work " id " is agreed between " (n/who names orderer) " and " (n/who names worker) " at a price of "
            (show-money names price) ": " summary
-           (when (pos? (or paid 0)) (str " It is paid from " (paid-by names account)
-                                         (when (pos? (or labour 0)) (str ", " (show-money names labour) " of it to " (n/who names worker) " for the labour"))
-                                         "; the materials are there."))
+           (when (pos? (or paid 0))
+             (str " " (payments/paid-line names {:amount paid :account account
+                                                 :for (str "for work " id
+                                                           (when (pos? (or labour 0)) (str ", " (show-money names labour) " of it to " (n/who names worker) " for the labour"))
+                                                           "; the materials are there")
+                                                 :owed " for this work"})))
            " It is now " (n/who names worker) "'s to carry out."))))
 
 (defmethod n/describe :works/declined [{:keys [data]} names]
@@ -950,6 +956,8 @@
       price (assoc :price (show-money-in world price))
       (and price (:priced-by wo)) (assoc :priced-by (if (= id (:priced-by wo)) "you" (who (:priced-by wo))))
       (:account wo) (assoc :paid-from (if (= "household" (:account wo)) "household" (if (= id (:account wo)) "your purse" (str (who (:account wo)) "'s purse"))))
+      (and (#{:accepted :finishing :done :failed} status) (pos? (or price 0)))
+      (assoc :paid "in full when accepted; nothing more is owed for it")
       (= :offered status) (assoc :next (offer-next world id wo))
       (#{:done :failed} status) (assoc :result (result-text world wo))
       (#{:accepted :finishing} status) (merge (phase-entry wo))

@@ -34,7 +34,15 @@
 
   :status is :accepted (to be carried out), then :done (:outcome :as-planned
   or :flawed) or :failed. Only the household's book shows them, and an
-  accepted work, like a delivery to come, is always shown."
+  accepted work, like a delivery to come, is always shown.
+
+  Payments with `pay` from the household's account (manor.mechanics.payments)
+  are kept as records of :kind :payment, by the reducer of :money/paid (`paid`):
+
+    {:kind :payment :id 412 :account \"household\" :payer \"lady-claudeworth\"
+     :payee \"levi-quince\" :for \"the carpet and chairs\" :price 1946 :bought 7}
+
+  Only the household's book shows them."
   (:require [clojure.string :as str]
             [manor.clock :as clock]
             [manor.mechanics.items :as items]
@@ -64,6 +72,7 @@
          (str/lower-case (get-in world [:state :positions position :title] (name position))))))
 
 (defn- work? [r] (= :work (:kind r)))
+(defn- payment? [r] (= :payment (:kind r)))
 
 (defn- pending?
   "Is record `r` still open: a delivery to come, or a work not yet finished?"
@@ -125,6 +134,15 @@
   (if (= positions/household account)
     (add world [{:kind :work :id id :account account :orderer orderer :worker worker
                  :item summary :price (or paid price 0) :bought (:round world) :status :accepted}])
+    world))
+
+(defn paid
+  "The world with payment `data` (:money/paid's) recorded as made now, if
+  it's from the household's account; its id is the event's."
+  [world {:keys [account payer payee amount] :as data}]
+  (if (= positions/household account)
+    (add world [{:kind :payment :id (:seq world) :account account :payer payer :payee payee
+                 :for (:for data) :price amount :bought (:round world)}])
     world))
 
 (defn work-settled
@@ -211,6 +229,15 @@
      :price (money/display (money/spec world) (:price r))
      :status (work-status world r)}))
 
+(defn- payment-entry
+  "A payment's entry: to whom, what for, by whom, when and how much."
+  [world r]
+  (let [who #(:name (w/agent world %) %)]
+    {:payment (str "to " (who (:payee r)) ", for " (:for r))
+     :paid-by (who (:payer r))
+     :paid (clock/short-label (:clock world) (:bought r) (:round world))
+     :amount (money/display (money/spec world) (:price r))}))
+
 (defn- shop-entry
   "One entry of shop purchases: records bought together, with the same status."
   [world [r :as rs] own-purse?]
@@ -227,16 +254,16 @@
 (defn- entry
   "One entry: records bought together, with the same status; a work alone."
   [world [r :as rs] own-purse?]
-  (if (work? r)
-    (work-entry world r)
-    (shop-entry world rs own-purse?)))
+  (cond (work? r) (work-entry world r)
+        (payment? r) (payment-entry world r)
+        :else (shop-entry world rs own-purse?)))
 
 (defn- book
   "The entries for `rs`, oldest first: the latest `shown`, and every one
   with a delivery still to come or a work not yet finished. With `purses?`, entries not paid from the
   household's account say so."
   [world rs purses?]
-  (let [groups (vec (partition-by #(if (work? %) [:work (:id %)] [(:shop %) (:buyer %) (:bought %) (:account %) (status world %)]) rs))
+  (let [groups (vec (partition-by #(cond (work? %) [:work (:id %)] (payment? %) [:payment (:id %)] :else [(:shop %) (:buyer %) (:bought %) (:account %) (status world %)]) rs))
         start (- (count groups) shown)]
     (vec (keep-indexed (fn [i g]
                          (when (or (>= i start) (some pending? g))

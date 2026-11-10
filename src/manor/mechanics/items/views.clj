@@ -73,10 +73,12 @@
 (defn- carrying-names [world id] (mapv :name (items/by-name (items/held-by world id))))
 
 (defn- here-item
-  "An item here as the view lists it: its id and name, and whom it's
-  waiting for while it's shown as waiting (see items/waiting?)."
+  "An item here as the view lists it: its id and name, marked fixed if it
+  is (so nobody tries to `take` it), and whom it's waiting for while it's
+  shown as waiting (see items/waiting?)."
   [world it]
   (cond-> (select-keys it [:id :name])
+    (:fixed? it) (assoc :fixed true)
     (items/waiting? world it) (assoc :waiting-for (owner-name world (get-in it [:waiting :for])))))
 
 (defn- carried-seen

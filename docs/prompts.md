@@ -61,7 +61,7 @@ the rules of individual mechanics that it joins in.
 | `rules/sections/speaking.md` | `say`, `whisper`, `converse` | ″ | `speech-limit`, `max-others`, `passes` |
 | `rules/sections/work.md` | `spend-time` | ″ | `max-work-hours` |
 | `rules/sections/things.md` | Items and `find` | ″ | `find-for-sale` (`things-find-everywhere.md` or `things-find-not-at-trade.md`) |
-| `rules/sections/works.md` | Fixed things change only through works: `plan-work`, then `order-work`; `spend-time` makes only passing changes | ″ | |
+| `rules/sections/works.md` | Things marked `fixed` change only through works: the steps to move one (`plan-work`, `order-work` to someone or yourself, `carry-out`), open works of the home shown to all and given by anyone, one open work per thing; `spend-time` makes only passing changes | ″ | |
 | `rules/sections/people.md` | Aspects of people, inner state, feelings toward others, the body | ″ | `physical` (`rules/physical.md`) |
 | `rules/sections/shopping.md` | Money and shopping | ″ | `paid` (`shopping-paid[-commissions].md`), `spending-tools` (`shopping-spending-tools[-commissions].md`), `money` (the pack's `money.md`), `order-book` (`shopping-order-book.md` where the world has shops, else empty) |
 | `rules/sections/paying.md` | Paying people: only `pay` moves money between people; agreed wages and prices are paid only with it; what pays for itself and needs no `pay` | ″ | (`household-name`, from the pack) |
@@ -125,7 +125,7 @@ must call.
 
 | Template | Used for | Rendered by | Parameters |
 |---|---|---|---|
-| `judges/activity-check.md` | Small pre-start activity admission check; currently forbids travel and activities that are only paying money (pointing to `pay`), without predicting work results | `items.activity-check/request` | |
+| `judges/activity-check.md` | Small pre-start activity admission check: refuses only a main activity that leaves the place (travel, errands, moving things elsewhere, following, tours) or that is only paying money (pointing to `pay`), without predicting work results | `items.activity-check/request` | |
 | `judges/tools/check-activity.md` | Admission verdict: allowed, or rejected with a correction | ″ | |
 | `judges/post-check.md` | The post check: admits `appoint` and `dismiss` unless absurd in the setting | `appointments.post-check/request` | setting (`era`) |
 | `judges/tools/check-post.md` | The post check's verdict: allowed, or refused with a reason for the appointer | ″ | |
@@ -145,7 +145,7 @@ must call.
 | `judges/find-person.md` | Whom a `find-person` seeker means | `find-person/instructions` | |
 | `judges/invitation.md` | Whom an `invite` means | `visits.judge/instructions` | `invitation-examples` (the pack's fragment) |
 | `judges/recommendation.md` | Whom a `recommend` with `wanted` means: for a place or a job | `contacts.judge/instructions` | |
-| `judges/works.md` | The works judge's planning: a `plan-work` request as a work plan (one phase of two hours, one worker, `who` a recommendation only, `household` or the `trade` it wants), or refused | `works.judge/instructions` | `phase-minutes`, `max-phases`, `max-estimate`; the pack's `money-pricing.md` |
+| `judges/works.md` | The works judge's planning: a `plan-work` request as a work plan (one phase of half an hour to two hours, one worker, `who` a recommendation only, `household` or the `trade` it wants), or refused | `works.judge/instructions` | `min-phase-minutes`, `max-phase-minutes`, `phase-step`, `max-phases`, `max-estimate`; the pack's `money-pricing.md` |
 | `judges/tools/work-plan.md` | The works judge's `work_plan` tool | `works.judge/request` | |
 | `judges/shop-appraiser.md` | The shop's appraisal of requested goods | `shop/instructions` | `max-lead-hours`, `max-quantity`; the pack's `money-pricing.md` |
 | `judges/tools/judge.md` | The scene judge's `judge` tool | `items.judge/judge-tool` | `activity` (act or work), `advised-aspect`, `max-summary`, `inner` (`judge-inner.md` + `" "`, or `""`), `relations` (`tools/relations.md` + `" "`, or `""`), `effects` (`judge-act.md` or `judge-work.md`, which takes `max-made`, followed for a work's job by `judge-work-order.md`, the `work` field) |

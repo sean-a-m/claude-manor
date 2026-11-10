@@ -112,6 +112,16 @@ Possible directions, not decided:
   through the rooms.
 - `plan-work` could show open plans for the same thing, so nobody plans it twice.
 
+**Done (2026-11-09, branch `moving-across-rooms`; decision 13 of `docs/fixtures-design.md`).**
+The user kept furniture fixed and moving it a work, and chose to make that path plain: fixed
+things are marked `fixed` in the view; `take`'s refusal gives the steps, or names the open work
+on the thing; the rules and tool docs agree; open works in the home are shown to everyone there
+(visitors too) and anyone may `order-work` one nobody has taken; only the planner cancels; one
+open work per thing; the judge sets a work's length, 30 to 120 minutes. Mock-tested
+(`works_test/an-open-plan-is-found-and-taken-on-by-someone-else` replays this case with the
+china cabinet). The activity check's strictness and its correction are being worked on
+separately (branch `activity-check-prompt`). Not yet seen in a real run.
+
 ### 4. Not yet seen in a run
 
 - **Lodging (phase 1b).** Tidy is expected at 18:30 and may stay the night: letting this run go on

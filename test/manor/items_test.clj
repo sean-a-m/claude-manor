@@ -192,7 +192,7 @@
     (testing "items here by name only; what you carry with its aspects; what people here carry"
       (let [ada (view world "ada")
             ben (view world "ben")]
-        (is (= [{:id "clock" :name "Grandfather clock"} {:id "umbrella" :name "Umbrella"}]
+        (is (= [{:id "clock" :name "Grandfather clock" :fixed true} {:id "umbrella" :name "Umbrella"}]
                (get-in ada [:location :here :items])))
         (is (= [{:id "pipe" :name "Pipe" :aspects {:state "still warm"}}] (get-in ben [:you :carrying])))
         (is (= [] (get-in ada [:you :carrying])) "always shown, empty when holding nothing")

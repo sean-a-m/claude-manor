@@ -6,7 +6,8 @@
   by name), the target in full, the destination's name, the household's
   positions, and the request as data. It answers {refused} or a plan. Code
   checks only the answer's structure: amounts, lengths, an item for install,
-  a fate for remove, and exactly `max-phases` phases of `phase-minutes`."
+  a fate for remove, and exactly `max-phases` phases, each of
+  `min-phase-minutes` to `max-phase-minutes` in steps of `phase-step`."
   (:require [clojure.string :as str]
             [jsonista.core :as json]
             [malli.json-schema :as mjs]
@@ -25,9 +26,12 @@
 ;; The trade a plan names when it wants a tradesperson, a short description to
 ;; pass to `recommend`'s `wanted` (manor.mechanics.contacts.judge/max-wanted).
 (def max-trade 80)
-;; For now a work has exactly one phase of two hours (decision 7).
+;; For now a work has exactly one phase (decision 7), of half an hour to two
+;; hours in half hours, as the judge thinks the work needs.
 (def max-phases 1)
-(def phase-minutes 120)
+(def min-phase-minutes 30)
+(def max-phase-minutes 120)
+(def phase-step 30)
 ;; The most a work may be estimated at, in whole authored units (£500).
 (def max-estimate-authored 500)
 
@@ -61,7 +65,8 @@
 
 (defn instructions [world]
   (prompts/render world "judges/works.md"
-                  {:phase-minutes phase-minutes :max-phases max-phases
+                  {:min-phase-minutes min-phase-minutes :max-phase-minutes max-phase-minutes
+                   :phase-step phase-step :max-phases max-phases
                    :max-estimate (money/display (money/spec world) (max-estimate world))
                    :money (prompts/render world "money-pricing.md" {})}))
 
@@ -115,7 +120,10 @@
 
 (defn- phases-problem [phases]
   (cond (not= max-phases (count phases)) (str "give exactly " max-phases " phase in phases")
-        (some #(not= phase-minutes (:minutes %)) phases) (str "each phase takes exactly " phase-minutes " minutes")
+        (some #(not (and (int? (:minutes %)) (<= min-phase-minutes (:minutes %) max-phase-minutes)
+                         (zero? (mod (:minutes %) phase-step))))
+              phases)
+        (str "each phase takes " min-phase-minutes " to " max-phase-minutes " minutes, in steps of " phase-step)
         (some #(str/blank? (:doing %)) phases) "each phase needs doing, what the worker does"))
 
 (defn plan-problem
@@ -197,7 +205,7 @@
                       :household (not= "install" kind)
                       :estimate (if (= "install" kind) 480 0)
                       :materials (if (= "install" kind) 480 0)
-                      :phases [{:doing (str "working at it: " request) :minutes phase-minutes}]}
+                      :phases [{:doing (str "working at it: " request) :minutes max-phase-minutes}]}
                (= "install" kind) (assoc :trade "gas fitter")
                (= "install" kind) (assoc :item {:name "New fitting" :desc (str "Newly put in: " request)})
                (= "remove" kind) (assoc :fate "carted away")))}))

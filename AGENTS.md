@@ -11,9 +11,15 @@ information is enforced per event. The real world is reachable only through engi
 
 ## Documents
 
+**`README-FOR-AGENTS.md` is your readme.** Treat it as you would a project's real README: read
+it, rely on it, and keep it current when you change options, commands or behaviour it describes.
+**Never update `README.md` autonomously.** It is written for humans; change it only when the
+user explicitly asks.
+
 | File | Purpose |
 |---|---|
-| `README.md` | quick start, options, commands |
+| `README-FOR-AGENTS.md` | quick start, options, commands: the readme as far as agents are concerned |
+| `README.md` | for humans only; never edit it autonomously |
 | `DESIGN.md` | architecture and the decisions behind it |
 | `docs/scenario-authoring.md` | the complete scenario contract: how to write a scenario |
 | `docs/roadmap.md` | what's left: prioritized tasks with approaches, plus known issues |
@@ -214,7 +220,7 @@ clojure -M:test                               # all tests, up to four isolated J
 clojure -M:test --workers 1                   # serial; -n namespace / -v namespace/test select tests
 clojure -M:run village --mock --offline --test --port 8091   # panel at http://localhost:8091, free, disposable
 clj -M:dev                                    # REPL; see dev/user.clj docstring
-clojure -M:cache report runs/<id>             # cache hits and cost by kind and agent; also simulate, compare (README)
+clojure -M:cache report runs/<id>             # cache hits and cost by kind and agent; also simulate, compare (README-FOR-AGENTS)
 ```
 
 - **Port 8080 is the user's.** They watch their own runs in the panel there, often while agents

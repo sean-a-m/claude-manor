@@ -171,6 +171,26 @@ Whenever a run stops running rounds (it pauses, `auto!`'s rounds are done, a man
 `pause!` or `stop-run`), the engine writes `<run-dir>/transcript.md`: each round's events with who
 saw them, then every model call with its tool calls and the engine's replies.
 
+## Models: OpenRouter or pi
+
+By default model calls go straight to OpenRouter with `MANOR_OPENROUTER_API_KEY`. With `--pi`
+(run option `:llm :pi`) they go through pi's model layer instead, using the providers you're
+logged in to in pi (`pi /login`, `~/.pi/agent/auth.json`) and pi's prompt caching. Models are then
+`<pi provider>/<model id>`; a name that isn't one is an OpenRouter id, still sent with manor's key.
+
+```sh
+clojure -M:run claudeworth --model deepseek/deepseek-v4.1-flash          # OpenRouter (default)
+clojure -M:run claudeworth --pi --model openai/gpt-6-luna                # pi: the OpenAI login
+```
+
+A run keeps its choice in `config.edn`, so `--load` uses it again. Per-agent `:model`s in a world
+file must name models the run's route knows. Costs for subscription providers are pi's estimates
+from catalog prices, so `:max-cost` caps notional dollars there. Providers added by pi extensions
+work only when `PI_LLM_EXTENSIONS` (set under `:pi-llm :env` in `config/mcp.edn`) names them.
+`pi-claude-code`'s `claude-code` provider does, so `--pi --model claude-code/claude-opus-5-5` runs
+on a Claude Code subscription via `claude -p`. `pi-claude-bridge` is not a provider and doesn't
+work: see `mcp-servers/pi-llm/server.mjs`.
+
 ## Operator scene and panel
 
 The main page (`/`) draws an automatic room/region plan with people and travellers. Click a
@@ -317,6 +337,20 @@ A worker crash, failed assertion or selection matching no tests makes the comman
 Engine tests use `manor.test-support/with-runs` to wait for shutdown and close forgotten runs,
 including on assertion errors, without removing evidence. Direct REPL test invocations also get
 isolated directories through that fixture. Artifacts can accumulate; cleanup is the operator's choice.
+
+Tests use mocks, HTTP stubs and local MCP subprocesses, not paid models. Node.js and Babashka
+are needed for the local MCP coverage.
+
+Namespaces are assigned to workers by estimated cost, not round-robin namespace count.
+`test/test-costs.edn` holds scheduling hints; unknown namespaces get weight 1. Summaries include
+namespace and test-var wall times, and discovery/loading time; the console lists the five
+slowest tests per worker. Namespace times include fixtures and test-var times; do not add
+both together. Worker startup precedes these measurements. Update the cost hints from
+`:timings :namespaces` when the suite changes substantially.
+
+More workers are not necessarily faster: every JVM loads and compiles the application, and
+competes for CPU and memory. Benchmark without other suites running. The current suite has
+not been demonstrated to finish below a minute; see roadmap issue 15 for the investigation.
 
 Mechanics tests use the test-only `:household` scenario with fixed world and mock-day data in
 `test/fixtures/household.edn` and `household-day.edn`. These preserve controlled test conditions;

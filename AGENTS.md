@@ -27,7 +27,7 @@ information is enforced per event. The real world is reachable only through engi
 | `docs/events-design.md` | in-world calendar contract and outcome: private/public entries and pre-turn GM review |
 | `docs/visits-design.md` | guests and visits (invitations by post, messenger or in person, GM visits, guests from the village or elsewhere, authored visits in world files); phases 1–3 implemented |
 | `docs/sending-for-design.md` | one `recommend {wanted}` and `send-for` for staff and tradespeople, a judge for who is meant, settled at arrival by `engage` or `order-work`; replaced the candidate/contact split; phases 0–3 implemented and mock-tested, a first real run reviewed |
-| `docs/payments-design.md` | `pay` and one `Paid:` line for every payment, the user's decisions of 2026-11-09; phases 1–2 built and mock-tested |
+| `docs/payments-design.md` | `pay` and one `Paid:` line for every payment, the user's decisions of 2026-11-09; phases 1–2 built, a first real run reviewed |
 | `docs/sending-for-run-review-2026-11-09.md` | the first real run of sending for people: what worked, and the problems found (no informal `pay`, goods taken or made off the map, moving things across rooms), with the user's first thoughts; the starting point for the next session |
 | `docs/trades-design.md` | tradespeople and merchants found through `recommend` with a `trade`, contacts and `send-for`; phases 1–2 implemented, superseded in part by sending-for-design.md (one `recommend {wanted}`, `:caller`, no idle departure) |
 | `docs/physical-status-design.md` | physical status (bound, gagged, blind, deaf, unconscious, dead), impediments, the immediate `act-on`; built and mock/offline-tested, ordinary real-model compatibility smoke checked |

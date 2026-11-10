@@ -1,6 +1,6 @@
 # Paying people: an informal `pay`, and automatic payments confirmed the same way
 
-**Status:** decided (the user, 2026-11-09; section 8). Phases 1 and 2 done, mock-tested; phase 5 (a short real run) next. Phases 3 and 4 dropped. Source: item B1 of
+**Status:** decided (the user, 2026-11-09; section 8). Phases 1 and 2 done and mock-tested; phase 5, a first real run, done (section 9). Phases 3 and 4 dropped. Source: item B1 of
 [sending-for-run-review-2026-11-09.md](sending-for-run-review-2026-11-09.md); roadmap B21 "Next".
 
 ## 1. The problem
@@ -214,3 +214,37 @@ files, so phase 2 should be merged promptly or rebased onto theirs.
    elsewhere or away), but not the GM, the dead or the retired. If that causes problems it can be
    changed. So the check on `to` in section 3 is "a non-GM person in the world, not yourself",
    and the event is seen by those with the payer and by the payee.
+
+## 9. The first real run (2026-11-09)
+
+`old-test-runs/payments-pay-check-claudeworth-small`: 8 rounds of `claudeworth-small`
+(deepseek-v4.1-flash, reasoning low), $0.23 (the $0.20 cap stopped some judge calls in the
+last round). The world was the usual one with three payment situations set up at 08:00, kept as
+`payment-check-world.edn` in the run: Fenwick owed £12 arrears of wages, Rudge waiting in the
+kitchen to be paid 3s 6d for a swept chimney, Carter come to rehang the oven door.
+
+What worked:
+- **`pay` was used at once, without any rejection or error:** Lord Claudeworth paid Fenwick's
+  £12 on his first turn ("Pay is free, doesn't end turn"), and Lady Claudeworth paid Rudge's 3s 6d
+  on her line in the conversation. Later his lordship paid Rudge £1 10s for mending two crowns
+  while Rudge was elsewhere, and the line said it reached him.
+- **Nobody paid twice.** Lady Claudeworth thought of paying Rudge again later, then read the
+  household book ("the order book shows Rudge was paid 3s 6d at 08:00") and didn't. The
+  conversation judge read the book too ("household order shows Lady Claudeworth paid 3s 6d").
+  The Carter-style "counted it into his hand" mistake didn't happen.
+- **No `pay` at a counter:** every shop purchase used `buy`, and each ended with its
+  `Paid: … Nothing more is owed.` line; so did the commission (£650) and a `send-up` of coal.
+- **Tradesmen named prices** (the world files no longer tell them payment isn't supported):
+  Carter 3s 6d, Rudge 3s 6d a flue and a pound ten for the crowns.
+
+Not seen:
+- Carter's 3s 6d: the job was still under way when the run ended, so it was never due.
+- A work paid on acceptance (no `order-work` in these rounds), so a double payment of a work
+  wasn't tested; nor `pay` from an own purse, nor the activity check refusing coin-counting
+  (nobody tried it).
+
+New, minor:
+- Rudge was paid £1 10s for the crowns *before* doing them, and his lordship told Fenwick to see
+  they're done today. That's ordinary in-world credit, not a fault of the mechanism.
+- 10 errors and 25 rejections, none about money: judges over length limits (works-review item
+  16), once-per-turn limits, the activity check refusing work across places, and the cost cap.

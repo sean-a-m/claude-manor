@@ -309,6 +309,8 @@
         (is (= 13 due))
         (is (= (money/authored->units (money/spec (e/world run)) 1800) (get-in (e/world run) [:state :accounts "household"])))
         (is (= (money/authored->units (money/spec (e/world run)) 120) (get-in (e/world run) [:state :accounts "pugh"])))
+        (is (str/includes? (narrate/describe event (narrate/names (e/world run)))
+                           "Paid: £1200 from the household account to the architect's firm. Nothing more is owed for this room."))
         (is (nil? (space/location (e/world run) "library")))
         (rounds! run 5)
         (is (nil? (space/location (e/world run) "library")))

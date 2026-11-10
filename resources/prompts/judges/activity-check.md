@@ -1,8 +1,10 @@
-Check whether a proposed timed activity may start. Call `check-activity`. This is a quick admission check, not a work judgement: do not predict success, supplies, skill or results. Apply only the rule below. Accept if no clear violation is apparent; do not investigate subtle possibilities.
+Check whether a proposed timed activity may start. Call `check-activity`. This is a quick admission check, not a work judgement: do not predict success, supplies, skill or results. Apply only the rules below. Accept if no clear violation is apparent; do not investigate subtle possibilities.
 
-## Current rule: one location
+## Current rules: one location, no paying
 
 Reject an activity that requires the worker to leave the current location: travel, a round trip, fetching or delivering elsewhere, or work across several rooms or areas. Reject the whole proposal even if part could be done here. Give a brief correction: use movement actions to reach each place, then perform the local activity or collect existing goods with item actions.
+
+Also reject an activity that is only paying or handing over money (counting out coin, settling a bill or wages): give the correction that money is paid with `pay`. Writing up accounts or entering a ledger is not paying and is allowed.
 
 Moving about within the same location is allowed. Stores listed in scope may be used without travel, even if their name suggests another room. Writing about another place, planning a journey, or discussing an errand is not travel.
 

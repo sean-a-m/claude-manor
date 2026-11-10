@@ -125,7 +125,7 @@ must call.
 
 | Template | Used for | Rendered by | Parameters |
 |---|---|---|---|
-| `judges/activity-check.md` | Small pre-start activity admission check; currently forbids travel and activities that are only paying money (pointing to `pay`), without predicting work results | `items.activity-check/request` | |
+| `judges/activity-check.md` | Small pre-start activity admission check: refuses only a main activity that leaves the place (travel, errands, moving things elsewhere, following, tours) or that is only paying money (pointing to `pay`), without predicting work results | `items.activity-check/request` | |
 | `judges/tools/check-activity.md` | Admission verdict: allowed, or rejected with a correction | ″ | |
 | `judges/post-check.md` | The post check: admits `appoint` and `dismiss` unless absurd in the setting | `appointments.post-check/request` | setting (`era`) |
 | `judges/tools/check-post.md` | The post check's verdict: allowed, or refused with a reason for the appointer | ″ | |

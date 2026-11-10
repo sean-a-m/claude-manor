@@ -841,6 +841,33 @@ confirmed on 2026-10-16 that runs are never started fresh from exported world da
   work's length (30–120 minutes). A real-model check is next.
 - **Next:** goods taken or made off the map (to discuss with the user).
 
+### B21a. The activity check: less strict (done, 2026-11-09)
+
+- **Why:** in the two claudeworth-small runs of 2026-11-09 the activity check
+  (`judges/activity-check.md`) refused much ordinary work done here with a small step elsewhere
+  (serving at table then washing up, raking a grate then taking the ash down) and parts of a place
+  it guessed were elsewhere (a public house's cellar, a bed, a cart), and its corrections told
+  agents to "collect goods with item actions", as if those could move fixed things.
+- **Change (prompt only):** judge the *main* activity; refuse only travel and errands, moving
+  things to another room or place, following someone, beats or laps that leave the place, tours of
+  several rooms, and work set in another named room; accept a small step elsewhere before or after
+  (the agent does it separately), spots the proposal doesn't place elsewhere, a beat about this
+  place and listed stores. A refusal's correction says to go to each place with movement actions,
+  and to plan a work to move a fixed thing; it asks for under 250 characters (the schema's limit is
+  300). No code change: an accepted answer's `reason` is not shown to the agent
+  (`resolve/admit`), and the prompt doesn't ask for one.
+- **Evaluation:** `dev/activity_check_eval.clj` with `dev/activity_check_cases.edn` (64 cases: 48
+  from the two runs, 16 written by hand; 8 marked ambiguous), the real judge model, 3 calls a
+  case. Before: clear cases 81/112 at 2 calls (accept 45/72, refuse 36/40). After, two runs of 3:
+  clear 167/168 both times (accept 107/108 and 108/108, refuse 60/60 and 59/60), no malformed
+  answers. The ambiguous cases still split (9/24), mostly multi-room cleaning read either way.
+- **Merged with informal pay's rule:** the check also refuses an activity that is only paying
+  money (counting out coin, settling a bill or wages), pointing to `pay`; a ledger entry is not
+  paying. Four paying cases (`p1`–`p4`) were added, and `r35` (counting £8 2s into his own hand,
+  then the cart) relabelled to refuse. On the merged prompt, 3 calls a case: clear 177/180 (accept
+  111/114, all three misses `r35` before relabelling; refuse 66/66), the paying cases 12/12;
+  $0.03.
+
 ## C. Known issues and small fixes
 
 1. **Act bridges aren't re-checked when executed.** `:valid?` runs when the request is made; the
